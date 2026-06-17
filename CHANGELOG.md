@@ -8,11 +8,19 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-No unreleased changes.
+### Added since v1.0.0
+
+- Code of conduct for repository participation.
+- Reusable code of conduct template for future projects.
+- GitHub CODEOWNERS configuration for default repository ownership.
+- GitHub issue templates for bug reports, documentation, and feature requests.
+- GitHub Actions workflow for minimal repository Markdown and spelling audits.
+- Support guidance for repository users.
+- Reusable support template for future projects.
 
 ## v1.0.0 - 2026-06-17
 
-### Added
+### Added in v1.0.0
 
 - Initial repository starter-kit structure.
 - Git and editor convention files.

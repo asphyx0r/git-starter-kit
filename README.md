@@ -10,8 +10,11 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - Repository file inventory in `docs/repository-files.md`.
-- Reusable templates for README, changelog, contributing, and security files.
-- GitHub pull request template for lightweight change review.
+- Reusable templates for README, changelog, contributing, code of conduct,
+  security, and support files.
+- GitHub community files for pull requests, issues, code ownership, conduct,
+  and support.
+- GitHub Actions workflow for lightweight Markdown and spelling audits.
 
 ## Installation
 
@@ -31,6 +34,9 @@ git config commit.template .gitmessage
 
 Copy files from `templates/` when starting a new project and replace the
 placeholder values with project-specific content.
+
+Use the GitHub templates in `.github/` to keep issues, pull requests, and
+repository ownership reviewable with minimal process.
 
 ## Contributing
 

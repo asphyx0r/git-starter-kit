@@ -53,6 +53,46 @@ deferred, or explicitly excluded from the template.
 - Usage: Keep GitHub files here when the platform expects this location.
 - Notes: Avoid duplicating root-level files in this directory.
 
+### `.github/CODEOWNERS`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines default GitHub code ownership for repository changes.
+- Usage: GitHub uses this file to request reviews from listed owners.
+- Notes: Keep owners tied to real GitHub users or teams.
+
+### `.github/ISSUE_TEMPLATE/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores GitHub issue templates for common repository feedback.
+- Usage: GitHub uses these files to prefill new issue forms.
+- Notes: Keep templates lightweight and avoid project-specific automation.
+
+### `.github/ISSUE_TEMPLATE/bug_report.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Guides issue authors through a clear bug report.
+- Usage: Use for reproducible problems with repository files or templates.
+- Notes: Keep reproduction and verification prompts concise.
+
+### `.github/ISSUE_TEMPLATE/documentation.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Guides issue authors through documentation feedback.
+- Usage: Use for unclear, missing, outdated, or incorrect documentation.
+- Notes: Prefer concrete locations and proposed wording.
+
+### `.github/ISSUE_TEMPLATE/feature_request.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Guides issue authors through proposed repository improvements.
+- Usage: Use for reusable starter-kit improvements or template additions.
+- Notes: Keep proposals scoped and tied to a concrete need.
+
 ### `.github/PULL_REQUEST_TEMPLATE.md`
 
 - Type: `file`
@@ -60,6 +100,24 @@ deferred, or explicitly excluded from the template.
 - Goal: Provides a lightweight GitHub pull request template.
 - Usage: GitHub uses this file to prefill pull request descriptions.
 - Notes: Guide review without introducing CI/CD requirements.
+
+### `.github/workflows/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores GitHub Actions workflows for repository-level automation.
+- Usage: Keep only lightweight, generic workflows in this directory.
+- Notes: Avoid adding application build, test, deploy, or release pipelines
+  unless a concrete project need is approved.
+
+### `.github/workflows/repository-audit.yml`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Runs a minimal repository documentation audit on GitHub Actions.
+- Usage: Executes on pushes, pull requests, and manual dispatch.
+- Notes: The workflow checks out the repository, runs `markdownlint-cli2` on
+  Markdown files, installs Codespell, and runs `codespell .`.
 
 ### `.gitignore`
 
@@ -93,6 +151,14 @@ deferred, or explicitly excluded from the template.
 - Usage: Update `Unreleased` when repository files or templates change.
 - Notes: Future-project placeholders belong in `templates/CHANGELOG.md`.
 
+### `CODE_OF_CONDUCT.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines expected behavior for participation in this repository.
+- Usage: Read before contributing or participating in project discussions.
+- Notes: Keep GitHub-specific duplicates out of `.github/`.
+
 ### `CONTRIBUTING.md`
 
 - Type: `file`
@@ -124,6 +190,14 @@ deferred, or explicitly excluded from the template.
 - Goal: Explains how to report security issues for this repository.
 - Usage: Use for suspected vulnerabilities in the starter kit itself.
 - Notes: Avoid inventing contact details or response timelines.
+
+### `SUPPORT.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Explains where users can get help for this repository.
+- Usage: Read before opening support questions or asking for help.
+- Notes: Keep support scope distinct from security reporting.
 
 ### `docs/`
 
@@ -157,6 +231,14 @@ deferred, or explicitly excluded from the template.
 - Usage: Replace version, date, and category placeholders in new projects.
 - Notes: Keep the category structure aligned with Keep a Changelog.
 
+### `templates/CODE_OF_CONDUCT.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable code of conduct structure for future projects.
+- Usage: Replace placeholders with project-specific behavior and policy details.
+- Notes: Keep the root file concrete and this file generic.
+
 ### `templates/CONTRIBUTING.md`
 
 - Type: `file`
@@ -179,4 +261,12 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Provides a reusable security policy structure.
 - Usage: Replace placeholders with project-specific security policy details.
+- Notes: Keep the root file concrete and this file generic.
+
+### `templates/SUPPORT.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable support policy structure for future projects.
+- Usage: Replace placeholders with project-specific support channels.
 - Notes: Keep the root file concrete and this file generic.
