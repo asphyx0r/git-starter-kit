@@ -1,0 +1,61 @@
+# This file is used by "git commit" to auto-populate the commit message template:
+#   git config commit.template .gitmessage
+#   git commit --template=.gitmessage
+
+# === Summary (required) ===
+# Format: <type>: <short imperative summary>
+# Short imperative sentence, max 50 characters.
+# Do not end the subject line with a period.
+# Separate subject from body with a blank line.
+#
+# Common types:
+#   feat: add a user-facing capability
+#   fix: correct a bug
+#   docs: update documentation only
+#   chore: maintain repository metadata or tooling
+#   refactor: restructure code without behavior changes
+#   test: add or update tests
+#
+# Examples:
+#   fix: handle empty configuration
+#   feat: add user deletion endpoint
+#   docs: update repository inventory
+
+<summary>
+
+# === Description (optional but recommended) ===
+# Describe the context, rationale, and solution.
+# Explain what changed and why. Avoid implementation details unless useful.
+# Max 72 characters per line.
+#
+# Example:
+#   The previous loader crashed when the config file was empty.
+#   Added guard clauses and default values to ensure stability.
+
+<description>
+
+# === Impact (optional) ===
+# Mention side effects, compatibility issues, migrations, etc.
+# Max 72 characters per line.
+#
+# Examples:
+#   No breaking change
+#   Requires migration 20251126-add-index.sql
+
+<impact>
+
+# === References (optional) ===
+# Link to related issues, tickets, or documents.
+# Max 72 characters per line.
+#
+# Examples:
+#   Refs: PROJ-1289
+#   Fixes: #42
+
+<references>
+
+# === Notes for reviewers (optional) ===
+# Anything useful for code review or testing context.
+# Max 72 characters per line.
+
+<review notes>
