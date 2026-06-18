@@ -14,9 +14,7 @@
 
 ## Steps to reproduce
 
-1. {STEP-1}
-2. {STEP-2}
-3. {STEP-3}
+<!-- List the smallest sequence of actions that reproduces the problem. -->
 
 ## Impact
 

@@ -13,7 +13,8 @@ deferred, or explicitly excluded from the template.
 ## Status definitions
 
 - `required`: included in the base template.
-- `optional`: useful in some contexts, but not created by default.
+- `optional`: included in the template, but safe to remove or adapt in
+  downstream projects.
 - `deferred`: intentionally postponed until a concrete need is confirmed.
 - `rejected`: intentionally excluded from the template.
 - `duplicate`: excluded because another path owns the same responsibility.
@@ -52,14 +53,6 @@ deferred, or explicitly excluded from the template.
 - Goal: Stores GitHub-specific community and collaboration files.
 - Usage: Keep GitHub files here when the platform expects this location.
 - Notes: Avoid duplicating root-level files in this directory.
-
-### `.github/CODEOWNERS`
-
-- Type: `file`
-- Status: `optional`
-- Goal: Defines default GitHub code ownership for repository changes.
-- Usage: GitHub uses this file to request reviews from listed owners.
-- Notes: Keep owners tied to real GitHub users or teams.
 
 ### `.github/ISSUE_TEMPLATE/`
 

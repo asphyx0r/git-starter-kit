@@ -12,11 +12,20 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Code of conduct for repository participation.
 - Reusable code of conduct template for future projects.
-- GitHub CODEOWNERS configuration for default repository ownership.
 - GitHub issue templates for bug reports, documentation, and feature requests.
 - GitHub Actions workflow for minimal repository Markdown and spelling audits.
 - Support guidance for repository users.
 - Reusable support template for future projects.
+
+### Changed since v1.0.0
+
+- Clarified optional file status semantics in the repository inventory.
+- Replaced visible bug report step placeholders with hidden guidance text.
+- Updated GitHub community file documentation to avoid code ownership references.
+
+### Removed since v1.0.0
+
+- GitHub CODEOWNERS configuration from the default template.
 
 ## v1.0.0 - 2026-06-17
 
