@@ -128,6 +128,16 @@ deferred, or explicitly excluded from the template.
 - Usage: Use with `git commit --template=.gitmessage` or local Git config.
 - Notes: Advisory only; it does not enforce commit validation.
 
+### `.markdownlint-cli2.yaml`
+
+- Type: `file`
+- Status: `rejected`
+- Goal: Would define repository-level Markdown lint rules.
+- Usage: Not included; the audit workflow uses markdownlint defaults.
+- Notes: The reviewed candidate was project-specific, included a broad proper
+  names list, and rejected valid starter-kit placeholders such as
+  `{GITHUB-USERNAME}`.
+
 ### `.vscode/`
 
 - Type: `directory`

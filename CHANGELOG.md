@@ -10,6 +10,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 No unreleased changes.
 
+## v1.2.2 - 2026-06-18
+
+### Changed in v1.2.2
+
+- Documented the decision to exclude the reviewed project-specific
+  `.markdownlint-cli2.yaml` configuration.
+
 ## v1.2.1 - 2026-06-18
 
 ### Changed in v1.2.1
