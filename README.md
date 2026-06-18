@@ -15,6 +15,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
   security, support, environment, Git, Codex, and release notes files.
 - GitHub community files for pull requests, issues, conduct, and support.
 - GitHub Actions workflow for lightweight Markdown and spelling audits.
+- Release package automation for exports enriched with coding-agent rules.
 
 ## Installation
 
@@ -37,6 +38,11 @@ placeholder values with project-specific content.
 
 Use the GitHub templates in `.github/` to keep issues and pull requests
 reviewable with minimal process.
+
+Published releases can attach a generated ZIP package that overlays the latest
+stable `agent-coding-rules` instruction files and records their source in
+`_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
+automatic and manual usage.
 
 ## Contributing
 

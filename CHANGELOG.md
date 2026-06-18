@@ -10,6 +10,21 @@ uses [Semantic Versioning](https://semver.org/).
 
 No unreleased changes.
 
+## v1.3.0 - 2026-06-18
+
+### Added in v1.3.0
+
+- Release package script for generated starter-kit archives enriched with
+  `agent-coding-rules` instruction files.
+- GitHub Actions workflow that builds and uploads the enriched release package
+  on published releases or manual dispatch.
+- Release package documentation with `agent-coding-rules` context for automatic
+  and manual usage.
+
+### Changed in v1.3.0
+
+- Updated README and repository file inventory for release package automation.
+
 ## v1.2.2 - 2026-06-18
 
 ### Changed in v1.2.2

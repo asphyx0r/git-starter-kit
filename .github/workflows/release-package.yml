@@ -1,0 +1,72 @@
+---
+name: Release package
+
+"on":
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git starter kit release tag to package and upload to
+        required: true
+        type: string
+      agent_rules_ref:
+        description: agent-coding-rules ref, tag, or branch
+        required: false
+        default: latest
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Build release package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release inputs
+        id: refs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_AGENT_RULES_REF: ${{ inputs.agent_rules_ref }}
+        run: |
+          if [ "$EVENT_NAME" = "release" ]; then
+            starter_ref="$RELEASE_TAG"
+          else
+            starter_ref="$INPUT_TAG"
+          fi
+
+          agent_rules_ref="${INPUT_AGENT_RULES_REF:-latest}"
+
+          echo "starter_ref=$starter_ref" >> "$GITHUB_OUTPUT"
+          echo "agent_rules_ref=$agent_rules_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.starter_ref }}
+
+      - name: Build package
+        id: package
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
+          AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
+        run: |
+          ./scripts/build-release-package.ps1 `
+            -StarterRef $env:STARTER_REF `
+            -AgentRulesRef $env:AGENT_RULES_REF `
+            -OutputDirectory $env:RUNNER_TEMP
+
+      - name: Upload release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+          STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
+        run: gh release upload "$STARTER_REF" "$PACKAGE_PATH"

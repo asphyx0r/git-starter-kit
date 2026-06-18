@@ -112,6 +112,16 @@ deferred, or explicitly excluded from the template.
 - Notes: The workflow checks out the repository, runs `markdownlint-cli2` on
   Markdown files, installs Codespell, and runs `codespell .`.
 
+### `.github/workflows/release-package.yml`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Builds and uploads an enriched release package asset.
+- Usage: Runs when a release is published or manually through workflow
+  dispatch.
+- Notes: Calls `scripts/build-release-package.ps1` and uploads the generated
+  ZIP to the targeted GitHub release.
+
 ### `.gitignore`
 
 - Type: `file`
@@ -227,6 +237,24 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before opening support questions or asking for help.
 - Notes: Keep support scope distinct from security reporting.
 
+### `scripts/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores small repository maintenance scripts.
+- Usage: Keep scripts generic and tied to documented repository workflows.
+- Notes: Avoid project-specific build, test, or deploy automation here.
+
+### `scripts/build-release-package.ps1`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Generates a starter-kit release package enriched with agent rules.
+- Usage: Run from the release package workflow or manually with PowerShell.
+- Notes: Copies tracked starter-kit files, overlays the latest stable
+  `agent-coding-rules` files, writes `_agent-rules-source.json`, creates a ZIP,
+  and verifies required files in the archive.
+
 ### `docs/`
 
 - Type: `directory`
@@ -242,6 +270,16 @@ deferred, or explicitly excluded from the template.
 - Goal: Maintains the inventory of repository files and directories.
 - Usage: Update whenever repository files or directories are added or changed.
 - Notes: This file is the source of truth for repository file ownership.
+
+### `docs/release-package.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Explains automatic and manual enriched release package generation.
+- Usage: Read before publishing or manually regenerating release package
+  assets.
+- Notes: Covers the release package workflow, generated ZIP contents, local
+  testing, and common troubleshooting steps.
 
 ### `templates/`
 
