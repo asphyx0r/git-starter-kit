@@ -9,9 +9,10 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Commit message guidance with a reusable Git commit template.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
+- VS Code workspace recommendations for consistent local editing.
 - Repository file inventory in `docs/repository-files.md`.
 - Reusable templates for README, changelog, contributing, code of conduct,
-  security, and support files.
+  security, support, environment, Git, Codex, and release notes files.
 - GitHub community files for pull requests, issues, conduct, and support.
 - GitHub Actions workflow for lightweight Markdown and spelling audits.
 

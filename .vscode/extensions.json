@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "davidanson.vscode-markdownlint",
+    "eamodio.gitlens",
+    "editorconfig.editorconfig",
+    "github.vscode-github-actions",
+    "mkhl.shfmt",
+    "redhat.vscode-yaml",
+    "streetsidesoftware.code-spell-checker",
+    "timonwong.shellcheck"
+  ]
+}

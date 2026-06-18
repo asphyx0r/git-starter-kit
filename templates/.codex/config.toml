@@ -1,0 +1,47 @@
+# Project-level Codex configuration template.
+# Copy to .codex/config.toml only inside a trusted repository.
+# Keep personal model/provider/auth preferences in ~/.codex/config.toml.
+
+# Optional: force deepest reasoning for this trusted project.
+# model_reasoning_effort = "xhigh"
+
+# Optional: pin the current latest model manually.
+# Prefer omitting model to let Codex use its recommended default.
+# model = "gpt-5.5"
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+allow_login_shell = false
+web_search = "cached"
+
+# Optional: enable Codex Memories for this trusted project.
+# Prefer user settings or ~/.codex/config.toml for personal memory preferences.
+# Keep required team guidance in AGENTS.md, not memories.
+# [features]
+# memories = true
+
+[sandbox_workspace_write]
+writable_roots = []
+network_access = false
+exclude_tmpdir_env_var = false
+exclude_slash_tmp = false
+
+[windows]
+sandbox = "elevated"   # Recommended
+# sandbox = "unelevated" # Fallback if admin permissions/setup are unavailable
+
+[shell_environment_policy]
+inherit = "core"
+ignore_default_excludes = false
+exclude = [
+  "AWS_*",
+  "AZURE_*",
+  "GCP_*",
+  "GOOGLE_*",
+  "*_TOKEN",
+  "*_SECRET",
+  "*_PASSWORD",
+  "*_KEY"
+]
+set = {}
+include_only = []

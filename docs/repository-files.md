@@ -128,6 +128,31 @@ deferred, or explicitly excluded from the template.
 - Usage: Use with `git commit --template=.gitmessage` or local Git config.
 - Notes: Advisory only; it does not enforce commit validation.
 
+### `.vscode/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores Visual Studio Code workspace recommendations.
+- Usage: VS Code reads supported workspace files from this directory.
+- Notes: Keep only generic recommendations that fit the starter kit.
+
+### `.vscode/extensions.json`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Recommends VS Code extensions useful for this starter kit.
+- Usage: VS Code suggests these extensions when the repository is opened.
+- Notes: Keep recommendations generic and avoid personal preferences.
+
+### `.vscode/settings.json`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines shared VS Code workspace defaults for this starter kit.
+- Usage: VS Code applies these settings when the repository is opened.
+- Notes: Keep settings aligned with `.editorconfig` and generic editor
+  recommendations.
+
 ### `AGENTS.md`
 
 - Type: `file`
@@ -216,6 +241,46 @@ deferred, or explicitly excluded from the template.
 - Usage: Copy templates into new projects and replace placeholders.
 - Notes: Keep templates generic and placeholder-based.
 
+### `templates/.codex/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores reusable Codex configuration templates for future projects.
+- Usage: Copy supported files into a trusted project `.codex/` directory.
+- Notes: Keep active repository Codex behavior in `AGENTS.md` unless a concrete
+  project-level Codex configuration is needed.
+
+### `templates/.codex/config.toml`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a conservative project-level Codex configuration template.
+- Usage: Copy to `.codex/config.toml` inside a trusted repository and adjust
+  only project-specific settings.
+- Notes: Keeps model, provider, authentication, MCP, hook, and personal
+  preferences out of the reusable template.
+
+### `templates/.env.template`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable environment variable template for future projects.
+- Usage: Copy to a project-specific environment template and replace
+  placeholders.
+- Notes: Contains placeholders only; keep real environment files untracked.
+
+### `templates/.gitconfig`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable user Git configuration template.
+- Usage: Copy to a user Git config, replace identity placeholders, and adjust
+  the editor command if needed.
+- Notes: Documents `code --wait`, pager behavior, line ending conversion,
+  whitespace checks, command autocorrection, and a commented `commit.template`
+  example. Keep personal identities out of this file; repository `.gitconfig`
+  files are not loaded automatically by Git.
+
 ### `templates/CHANGELOG.md`
 
 - Type: `file`
@@ -239,6 +304,14 @@ deferred, or explicitly excluded from the template.
 - Goal: Provides a reusable contribution guide structure.
 - Usage: Replace placeholders with project-specific contribution policies.
 - Notes: Keep the root file concrete and this file generic.
+
+### `templates/GITHUB-RELEASE-NOTES.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable GitHub release notes structure.
+- Usage: Copy into a GitHub release draft and replace placeholders.
+- Notes: Keep release notes concise and aligned with the project changelog.
 
 ### `templates/README.md`
 
