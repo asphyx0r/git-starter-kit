@@ -10,6 +10,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 No unreleased changes.
 
+## v1.2.1 - 2026-06-18
+
+### Changed in v1.2.1
+
+- Renamed the reusable GitHub release notes template to
+  `GITHUB_RELEASE_NOTES.md`.
+
 ## v1.2.0 - 2026-06-18
 
 ### Added in v1.2.0

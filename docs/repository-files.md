@@ -305,7 +305,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Replace placeholders with project-specific contribution policies.
 - Notes: Keep the root file concrete and this file generic.
 
-### `templates/GITHUB-RELEASE-NOTES.md`
+### `templates/GITHUB_RELEASE_NOTES.md`
 
 - Type: `file`
 - Status: `optional`
