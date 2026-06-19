@@ -6,7 +6,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 
 - Git and editor conventions for repository consistency.
 - Generic ignore rules for local files, secrets, caches, and build outputs.
-- Commit message guidance with a reusable Git commit template.
+- Commit message guidance with a reusable Git commit template and commitlint
+  rules.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - VS Code workspace recommendations for consistent local editing.
@@ -16,6 +17,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - GitHub community files for pull requests, issues, conduct, and support.
 - GitHub Actions workflow for lightweight Markdown and spelling audits.
 - Release package automation for exports enriched with coding-agent rules.
+- Interactive Git initialization scripts for PowerShell and Bash.
 
 ## Installation
 
@@ -43,6 +45,21 @@ Published releases can attach a generated ZIP package that overlays the latest
 stable `agent-coding-rules` instruction files and records their source in
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
 automatic and manual usage.
+
+Initialize a target repository with an explicit confirmation prompt:
+
+```bash
+bash scripts/git-init.sh --path ../example-app --tag v1.0.0
+```
+
+```powershell
+powershell -NoProfile -File scripts\git-init.ps1 --path ..\example-app --tag v1.0.0
+```
+
+Use `--remote <url>` when the initialized repository should add `origin` and
+push `main` with tags. When `--remote` is omitted, the scripts do not push.
+
+Run either script without arguments, or with `--help`, to show usage.
 
 ## Contributing
 

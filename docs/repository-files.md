@@ -264,6 +264,28 @@ deferred, or explicitly excluded from the template.
   `agent-coding-rules` files, writes `_agent-rules-source.json`, creates a ZIP,
   and verifies required files in the archive.
 
+### `scripts/git-init.ps1`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Initializes a target Git repository from PowerShell after explicit
+  user confirmation.
+- Usage: Run with `--path <directory>` and optional `--tag <tag>`,
+  `--remote <url>`, and `--verbose`. Run without arguments to show help.
+- Notes: Validates SemVer tags, refuses existing target commits, creates the
+  first commit on `main`, tags it, and only pushes when `--remote` is provided.
+
+### `scripts/git-init.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Initializes a target Git repository from Bash after explicit user
+  confirmation.
+- Usage: Run with `--path <directory>` and optional `--tag <tag>`,
+  `--remote <url>`, and `--verbose`. Run without arguments to show help.
+- Notes: Validates SemVer tags, refuses existing target commits, creates the
+  first commit on `main`, tags it, and only pushes when `--remote` is provided.
+
 ### `docs/`
 
 - Type: `directory`

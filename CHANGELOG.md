@@ -10,6 +10,20 @@ uses [Semantic Versioning](https://semver.org/).
 
 No unreleased changes.
 
+## v1.4.0 - 2026-06-19
+
+### Added in v1.4.0
+
+- Commitlint configuration for explicit Conventional Commit validation.
+- PowerShell and Bash scripts for confirmed Git repository initialization with
+  SemVer tag validation and optional remote push.
+
+### Changed in v1.4.0
+
+- Git initialization scripts now show help when run without arguments.
+- Updated README and repository file inventory for commitlint and Git
+  initialization scripts.
+
 ## v1.3.0 - 2026-06-18
 
 ### Added in v1.3.0
