@@ -2,7 +2,7 @@ module.exports = {
   defaultIgnores: false,
   parserPreset: {
     parserOpts: {
-      headerPattern: /^([^()!:\s]+)(?:\(([^()\r\n]+)\))?(!)?: (.*)$/,
+      headerPattern: /^([^()!:\s]+)(?:\(([^()!\r\n]+)\))?(!)?: (.*)$/,
       headerCorrespondence: ["type", "scope", "breaking", "subject"],
       noteKeywords: ["BREAKING CHANGE", "BREAKING-CHANGE"],
     },

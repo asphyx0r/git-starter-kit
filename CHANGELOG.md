@@ -10,6 +10,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 No unreleased changes.
 
+## v1.4.1 - 2026-06-20
+
+### Fixed in v1.4.1
+
+- Tightened the commitlint parser pattern to reject scopes containing `!`.
+
 ## v1.4.0 - 2026-06-19
 
 ### Added in v1.4.0
