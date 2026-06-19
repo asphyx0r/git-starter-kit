@@ -197,6 +197,15 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before contributing or participating in project discussions.
 - Notes: Keep GitHub-specific duplicates out of `.github/`.
 
+### `commitlint.config.cjs`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines the default commitlint rules for Conventional Commits.
+- Usage: Run `commitlint` from the repository root or from a commit-msg hook.
+- Notes: Keeps parser options and rules explicit to avoid empty commitlint
+  configuration.
+
 ### `CONTRIBUTING.md`
 
 - Type: `file`
