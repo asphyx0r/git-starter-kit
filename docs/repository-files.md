@@ -203,8 +203,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Defines the default commitlint rules for Conventional Commits.
 - Usage: Run `commitlint` from the repository root or from a commit-msg hook.
-- Notes: Keeps parser options and rules explicit to avoid empty commitlint
-  configuration.
+- Notes: Keeps parser options and strict commit rules explicit to reject
+  loosely formatted commit messages.
 
 ### `CONTRIBUTING.md`
 

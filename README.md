@@ -6,8 +6,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 
 - Git and editor conventions for repository consistency.
 - Generic ignore rules for local files, secrets, caches, and build outputs.
-- Commit message guidance with a reusable Git commit template and commitlint
-  rules.
+- Commit message guidance with a reusable Git commit template and strict
+  commitlint rules.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - VS Code workspace recommendations for consistent local editing.

@@ -8,7 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-No unreleased changes.
+### Changed
+
+- Tightened commitlint rules and documentation for stricter Conventional
+  Commit validation.
 
 ## v1.4.1 - 2026-06-20
 
