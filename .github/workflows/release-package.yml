@@ -40,6 +40,19 @@ jobs:
             starter_ref="$INPUT_TAG"
           fi
 
+          semver_tag_pattern='^v(0|[1-9][0-9]*)\.'
+          semver_tag_pattern+='(0|[1-9][0-9]*)\.'
+          semver_tag_pattern+='(0|[1-9][0-9]*)'
+          semver_tag_pattern+='(-((0|[1-9][0-9]*|[0-9A-Za-z-]*'
+          semver_tag_pattern+='[A-Za-z-][0-9A-Za-z-]*)'
+          semver_tag_pattern+='(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*'
+          semver_tag_pattern+='[A-Za-z-][0-9A-Za-z-]*))*))?'
+          semver_tag_pattern+='(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
+          if ! [[ "$starter_ref" =~ $semver_tag_pattern ]]; then
+            echo "starter_ref must be a SemVer tag prefixed with v." >&2
+            exit 1
+          fi
+
           agent_rules_ref="${INPUT_AGENT_RULES_REF:-latest}"
 
           echo "starter_ref=$starter_ref" >> "$GITHUB_OUTPUT"

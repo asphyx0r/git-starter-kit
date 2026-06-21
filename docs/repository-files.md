@@ -121,8 +121,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
 - Notes: Uses a pinned runner and a checkout action pinned by SHA for
-  `actions/checkout@v7.0.0`, then calls `scripts/build-release-package.ps1`
-  and uploads the generated ZIP.
+  `actions/checkout@v7.0.0`, validates release tags, then calls
+  `scripts/build-release-package.ps1` and uploads the generated ZIP.
 
 ### `.gitignore`
 

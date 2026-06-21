@@ -85,8 +85,9 @@ Use this mode when you need to create or recreate the enriched package for an
 existing release.
 
 The release must already exist on GitHub before running the workflow manually.
-The manual workflow uploads an asset to that release; it does not create the
-release itself.
+The `tag` input must be an existing GitHub release tag that uses SemVer with a
+leading `v`, for example `v1.3.0`. The manual workflow uploads an asset to
+that release; it does not create the release itself.
 
 1. Open the `git-starter-kit` repository on GitHub.
 2. Open the **Actions** tab.
@@ -137,7 +138,7 @@ If the release asset is missing, open the **Actions** tab and inspect the latest
 `Release package` workflow run.
 
 If the manual workflow fails, check that the `tag` input matches an existing
-GitHub release tag.
+GitHub release tag using SemVer with a leading `v`.
 
 If the upload fails because the asset already exists, delete the old asset from
 the release page and run the workflow again.
