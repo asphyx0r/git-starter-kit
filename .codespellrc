@@ -2,4 +2,4 @@
 check-hidden =
 check-filenames =
 ignore-words-list = ans
-skip = ./.git,./dist,./build,./coverage,./node_modules,./.venv,./venv,./.tox,./.mypy_cache,./.pytest_cache,./.idea,./.vscode,*.lock,*.min.js,*.map,*.svg,*.png,*.jpg,*.jpeg,*.gif,*.pdf
+skip = ./.git,./dist,./build,./coverage,./node_modules,./.venv,./venv,./.tox,./.mypy_cache,./.pytest_cache,./.idea,*.lock,*.min.js,*.map,*.svg,*.png,*.jpg,*.jpeg,*.gif,*.pdf
