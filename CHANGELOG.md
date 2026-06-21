@@ -32,6 +32,7 @@ uses [Semantic Versioning](https://semver.org/).
   ScriptAnalyzer.
 - Replaced the Codex configuration template model example with a stable
   placeholder.
+- Validated Git initialization target directories before creating commits.
 
 ## v1.4.1 - 2026-06-20
 

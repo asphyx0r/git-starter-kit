@@ -131,6 +131,28 @@ fi
 
 target_path="$(absolute_path "$target_path")"
 
+if [ ! -d "$target_path" ]; then
+    fail "Target path must be an existing directory: $target_path"
+fi
+
+target_has_content=0
+for entry in "$target_path"/* "$target_path"/.[!.]* "$target_path"/..?*; do
+    if [ ! -e "$entry" ]; then
+        continue
+    fi
+
+    if [ "$(basename "$entry")" = ".git" ]; then
+        continue
+    fi
+
+    target_has_content=1
+    break
+done
+
+if [ "$target_has_content" -eq 0 ]; then
+    fail "Target directory must contain files before Git initialization: $target_path"
+fi
+
 if [ -e "$target_path/.git" ]; then
     if git_success -C "$target_path" rev-parse --verify HEAD; then
         fail "Target repository already has commits: $target_path"

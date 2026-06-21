@@ -159,6 +159,18 @@ if ([string]::IsNullOrWhiteSpace($tag) -or $tag -notmatch $SemVerTagPattern) {
 $targetPath = Get-FullPath -InputPath $path
 $gitMetadataPath = Join-Path $targetPath ".git"
 
+if (-not (Test-Path -LiteralPath $targetPath -PathType Container)) {
+    throw "Target path must be an existing directory: $targetPath"
+}
+
+$targetEntries = @(
+    Get-ChildItem -LiteralPath $targetPath -Force |
+        Where-Object { $_.Name -ne ".git" }
+)
+if ($targetEntries.Count -eq 0) {
+    throw "Target directory must contain files before Git initialization: $targetPath"
+}
+
 if (Test-Path -LiteralPath $gitMetadataPath) {
     if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "HEAD")) {
         throw "Target repository already has commits: $targetPath"
