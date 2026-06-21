@@ -99,16 +99,17 @@ function Test-GitSuccess {
 function Get-CommittableFile {
     param([Parameter(Mandatory = $true)][string]$RepositoryPath)
 
-    $statusLines = Invoke-Git -Arguments @(
-        "-C", $RepositoryPath, "status", "--short", "--untracked-files=all"
-    )
+    $statusText = (Invoke-Git -Arguments @(
+        "-C", $RepositoryPath, "status", "--porcelain=v1", "-z",
+        "--untracked-files=all"
+    )) -join ""
     $files = @()
-    foreach ($line in $statusLines) {
-        if ($line.Length -lt 4) {
+    foreach ($entry in ($statusText -split "`0")) {
+        if ($entry.Length -lt 4) {
             continue
         }
 
-        $files += $line.Substring(3).Trim()
+        $files += $entry.Substring(3)
     }
 
     return $files

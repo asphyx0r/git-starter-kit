@@ -72,13 +72,13 @@ run_git() {
 }
 
 git_status_files() {
-    git -C "$target_path" status --short --untracked-files=all |
-        while IFS= read -r line; do
-            if [ "${#line}" -lt 4 ]; then
+    git -C "$target_path" status --porcelain=v1 -z --untracked-files=all |
+        while IFS= read -r -d '' entry; do
+            if [ "${#entry}" -lt 4 ]; then
                 continue
             fi
 
-            printf '%s\n' "${line:3}"
+            printf '%s\0' "${entry:3}"
         done
 }
 
@@ -225,7 +225,7 @@ if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
     fail "Tag already exists in target repository: $tag"
 fi
 
-mapfile -t committable_files < <(git_status_files)
+mapfile -d '' -t committable_files < <(git_status_files)
 if [ "${#committable_files[@]}" -eq 0 ]; then
     fail "No committable files found in target directory: $target_path"
 fi

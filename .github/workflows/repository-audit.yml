@@ -125,6 +125,7 @@ jobs:
           bash_target="$RUNNER_TEMP/git-init-bash-smoke"
           mkdir -p "$bash_target"
           printf 'hello\n' > "$bash_target/README.md"
+          printf 'hello spaces\n' > "$bash_target/notes with spaces.txt"
           printf 'y\ny\n' | bash scripts/git-init.sh \
             --path "$bash_target" \
             --tag v1.0.0
@@ -144,6 +145,7 @@ jobs:
           pwsh_target="$RUNNER_TEMP/git-init-pwsh-smoke"
           mkdir -p "$pwsh_target"
           printf 'hello\n' > "$pwsh_target/README.md"
+          printf 'hello spaces\n' > "$pwsh_target/notes with spaces.txt"
           printf 'y\ny\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
             --path "$pwsh_target" \
             --tag v1.0.0

@@ -282,8 +282,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
 - Notes: Validates SemVer tags, requires existing non-empty target directories,
-  previews committable files, warns on risky credential and artifact paths,
-  refuses existing target
+  previews committable files from Git porcelain status, warns on risky
+  credential and artifact paths, refuses existing target
   commits, creates the first Conventional Commit on `main`, tags it, and only
   pushes when `--remote` is provided.
 
@@ -296,8 +296,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
 - Notes: Validates SemVer tags, requires existing non-empty target directories,
-  previews committable files, warns on risky credential and artifact paths,
-  refuses existing target
+  previews committable files from Git porcelain status, warns on risky
+  credential and artifact paths, refuses existing target
   commits, creates the first Conventional Commit on `main`, tags it, and only
   pushes when `--remote` is provided.
 
