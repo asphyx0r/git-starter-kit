@@ -10,8 +10,6 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Tightened commitlint rules and documentation for stricter Conventional
-  Commit validation.
 - Aligned Git initialization first commit messages with Conventional Commits.
 - Pinned GitHub Actions runner, checkout, Markdown lint, and spelling tool
   versions for reproducible repository audits.
@@ -39,6 +37,13 @@ uses [Semantic Versioning](https://semver.org/).
 - Added smoke checks for Git initialization and release package scripts.
 - Hardened repository audit tool setup and logged the ShellCheck version.
 - Clarified the Windows sandbox scope in the Codex configuration template.
+
+## v1.4.2 - 2026-06-20
+
+### Changed in v1.4.2
+
+- Tightened commitlint rules and documentation for stricter Conventional
+  Commit validation.
 
 ## v1.4.1 - 2026-06-20
 
