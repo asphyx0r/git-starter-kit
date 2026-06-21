@@ -45,9 +45,27 @@ jobs:
       - name: Checkout repository
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
 
       - name: Check Git whitespace
-        run: git diff --check
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          zero_sha="0000000000000000000000000000000000000000"
+
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            git diff --check "origin/$GITHUB_BASE_REF...HEAD"
+          elif [ -n "${BEFORE_SHA:-}" ]; then
+            if [ "$BEFORE_SHA" != "$zero_sha" ]; then
+              git diff --check "$BEFORE_SHA..HEAD"
+            else
+              git diff-tree --check --root -r HEAD
+            fi
+          else
+            git diff-tree --check --root -r HEAD
+          fi
 
       - name: Check Bash syntax
         run: bash -n scripts/git-init.sh
