@@ -38,6 +38,7 @@ uses [Semantic Versioning](https://semver.org/).
 - Required pinned `AGENT_RULES_REF` SemVer tags for automatic release packages.
 - Added smoke checks for Git initialization and release package scripts.
 - Hardened repository audit tool setup and logged the ShellCheck version.
+- Clarified the Windows sandbox scope in the Codex configuration template.
 
 ## v1.4.1 - 2026-06-20
 
