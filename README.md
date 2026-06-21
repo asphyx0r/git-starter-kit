@@ -48,7 +48,7 @@ Published releases can attach a generated ZIP package that overlays a pinned
 automatic and manual usage.
 
 Automatic release packages require the `AGENT_RULES_REF` repository variable to
-name a SemVer agent-rules tag. Manual runs may still use `latest` explicitly.
+name a SemVer agent-rules tag. Manual runs must also use a SemVer tag.
 
 Initialize a target repository with an explicit confirmation prompt:
 

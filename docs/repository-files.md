@@ -123,7 +123,7 @@ deferred, or explicitly excluded from the template.
   dispatch.
 - Notes: Uses a pinned runner and a checkout action pinned by SHA for
   `actions/checkout@v7.0.0`, validates release tags and automatic
-  `AGENT_RULES_REF` SemVer pins, then calls `scripts/build-release-package.ps1`
+  agent rules SemVer pins, then calls `scripts/build-release-package.ps1`
   and uploads the generated ZIP.
 
 ### `.gitignore`
@@ -267,7 +267,7 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
-- Notes: Copies tracked starter-kit files, overlays latest stable or tagged
+- Notes: Copies tracked starter-kit files, overlays tagged
   `agent-coding-rules` files, writes `_agent-rules-source.json`, creates a ZIP,
   and verifies required files in the archive. Helper functions use
   ScriptAnalyzer-compatible names and explicit parameters.

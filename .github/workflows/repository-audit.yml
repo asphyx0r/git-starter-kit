@@ -154,6 +154,14 @@ jobs:
 
           if pwsh -NoProfile -File scripts/build-release-package.ps1 \
             -StarterRef local-test \
+            -AgentRulesRef latest \
+            -OutputDirectory "$RUNNER_TEMP/release-package-smoke"; then
+            echo "Release package accepted an unpinned agent rules ref." >&2
+            exit 1
+          fi
+
+          if pwsh -NoProfile -File scripts/build-release-package.ps1 \
+            -StarterRef local-test \
             -AgentRulesRef invalid \
             -OutputDirectory "$RUNNER_TEMP/release-package-smoke"; then
             echo "Release package accepted an invalid agent rules ref." >&2

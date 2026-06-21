@@ -4,8 +4,7 @@ param(
     [string]$PackageName = "",
     [string]$StarterRef = $env:GITHUB_REF_NAME,
     [string]$AgentRulesRepository = "asphyx0r/agent-coding-rules",
-    [string]$AgentRulesRef = "latest",
-    [string]$GitHubToken = $env:GITHUB_TOKEN
+    [string]$AgentRulesRef = ""
 )
 
 Set-StrictMode -Version 3.0
@@ -51,53 +50,18 @@ function Invoke-GitLine {
     return @($output | ForEach-Object { $_.ToString() })
 }
 
-function Get-GitHubHeader {
-    param([string]$Token)
-
-    $headers = @{
-        "Accept"               = "application/vnd.github+json"
-        "User-Agent"           = "git-starter-kit-release-package"
-        "X-GitHub-Api-Version" = "2022-11-28"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Token)) {
-        $headers["Authorization"] = "Bearer $Token"
-    }
-
-    return $headers
-}
-
 function Resolve-AgentRulesRelease {
-    param(
-        [string]$RequestedRef,
-        [string]$Repository,
-        [string]$Token
-    )
+    param([string]$RequestedRef)
 
-    if ($RequestedRef -ne "latest") {
-        if ($RequestedRef -notmatch $SemVerTagPattern) {
-            throw "AgentRulesRef must be 'latest' or a SemVer tag prefixed with v."
-        }
-
-        return [ordered]@{
-            Ref         = $RequestedRef
-            ReleaseUrl  = $null
-            ReleaseDate = $null
-        }
-    }
-
-    $headers = Get-GitHubHeader -Token $Token
-    $uri = "https://api.github.com/repos/$Repository/releases/latest"
-    $release = Invoke-RestMethod -Uri $uri -Headers $headers
-
-    if ($null -eq $release -or $release.draft -or $release.prerelease) {
-        throw "No stable published release found for $Repository."
+    if ([string]::IsNullOrWhiteSpace($RequestedRef) -or
+        $RequestedRef -notmatch $SemVerTagPattern) {
+        throw "AgentRulesRef must be a SemVer tag prefixed with v."
     }
 
     return [ordered]@{
-        Ref         = $release.tag_name
-        ReleaseUrl  = $release.html_url
-        ReleaseDate = $release.published_at
+        Ref         = $RequestedRef
+        ReleaseUrl  = $null
+        ReleaseDate = $null
     }
 }
 
@@ -142,8 +106,6 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release
 $stagingRoot = Join-Path $tempRoot "package"
 $agentRulesRoot = Join-Path $tempRoot "agent-coding-rules"
 
-New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
-New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
 try {
     $starterCommit = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "HEAD")) -join "").Trim()
@@ -151,12 +113,12 @@ try {
         $StarterRef = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
     }
 
-    $resolvedAgentRules = Resolve-AgentRulesRelease `
-        -RequestedRef $AgentRulesRef `
-        -Repository $AgentRulesRepository `
-        -Token $GitHubToken
+    $resolvedAgentRules = Resolve-AgentRulesRelease -RequestedRef $AgentRulesRef
     $resolvedAgentRulesRef = $resolvedAgentRules.Ref
     $agentRulesCloneUrl = "https://github.com/$AgentRulesRepository.git"
+
+    New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
     Write-Output "Using agent rules ref $resolvedAgentRulesRef from $AgentRulesRepository."
     Invoke-GitLine -Arguments @(

@@ -97,13 +97,12 @@ that release; it does not create the release itself.
 3. Select the **Release package** workflow.
 4. Click **Run workflow**.
 5. Fill in `tag` with the release tag to package, for example `v1.3.0`.
-6. Leave `agent_rules_ref` as `latest` to use the latest stable
-   `agent-coding-rules` release.
+6. Fill `agent_rules_ref` with a SemVer `agent-coding-rules` tag,
+   for example `v1.36.1`.
 7. Click **Run workflow**.
 
-Use a specific `agent_rules_ref`, such as `v1.36.1`, only when you need to
-rebuild the package from an exact `agent-coding-rules` version. Branch names
-are rejected so release packages stay reproducible.
+Manual release packages reject `latest` and branch names so the generated
+asset stays reproducible.
 
 When the workflow finishes, open the GitHub release page for the tag and check
 that the ZIP asset is listed under the release assets.
@@ -117,7 +116,7 @@ From the repository root, run:
 ```powershell
 powershell -NoProfile -File scripts\build-release-package.ps1 `
   -StarterRef local-test `
-  -AgentRulesRef latest `
+  -AgentRulesRef v1.36.1 `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip
 ```
