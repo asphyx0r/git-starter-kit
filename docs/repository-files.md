@@ -360,7 +360,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Provides a reusable environment variable template for future projects.
 - Usage: Copy to a project-specific environment template and replace
   placeholders.
-- Notes: Contains placeholders only; keep real environment files untracked.
+- Notes: Contains placeholders and conservative local defaults; keep real
+  environment files untracked.
 
 ### `templates/.gitconfig`
 
