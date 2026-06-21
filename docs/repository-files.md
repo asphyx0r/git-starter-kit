@@ -109,9 +109,9 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Runs a minimal repository documentation audit on GitHub Actions.
 - Usage: Executes on pushes, pull requests, and manual dispatch.
-- Notes: The workflow uses pinned runner, checkout, `markdownlint-cli2`, and
-  Codespell versions before running Markdown, spelling, script, and
-  configuration checks.
+- Notes: The workflow uses a pinned runner, a checkout action pinned by SHA
+  for `actions/checkout@v7.0.0`, `markdownlint-cli2`, and Codespell versions
+  before running Markdown, spelling, script, and configuration checks.
 
 ### `.github/workflows/release-package.yml`
 
@@ -120,8 +120,9 @@ deferred, or explicitly excluded from the template.
 - Goal: Builds and uploads an enriched release package asset.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
-- Notes: Uses pinned runner and checkout versions, then calls
-  `scripts/build-release-package.ps1` and uploads the generated ZIP.
+- Notes: Uses a pinned runner and a checkout action pinned by SHA for
+  `actions/checkout@v7.0.0`, then calls `scripts/build-release-package.ps1`
+  and uploads the generated ZIP.
 
 ### `.gitignore`
 

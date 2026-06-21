@@ -46,7 +46,8 @@ jobs:
           echo "agent_rules_ref=$agent_rules_ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag
-        uses: actions/checkout@v7.0.0
+        # actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: ${{ steps.refs.outputs.starter_ref }}
 
