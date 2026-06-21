@@ -26,6 +26,10 @@ Use `.gitmessage` as a commit message template when helpful:
 git commit --template=.gitmessage
 ```
 
+Commit messages should follow the rules in `commitlint.config.cjs`. This
+repository does not install a commit hook by default; run `commitlint` manually
+or from a downstream hook when strict validation is needed.
+
 ## Pull requests
 
 A good pull request should explain:
