@@ -260,7 +260,7 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
-- Notes: Copies tracked starter-kit files, overlays the latest stable
+- Notes: Copies tracked starter-kit files, overlays latest stable or tagged
   `agent-coding-rules` files, writes `_agent-rules-source.json`, creates a ZIP,
   and verifies required files in the archive.
 

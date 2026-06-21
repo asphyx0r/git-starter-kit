@@ -98,7 +98,8 @@ release itself.
 7. Click **Run workflow**.
 
 Use a specific `agent_rules_ref`, such as `v1.36.1`, only when you need to
-rebuild the package from an exact `agent-coding-rules` version.
+rebuild the package from an exact `agent-coding-rules` version. Branch names
+are rejected so release packages stay reproducible.
 
 When the workflow finishes, open the GitHub release page for the tag and check
 that the ZIP asset is listed under the release assets.

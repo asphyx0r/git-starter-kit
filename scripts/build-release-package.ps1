@@ -11,6 +11,8 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
+$SemVerTagPattern = "^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$"
+
 $RequiredRuleFiles = @(
     "AGENTS.md",
     "CODING_RULES.md",
@@ -65,6 +67,10 @@ function Get-GitHubHeaders {
 
 function Resolve-AgentRulesRelease {
     if ($AgentRulesRef -ne "latest") {
+        if ($AgentRulesRef -notmatch $SemVerTagPattern) {
+            throw "AgentRulesRef must be 'latest' or a SemVer tag prefixed with v."
+        }
+
         return [ordered]@{
             Ref         = $AgentRulesRef
             ReleaseUrl  = $null

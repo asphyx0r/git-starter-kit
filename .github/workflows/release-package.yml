@@ -11,7 +11,7 @@ name: Release package
         required: true
         type: string
       agent_rules_ref:
-        description: agent-coding-rules ref, tag, or branch
+        description: agent-coding-rules release tag or latest
         required: false
         default: latest
         type: string
