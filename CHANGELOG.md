@@ -16,6 +16,8 @@ uses [Semantic Versioning](https://semver.org/).
 - Pinned GitHub Actions runner, checkout, Markdown lint, and spelling tool
   versions for reproducible repository audits.
 - Restricted release package agent rules references to `latest` or SemVer tags.
+- Clarified that VS Code format-on-save settings do not authorize agent-run
+  formatters or automatic fixers.
 
 ## v1.4.1 - 2026-06-20
 

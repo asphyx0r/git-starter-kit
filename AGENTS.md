@@ -29,4 +29,5 @@ and easy to reuse.
 - After changes, verify the expected files exist and no unrelated files
   changed.
 - Do not run formatters, generators, or automatic fixers unless explicitly
-  approved.
+  approved. VS Code format-on-save settings are intentional for human IDE use;
+  they do not authorize agents to run formatters or fixers.
