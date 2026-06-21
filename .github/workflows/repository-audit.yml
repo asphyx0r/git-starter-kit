@@ -20,6 +20,8 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Run markdownlint
+        env:
+          NPM_CONFIG_IGNORE_SCRIPTS: "true"
         run: npx --yes markdownlint-cli2@0.22.1 "**/*.md"
 
   spelling:
@@ -32,7 +34,11 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install Codespell
-        run: python -m pip install codespell==2.4.2
+        run: >-
+          python -m pip install
+          --disable-pip-version-check
+          --no-input
+          codespell==2.4.2
 
       - name: Run Codespell
         run: codespell .
@@ -69,6 +75,9 @@ jobs:
 
       - name: Check Bash syntax
         run: bash -n scripts/git-init.sh
+
+      - name: Show ShellCheck version
+        run: shellcheck --version
 
       - name: Run ShellCheck
         run: shellcheck scripts/git-init.sh
