@@ -15,6 +15,14 @@ uses [Semantic Versioning](https://semver.org/).
 - Aligned Git initialization first commit messages with Conventional Commits.
 - Pinned GitHub Actions runner, checkout, Markdown lint, and spelling tool
   versions for reproducible repository audits.
+- Expanded repository audit checks to cover script syntax, ShellCheck,
+  PowerShell parsing, Git whitespace, and commitlint configuration.
+- Documented commitlint usage and clarified that no commit hook is installed
+  by default.
+- Pinned GitHub Actions checkout usage by SHA while retaining readable version
+  comments.
+- Included tracked VS Code workspace files in Codespell coverage.
+- Validated release package tags before checkout and upload.
 - Restricted release package agent rules references to `latest` or SemVer tags.
 - Clarified that VS Code format-on-save settings do not authorize agent-run
   formatters or automatic fixers.
