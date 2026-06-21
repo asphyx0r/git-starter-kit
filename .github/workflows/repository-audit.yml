@@ -99,5 +99,57 @@ jobs:
             exit 1
           }
 
+      - name: Smoke script behavior
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Codex
+          GIT_AUTHOR_EMAIL: codex@example.com
+          GIT_COMMITTER_NAME: Codex
+          GIT_COMMITTER_EMAIL: codex@example.com
+        run: |
+          bash scripts/git-init.sh --help
+          if bash scripts/git-init.sh --path "$RUNNER_TEMP" --tag invalid; then
+            echo "Bash init accepted an invalid tag." >&2
+            exit 1
+          fi
+
+          bash_target="$RUNNER_TEMP/git-init-bash-smoke"
+          mkdir -p "$bash_target"
+          printf 'hello\n' > "$bash_target/README.md"
+          printf 'y\ny\n' | bash scripts/git-init.sh \
+            --path "$bash_target" \
+            --tag v1.0.0
+          if [ -n "$(git -C "$bash_target" status --short)" ]; then
+            echo "Bash init smoke repository is not clean." >&2
+            exit 1
+          fi
+
+          pwsh -NoProfile -File scripts/git-init.ps1 --help
+          if pwsh -NoProfile -File scripts/git-init.ps1 \
+            --path "$RUNNER_TEMP" \
+            --tag invalid; then
+            echo "PowerShell init accepted an invalid tag." >&2
+            exit 1
+          fi
+
+          pwsh_target="$RUNNER_TEMP/git-init-pwsh-smoke"
+          mkdir -p "$pwsh_target"
+          printf 'hello\n' > "$pwsh_target/README.md"
+          printf 'y\ny\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
+            --path "$pwsh_target" \
+            --tag v1.0.0
+          if [ -n "$(git -C "$pwsh_target" status --short)" ]; then
+            echo "PowerShell init smoke repository is not clean." >&2
+            exit 1
+          fi
+
+          if pwsh -NoProfile -File scripts/build-release-package.ps1 \
+            -StarterRef local-test \
+            -AgentRulesRef invalid \
+            -OutputDirectory "$RUNNER_TEMP/release-package-smoke"; then
+            echo "Release package accepted an invalid agent rules ref." >&2
+            exit 1
+          fi
+
       - name: Check commitlint config
         run: node --check commitlint.config.cjs

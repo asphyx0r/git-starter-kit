@@ -111,7 +111,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Executes on pushes, pull requests, and manual dispatch.
 - Notes: The workflow uses a pinned runner, a checkout action pinned by SHA
   for `actions/checkout@v7.0.0`, `markdownlint-cli2`, and Codespell versions
-  before running Markdown, spelling, script, and configuration checks.
+  before running Markdown, spelling, script, smoke, and configuration checks.
 
 ### `.github/workflows/release-package.yml`
 
