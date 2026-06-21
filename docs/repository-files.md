@@ -265,7 +265,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Run from the release package workflow or manually with PowerShell.
 - Notes: Copies tracked starter-kit files, overlays latest stable or tagged
   `agent-coding-rules` files, writes `_agent-rules-source.json`, creates a ZIP,
-  and verifies required files in the archive.
+  and verifies required files in the archive. Helper functions use
+  ScriptAnalyzer-compatible names and explicit parameters.
 
 ### `scripts/git-init.ps1`
 

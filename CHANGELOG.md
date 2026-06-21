@@ -20,6 +20,8 @@ uses [Semantic Versioning](https://semver.org/).
   formatters or automatic fixers.
 - Documented GitHub private reporting for sensitive security and conduct
   reports.
+- Cleaned release package script warnings reported by PowerShell
+  ScriptAnalyzer.
 
 ## v1.4.1 - 2026-06-20
 

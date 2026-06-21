@@ -32,7 +32,7 @@ function Get-FullPath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
 }
 
-function Invoke-GitLines {
+function Invoke-GitLine {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
     $previousErrorActionPreference = $ErrorActionPreference
@@ -51,39 +51,47 @@ function Invoke-GitLines {
     return @($output | ForEach-Object { $_.ToString() })
 }
 
-function Get-GitHubHeaders {
+function Get-GitHubHeader {
+    param([string]$Token)
+
     $headers = @{
         "Accept"               = "application/vnd.github+json"
         "User-Agent"           = "git-starter-kit-release-package"
         "X-GitHub-Api-Version" = "2022-11-28"
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($GitHubToken)) {
-        $headers["Authorization"] = "Bearer $GitHubToken"
+    if (-not [string]::IsNullOrWhiteSpace($Token)) {
+        $headers["Authorization"] = "Bearer $Token"
     }
 
     return $headers
 }
 
 function Resolve-AgentRulesRelease {
-    if ($AgentRulesRef -ne "latest") {
-        if ($AgentRulesRef -notmatch $SemVerTagPattern) {
+    param(
+        [string]$RequestedRef,
+        [string]$Repository,
+        [string]$Token
+    )
+
+    if ($RequestedRef -ne "latest") {
+        if ($RequestedRef -notmatch $SemVerTagPattern) {
             throw "AgentRulesRef must be 'latest' or a SemVer tag prefixed with v."
         }
 
         return [ordered]@{
-            Ref         = $AgentRulesRef
+            Ref         = $RequestedRef
             ReleaseUrl  = $null
             ReleaseDate = $null
         }
     }
 
-    $headers = Get-GitHubHeaders
-    $uri = "https://api.github.com/repos/$AgentRulesRepository/releases/latest"
+    $headers = Get-GitHubHeader -Token $Token
+    $uri = "https://api.github.com/repos/$Repository/releases/latest"
     $release = Invoke-RestMethod -Uri $uri -Headers $headers
 
     if ($null -eq $release -or $release.draft -or $release.prerelease) {
-        throw "No stable published release found for $AgentRulesRepository."
+        throw "No stable published release found for $Repository."
     }
 
     return [ordered]@{
@@ -93,13 +101,13 @@ function Resolve-AgentRulesRelease {
     }
 }
 
-function Copy-TrackedRepositoryFiles {
+function Copy-TrackedRepositoryFile {
     param(
         [Parameter(Mandatory = $true)][string]$SourceRoot,
         [Parameter(Mandatory = $true)][string]$TargetRoot
     )
 
-    $trackedFiles = Invoke-GitLines -Arguments @("-C", $SourceRoot, "ls-files")
+    $trackedFiles = Invoke-GitLine -Arguments @("-C", $SourceRoot, "ls-files")
     foreach ($relativePath in $trackedFiles) {
         if ([string]::IsNullOrWhiteSpace($relativePath)) {
             continue
@@ -138,17 +146,20 @@ New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
 try {
-    $starterCommit = ((Invoke-GitLines -Arguments @("-C", $repoRoot, "rev-parse", "HEAD")) -join "").Trim()
+    $starterCommit = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "HEAD")) -join "").Trim()
     if ([string]::IsNullOrWhiteSpace($StarterRef)) {
-        $StarterRef = ((Invoke-GitLines -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
+        $StarterRef = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
     }
 
-    $resolvedAgentRules = Resolve-AgentRulesRelease
+    $resolvedAgentRules = Resolve-AgentRulesRelease `
+        -RequestedRef $AgentRulesRef `
+        -Repository $AgentRulesRepository `
+        -Token $GitHubToken
     $resolvedAgentRulesRef = $resolvedAgentRules.Ref
     $agentRulesCloneUrl = "https://github.com/$AgentRulesRepository.git"
 
-    Write-Host "Using agent rules ref $resolvedAgentRulesRef from $AgentRulesRepository."
-    Invoke-GitLines -Arguments @(
+    Write-Output "Using agent rules ref $resolvedAgentRulesRef from $AgentRulesRepository."
+    Invoke-GitLine -Arguments @(
         "clone",
         "--depth", "1",
         "--branch", $resolvedAgentRulesRef,
@@ -156,10 +167,10 @@ try {
         $agentRulesRoot
     ) | Out-Null
 
-    $agentRulesCommit = ((Invoke-GitLines -Arguments @("-C", $agentRulesRoot, "rev-parse", "HEAD")) -join "").Trim()
-    $agentRulesCommitDate = ((Invoke-GitLines -Arguments @("-C", $agentRulesRoot, "log", "-1", "--format=%cI")) -join "").Trim()
+    $agentRulesCommit = ((Invoke-GitLine -Arguments @("-C", $agentRulesRoot, "rev-parse", "HEAD")) -join "").Trim()
+    $agentRulesCommitDate = ((Invoke-GitLine -Arguments @("-C", $agentRulesRoot, "log", "-1", "--format=%cI")) -join "").Trim()
 
-    Copy-TrackedRepositoryFiles -SourceRoot $repoRoot -TargetRoot $stagingRoot
+    Copy-TrackedRepositoryFile -SourceRoot $repoRoot -TargetRoot $stagingRoot
 
     foreach ($ruleFile in $RequiredRuleFiles) {
         $sourcePath = Join-Path $agentRulesRoot $ruleFile
@@ -239,7 +250,7 @@ try {
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "agent_rules_commit=$agentRulesCommit"
     }
 
-    Write-Host "Created release package: $packagePath"
+    Write-Output "Created release package: $packagePath"
 }
 finally {
     if (Test-Path -LiteralPath $tempRoot) {
