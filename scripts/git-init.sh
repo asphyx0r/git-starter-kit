@@ -88,8 +88,12 @@ is_risky_path() {
 
     case "$normalized_path" in
         .env | .env.* | *.env | *.env.* | *.secret | *.secrets | \
-            *.key | *.pem | *.p12 | *.pfx | *.log | *.err | *.out | \
-            *.7z | *.gz | *.rar | *.tar | *.tgz | *.zip)
+            .npmrc | */.npmrc | .pypirc | */.pypirc | .netrc | */.netrc | \
+            id_rsa | */id_rsa | id_rsa.* | */id_rsa.* | \
+            id_ed25519 | */id_ed25519 | id_ed25519.* | */id_ed25519.* | \
+            *.key | *.pem | *.p12 | *.pfx | *.jks | *.keystore | \
+            *.log | *.err | *.out | *.7z | *.gz | *.rar | *.tar | \
+            *.tgz | *.zip)
             return 0
             ;;
     esac
@@ -97,7 +101,8 @@ is_risky_path() {
     case "/$normalized_path/" in
         */node_modules/* | */vendor/* | */.venv/* | */venv/* | */env/* | \
             */dist/* | */build/* | */coverage/* | */logs/* | */log/* | \
-            */tmp/* | */temp/* | */.tmp/*)
+            */.aws/* | */.kube/* | */.ssh/* | */tmp/* | */temp/* | \
+            */.tmp/*)
             return 0
             ;;
     esac

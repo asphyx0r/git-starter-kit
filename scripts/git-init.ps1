@@ -118,14 +118,18 @@ function Test-RiskyPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $normalizedPath = ($Path -replace "\\", "/").ToLowerInvariant()
-    if ($normalizedPath -match "(^|/)(node_modules|vendor|\.venv|venv|env|dist|build|coverage|logs?|tmp|temp|\.tmp)(/|$)") {
+    if ($normalizedPath -match "(^|/)(node_modules|vendor|\.venv|venv|env|dist|build|coverage|logs?|tmp|temp|\.tmp|\.aws|\.kube|\.ssh)(/|$)") {
         return $true
     }
 
     foreach ($pattern in @(
             ".env", ".env.*", "*.env", "*.env.*", "*.secret", "*.secrets",
-            "*.key", "*.pem", "*.p12", "*.pfx", "*.log", "*.err", "*.out",
-            "*.7z", "*.gz", "*.rar", "*.tar", "*.tar.gz", "*.tgz", "*.zip"
+            ".npmrc", "*/.npmrc", ".pypirc", "*/.pypirc", ".netrc", "*/.netrc",
+            "id_rsa", "*/id_rsa", "id_rsa.*", "*/id_rsa.*",
+            "id_ed25519", "*/id_ed25519", "id_ed25519.*", "*/id_ed25519.*",
+            "*.key", "*.pem", "*.p12", "*.pfx", "*.jks", "*.keystore",
+            "*.log", "*.err", "*.out", "*.7z", "*.gz", "*.rar", "*.tar",
+            "*.tar.gz", "*.tgz", "*.zip"
         )) {
         if ($normalizedPath -like $pattern) {
             return $true
