@@ -12,6 +12,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Tightened commitlint rules and documentation for stricter Conventional
   Commit validation.
+- Aligned Git initialization first commit messages with Conventional Commits.
 
 ## v1.4.1 - 2026-06-20
 

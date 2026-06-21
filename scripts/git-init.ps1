@@ -1,6 +1,6 @@
 $ScriptVersion = "1.0.0"
 $DefaultTag = "v1.0.0"
-$CommitMessage = "Repo init: first commit"
+$CommitMessage = "chore: initialize repository"
 $TagMessage = "Initial version/First commit"
 $SemVerTagPattern = "^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$"
 
