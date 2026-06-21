@@ -279,8 +279,9 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
 - Notes: Validates SemVer tags, requires existing non-empty target directories,
-  refuses existing target commits, creates the first Conventional Commit on
-  `main`, tags it, and only pushes when `--remote` is provided.
+  previews committable files, warns on risky paths, refuses existing target
+  commits, creates the first Conventional Commit on `main`, tags it, and only
+  pushes when `--remote` is provided.
 
 ### `scripts/git-init.sh`
 
@@ -291,8 +292,9 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
 - Notes: Validates SemVer tags, requires existing non-empty target directories,
-  refuses existing target commits, creates the first Conventional Commit on
-  `main`, tags it, and only pushes when `--remote` is provided.
+  previews committable files, warns on risky paths, refuses existing target
+  commits, creates the first Conventional Commit on `main`, tags it, and only
+  pushes when `--remote` is provided.
 
 ### `docs/`
 

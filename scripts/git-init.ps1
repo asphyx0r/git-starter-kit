@@ -96,6 +96,53 @@ function Test-GitSuccess {
     }
 }
 
+function Get-CommittableFile {
+    param([Parameter(Mandatory = $true)][string]$RepositoryPath)
+
+    $statusLines = Invoke-Git -Arguments @(
+        "-C", $RepositoryPath, "status", "--short", "--untracked-files=all"
+    )
+    $files = @()
+    foreach ($line in $statusLines) {
+        if ($line.Length -lt 4) {
+            continue
+        }
+
+        $files += $line.Substring(3).Trim()
+    }
+
+    return $files
+}
+
+function Test-RiskyPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $normalizedPath = ($Path -replace "\\", "/").ToLowerInvariant()
+    if ($normalizedPath -match "(^|/)(node_modules|vendor|\.venv|venv|env|dist|build|coverage|logs?|tmp|temp|\.tmp)(/|$)") {
+        return $true
+    }
+
+    foreach ($pattern in @(
+            ".env", ".env.*", "*.env", "*.env.*", "*.secret", "*.secrets",
+            "*.key", "*.pem", "*.p12", "*.pfx", "*.log", "*.err", "*.out",
+            "*.7z", "*.gz", "*.rar", "*.tar", "*.tar.gz", "*.tgz", "*.zip"
+        )) {
+        if ($normalizedPath -like $pattern) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Read-Confirmation {
+    param([Parameter(Mandatory = $true)][string]$Prompt)
+
+    Write-Output $Prompt
+    $response = Read-Host
+    return ($response -ceq "y" -or $response -ceq "Y")
+}
+
 if ($args.Count -eq 0) {
     Write-Usage
     exit 0
@@ -198,6 +245,34 @@ Invoke-Git -Arguments @("init", $targetPath) | Out-Null
 
 if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "refs/tags/$tag")) {
     throw "Tag already exists in target repository: $tag"
+}
+
+$committableFiles = @(Get-CommittableFile -RepositoryPath $targetPath)
+if ($committableFiles.Count -eq 0) {
+    throw "No committable files found in target directory: $targetPath"
+}
+
+Write-Output "Files Git can commit:"
+foreach ($file in $committableFiles) {
+    Write-Output "  $file"
+}
+
+if (-not (Read-Confirmation -Prompt "Commit these files? [y/N]")) {
+    Write-Output "Git commit cancelled."
+    exit 0
+}
+
+$riskyFiles = @($committableFiles | Where-Object { Test-RiskyPath -Path $_ })
+if ($riskyFiles.Count -gt 0) {
+    Write-Output "Risky paths detected:"
+    foreach ($file in $riskyFiles) {
+        Write-Output "  $file"
+    }
+
+    if (-not (Read-Confirmation -Prompt "Continue with risky paths? [y/N]")) {
+        Write-Output "Git commit cancelled."
+        exit 0
+    }
 }
 
 Invoke-Git -Arguments @("-C", $targetPath, "add", "--all") | Out-Null

@@ -33,6 +33,8 @@ uses [Semantic Versioning](https://semver.org/).
 - Replaced the Codex configuration template model example with a stable
   placeholder.
 - Validated Git initialization target directories before creating commits.
+- Previewed Git initialization commit file lists and risky paths before
+  staging files.
 
 ## v1.4.1 - 2026-06-20
 

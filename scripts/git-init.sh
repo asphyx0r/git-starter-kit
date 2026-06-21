@@ -71,6 +71,40 @@ run_git() {
     git "$@"
 }
 
+git_status_files() {
+    git -C "$target_path" status --short --untracked-files=all |
+        while IFS= read -r line; do
+            if [ "${#line}" -lt 4 ]; then
+                continue
+            fi
+
+            printf '%s\n' "${line:3}"
+        done
+}
+
+is_risky_path() {
+    normalized_path="${1//\\//}"
+    normalized_path="${normalized_path,,}"
+
+    case "$normalized_path" in
+        .env | .env.* | *.env | *.env.* | *.secret | *.secrets | \
+            *.key | *.pem | *.p12 | *.pfx | *.log | *.err | *.out | \
+            *.7z | *.gz | *.rar | *.tar | *.tgz | *.zip)
+            return 0
+            ;;
+    esac
+
+    case "/$normalized_path/" in
+        */node_modules/* | */vendor/* | */.venv/* | */venv/* | */env/* | \
+            */dist/* | */build/* | */coverage/* | */logs/* | */log/* | \
+            */tmp/* | */temp/* | */.tmp/*)
+            return 0
+            ;;
+    esac
+
+    return 1
+}
+
 if [ "$#" -eq 0 ]; then
     usage
     exit 0
@@ -184,6 +218,48 @@ run_git init "$target_path" >/dev/null
 
 if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
     fail "Tag already exists in target repository: $tag"
+fi
+
+mapfile -t committable_files < <(git_status_files)
+if [ "${#committable_files[@]}" -eq 0 ]; then
+    fail "No committable files found in target directory: $target_path"
+fi
+
+printf 'Files Git can commit:\n'
+for file in "${committable_files[@]}"; do
+    printf '  %s\n' "$file"
+done
+
+printf 'Commit these files? [y/N]\n'
+IFS= read -r commit_confirmation
+commit_confirmation="${commit_confirmation%$'\r'}"
+
+if [ "$commit_confirmation" != "y" ] && [ "$commit_confirmation" != "Y" ]; then
+    printf 'Git commit cancelled.\n'
+    exit 0
+fi
+
+risky_files=()
+for file in "${committable_files[@]}"; do
+    if is_risky_path "$file"; then
+        risky_files+=("$file")
+    fi
+done
+
+if [ "${#risky_files[@]}" -gt 0 ]; then
+    printf 'Risky paths detected:\n'
+    for file in "${risky_files[@]}"; do
+        printf '  %s\n' "$file"
+    done
+
+    printf 'Continue with risky paths? [y/N]\n'
+    IFS= read -r risky_confirmation
+    risky_confirmation="${risky_confirmation%$'\r'}"
+
+    if [ "$risky_confirmation" != "y" ] && [ "$risky_confirmation" != "Y" ]; then
+        printf 'Git commit cancelled.\n'
+        exit 0
+    fi
 fi
 
 run_git -C "$target_path" add --all >/dev/null
