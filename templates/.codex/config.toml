@@ -27,7 +27,8 @@ exclude_tmpdir_env_var = false
 exclude_slash_tmp = false
 
 [windows]
-# Elevated improves Windows sandbox reliability only.
+# Elevated improves Windows sandbox reliability but reduces isolation.
+# Use unelevated when stronger local isolation is more important.
 # Network access remains disabled while network_access = false above.
 sandbox = "elevated"   # Recommended
 # sandbox = "unelevated" # Fallback if admin permissions/setup are unavailable
