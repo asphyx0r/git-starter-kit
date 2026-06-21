@@ -13,6 +13,8 @@ uses [Semantic Versioning](https://semver.org/).
 - Tightened commitlint rules and documentation for stricter Conventional
   Commit validation.
 - Aligned Git initialization first commit messages with Conventional Commits.
+- Pinned GitHub Actions runner, checkout, Markdown lint, and spelling tool
+  versions for reproducible repository audits.
 
 ## v1.4.1 - 2026-06-20
 

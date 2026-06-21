@@ -22,7 +22,7 @@ permissions:
 jobs:
   package:
     name: Build release package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Resolve release inputs
@@ -46,7 +46,7 @@ jobs:
           echo "agent_rules_ref=$agent_rules_ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.0
         with:
           ref: ${{ steps.refs.outputs.starter_ref }}
 
