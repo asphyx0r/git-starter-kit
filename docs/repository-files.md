@@ -343,7 +343,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Copy to `.codex/config.toml` inside a trusted repository and adjust
   only project-specific settings.
 - Notes: Keeps model, provider, authentication, MCP, hook, and personal
-  preferences out of the reusable template.
+  preferences out of the reusable template. Uses placeholders instead of
+  date-sensitive model names.
 
 ### `templates/.env.template`
 

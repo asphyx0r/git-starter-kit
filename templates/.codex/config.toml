@@ -5,9 +5,9 @@
 # Optional: force deepest reasoning for this trusted project.
 # model_reasoning_effort = "xhigh"
 
-# Optional: pin the current latest model manually.
+# Optional: pin a project-approved model manually.
 # Prefer omitting model to let Codex use its recommended default.
-# model = "gpt-5.5"
+# model = "<model-id>"
 
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"

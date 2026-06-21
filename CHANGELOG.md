@@ -22,6 +22,8 @@ uses [Semantic Versioning](https://semver.org/).
   reports.
 - Cleaned release package script warnings reported by PowerShell
   ScriptAnalyzer.
+- Replaced the Codex configuration template model example with a stable
+  placeholder.
 
 ## v1.4.1 - 2026-06-20
 
