@@ -18,6 +18,8 @@ uses [Semantic Versioning](https://semver.org/).
 - Restricted release package agent rules references to `latest` or SemVer tags.
 - Clarified that VS Code format-on-save settings do not authorize agent-run
   formatters or automatic fixers.
+- Documented GitHub private reporting for sensitive security and conduct
+  reports.
 
 ## v1.4.1 - 2026-06-20
 

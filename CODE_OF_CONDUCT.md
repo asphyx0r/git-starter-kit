@@ -26,8 +26,11 @@ issues, pull requests, discussions, reviews, and related maintainer channels.
 
 ## Reporting
 
-If you experience or observe unacceptable behavior, report it through a private
-maintainer contact when one is documented by the repository owner.
+If you experience or observe unacceptable behavior and the report includes
+private or sensitive information, use GitHub private reporting for this
+repository:
+
+- `https://github.com/asphyx0r/git-starter-kit/security/advisories/new`
 
 Do not disclose sensitive personal information publicly.
 

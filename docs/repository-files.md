@@ -196,7 +196,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Defines expected behavior for participation in this repository.
 - Usage: Read before contributing or participating in project discussions.
-- Notes: Keep GitHub-specific duplicates out of `.github/`.
+- Notes: Keep GitHub-specific duplicates out of `.github/` and document a
+  private path for sensitive conduct reports.
 
 ### `commitlint.config.cjs`
 
@@ -237,7 +238,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Explains how to report security issues for this repository.
 - Usage: Use for suspected vulnerabilities in the starter kit itself.
-- Notes: Avoid inventing contact details or response timelines.
+- Notes: Uses GitHub private vulnerability reporting instead of inventing
+  maintainer email addresses or response timelines.
 
 ### `SUPPORT.md`
 

@@ -13,11 +13,10 @@ later.
 Please do not disclose security issues publicly before maintainers have had
 time to review them.
 
-Report suspected vulnerabilities through one of the following channels:
+Report suspected vulnerabilities through GitHub private vulnerability
+reporting for this repository:
 
-- A private security advisory, if GitHub security advisories are enabled for
-  the repository.
-- A private maintainer contact, if one is documented by the repository owner.
+- `https://github.com/asphyx0r/git-starter-kit/security/advisories/new`
 
 Include as much detail as possible:
 
