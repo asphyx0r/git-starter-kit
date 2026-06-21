@@ -112,7 +112,9 @@ deferred, or explicitly excluded from the template.
 - Notes: The workflow uses a pinned runner, a checkout action pinned by SHA
   for `actions/checkout@v7.0.0`, `markdownlint-cli2`, and Codespell versions
   before running Markdown, spelling, script, smoke, and configuration checks.
-  ShellCheck is provided by the runner, and its version is logged in CI.
+  ShellCheck is provided by the runner, and its version is logged in CI. Tool
+  downloads are version-pinned but not hash-verified; this is an intentional
+  lightweight CI tradeoff.
 
 ### `.github/workflows/release-package.yml`
 
