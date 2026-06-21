@@ -18,6 +18,10 @@ reporting for this repository:
 
 - `https://github.com/asphyx0r/git-starter-kit/security/advisories/new`
 
+Keep GitHub private vulnerability reporting enabled for this repository. If it
+is unavailable, enable another private channel before requesting sensitive
+security reports.
+
 Include as much detail as possible:
 
 - A clear description of the issue.

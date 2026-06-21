@@ -32,6 +32,9 @@ repository:
 
 - `https://github.com/asphyx0r/git-starter-kit/security/advisories/new`
 
+Keep this private reporting path enabled. If it is unavailable, enable another
+private channel before requesting sensitive conduct reports.
+
 Do not disclose sensitive personal information publicly.
 
 ## Enforcement
