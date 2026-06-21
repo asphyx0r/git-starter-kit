@@ -15,7 +15,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Reusable templates for README, changelog, contributing, code of conduct,
   security, support, environment, Git, Codex, and release notes files.
 - GitHub community files for pull requests, issues, conduct, and support.
-- GitHub Actions workflow for lightweight Markdown and spelling audits.
+- GitHub Actions workflow for lightweight Markdown, spelling, script, and
+  configuration audits.
 - Release package automation for exports enriched with coding-agent rules.
 - Interactive Git initialization scripts for PowerShell and Bash.
 

@@ -34,3 +34,49 @@ jobs:
 
       - name: Run Codespell
         run: codespell .
+
+  static:
+    name: Static checks
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Check Git whitespace
+        run: git diff --check
+
+      - name: Check Bash syntax
+        run: bash -n scripts/git-init.sh
+
+      - name: Run ShellCheck
+        run: shellcheck scripts/git-init.sh
+
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = @()
+          foreach ($path in @(
+            "scripts/build-release-package.ps1",
+            "scripts/git-init.ps1"
+          )) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $path,
+              [ref]$tokens,
+              [ref]$parseErrors
+            ) | Out-Null
+
+            if ($parseErrors.Count -gt 0) {
+              $errors += $parseErrors
+            }
+          }
+
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Check commitlint config
+        run: node --check commitlint.config.cjs

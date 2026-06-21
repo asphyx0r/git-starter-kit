@@ -110,7 +110,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Runs a minimal repository documentation audit on GitHub Actions.
 - Usage: Executes on pushes, pull requests, and manual dispatch.
 - Notes: The workflow uses pinned runner, checkout, `markdownlint-cli2`, and
-  Codespell versions before running Markdown and spelling checks.
+  Codespell versions before running Markdown, spelling, script, and
+  configuration checks.
 
 ### `.github/workflows/release-package.yml`
 
