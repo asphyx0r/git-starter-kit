@@ -20,8 +20,8 @@ Those archives contain only the files that are committed in `git-starter-kit`
 at the release tag.
 
 The release package workflow adds one more downloadable file to the same
-release. This extra ZIP overlays the latest stable `agent-coding-rules` files
-on top of the starter kit files.
+release. This extra ZIP overlays a pinned `agent-coding-rules` release on top
+of the starter kit files.
 
 ## Generated File
 
@@ -49,20 +49,23 @@ SHA, and release date.
 
 Use this mode for the normal release process.
 
-1. Prepare the release commit in `git-starter-kit`.
-2. Create and push the release tag, for example `v1.3.0`.
-3. On GitHub, open the repository page.
-4. Open **Releases**.
-5. Create a new release from the tag.
-6. Publish the release.
+1. Set the repository variable `AGENT_RULES_REF` to a SemVer
+   `agent-coding-rules` tag, for example `v1.36.1`.
+2. Prepare the release commit in `git-starter-kit`.
+3. Create and push the release tag, for example `v1.3.0`.
+4. On GitHub, open the repository page.
+5. Open **Releases**.
+6. Create a new release from the tag.
+7. Publish the release.
 
 After the release is published, GitHub starts the `Release package` workflow
-automatically.
+automatically. The workflow rejects missing `AGENT_RULES_REF` values and values
+that are not SemVer tags prefixed with `v`.
 
 The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag.
-2. Finds the latest stable published release of `agent-coding-rules`.
+2. Uses the pinned `agent-coding-rules` tag from `AGENT_RULES_REF`.
 3. Copies the tracked starter-kit files into a temporary package folder.
 4. Copies the six agent rule files into that package folder.
 5. Writes `_agent-rules-source.json`.

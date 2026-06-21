@@ -35,6 +35,7 @@ uses [Semantic Versioning](https://semver.org/).
 - Validated Git initialization target directories before creating commits.
 - Previewed Git initialization commit file lists and risky paths before
   staging files.
+- Required pinned `AGENT_RULES_REF` SemVer tags for automatic release packages.
 
 ## v1.4.1 - 2026-06-20
 
