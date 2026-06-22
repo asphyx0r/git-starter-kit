@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Neutralized regional defaults in the environment template.
 - Covered complex SemVer tags in Git initialization smoke checks.
 - Wrapped long GitHub Actions shell lines for YAML lint readability.
 - Aligned Codespell skips with generated and cache ignore paths.

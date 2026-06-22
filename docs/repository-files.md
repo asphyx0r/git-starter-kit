@@ -375,7 +375,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Copy to a project-specific environment template and replace
   placeholders.
 - Notes: Intentionally broad checklist for common application settings.
-  Contains placeholders and conservative local defaults; keep real environment
+  Contains placeholders and neutral local defaults; keep real environment
   files untracked.
 
 ### `templates/.gitconfig`
