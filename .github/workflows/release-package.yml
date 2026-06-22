@@ -61,7 +61,9 @@ jobs:
 
           if [ "$agent_rules_ref" != "latest" ] &&
              ! [[ "$agent_rules_ref" =~ $semver_tag_pattern ]]; then
-            echo "agent_rules_ref must be latest or a SemVer tag prefixed with v." >&2
+            message="agent_rules_ref must be latest or a SemVer tag"
+            message+=" prefixed with v."
+            echo "$message" >&2
             exit 1
           fi
 

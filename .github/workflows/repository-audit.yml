@@ -162,9 +162,22 @@ jobs:
             -OutputDirectory "$RUNNER_TEMP/release-package-smoke" \
             -PackageName latest-release-package.zip
 
-          manifest_ref="$(python -c 'import json, sys, zipfile; archive = zipfile.ZipFile(sys.argv[1]); print(json.load(archive.open("_agent-rules-source.json"))["agentRules"]["ref"])' "$latest_package")"
-          if ! [[ "$manifest_ref" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*) ]]; then
-            echo "Release package latest did not resolve to a concrete SemVer tag." >&2
+          manifest_ref="$(
+            python - "$latest_package" <<'PY'
+          import json
+          import sys
+          import zipfile
+
+          archive = zipfile.ZipFile(sys.argv[1])
+          manifest = json.load(archive.open("_agent-rules-source.json"))
+          print(manifest["agentRules"]["ref"])
+          PY
+          )"
+          semver_ref_pattern='^v(0|[1-9][0-9]*)\.'
+          semver_ref_pattern+='(0|[1-9][0-9]*)\.'
+          semver_ref_pattern+='(0|[1-9][0-9]*)'
+          if ! [[ "$manifest_ref" =~ $semver_ref_pattern ]]; then
+            echo "Release package latest did not resolve to a SemVer tag." >&2
             exit 1
           fi
 

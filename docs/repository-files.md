@@ -112,8 +112,9 @@ deferred, or explicitly excluded from the template.
 - Notes: The workflow uses a pinned runner, a checkout action pinned by SHA
   for `actions/checkout@v7.0.0`, `markdownlint-cli2`, and Codespell versions
   before running Markdown, spelling, script, smoke, and configuration checks.
-  ShellCheck is provided by the runner, and its version is logged in CI. Tool
-  downloads are version-pinned but not hash-verified; this is an intentional
+  ShellCheck is provided by the runner, and its version is logged in CI.
+  Long shell snippets are wrapped for YAML lint readability. Tool downloads
+  are version-pinned but not hash-verified; this is an intentional
   lightweight CI tradeoff.
 
 ### `.github/workflows/release-package.yml`
@@ -128,7 +129,8 @@ deferred, or explicitly excluded from the template.
   packages, validates manual
   release tags and agent rules references, then calls
   `scripts/build-release-package.ps1`
-  and uploads the generated ZIP.
+  and uploads the generated ZIP. Shell validation messages are wrapped for
+  YAML lint readability.
 
 ### `.gitignore`
 
