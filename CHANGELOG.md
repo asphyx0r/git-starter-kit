@@ -21,7 +21,8 @@ uses [Semantic Versioning](https://semver.org/).
   comments.
 - Included tracked VS Code workspace files in Codespell coverage.
 - Validated release package tags before checkout and upload.
-- Restricted release package agent rules references to `latest` or SemVer tags.
+- Resolved `latest` release package agent rules references to concrete SemVer
+  tags before cloning.
 - Clarified that VS Code format-on-save settings do not authorize agent-run
   formatters or automatic fixers.
 - Documented GitHub private reporting for sensitive security and conduct
@@ -33,7 +34,8 @@ uses [Semantic Versioning](https://semver.org/).
 - Validated Git initialization target directories before creating commits.
 - Previewed Git initialization commit file lists and risky paths before
   staging files.
-- Required pinned `AGENT_RULES_REF` SemVer tags for automatic release packages.
+- Required explicit `AGENT_RULES_REF` values for automatic release packages
+  while accepting `latest` or SemVer tags.
 - Added smoke checks for Git initialization and release package scripts.
 - Hardened repository audit tool setup and logged the ShellCheck version.
 - Clarified the Windows sandbox scope in the Codex configuration template.

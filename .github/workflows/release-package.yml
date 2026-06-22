@@ -11,7 +11,7 @@ name: Release package
         required: true
         type: string
       agent_rules_ref:
-        description: agent-coding-rules SemVer release tag
+        description: agent-coding-rules latest release or SemVer tag
         required: true
         type: string
 
@@ -56,12 +56,13 @@ jobs:
           fi
 
           if [ -z "${agent_rules_ref:-}" ]; then
-            echo "agent_rules_ref must be set to a SemVer tag." >&2
+            echo "agent_rules_ref must be set to latest or a SemVer tag." >&2
             exit 1
           fi
 
-          if ! [[ "$agent_rules_ref" =~ $semver_tag_pattern ]]; then
-            echo "agent_rules_ref must be a SemVer tag prefixed with v." >&2
+          if [ "$agent_rules_ref" != "latest" ] &&
+             ! [[ "$agent_rules_ref" =~ $semver_tag_pattern ]]; then
+            echo "agent_rules_ref must be latest or a SemVer tag prefixed with v." >&2
             exit 1
           fi
 
@@ -80,6 +81,7 @@ jobs:
         env:
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
           AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           ./scripts/build-release-package.ps1 `
             -StarterRef $env:STARTER_REF `

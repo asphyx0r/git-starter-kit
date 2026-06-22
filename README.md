@@ -42,13 +42,14 @@ placeholder values with project-specific content.
 Use the GitHub templates in `.github/` to keep issues and pull requests
 reviewable with minimal process.
 
-Published releases can attach a generated ZIP package that overlays a pinned
+Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records its source in
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
 automatic and manual usage.
 
 Automatic release packages require the `AGENT_RULES_REF` repository variable to
-name a SemVer agent-rules tag. Manual runs must also use a SemVer tag.
+name `latest` or a SemVer agent-rules tag. Manual runs accept the same values.
+When `latest` is used, the generated manifest records the resolved SemVer tag.
 
 Initialize a target repository with an explicit confirmation prompt:
 

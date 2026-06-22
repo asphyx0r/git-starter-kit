@@ -50,16 +50,63 @@ function Invoke-GitLine {
     return @($output | ForEach-Object { $_.ToString() })
 }
 
-function Resolve-AgentRulesRelease {
-    param([string]$RequestedRef)
+function Get-GitHubLatestRelease {
+    param([Parameter(Mandatory = $true)][string]$Repository)
 
-    if ([string]::IsNullOrWhiteSpace($RequestedRef) -or
-        $RequestedRef -notmatch $SemVerTagPattern) {
-        throw "AgentRulesRef must be a SemVer tag prefixed with v."
+    $headers = @{
+        Accept                 = "application/vnd.github+json"
+        "X-GitHub-Api-Version" = "2022-11-28"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+        $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN"
+    }
+
+    $releaseUrl = "https://api.github.com/repos/$Repository/releases/latest"
+    try {
+        return Invoke-RestMethod `
+            -Method Get `
+            -Uri $releaseUrl `
+            -Headers $headers `
+            -UserAgent "git-starter-kit-release-package"
+    }
+    catch {
+        throw "Unable to resolve latest agent rules release from $releaseUrl`: $($_.Exception.Message)"
+    }
+}
+
+function Resolve-AgentRulesRelease {
+    param(
+        [string]$RequestedRef,
+        [Parameter(Mandatory = $true)][string]$Repository
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RequestedRef)) {
+        throw "AgentRulesRef must be latest or a SemVer tag prefixed with v."
+    }
+
+    $normalizedRef = $RequestedRef.Trim()
+    if ($normalizedRef -ceq "latest") {
+        $latestRelease = Get-GitHubLatestRelease -Repository $Repository
+        $latestRef = [string]$latestRelease.tag_name
+        if ([string]::IsNullOrWhiteSpace($latestRef) -or
+            $latestRef -notmatch $SemVerTagPattern) {
+            throw "Latest agent rules release tag must be a SemVer tag prefixed with v."
+        }
+
+        return [ordered]@{
+            Ref         = $latestRef
+            ReleaseUrl  = [string]$latestRelease.html_url
+            ReleaseDate = [string]$latestRelease.published_at
+        }
+    }
+
+    if ($normalizedRef -notmatch $SemVerTagPattern) {
+        throw "AgentRulesRef must be latest or a SemVer tag prefixed with v."
     }
 
     return [ordered]@{
-        Ref         = $RequestedRef
+        Ref         = $normalizedRef
         ReleaseUrl  = $null
         ReleaseDate = $null
     }
@@ -113,7 +160,9 @@ try {
         $StarterRef = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
     }
 
-    $resolvedAgentRules = Resolve-AgentRulesRelease -RequestedRef $AgentRulesRef
+    $resolvedAgentRules = Resolve-AgentRulesRelease `
+        -RequestedRef $AgentRulesRef `
+        -Repository $AgentRulesRepository
     $resolvedAgentRulesRef = $resolvedAgentRules.Ref
     $agentRulesCloneUrl = "https://github.com/$AgentRulesRepository.git"
 
