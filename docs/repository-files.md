@@ -358,8 +358,8 @@ deferred, or explicitly excluded from the template.
   only project-specific settings.
 - Notes: Keeps model, provider, authentication, MCP, hook, and personal
   preferences out of the reusable template. Uses placeholders instead of
-  date-sensitive model names and documents Windows sandbox network and
-  elevation tradeoffs.
+  date-sensitive model names, defaults to unelevated Windows sandboxing,
+  and documents network and elevation tradeoffs.
 
 ### `templates/.env.template`
 

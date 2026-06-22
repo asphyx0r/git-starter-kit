@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Preferred unelevated sandboxing in the Codex configuration template.
 - Made latest agent rules the default release package source.
 - Clarified that the environment template is intentionally broad.
 - Validated release package names before creating or replacing ZIP files.
