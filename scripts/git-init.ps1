@@ -2,6 +2,7 @@ $ScriptVersion = "1.0.0"
 $DefaultTag = "v1.0.0"
 $CommitMessage = "chore: initialize repository"
 $TagMessage = "Initial version/First commit"
+# Keep this pattern aligned with repository-audit SemVer smoke tests.
 $SemVerTagPattern = "^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$"
 
 Set-StrictMode -Version 3.0

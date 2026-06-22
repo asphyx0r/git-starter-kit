@@ -41,6 +41,7 @@ jobs:
             agent_rules_ref="$INPUT_AGENT_RULES_REF"
           fi
 
+          # Keep this pattern aligned with repository-audit SemVer smoke tests.
           semver_tag_pattern='^v(0|[1-9][0-9]*)\.'
           semver_tag_pattern+='(0|[1-9][0-9]*)\.'
           semver_tag_pattern+='(0|[1-9][0-9]*)'

@@ -113,9 +113,10 @@ deferred, or explicitly excluded from the template.
   for `actions/checkout@v7.0.0`, `markdownlint-cli2`, and Codespell versions
   before running Markdown, spelling, script, smoke, and configuration checks.
   ShellCheck is provided by the runner, and its version is logged in CI.
-  Long shell snippets are wrapped for YAML lint readability. Tool downloads
-  are version-pinned but not hash-verified; this is an intentional
-  lightweight CI tradeoff.
+  Long shell snippets are wrapped for YAML lint readability. SemVer
+  smoke cases cover simple, complex, and invalid tags. Tool downloads are
+  version-pinned but not hash-verified; this is an intentional lightweight
+  CI tradeoff.
 
 ### `.github/workflows/release-package.yml`
 
@@ -277,7 +278,8 @@ deferred, or explicitly excluded from the template.
 - Notes: Copies tracked starter-kit files, resolves `latest` through the GitHub
   release API by default, overlays tagged `agent-coding-rules` files,
   writes `_agent-rules-source.json`, validates package file names before
-  writing ZIP files, and verifies required files in the archive. Helper
+  writing ZIP files, keeps SemVer validation aligned with CI smoke cases,
+  and verifies required files in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
 ### `scripts/git-init.ps1`
@@ -288,7 +290,8 @@ deferred, or explicitly excluded from the template.
   user confirmation.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
-- Notes: Validates SemVer tags, requires existing non-empty target directories,
+- Notes: Validates SemVer tags covered by CI smoke cases, requires
+  existing non-empty target directories,
   previews committable files from Git porcelain status, warns on risky
   credential and artifact paths, refuses existing target
   commits, creates the first Conventional Commit on `main`, tags it, and only
@@ -302,7 +305,8 @@ deferred, or explicitly excluded from the template.
   confirmation.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
-- Notes: Validates SemVer tags, requires existing non-empty target directories,
+- Notes: Validates SemVer tags covered by CI smoke cases, requires
+  existing non-empty target directories,
   previews committable files from Git porcelain status, warns on risky
   credential and artifact paths, refuses existing target
   commits, creates the first Conventional Commit on `main`, tags it, and only

@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Covered complex SemVer tags in Git initialization smoke checks.
 - Wrapped long GitHub Actions shell lines for YAML lint readability.
 - Aligned Codespell skips with generated and cache ignore paths.
 - Preferred unelevated sandboxing in the Codex configuration template.

@@ -5,6 +5,7 @@ script_version="1.0.0"
 default_tag="v1.0.0"
 commit_message="chore: initialize repository"
 tag_message="Initial version/First commit"
+# Keep this pattern aligned with repository-audit SemVer smoke tests.
 semver_tag_pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
 
 show_help=0

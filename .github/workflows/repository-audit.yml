@@ -117,6 +117,7 @@ jobs:
           GIT_COMMITTER_EMAIL: codex@example.com
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          complex_semver_tag="v1.0.0-rc.1+build.1"
           bash scripts/git-init.sh --help
           if bash scripts/git-init.sh --path "$RUNNER_TEMP" --tag invalid; then
             echo "Bash init accepted an invalid tag." >&2
@@ -132,6 +133,17 @@ jobs:
             --tag v1.0.0
           if [ -n "$(git -C "$bash_target" status --short)" ]; then
             echo "Bash init smoke repository is not clean." >&2
+            exit 1
+          fi
+
+          bash_semver_target="$RUNNER_TEMP/git-init-bash-semver-smoke"
+          mkdir -p "$bash_semver_target"
+          printf 'hello\n' > "$bash_semver_target/README.md"
+          printf 'y\ny\n' | bash scripts/git-init.sh \
+            --path "$bash_semver_target" \
+            --tag "$complex_semver_tag"
+          if [ -n "$(git -C "$bash_semver_target" status --short)" ]; then
+            echo "Bash init SemVer smoke repository is not clean." >&2
             exit 1
           fi
 
@@ -152,6 +164,17 @@ jobs:
             --tag v1.0.0
           if [ -n "$(git -C "$pwsh_target" status --short)" ]; then
             echo "PowerShell init smoke repository is not clean." >&2
+            exit 1
+          fi
+
+          pwsh_semver_target="$RUNNER_TEMP/git-init-pwsh-semver-smoke"
+          mkdir -p "$pwsh_semver_target"
+          printf 'hello\n' > "$pwsh_semver_target/README.md"
+          printf 'y\ny\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
+            --path "$pwsh_semver_target" \
+            --tag "$complex_semver_tag"
+          if [ -n "$(git -C "$pwsh_semver_target" status --short)" ]; then
+            echo "PowerShell init SemVer smoke repository is not clean." >&2
             exit 1
           fi
 
