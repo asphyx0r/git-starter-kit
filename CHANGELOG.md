@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Aligned Codespell skips with generated and cache ignore paths.
 - Preferred unelevated sandboxing in the Codex configuration template.
 - Made latest agent rules the default release package source.
 - Clarified that the environment template is intentionally broad.

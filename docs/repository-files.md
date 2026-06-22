@@ -28,7 +28,7 @@ deferred, or explicitly excluded from the template.
 - Goal: Configures Codespell for lightweight spelling checks.
 - Usage: Run `codespell` from the repository root.
 - Notes: Checks hidden files, file names, and tracked workspace configs while
-  skipping common generated, dependency, cache, and binary paths.
+  skipping generated, dependency, report, cache, and binary paths.
 
 ### `.editorconfig`
 
