@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Made latest agent rules the default release package source.
 - Clarified that the environment template is intentionally broad.
 - Validated release package names before creating or replacing ZIP files.
 - Aligned Git initialization first commit messages with Conventional Commits.

@@ -47,9 +47,9 @@ Published releases can attach a generated ZIP package that overlays a resolved
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
 automatic and manual usage.
 
-Automatic release packages require the `AGENT_RULES_REF` repository variable to
-name `latest` or a SemVer agent-rules tag. Manual runs accept the same values.
-When `latest` is used, the generated manifest records the resolved SemVer tag.
+Automatic release packages use the latest published full `agent-coding-rules`
+release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
+is used, the generated manifest records the resolved SemVer tag.
 
 Initialize a target repository with an explicit confirmation prompt:
 

@@ -4,7 +4,7 @@ param(
     [string]$PackageName = "",
     [string]$StarterRef = $env:GITHUB_REF_NAME,
     [string]$AgentRulesRepository = "asphyx0r/agent-coding-rules",
-    [string]$AgentRulesRef = ""
+    [string]$AgentRulesRef = "latest"
 )
 
 Set-StrictMode -Version 3.0

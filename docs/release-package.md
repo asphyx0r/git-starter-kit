@@ -49,24 +49,21 @@ tag, commit SHA, and release date.
 
 Use this mode for the normal release process.
 
-1. Set the repository variable `AGENT_RULES_REF` to `latest` or a SemVer
-   `agent-coding-rules` tag, for example `v1.36.1`.
-2. Prepare the release commit in `git-starter-kit`.
-3. Create and push the release tag, for example `v1.3.0`.
-4. On GitHub, open the repository page.
-5. Open **Releases**.
-6. Create a new release from the tag.
-7. Publish the release.
+1. Prepare the release commit in `git-starter-kit`.
+2. Create and push the release tag, for example `v1.3.0`.
+3. On GitHub, open the repository page.
+4. Open **Releases**.
+5. Create a new release from the tag.
+6. Publish the release.
 
 After the release is published, GitHub starts the `Release package` workflow
-automatically. The workflow rejects missing `AGENT_RULES_REF` values and values
-that are neither `latest` nor SemVer tags prefixed with `v`.
+automatically. Automatic releases intentionally use `latest` so the package
+always includes the latest published full `agent-coding-rules` release.
 
 The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag.
-2. Resolves `latest` to the latest published full `agent-coding-rules` release,
-   or uses the explicit SemVer tag from `AGENT_RULES_REF`.
+2. Resolves `latest` to the latest published full `agent-coding-rules` release.
 3. Copies the tracked starter-kit files into a temporary package folder.
 4. Copies the six agent rule files into that package folder.
 5. Writes `_agent-rules-source.json` with the resolved agent-rules tag.
@@ -102,9 +99,9 @@ that release; it does not create the release itself.
    for example `v1.36.1`.
 7. Click **Run workflow**.
 
-Manual release packages accept `latest`, but resolve it to a concrete SemVer
-tag before cloning. Branch names are still rejected so the generated asset
-stays reproducible.
+Manual release packages accept `latest` or an explicit SemVer tag. Use a SemVer
+tag when you need to recreate a package from a known agent-rules release.
+Branch names are still rejected so the generated asset stays reproducible.
 
 When the workflow finishes, open the GitHub release page for the tag and check
 that the ZIP asset is listed under the release assets.
@@ -118,7 +115,6 @@ From the repository root, run:
 ```powershell
 powershell -NoProfile -File scripts\build-release-package.ps1 `
   -StarterRef local-test `
-  -AgentRulesRef latest `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip
 ```
@@ -131,6 +127,8 @@ tar -xOf .tmp\release-package-test\test-release-package.zip _agent-rules-source.
 ```
 
 The local test creates a ZIP only. It does not upload anything to GitHub.
+`AgentRulesRef` defaults to `latest`; pass a SemVer tag only when you need a
+known agent-rules release.
 
 The script copies files reported by `git ls-files`. Local untracked files are
 not included in the package. This is intentional, because release packages
@@ -147,5 +145,5 @@ GitHub release tag using SemVer with a leading `v`.
 If the upload fails because the asset already exists, delete the old asset from
 the release page and run the workflow again.
 
-If the package uses the wrong agent rules version, run the manual workflow again
-with the required `agent_rules_ref` value: `latest` or a SemVer tag.
+If the package must use a specific agent rules version, run the manual
+workflow again with an explicit SemVer `agent_rules_ref` value.
