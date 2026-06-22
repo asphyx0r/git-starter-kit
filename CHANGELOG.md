@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Validated release package names before creating or replacing ZIP files.
 - Aligned Git initialization first commit messages with Conventional Commits.
 - Pinned GitHub Actions runner, checkout, Markdown lint, and spelling tool
   versions for reproducible repository audits.

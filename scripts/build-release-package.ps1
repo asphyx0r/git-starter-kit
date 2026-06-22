@@ -147,6 +147,45 @@ function Write-Utf8NoBomFile {
     [System.IO.File]::WriteAllText($Path, $Content, $encoding)
 }
 
+function Resolve-PackageFilePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$OutputRoot,
+        [Parameter(Mandatory = $true)][string]$PackageName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PackageName)) {
+        throw "PackageName must not be empty."
+    }
+
+    if ([System.IO.Path]::IsPathRooted($PackageName) -or
+        $PackageName.Contains("/") -or
+        $PackageName.Contains("\")) {
+        throw "PackageName must be a file name, not a path."
+    }
+
+    if ($PackageName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0) {
+        throw "PackageName contains invalid file name characters."
+    }
+
+    $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
+    $packagePath = [System.IO.Path]::GetFullPath(
+        (Join-Path $resolvedOutputRoot $PackageName)
+    )
+    $rootPrefix = $resolvedOutputRoot.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    ) + [System.IO.Path]::DirectorySeparatorChar
+
+    if (-not $packagePath.StartsWith(
+            $rootPrefix,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw "Package path must stay inside OutputDirectory."
+    }
+
+    return $packagePath
+}
+
 $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
@@ -159,6 +198,18 @@ try {
     if ([string]::IsNullOrWhiteSpace($StarterRef)) {
         $StarterRef = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
     }
+
+    if ([string]::IsNullOrWhiteSpace($PackageName)) {
+        $safeRef = $StarterRef -replace "[^A-Za-z0-9._-]", "-"
+        $PackageName = "git-starter-kit-$safeRef-with-agent-rules.zip"
+    }
+    elseif (-not $PackageName.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $PackageName = "$PackageName.zip"
+    }
+
+    $packagePath = Resolve-PackageFilePath `
+        -OutputRoot $outputRoot `
+        -PackageName $PackageName
 
     $resolvedAgentRules = Resolve-AgentRulesRelease `
         -RequestedRef $AgentRulesRef `
@@ -220,15 +271,7 @@ try {
         }
     }
 
-    if ([string]::IsNullOrWhiteSpace($PackageName)) {
-        $safeRef = $StarterRef -replace "[^A-Za-z0-9._-]", "-"
-        $PackageName = "git-starter-kit-$safeRef-with-agent-rules.zip"
-    }
-    elseif (-not $PackageName.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
-        $PackageName = "$PackageName.zip"
-    }
 
-    $packagePath = Join-Path $outputRoot $PackageName
     if (Test-Path -LiteralPath $packagePath) {
         Remove-Item -LiteralPath $packagePath -Force
     }
