@@ -8,7 +8,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Changed
+## v1.5.0 - 2026-06-22
+
+### Changed in v1.5.0
 
 - Neutralized regional defaults in the environment template.
 - Covered complex SemVer tags in Git initialization smoke checks.
