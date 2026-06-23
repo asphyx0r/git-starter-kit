@@ -43,13 +43,14 @@ Use the GitHub templates in `.github/` to keep issues and pull requests
 reviewable with minimal process.
 
 Published releases can attach a generated ZIP package that overlays a resolved
-`agent-coding-rules` release and records its source in
+`agent-coding-rules` release and records the requested and resolved source in
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
 automatic and manual usage.
 
 Automatic release packages use the latest published full `agent-coding-rules`
 release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
-is used, the generated manifest records the resolved SemVer tag.
+is used, the generated manifest records both the requested `latest` reference
+and the resolved SemVer tag.
 
 Initialize a target repository with an explicit confirmation prompt:
 
@@ -60,6 +61,10 @@ bash scripts/git-init.sh --path ../example-app --tag v1.0.0
 ```powershell
 powershell -NoProfile -File scripts\git-init.ps1 --path ..\example-app --tag v1.0.0
 ```
+
+Both scripts preview the files Git can commit before creating target `.git`
+metadata. If commit confirmation is declined, the target directory is left
+uninitialized.
 
 Use `--remote <url>` when the initialized repository should add `origin` and
 push `main` with tags. When `--remote` is omitted, the scripts do not push.

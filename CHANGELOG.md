@@ -8,7 +8,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Changed
+## v1.5.1 - 2026-06-23
+
+### Changed in v1.5.1
 
 - Recorded the requested agent rules reference in release package manifests and
   verified cloned agent rules tags against the resolved tag.
@@ -17,7 +19,7 @@ uses [Semantic Versioning](https://semver.org/).
 - Clarified that VS Code format-on-save settings are human IDE defaults, not
   agent authorization for formatters or automatic fixers.
 
-### Fixed
+### Fixed in v1.5.1
 
 - Deferred Git repository creation in initialization scripts until after all
   user confirmations are accepted.
