@@ -14,6 +14,8 @@ uses [Semantic Versioning](https://semver.org/).
   verified cloned agent rules tags against the resolved tag.
 - Documented the accepted lightweight CI tradeoff for version-pinned tool
   downloads without hash verification.
+- Clarified that VS Code format-on-save settings are human IDE defaults, not
+  agent authorization for formatters or automatic fixers.
 
 ### Fixed
 

@@ -184,8 +184,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines shared VS Code workspace defaults for this starter kit.
 - Usage: VS Code applies these settings when the repository is opened.
 - Notes: Keep settings aligned with `.editorconfig` and generic editor
-  recommendations. Format-on-save settings are for human VS Code use and do
-  not authorize agents to run formatters or automatic fixers.
+  recommendations. Format-on-save settings are human VS Code defaults only;
+  they do not permit agents to run formatters or automatic fixers.
 
 ### `AGENTS.md`
 
