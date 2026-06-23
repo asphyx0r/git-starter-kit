@@ -100,20 +100,48 @@ function Test-GitSuccess {
 function Get-CommittableFile {
     param([Parameter(Mandatory = $true)][string]$RepositoryPath)
 
-    $statusText = (Invoke-Git -Arguments @(
-        "-C", $RepositoryPath, "status", "--porcelain=v1", "-z",
-        "--untracked-files=all"
-    )) -join ""
-    $files = @()
-    foreach ($entry in ($statusText -split "`0")) {
-        if ($entry.Length -lt 4) {
-            continue
+    $previewGitDirectory = ""
+    try {
+        $gitMetadataPath = Join-Path $RepositoryPath ".git"
+        if (Test-Path -LiteralPath $gitMetadataPath) {
+            $statusArguments = @(
+                "-C", $RepositoryPath, "status", "--porcelain=v1", "-z",
+                "--untracked-files=all"
+            )
+        }
+        else {
+            $previewGitDirectory = Join-Path `
+                ([System.IO.Path]::GetTempPath()) `
+                "git-init-preview-$([guid]::NewGuid().ToString('N'))"
+            Invoke-Git -Arguments @("init", "--bare", $previewGitDirectory) | Out-Null
+            $statusArguments = @(
+                "--git-dir=$previewGitDirectory",
+                "--work-tree=$RepositoryPath",
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all"
+            )
         }
 
-        $files += $entry.Substring(3)
-    }
+        $statusText = (Invoke-Git -Arguments $statusArguments) -join ""
+        $files = @()
+        foreach ($entry in ($statusText -split "`0")) {
+            if ($entry.Length -lt 4) {
+                continue
+            }
 
-    return $files
+            $files += $entry.Substring(3)
+        }
+
+        return $files
+    }
+    finally {
+        if (-not [string]::IsNullOrWhiteSpace($previewGitDirectory) -and
+            (Test-Path -LiteralPath $previewGitDirectory)) {
+            Remove-Item -LiteralPath $previewGitDirectory -Recurse -Force
+        }
+    }
 }
 
 function Test-RiskyPath {
@@ -247,12 +275,6 @@ if ($confirmation -cne "y" -and $confirmation -cne "Y") {
     exit 0
 }
 
-Invoke-Git -Arguments @("init", $targetPath) | Out-Null
-
-if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "refs/tags/$tag")) {
-    throw "Tag already exists in target repository: $tag"
-}
-
 $committableFiles = @(Get-CommittableFile -RepositoryPath $targetPath)
 if ($committableFiles.Count -eq 0) {
     throw "No committable files found in target directory: $targetPath"
@@ -279,6 +301,12 @@ if ($riskyFiles.Count -gt 0) {
         Write-Output "Git commit cancelled."
         exit 0
     }
+}
+
+Invoke-Git -Arguments @("init", $targetPath) | Out-Null
+
+if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "refs/tags/$tag")) {
+    throw "Tag already exists in target repository: $tag"
 }
 
 Invoke-Git -Arguments @("-C", $targetPath, "add", "--all") | Out-Null

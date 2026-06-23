@@ -114,9 +114,9 @@ deferred, or explicitly excluded from the template.
   before running Markdown, spelling, script, smoke, and configuration checks.
   ShellCheck is provided by the runner, and its version is logged in CI.
   Long shell snippets are wrapped for YAML lint readability. SemVer
-  smoke cases cover simple, complex, and invalid tags. Tool downloads are
-  version-pinned but not hash-verified; this is an intentional lightweight
-  CI tradeoff.
+  smoke cases cover simple, complex, invalid, and cancelled initialization
+  flows. Tool downloads are version-pinned but not hash-verified; this is an
+  intentional lightweight CI tradeoff.
 
 ### `.github/workflows/release-package.yml`
 
@@ -292,10 +292,10 @@ deferred, or explicitly excluded from the template.
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
 - Notes: Validates SemVer tags covered by CI smoke cases, requires
   existing non-empty target directories,
-  previews committable files from Git porcelain status, warns on risky
-  credential and artifact paths, refuses existing target
-  commits, creates the first Conventional Commit on `main`, tags it, and only
-  pushes when `--remote` is provided.
+  previews committable files from Git porcelain status without creating target
+  Git metadata, warns on risky credential and artifact paths, refuses existing
+  target commits, creates the first Conventional Commit on `main`, tags it,
+  and only pushes when `--remote` is provided.
 
 ### `scripts/git-init.sh`
 
@@ -307,10 +307,10 @@ deferred, or explicitly excluded from the template.
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
 - Notes: Validates SemVer tags covered by CI smoke cases, requires
   existing non-empty target directories,
-  previews committable files from Git porcelain status, warns on risky
-  credential and artifact paths, refuses existing target
-  commits, creates the first Conventional Commit on `main`, tags it, and only
-  pushes when `--remote` is provided.
+  previews committable files from Git porcelain status without creating target
+  Git metadata, warns on risky credential and artifact paths, refuses existing
+  target commits, creates the first Conventional Commit on `main`, tags it,
+  and only pushes when `--remote` is provided.
 
 ### `docs/`
 

@@ -8,6 +8,11 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Deferred Git repository creation in initialization scripts until after all
+  user confirmations are accepted.
+
 ## v1.5.0 - 2026-06-22
 
 ### Changed in v1.5.0

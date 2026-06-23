@@ -73,14 +73,52 @@ run_git() {
 }
 
 git_status_files() {
-    git -C "$target_path" status --porcelain=v1 -z --untracked-files=all |
-        while IFS= read -r -d '' entry; do
-            if [ "${#entry}" -lt 4 ]; then
-                continue
-            fi
+    local preview_git_dir=""
+    local status_args
+    local status_file
 
-            printf '%s\0' "${entry:3}"
-        done
+    status_file="$(mktemp)"
+    status_args=(
+        -C "$target_path"
+        status
+        --porcelain=v1
+        -z
+        --untracked-files=all
+    )
+
+    if [ ! -e "$target_path/.git" ]; then
+        preview_git_dir="$(mktemp -d)"
+        git init --bare "$preview_git_dir" >/dev/null
+        status_args=(
+            --git-dir="$preview_git_dir"
+            --work-tree="$target_path"
+            status
+            --porcelain=v1
+            -z
+            --untracked-files=all
+        )
+    fi
+
+    if ! git "${status_args[@]}" >"$status_file"; then
+        rm -f -- "$status_file"
+        if [ -n "$preview_git_dir" ]; then
+            rm -rf -- "$preview_git_dir"
+        fi
+        return 1
+    fi
+
+    while IFS= read -r -d '' entry; do
+        if [ "${#entry}" -lt 4 ]; then
+            continue
+        fi
+
+        printf '%s\0' "${entry:3}"
+    done <"$status_file"
+
+    rm -f -- "$status_file"
+    if [ -n "$preview_git_dir" ]; then
+        rm -rf -- "$preview_git_dir"
+    fi
 }
 
 is_risky_path() {
@@ -220,12 +258,6 @@ if [ "$confirmation" != "y" ] && [ "$confirmation" != "Y" ]; then
     exit 0
 fi
 
-run_git init "$target_path" >/dev/null
-
-if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
-    fail "Tag already exists in target repository: $tag"
-fi
-
 mapfile -d '' -t committable_files < <(git_status_files)
 if [ "${#committable_files[@]}" -eq 0 ]; then
     fail "No committable files found in target directory: $target_path"
@@ -266,6 +298,12 @@ if [ "${#risky_files[@]}" -gt 0 ]; then
         printf 'Git commit cancelled.\n'
         exit 0
     fi
+fi
+
+run_git init "$target_path" >/dev/null
+
+if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
+    fail "Tag already exists in target repository: $tag"
 fi
 
 run_git -C "$target_path" add --all >/dev/null

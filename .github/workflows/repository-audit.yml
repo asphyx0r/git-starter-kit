@@ -124,6 +124,17 @@ jobs:
             exit 1
           fi
 
+          bash_cancel_target="$RUNNER_TEMP/git-init-bash-cancel"
+          mkdir -p "$bash_cancel_target"
+          printf 'hello\n' > "$bash_cancel_target/README.md"
+          printf 'y\nn\n' | bash scripts/git-init.sh \
+            --path "$bash_cancel_target" \
+            --tag v1.0.0
+          if [ -e "$bash_cancel_target/.git" ]; then
+            echo "Bash init created .git before commit confirmation." >&2
+            exit 1
+          fi
+
           bash_target="$RUNNER_TEMP/git-init-bash-smoke"
           mkdir -p "$bash_target"
           printf 'hello\n' > "$bash_target/README.md"
@@ -152,6 +163,17 @@ jobs:
             --path "$RUNNER_TEMP" \
             --tag invalid; then
             echo "PowerShell init accepted an invalid tag." >&2
+            exit 1
+          fi
+
+          pwsh_cancel_target="$RUNNER_TEMP/git-init-pwsh-cancel"
+          mkdir -p "$pwsh_cancel_target"
+          printf 'hello\n' > "$pwsh_cancel_target/README.md"
+          printf 'y\nn\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
+            --path "$pwsh_cancel_target" \
+            --tag v1.0.0
+          if [ -e "$pwsh_cancel_target/.git" ]; then
+            echo "PowerShell init created .git before commit confirmation." >&2
             exit 1
           fi
 
