@@ -50,11 +50,13 @@ tag, commit SHA, and release date.
 Use this mode for the normal release process.
 
 1. Prepare the release commit in `git-starter-kit`.
-2. Create and push the release tag, for example `v1.3.0`.
-3. On GitHub, open the repository page.
-4. Open **Releases**.
-5. Create a new release from the tag.
-6. Publish the release.
+2. From a clean repository, run `bash scripts/repository-audit.sh` locally.
+3. Stop if the local audit fails; do not create a release tag or release.
+4. Create and push the release tag, for example `v1.3.0`.
+5. On GitHub, open the repository page.
+6. Open **Releases**.
+7. Create a new release from the tag.
+8. Publish the release.
 
 After the release is published, GitHub starts the `Release package` workflow
 automatically. Automatic releases intentionally use `latest` so the package
@@ -110,7 +112,13 @@ that the ZIP asset is listed under the release assets.
 
 ## Local Test
 
-You can test the package generation locally before publishing a release.
+Run the full repository audit locally before publishing a release:
+
+```bash
+bash scripts/repository-audit.sh
+```
+
+You can also test only the package generation locally before publishing a release.
 
 From the repository root, run:
 

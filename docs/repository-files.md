@@ -109,15 +109,13 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Runs a minimal repository documentation audit on GitHub Actions.
 - Usage: Executes on pushes, pull requests, and manual dispatch.
-- Notes: The workflow uses a pinned runner, a checkout action pinned by SHA
-  for `actions/checkout@v7.0.0`, `markdownlint-cli2`, and Codespell versions
-  before running Markdown, spelling, script, smoke, and configuration checks.
-  ShellCheck is provided by the runner, and its version is logged in CI.
-  Long shell snippets are wrapped for YAML lint readability. SemVer
-  smoke cases cover simple, complex, invalid, and cancelled initialization
-  flows. Tool downloads are version-pinned but not hash-verified; this is an
-  accepted lightweight CI tradeoff for a generic starter kit with read-only
-  repository audit permissions.
+- Notes: The workflow uses a pinned runner and a checkout action pinned by
+  SHA for `actions/checkout@v7.0.0`. It delegates Markdown, spelling,
+  static, smoke, and configuration rules to `scripts/repository-audit.sh` so
+  local and CI audits share the same
+  source of truth. Tool downloads are version-pinned but not hash-verified;
+  this is an accepted lightweight CI tradeoff for a generic starter kit with
+  read-only repository audit permissions.
 
 ### `.github/workflows/release-package.yml`
 
@@ -283,6 +281,20 @@ deferred, or explicitly excluded from the template.
   keeps SemVer validation aligned with CI smoke cases,
   and verifies required files in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
+
+### `scripts/repository-audit.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Runs the shared local and CI repository audit rules.
+- Usage: Run `bash scripts/repository-audit.sh` locally before creating a
+  release tag or GitHub release. GitHub Actions invokes the same script with
+  mode-specific `markdown`, `spelling`, and `static` arguments.
+- Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
+  ShellCheck, PowerShell parsing, smoke behavior, release package manifest,
+  and commitlint configuration checks. It bootstraps pinned Codespell in a
+  temporary Python target. Other required tools must be installed locally;
+  missing tools fail the audit instead of silently skipping CI rules.
 
 ### `scripts/git-init.ps1`
 

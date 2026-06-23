@@ -8,6 +8,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Added a shared repository audit script for local release readiness and
+  GitHub Actions checks.
+- Documented that releases require the local audit suite before tagging or
+  publishing.
+
 ### Fixed
 
 - Made PowerShell Git initialization confirmations consume piped standard

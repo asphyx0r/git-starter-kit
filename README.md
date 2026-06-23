@@ -17,6 +17,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - GitHub community files for pull requests, issues, conduct, and support.
 - GitHub Actions workflow for lightweight Markdown, spelling, script, and
   configuration audits.
+- Shared local and CI repository audit script for release readiness checks.
 - Release package automation for exports enriched with coding-agent rules.
 - Interactive Git initialization scripts for PowerShell and Bash.
 
@@ -41,6 +42,17 @@ placeholder values with project-specific content.
 
 Use the GitHub templates in `.github/` to keep issues and pull requests
 reviewable with minimal process.
+
+Run the same audit suite locally that GitHub Actions runs:
+
+```bash
+bash scripts/repository-audit.sh
+```
+
+Do not create a release tag or GitHub release if this local audit fails. The
+script bootstraps `codespell` 2.4.2 in a temporary Python target and
+requires the same tools as CI, including `shellcheck`, `pwsh`, `python`,
+`node`, `git`, and `npx`.
 
 Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records the requested and resolved source in

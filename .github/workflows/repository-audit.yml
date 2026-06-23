@@ -19,10 +19,8 @@ jobs:
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
-      - name: Run markdownlint
-        env:
-          NPM_CONFIG_IGNORE_SCRIPTS: "true"
-        run: npx --yes markdownlint-cli2@0.22.1 "**/*.md"
+      - name: Run markdown audit
+        run: bash scripts/repository-audit.sh markdown
 
   spelling:
     name: Spelling
@@ -33,15 +31,8 @@ jobs:
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
-      - name: Install Codespell
-        run: >-
-          python -m pip install
-          --disable-pip-version-check
-          --no-input
-          codespell==2.4.2
-
-      - name: Run Codespell
-        run: codespell .
+      - name: Run spelling audit
+        run: bash scripts/repository-audit.sh spelling
 
   static:
     name: Static checks
@@ -54,201 +45,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check Git whitespace
+      - name: Run static audit
         shell: bash
         env:
           BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          zero_sha="0000000000000000000000000000000000000000"
-
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            git diff --check "origin/$GITHUB_BASE_REF...HEAD"
-          elif [ -n "${BEFORE_SHA:-}" ]; then
-            if [ "$BEFORE_SHA" != "$zero_sha" ]; then
-              git diff --check "$BEFORE_SHA..HEAD"
-            else
-              git diff-tree --check --root -r HEAD
-            fi
-          else
-            git diff-tree --check --root -r HEAD
-          fi
-
-      - name: Check Bash syntax
-        run: bash -n scripts/git-init.sh
-
-      - name: Show ShellCheck version
-        run: shellcheck --version
-
-      - name: Run ShellCheck
-        run: shellcheck scripts/git-init.sh
-
-      - name: Check PowerShell syntax
-        shell: pwsh
-        run: |
-          $errors = @()
-          foreach ($path in @(
-            "scripts/build-release-package.ps1",
-            "scripts/git-init.ps1"
-          )) {
-            $tokens = $null
-            $parseErrors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile(
-              $path,
-              [ref]$tokens,
-              [ref]$parseErrors
-            ) | Out-Null
-
-            if ($parseErrors.Count -gt 0) {
-              $errors += $parseErrors
-            }
-          }
-
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_ }
-            exit 1
-          }
-
-      - name: Smoke script behavior
-        shell: bash
-        env:
           GIT_AUTHOR_NAME: Codex
           GIT_AUTHOR_EMAIL: codex@example.com
           GIT_COMMITTER_NAME: Codex
           GIT_COMMITTER_EMAIL: codex@example.com
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          complex_semver_tag="v1.0.0-rc.1+build.1"
-          bash scripts/git-init.sh --help
-          if bash scripts/git-init.sh --path "$RUNNER_TEMP" --tag invalid; then
-            echo "Bash init accepted an invalid tag." >&2
-            exit 1
-          fi
-
-          bash_cancel_target="$RUNNER_TEMP/git-init-bash-cancel"
-          mkdir -p "$bash_cancel_target"
-          printf 'hello\n' > "$bash_cancel_target/README.md"
-          printf 'y\nn\n' | bash scripts/git-init.sh \
-            --path "$bash_cancel_target" \
-            --tag v1.0.0
-          if [ -e "$bash_cancel_target/.git" ]; then
-            echo "Bash init created .git before commit confirmation." >&2
-            exit 1
-          fi
-
-          bash_target="$RUNNER_TEMP/git-init-bash-smoke"
-          mkdir -p "$bash_target"
-          printf 'hello\n' > "$bash_target/README.md"
-          printf 'hello spaces\n' > "$bash_target/notes with spaces.txt"
-          printf 'y\ny\n' | bash scripts/git-init.sh \
-            --path "$bash_target" \
-            --tag v1.0.0
-          if [ -n "$(git -C "$bash_target" status --short)" ]; then
-            echo "Bash init smoke repository is not clean." >&2
-            exit 1
-          fi
-
-          bash_semver_target="$RUNNER_TEMP/git-init-bash-semver-smoke"
-          mkdir -p "$bash_semver_target"
-          printf 'hello\n' > "$bash_semver_target/README.md"
-          printf 'y\ny\n' | bash scripts/git-init.sh \
-            --path "$bash_semver_target" \
-            --tag "$complex_semver_tag"
-          if [ -n "$(git -C "$bash_semver_target" status --short)" ]; then
-            echo "Bash init SemVer smoke repository is not clean." >&2
-            exit 1
-          fi
-
-          pwsh -NoProfile -File scripts/git-init.ps1 --help
-          if pwsh -NoProfile -File scripts/git-init.ps1 \
-            --path "$RUNNER_TEMP" \
-            --tag invalid; then
-            echo "PowerShell init accepted an invalid tag." >&2
-            exit 1
-          fi
-
-          pwsh_cancel_target="$RUNNER_TEMP/git-init-pwsh-cancel"
-          mkdir -p "$pwsh_cancel_target"
-          printf 'hello\n' > "$pwsh_cancel_target/README.md"
-          printf 'y\nn\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
-            --path "$pwsh_cancel_target" \
-            --tag v1.0.0
-          if [ -e "$pwsh_cancel_target/.git" ]; then
-            echo "PowerShell init created .git before commit confirmation." >&2
-            exit 1
-          fi
-
-          pwsh_target="$RUNNER_TEMP/git-init-pwsh-smoke"
-          mkdir -p "$pwsh_target"
-          printf 'hello\n' > "$pwsh_target/README.md"
-          printf 'hello spaces\n' > "$pwsh_target/notes with spaces.txt"
-          printf 'y\ny\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
-            --path "$pwsh_target" \
-            --tag v1.0.0
-          if [ -n "$(git -C "$pwsh_target" status --short)" ]; then
-            echo "PowerShell init smoke repository is not clean." >&2
-            exit 1
-          fi
-
-          pwsh_semver_target="$RUNNER_TEMP/git-init-pwsh-semver-smoke"
-          mkdir -p "$pwsh_semver_target"
-          printf 'hello\n' > "$pwsh_semver_target/README.md"
-          printf 'y\ny\n' | pwsh -NoProfile -File scripts/git-init.ps1 \
-            --path "$pwsh_semver_target" \
-            --tag "$complex_semver_tag"
-          if [ -n "$(git -C "$pwsh_semver_target" status --short)" ]; then
-            echo "PowerShell init SemVer smoke repository is not clean." >&2
-            exit 1
-          fi
-
-          latest_package="$RUNNER_TEMP/release-package-smoke/latest-release-package.zip"
-          pwsh -NoProfile -File scripts/build-release-package.ps1 \
-            -StarterRef local-test \
-            -AgentRulesRef latest \
-            -OutputDirectory "$RUNNER_TEMP/release-package-smoke" \
-            -PackageName latest-release-package.zip
-
-          manifest_ref="$(
-            python - "$latest_package" <<'PY'
-          import json
-          import sys
-          import zipfile
-
-          archive = zipfile.ZipFile(sys.argv[1])
-          manifest = json.load(archive.open("_agent-rules-source.json"))
-          print(manifest["agentRules"]["ref"])
-          PY
-          )"
-          manifest_requested_ref="$(
-            python - "$latest_package" <<'PY'
-          import json
-          import sys
-          import zipfile
-
-          archive = zipfile.ZipFile(sys.argv[1])
-          manifest = json.load(archive.open("_agent-rules-source.json"))
-          print(manifest["agentRules"]["requestedRef"])
-          PY
-          )"
-          if [ "$manifest_requested_ref" != "latest" ]; then
-            echo "Release package did not record requested latest ref." >&2
-            exit 1
-          fi
-
-          semver_ref_pattern='^v(0|[1-9][0-9]*)\.'
-          semver_ref_pattern+='(0|[1-9][0-9]*)\.'
-          semver_ref_pattern+='(0|[1-9][0-9]*)'
-          if ! [[ "$manifest_ref" =~ $semver_ref_pattern ]]; then
-            echo "Release package latest did not resolve to a SemVer tag." >&2
-            exit 1
-          fi
-
-          if pwsh -NoProfile -File scripts/build-release-package.ps1 \
-            -StarterRef local-test \
-            -AgentRulesRef invalid \
-            -OutputDirectory "$RUNNER_TEMP/release-package-smoke"; then
-            echo "Release package accepted an invalid agent rules ref." >&2
-            exit 1
-          fi
-
-      - name: Check commitlint config
-        run: node --check commitlint.config.cjs
+        run: bash scripts/repository-audit.sh static
