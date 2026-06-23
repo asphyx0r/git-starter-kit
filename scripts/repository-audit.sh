@@ -102,7 +102,7 @@ run_spelling() {
     codespell_cmd="$codespell_target/Scripts/codespell.exe"
   fi
 
-  "$codespell_cmd" .
+  PYTHONPATH="$codespell_target" "$codespell_cmd" .
 }
 
 run_powershell_parse() {
