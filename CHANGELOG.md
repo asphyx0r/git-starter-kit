@@ -12,6 +12,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Recorded the requested agent rules reference in release package manifests and
   verified cloned agent rules tags against the resolved tag.
+- Documented the accepted lightweight CI tradeoff for version-pinned tool
+  downloads without hash verification.
 
 ### Fixed
 

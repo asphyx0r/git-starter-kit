@@ -116,7 +116,8 @@ deferred, or explicitly excluded from the template.
   Long shell snippets are wrapped for YAML lint readability. SemVer
   smoke cases cover simple, complex, invalid, and cancelled initialization
   flows. Tool downloads are version-pinned but not hash-verified; this is an
-  intentional lightweight CI tradeoff.
+  accepted lightweight CI tradeoff for a generic starter kit with read-only
+  repository audit permissions.
 
 ### `.github/workflows/release-package.yml`
 
