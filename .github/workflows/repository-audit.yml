@@ -218,6 +218,22 @@ jobs:
           print(manifest["agentRules"]["ref"])
           PY
           )"
+          manifest_requested_ref="$(
+            python - "$latest_package" <<'PY'
+          import json
+          import sys
+          import zipfile
+
+          archive = zipfile.ZipFile(sys.argv[1])
+          manifest = json.load(archive.open("_agent-rules-source.json"))
+          print(manifest["agentRules"]["requestedRef"])
+          PY
+          )"
+          if [ "$manifest_requested_ref" != "latest" ]; then
+            echo "Release package did not record requested latest ref." >&2
+            exit 1
+          fi
+
           semver_ref_pattern='^v(0|[1-9][0-9]*)\.'
           semver_ref_pattern+='(0|[1-9][0-9]*)\.'
           semver_ref_pattern+='(0|[1-9][0-9]*)'

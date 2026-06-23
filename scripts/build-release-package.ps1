@@ -96,9 +96,10 @@ function Resolve-AgentRulesRelease {
         }
 
         return [ordered]@{
-            Ref         = $latestRef
-            ReleaseUrl  = [string]$latestRelease.html_url
-            ReleaseDate = [string]$latestRelease.published_at
+            RequestedRef = $normalizedRef
+            Ref          = $latestRef
+            ReleaseUrl   = [string]$latestRelease.html_url
+            ReleaseDate  = [string]$latestRelease.published_at
         }
     }
 
@@ -107,9 +108,10 @@ function Resolve-AgentRulesRelease {
     }
 
     return [ordered]@{
-        Ref         = $normalizedRef
-        ReleaseUrl  = $null
-        ReleaseDate = $null
+        RequestedRef = $normalizedRef
+        Ref          = $normalizedRef
+        ReleaseUrl   = $null
+        ReleaseDate  = $null
     }
 }
 
@@ -232,6 +234,12 @@ try {
 
     $agentRulesCommit = ((Invoke-GitLine -Arguments @("-C", $agentRulesRoot, "rev-parse", "HEAD")) -join "").Trim()
     $agentRulesCommitDate = ((Invoke-GitLine -Arguments @("-C", $agentRulesRoot, "log", "-1", "--format=%cI")) -join "").Trim()
+    $agentRulesTagCommit = ((Invoke-GitLine -Arguments @(
+        "-C", $agentRulesRoot, "rev-parse", "refs/tags/$resolvedAgentRulesRef^{commit}"
+    )) -join "").Trim()
+    if ($agentRulesCommit -cne $agentRulesTagCommit) {
+        throw "Cloned agent rules HEAD does not match resolved tag $resolvedAgentRulesRef."
+    }
 
     Copy-TrackedRepositoryFile -SourceRoot $repoRoot -TargetRoot $stagingRoot
 
@@ -252,13 +260,14 @@ try {
             commit     = $starterCommit
         }
         agentRules = [ordered]@{
-            repository  = "https://github.com/$AgentRulesRepository"
-            ref         = $resolvedAgentRulesRef
-            commit      = $agentRulesCommit
-            commitDate  = $agentRulesCommitDate
-            releaseUrl  = $resolvedAgentRules.ReleaseUrl
-            releaseDate = $resolvedAgentRules.ReleaseDate
-            files       = $RequiredRuleFiles
+            repository   = "https://github.com/$AgentRulesRepository"
+            requestedRef = $resolvedAgentRules.RequestedRef
+            ref          = $resolvedAgentRulesRef
+            commit       = $agentRulesCommit
+            commitDate   = $agentRulesCommitDate
+            releaseUrl   = $resolvedAgentRules.ReleaseUrl
+            releaseDate  = $resolvedAgentRules.ReleaseDate
+            files        = $RequiredRuleFiles
         }
     }
 

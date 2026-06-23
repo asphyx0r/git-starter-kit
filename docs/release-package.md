@@ -42,7 +42,7 @@ The ZIP includes the normal starter kit files plus these files from
 - `RELEASE_RULES.md`
 
 The ZIP also includes `_agent-rules-source.json`. This manifest records where
-the agent rules came from, including the source repository, resolved release
+the agent rules came from, including the requested reference, resolved release
 tag, commit SHA, and release date.
 
 ## Automatic Release Mode
@@ -64,12 +64,14 @@ The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag.
 2. Resolves `latest` to the latest published full `agent-coding-rules` release.
-3. Copies the tracked starter-kit files into a temporary package folder.
-4. Copies the six agent rule files into that package folder.
-5. Writes `_agent-rules-source.json` with the resolved agent-rules tag.
-6. Creates the ZIP file.
-7. Verifies that the required files are present in the ZIP.
-8. Uploads the ZIP to the GitHub release as a release asset.
+3. Verifies that the cloned agent rules checkout matches the resolved tag.
+4. Copies the tracked starter-kit files into a temporary package folder.
+5. Copies the six agent rule files into that package folder.
+6. Writes `_agent-rules-source.json` with the requested and resolved
+   agent-rules references.
+7. Creates the ZIP file.
+8. Verifies that the required files are present in the ZIP.
+9. Uploads the ZIP to the GitHub release as a release asset.
 
 When the workflow finishes, the GitHub release should show an asset such as:
 

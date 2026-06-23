@@ -8,6 +8,11 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Recorded the requested agent rules reference in release package manifests and
+  verified cloned agent rules tags against the resolved tag.
+
 ### Fixed
 
 - Deferred Git repository creation in initialization scripts until after all

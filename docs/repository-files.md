@@ -276,9 +276,10 @@ deferred, or explicitly excluded from the template.
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
 - Notes: Copies tracked starter-kit files, resolves `latest` through the GitHub
-  release API by default, overlays tagged `agent-coding-rules` files,
-  writes `_agent-rules-source.json`, validates package file names before
-  writing ZIP files, keeps SemVer validation aligned with CI smoke cases,
+  release API by default, verifies the cloned tag, overlays tagged
+  `agent-coding-rules` files, writes `_agent-rules-source.json` with requested
+  and resolved refs, validates package file names before writing ZIP files,
+  keeps SemVer validation aligned with CI smoke cases,
   and verifies required files in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
