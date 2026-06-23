@@ -8,6 +8,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Made PowerShell Git initialization confirmations consume piped standard
+  input deterministically and keep prompts out of boolean returns in CI
+  smoke tests.
+
 ## v1.5.1 - 2026-06-23
 
 ### Changed in v1.5.1

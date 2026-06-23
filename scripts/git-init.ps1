@@ -169,11 +169,42 @@ function Test-RiskyPath {
     return $false
 }
 
+$script:ConfirmationInputLines = @()
+$script:ConfirmationInputIndex = 0
+$script:ConfirmationInputLoaded = $false
+
+function Read-ConfirmationInput {
+    if ([Console]::IsInputRedirected) {
+        if (-not $script:ConfirmationInputLoaded) {
+            while ($true) {
+                $line = [Console]::In.ReadLine()
+                if ($null -eq $line) {
+                    break
+                }
+
+                $script:ConfirmationInputLines += $line
+            }
+
+            $script:ConfirmationInputLoaded = $true
+        }
+
+        if ($script:ConfirmationInputIndex -lt $script:ConfirmationInputLines.Count) {
+            $line = $script:ConfirmationInputLines[$script:ConfirmationInputIndex]
+            $script:ConfirmationInputIndex++
+            return $line
+        }
+
+        return ""
+    }
+
+    return Read-Host
+}
+
 function Read-Confirmation {
     param([Parameter(Mandatory = $true)][string]$Prompt)
 
-    Write-Output $Prompt
-    $response = Read-Host
+    Write-Host $Prompt
+    $response = Read-ConfirmationInput
     return ($response -ceq "y" -or $response -ceq "Y")
 }
 
@@ -268,7 +299,7 @@ Write-Output "Initialize Git using this information? [y/N]"
 Write-Output "Path: $targetPath"
 Write-Output "Tag: $tag"
 Write-Output "Remote: $remoteDisplay"
-$confirmation = Read-Host
+$confirmation = Read-ConfirmationInput
 
 if ($confirmation -cne "y" -and $confirmation -cne "Y") {
     Write-Output "Git initialization cancelled."
