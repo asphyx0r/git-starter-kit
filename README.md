@@ -52,7 +52,9 @@ bash scripts/repository-audit.sh
 Do not create a release tag or GitHub release if this local audit fails. The
 script bootstraps `codespell` 2.4.2 in a temporary Python target and
 requires the same tools as CI, including `shellcheck`, `pwsh`, `python`,
-`node`, `git`, and `npx`.
+`node`, `git`, and `npx`. The full audit intentionally resolves the
+latest published `agent-coding-rules` release during release package smoke
+checks; do not pin that check to an older rules release.
 
 Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records the requested and resolved source in

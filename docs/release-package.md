@@ -118,6 +118,10 @@ Run the full repository audit locally before publishing a release:
 bash scripts/repository-audit.sh
 ```
 
+The full audit intentionally resolves the latest published full
+`agent-coding-rules` release during package smoke checks. Treat a failure to
+resolve or validate that latest release as an audit failure before publishing.
+
 You can also test only the package generation locally before publishing a release.
 
 From the repository root, run:

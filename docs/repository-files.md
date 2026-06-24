@@ -294,9 +294,10 @@ deferred, or explicitly excluded from the template.
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
   ShellCheck, PowerShell parsing, smoke behavior, release package manifest,
-  and commitlint configuration checks. It bootstraps pinned Codespell in a
-  temporary Python target. Other required tools must be installed locally;
-  missing tools fail the audit instead of silently skipping CI rules.
+  and commitlint configuration checks. It intentionally resolves the latest
+  published `agent-coding-rules` release during release package smoke checks,
+  bootstraps pinned Codespell in a temporary Python target, and fails when
+  required local tools are unavailable instead of silently skipping CI rules.
 
 ### `scripts/git-init.ps1`
 
