@@ -298,7 +298,8 @@ deferred, or explicitly excluded from the template.
   release package manifest, and commitlint configuration checks. It
   intentionally resolves the latest
   published `agent-coding-rules` release during release package smoke checks,
-  bootstraps pinned Codespell in a temporary Python target, and fails when
+  bootstraps pinned Codespell in a temporary Python target, uses
+  version-pinned package downloads without hash verification, and fails when
   required local tools are unavailable instead of silently skipping CI rules.
 
 ### `scripts/git-init.ps1`

@@ -56,6 +56,10 @@ requires the same tools as CI, including `shellcheck`, `pwsh`, `python`,
 latest published `agent-coding-rules` release during release package smoke
 checks; do not pin that check to an older rules release.
 
+Audit tool bootstrap uses version-pinned package downloads from npm and PyPI
+without package hash verification. This is an accepted lightweight trust
+tradeoff for the generic starter kit.
+
 Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records the requested and resolved source in
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
