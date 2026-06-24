@@ -128,9 +128,10 @@ deferred, or explicitly excluded from the template.
   `actions/checkout@v7.0.0`, uses `latest` automatically for release
   packages, validates manual
   release tags and agent rules references, then calls
-  `scripts/build-release-package.ps1`
-  and uploads the generated ZIP. Shell validation messages are wrapped for
-  YAML lint readability.
+  `scripts/build-release-package.ps1` without passing the workflow token to
+  the build step, then uploads the generated ZIP with upload-only GitHub CLI
+  credentials. Shell validation messages are wrapped for YAML lint
+  readability.
 
 ### `.gitignore`
 

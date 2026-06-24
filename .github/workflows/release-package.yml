@@ -83,7 +83,6 @@ jobs:
         env:
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
           AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           ./scripts/build-release-package.ps1 `
             -StarterRef $env:STARTER_REF `
