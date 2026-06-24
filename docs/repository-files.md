@@ -115,7 +115,8 @@ deferred, or explicitly excluded from the template.
   local and CI audits share the same
   source of truth. Tool downloads are version-pinned but not hash-verified;
   this is an accepted lightweight CI tradeoff for a generic starter kit with
-  read-only repository audit permissions.
+  read-only repository audit permissions and without forwarding the workflow
+  token to checked-out audit code.
 
 ### `.github/workflows/release-package.yml`
 

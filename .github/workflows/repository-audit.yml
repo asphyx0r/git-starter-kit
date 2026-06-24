@@ -53,5 +53,4 @@ jobs:
           GIT_AUTHOR_EMAIL: codex@example.com
           GIT_COMMITTER_NAME: Codex
           GIT_COMMITTER_EMAIL: codex@example.com
-          GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/repository-audit.sh static
