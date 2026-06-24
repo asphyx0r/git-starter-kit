@@ -294,8 +294,9 @@ deferred, or explicitly excluded from the template.
   release tag or GitHub release. GitHub Actions invokes the same script with
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
-  ShellCheck, PowerShell parsing, smoke behavior, release package manifest,
-  and commitlint configuration checks. It intentionally resolves the latest
+  ShellCheck, PowerShell parsing, SemVer pattern drift checks, smoke behavior,
+  release package manifest, and commitlint configuration checks. It
+  intentionally resolves the latest
   published `agent-coding-rules` release during release package smoke checks,
   bootstraps pinned Codespell in a temporary Python target, and fails when
   required local tools are unavailable instead of silently skipping CI rules.

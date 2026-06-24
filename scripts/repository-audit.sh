@@ -77,6 +77,79 @@ check_git_whitespace() {
     git diff-tree --check --root --no-commit-id -r HEAD
   fi
 }
+check_semver_pattern_drift() {
+  local node_cmd="$1"
+
+  "$node_cmd" <<'JS'
+const fs = require("fs");
+
+function readFile(path) {
+  return fs.readFileSync(path, "utf8").replace(/\r/g, "");
+}
+
+function extractSingle(path, pattern, label) {
+  const match = readFile(path).match(pattern);
+  if (!match) {
+    throw new Error("Unable to extract " + label + ".");
+  }
+
+  return match[1];
+}
+
+function extractWorkflowPattern() {
+  const parts = [];
+  const expression = /^\s*semver_tag_pattern\+?='([^']+)'/gm;
+  const content = readFile(".github/workflows/release-package.yml");
+  let match = expression.exec(content);
+  while (match) {
+    parts.push(match[1]);
+    match = expression.exec(content);
+  }
+
+  if (parts.length === 0) {
+    throw new Error("Unable to extract release workflow SemVer pattern.");
+  }
+
+  return parts.join("");
+}
+
+const patterns = new Map([
+  [
+    "scripts/git-init.sh",
+    extractSingle(
+      "scripts/git-init.sh",
+      /^semver_tag_pattern='([^']+)'$/m,
+      "Bash init SemVer pattern"
+    ),
+  ],
+  [
+    "scripts/git-init.ps1",
+    extractSingle(
+      "scripts/git-init.ps1",
+      /^\$SemVerTagPattern = "([^"]+)"$/m,
+      "PowerShell init SemVer pattern"
+    ),
+  ],
+  [
+    "scripts/build-release-package.ps1",
+    extractSingle(
+      "scripts/build-release-package.ps1",
+      /^\$SemVerTagPattern = "([^"]+)"$/m,
+      "release package SemVer pattern"
+    ),
+  ],
+  [".github/workflows/release-package.yml", extractWorkflowPattern()],
+]);
+
+const expected = patterns.values().next().value;
+for (const [source, pattern] of patterns) {
+  if (pattern !== expected) {
+    console.error("SemVer validation pattern drift in " + source + ".");
+    process.exit(1);
+  }
+}
+JS
+}
 
 run_markdown() {
   require_command npx
@@ -304,6 +377,7 @@ run_static() {
   bash -n scripts/git-init.sh
   shellcheck --version
   shellcheck scripts/git-init.sh
+  check_semver_pattern_drift "$node_cmd"
   run_powershell_parse
   run_script_smoke
   "$node_cmd" --check commitlint.config.cjs
