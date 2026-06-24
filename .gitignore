@@ -58,6 +58,7 @@ id_ed25519.*
 *.out
 logs/
 log/
+var/
 pids/
 *.pid
 *.pid.lock

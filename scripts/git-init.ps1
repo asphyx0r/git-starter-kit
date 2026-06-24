@@ -148,7 +148,7 @@ function Test-RiskyPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $normalizedPath = ($Path -replace "\\", "/").ToLowerInvariant()
-    if ($normalizedPath -match "(^|/)(node_modules|vendor|\.venv|venv|env|dist|build|coverage|logs?|tmp|temp|\.tmp|\.aws|\.kube|\.ssh)(/|$)") {
+    if ($normalizedPath -match "(^|/)(node_modules|vendor|\.venv|venv|env|dist|build|coverage|logs?|var|tmp|temp|\.tmp|\.aws|\.kube|\.ssh)(/|$)") {
         return $true
     }
 

@@ -140,8 +140,8 @@ is_risky_path() {
     case "/$normalized_path/" in
         */node_modules/* | */vendor/* | */.venv/* | */venv/* | */env/* | \
             */dist/* | */build/* | */coverage/* | */logs/* | */log/* | \
-            */.aws/* | */.kube/* | */.ssh/* | */tmp/* | */temp/* | \
-            */.tmp/*)
+            */var/* | */.aws/* | */.kube/* | */.ssh/* | */tmp/* | \
+            */temp/* | */.tmp/*)
             return 0
             ;;
     esac
