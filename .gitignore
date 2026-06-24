@@ -27,6 +27,7 @@ Desktop.ini
 # Environment files and local secrets
 .env
 .env.*
+.envrc
 *.env
 *.env.*
 !.env.example

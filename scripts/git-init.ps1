@@ -153,7 +153,8 @@ function Test-RiskyPath {
     }
 
     foreach ($pattern in @(
-            ".env", ".env.*", "*.env", "*.env.*", "*.secret", "*.secrets",
+            ".env", ".env.*", ".envrc", "*/.envrc", "*.env", "*.env.*",
+            "*.secret", "*.secrets",
             ".npmrc", "*/.npmrc", ".pypirc", "*/.pypirc", ".netrc", "*/.netrc",
             "id_rsa", "*/id_rsa", "id_rsa.*", "*/id_rsa.*",
             "id_ed25519", "*/id_ed25519", "id_ed25519.*", "*/id_ed25519.*",
