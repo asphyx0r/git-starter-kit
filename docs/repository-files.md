@@ -299,8 +299,9 @@ deferred, or explicitly excluded from the template.
   intentionally resolves the latest
   published `agent-coding-rules` release during release package smoke checks,
   bootstraps pinned Codespell in a temporary Python target, uses
-  version-pinned package downloads without hash verification, and fails when
-  required local tools are unavailable instead of silently skipping CI rules.
+  version-pinned package downloads without hash verification, documents the
+  npm, PyPI, and GitHub network requirements, and fails when required local
+  tools are unavailable instead of silently skipping CI rules.
 
 ### `scripts/git-init.ps1`
 

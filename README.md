@@ -60,6 +60,11 @@ Audit tool bootstrap uses version-pinned package downloads from npm and PyPI
 without package hash verification. This is an accepted lightweight trust
 tradeoff for the generic starter kit.
 
+The full audit needs network access to npm for Markdown lint bootstrapping,
+PyPI for Codespell bootstrapping, and GitHub for the latest agent-rules smoke
+check. Use `markdown`, `spelling`, or `static` to run one audit family at a
+time when diagnosing network or tool availability problems.
+
 Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records the requested and resolved source in
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for

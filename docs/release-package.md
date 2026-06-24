@@ -121,6 +121,9 @@ bash scripts/repository-audit.sh
 The full audit intentionally resolves the latest published full
 `agent-coding-rules` release during package smoke checks. Treat a failure to
 resolve or validate that latest release as an audit failure before publishing.
+It also needs network access to npm for Markdown lint bootstrapping and PyPI
+for Codespell bootstrapping. Use `markdown`, `spelling`, or `static` when you
+need to isolate one audit family.
 
 You can also test only the package generation locally before publishing a release.
 
