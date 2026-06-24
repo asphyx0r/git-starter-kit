@@ -5,7 +5,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 ## Features
 
 - Git and editor conventions for repository consistency.
-- Generic ignore rules for local files, secrets, caches, and build outputs.
+- Generic ignore rules for local files, secrets, direnv files, runtime
+  storage, caches, and build outputs.
 - Commit message guidance with a reusable Git commit template and strict
   commitlint rules.
 - Lightweight spelling configuration for documentation and repository files.

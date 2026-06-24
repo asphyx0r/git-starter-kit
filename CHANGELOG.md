@@ -6,20 +6,37 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## v1.5.2 - 2026-06-24
 
-### Changed
+### Added in v1.5.2
 
 - Added a shared repository audit script for local release readiness and
   GitHub Actions checks.
+- Added a static audit check that detects SemVer validation pattern drift
+  across release, workflow, and initialization surfaces.
+
+### Changed in v1.5.2
+
 - Documented that releases require the local audit suite before tagging or
   publishing.
+- Documented that release package smoke checks intentionally resolve the
+  latest published `agent-coding-rules` release.
+- Documented full-audit network requirements, partial audit modes, and the
+  accepted trust model for version-pinned tool downloads.
+- Pinned the Codespell audit bootstrap to a temporary Python target.
+- Added default ignore and initialization warnings for `.envrc` files and
+  `var/` runtime storage paths.
 
-### Fixed
+### Fixed in v1.5.2
 
 - Made PowerShell Git initialization confirmations consume piped standard
   input deterministically and keep prompts out of boolean returns in CI
   smoke tests.
+
+### Security in v1.5.2
+
+- Removed unnecessary GitHub token exposure from release package builds and
+  pull request static audit checks.
 
 ## v1.5.1 - 2026-06-23
 

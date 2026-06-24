@@ -201,8 +201,9 @@ deferred, or explicitly excluded from the template.
 - Type: `file`
 - Status: `required`
 - Goal: Tracks notable changes to this repository.
-- Usage: Update `Unreleased` when repository files or templates change.
-- Notes: Future-project placeholders belong in `templates/CHANGELOG.md`.
+- Usage: Update with notable repository changes before release commits.
+- Notes: Keep release entries aligned with changes since the previous tag.
+  Future-project placeholders belong in `templates/CHANGELOG.md`.
 
 ### `CODE_OF_CONDUCT.md`
 
@@ -244,7 +245,9 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
-- Notes: Do not leave future-project placeholders in the root README.
+- Notes: Summarizes audit prerequisites, release package behavior, and generic
+  ignore coverage. Do not leave future-project placeholders in the root
+  README.
 
 ### `SECURITY.md`
 
