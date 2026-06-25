@@ -304,7 +304,8 @@ deferred, or explicitly excluded from the template.
   checks for newly introduced commits. It
   intentionally resolves the latest
   published `agent-coding-rules` release during release package smoke checks,
-  bootstraps pinned Codespell in a temporary Python target, uses
+  bootstraps pinned Codespell in a temporary Python target, handles WSL-aware
+  PowerShell command, path, and temporary directory compatibility, uses
   version-pinned package downloads without hash verification, documents the
   npm, PyPI, and GitHub network requirements, and fails when required local
   tools are unavailable instead of silently skipping CI rules.

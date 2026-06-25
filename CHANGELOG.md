@@ -29,6 +29,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed in v1.5.2
 
+- Made repository audit PowerShell checks work from WSL with Windows
+  PowerShell.
 - Aligned Codespell skips with ignored runtime and temporary paths.
 - Added repository audit coverage for commit messages introduced by the
   current pull request, push, or local branch.

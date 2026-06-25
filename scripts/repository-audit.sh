@@ -6,10 +6,15 @@ cd "$repository_root"
 
 mode="${1:-all}"
 audit_temp=""
+audit_temp_parent=""
 
 cleanup() {
   if [ -n "$audit_temp" ] && [ -d "$audit_temp" ]; then
     rm -rf "$audit_temp"
+  fi
+
+  if [ -n "$audit_temp_parent" ] && [ -d "$audit_temp_parent" ]; then
+    rmdir "$audit_temp_parent" 2>/dev/null || true
   fi
 }
 
@@ -43,10 +48,34 @@ resolve_command() {
   exit 1
 }
 
-ensure_audit_temp() {
-  if [ -z "$audit_temp" ]; then
-    audit_temp="$(mktemp -d)"
+resolve_powershell_command() {
+  if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
+    command -v powershell.exe >/dev/null 2>&1; then
+    command -v powershell.exe
+    return 0
   fi
+
+  resolve_command pwsh pwsh.exe
+}
+
+ensure_audit_temp() {
+  if [ -n "$audit_temp" ]; then
+    return
+  fi
+
+  if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
+    command -v powershell.exe >/dev/null 2>&1; then
+    local wsl_temp_parent="$repository_root/.tmp"
+    if [ ! -d "$wsl_temp_parent" ]; then
+      mkdir -p "$wsl_temp_parent"
+      audit_temp_parent="$wsl_temp_parent"
+    fi
+
+    audit_temp="$(mktemp -d "$wsl_temp_parent/repository-audit.XXXXXX")"
+    return
+  fi
+
+  audit_temp="$(mktemp -d)"
 }
 
 to_pwsh_path() {
@@ -55,6 +84,12 @@ to_pwsh_path() {
       cygpath -w "$1"
       ;;
     *)
+      if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
+        command -v wslpath >/dev/null 2>&1; then
+        wslpath -w "$1"
+        return
+      fi
+
       printf '%s\n' "$1"
       ;;
   esac
@@ -211,32 +246,41 @@ run_spelling() {
 
 run_powershell_parse() {
   local pwsh_cmd
-  pwsh_cmd="$(resolve_command pwsh pwsh.exe)"
+  pwsh_cmd="$(resolve_powershell_command)"
+  ensure_audit_temp
 
-  # shellcheck disable=SC2016
-  POWERSHELL_AUDIT_PATHS="$(to_pwsh_path "$repository_root/scripts/build-release-package.ps1")|$(to_pwsh_path "$repository_root/scripts/git-init.ps1")" \
-    "$pwsh_cmd" -NoProfile -Command '
-      $ErrorActionPreference = "Stop"
-      $errors = @()
-      foreach ($path in $env:POWERSHELL_AUDIT_PATHS -split "\|") {
-        $tokens = $null
-        $parseErrors = $null
-        [System.Management.Automation.Language.Parser]::ParseFile(
-          $path,
-          [ref]$tokens,
-          [ref]$parseErrors
-        ) | Out-Null
+  local parse_script="$audit_temp/powershell-parse.ps1"
+  cat > "$parse_script" <<'PS'
+param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Paths)
 
-        if ($parseErrors.Count -gt 0) {
-          $errors += $parseErrors
-        }
-      }
+$ErrorActionPreference = "Stop"
+$errors = @()
+foreach ($path in $Paths) {
+    $tokens = $null
+    $parseErrors = $null
+    $source = Get-Content -LiteralPath $path -Raw
+    [System.Management.Automation.Language.Parser]::ParseInput(
+        $source,
+        $path,
+        [ref]$tokens,
+        [ref]$parseErrors
+    ) | Out-Null
 
-      if ($errors.Count -gt 0) {
-        $errors | ForEach-Object { Write-Error $_ }
-        exit 1
-      }
-    '
+    if ($parseErrors.Count -gt 0) {
+        $errors += $parseErrors
+    }
+}
+
+if ($errors.Count -gt 0) {
+    $errors | ForEach-Object { Write-Error $_ }
+    exit 1
+}
+PS
+
+  "$pwsh_cmd" -NoProfile -ExecutionPolicy Bypass -File \
+    "$(to_pwsh_path "$parse_script")" \
+    "$(to_pwsh_path "$repository_root/scripts/build-release-package.ps1")" \
+    "$(to_pwsh_path "$repository_root/scripts/git-init.ps1")"
 }
 
 run_script_smoke() {
@@ -245,7 +289,7 @@ run_script_smoke() {
   local python_cmd
   local pwsh_cmd
   python_cmd="$(resolve_command python python3 python.exe)"
-  pwsh_cmd="$(resolve_command pwsh pwsh.exe)"
+  pwsh_cmd="$(resolve_powershell_command)"
 
   ensure_audit_temp
 
