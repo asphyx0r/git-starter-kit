@@ -115,8 +115,9 @@ deferred, or explicitly excluded from the template.
   local and CI audits share the same
   source of truth. Tool downloads are version-pinned but not hash-verified;
   this is an accepted lightweight CI tradeoff for a generic starter kit with
-  read-only repository audit permissions and without forwarding the workflow
-  token to checked-out audit code.
+  read-only repository audit permissions, disabled checkout credential
+  persistence, and without forwarding the workflow token to checked-out audit
+  code.
 
 ### `.github/workflows/release-package.yml`
 
@@ -126,8 +127,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
 - Notes: Uses a pinned runner and a checkout action pinned by SHA for
-  `actions/checkout@v7.0.0`, uses `latest` automatically for release
-  packages, validates manual
+  `actions/checkout@v7.0.0`, disables checkout credential persistence, uses
+  `latest` automatically for release packages, validates manual
   release tags and agent rules references, then calls
   `scripts/build-release-package.ps1` without passing the workflow token to
   the build step, then uploads the generated ZIP with upload-only GitHub CLI

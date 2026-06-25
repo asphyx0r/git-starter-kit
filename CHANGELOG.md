@@ -37,6 +37,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Security in v1.5.2
 
+- Disabled checkout credential persistence in repository audit and release
+  package workflows.
 - Removed unnecessary GitHub token exposure from release package builds and
   pull request static audit checks.
 

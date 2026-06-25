@@ -18,6 +18,8 @@ jobs:
       - name: Checkout repository
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
 
       - name: Run markdown audit
         run: bash scripts/repository-audit.sh markdown
@@ -30,6 +32,8 @@ jobs:
       - name: Checkout repository
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
 
       - name: Run spelling audit
         run: bash scripts/repository-audit.sh spelling
@@ -43,6 +47,7 @@ jobs:
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Run static audit
