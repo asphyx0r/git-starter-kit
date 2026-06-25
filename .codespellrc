@@ -2,4 +2,4 @@
 check-hidden =
 check-filenames =
 ignore-words-list = ans
-skip = ./.git,./dist,./build,./out,./target,./coverage,./htmlcov,./reports,./test-output,./test-results,./node_modules,./vendor,./.venv,./venv,./.tox,./.cache,./.mypy_cache,./.pytest_cache,./.ruff_cache,./.nox,./.pyre,./.hypothesis,./.ipynb_checkpoints,./.idea,./.phpunit.result.cache,./.phpunit.cache,./.php-cs-fixer.cache,*.lock,*.min.js,*.map,*.svg,*.png,*.jpg,*.jpeg,*.gif,*.pdf
+skip = ./.git,./dist,./build,./out,./target,./coverage,./htmlcov,./reports,./test-output,./test-results,./logs,./log,./var,./pids,./.tmp,./tmp,./temp,./node_modules,./vendor,./.venv,./venv,./.tox,./.cache,./.mypy_cache,./.pytest_cache,./.ruff_cache,./.nox,./.pyre,./.hypothesis,./.ipynb_checkpoints,./.idea,./.phpunit.result.cache,./.phpunit.cache,./.php-cs-fixer.cache,*.bak,*.old,*.tmp,*.temp,*.log,*.err,*.out,*.pid,*.lock,*.min.js,*.map,*.svg,*.png,*.jpg,*.jpeg,*.gif,*.pdf
