@@ -29,6 +29,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed in v1.5.2
 
+- Added repository audit coverage for commit messages introduced by the
+  current pull request, push, or local branch.
 - Made PowerShell Git initialization confirmations consume piped standard
   input deterministically and keep prompts out of boolean returns in CI
   smoke tests.

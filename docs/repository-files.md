@@ -298,7 +298,8 @@ deferred, or explicitly excluded from the template.
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
   ShellCheck, PowerShell parsing, SemVer pattern drift checks, smoke behavior,
-  release package manifest, and commitlint configuration checks. It
+  release package manifest, commitlint configuration, and commit message
+  checks for newly introduced commits. It
   intentionally resolves the latest
   published `agent-coding-rules` release during release package smoke checks,
   bootstraps pinned Codespell in a temporary Python target, uses

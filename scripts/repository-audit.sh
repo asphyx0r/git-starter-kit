@@ -151,6 +151,37 @@ for (const [source, pattern] of patterns) {
 JS
 }
 
+run_commitlint() {
+  require_command npx
+
+  local zero_sha="0000000000000000000000000000000000000000"
+  local from_ref=""
+  local commit_count
+
+  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+    from_ref="origin/$GITHUB_BASE_REF"
+  elif [ -n "${BEFORE_SHA:-}" ] && [ "$BEFORE_SHA" != "$zero_sha" ]; then
+    from_ref="$BEFORE_SHA"
+  elif git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+    from_ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')"
+  fi
+
+  if [ -n "$from_ref" ]; then
+    commit_count="$(git rev-list --count "$from_ref..HEAD")"
+    if [ "$commit_count" -eq 0 ]; then
+      return
+    fi
+
+    NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes @commitlint/cli@21.0.2 \
+      --config commitlint.config.cjs \
+      --from "$from_ref" \
+      --to HEAD
+  else
+    git log -1 --format=%B HEAD | NPM_CONFIG_IGNORE_SCRIPTS=true \
+      npx --yes @commitlint/cli@21.0.2 --config commitlint.config.cjs
+  fi
+}
+
 run_markdown() {
   require_command npx
   NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes markdownlint-cli2@0.22.1 "**/*.md"
@@ -381,6 +412,7 @@ run_static() {
   run_powershell_parse
   run_script_smoke
   "$node_cmd" --check commitlint.config.cjs
+  run_commitlint
 }
 
 case "$mode" in
