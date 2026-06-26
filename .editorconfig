@@ -51,6 +51,10 @@ tab_width = 4
 indent_style = tab
 tab_width = 4
 
+[{.gitconfig,*.gitconfig}]
+indent_style = tab
+tab_width = 4
+
 [*.{bat,cmd,ps1}]
 end_of_line = crlf
 indent_style = space

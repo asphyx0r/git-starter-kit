@@ -37,7 +37,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Defines editor-level formatting defaults for a polyglot template.
 - Usage: Editors and IDEs that support EditorConfig apply these settings.
-- Notes: Keep rules language-family oriented rather than framework-specific.
+- Notes: Keep rules language-family oriented rather than framework-specific,
+  with a dedicated Git config rule for tab-indented config templates.
 
 ### `.gitattributes`
 
@@ -421,7 +422,8 @@ deferred, or explicitly excluded from the template.
   the editor command if needed.
 - Notes: Documents `code --wait`, pager behavior, line ending conversion,
   whitespace checks, command autocorrection, and a commented `commit.template`
-  example. Keep personal identities out of this file; repository `.gitconfig`
+  example. Uses tab indentation covered by `.editorconfig`. Keep personal
+  identities out of this file; repository `.gitconfig`
   files are not loaded automatically by Git.
 
 ### `templates/CHANGELOG.md`
