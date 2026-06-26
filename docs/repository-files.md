@@ -323,7 +323,8 @@ deferred, or explicitly excluded from the template.
   existing non-empty target directories,
   previews committable files from Git porcelain status without creating target
   Git metadata, warns on risky credential, direnv, and artifact paths, refuses
-  existing target commits, reads confirmation answers from standard input for
+  existing target commits, writes prompts without polluting confirmation
+  return values, reads confirmation answers from standard input for
   deterministic CI smoke tests, warns on runtime storage paths, creates the
   first Conventional Commit on `main`, tags it, and only pushes when
   `--remote` is provided.

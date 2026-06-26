@@ -204,7 +204,7 @@ function Read-ConfirmationInput {
 function Read-Confirmation {
     param([Parameter(Mandatory = $true)][string]$Prompt)
 
-    Write-Host $Prompt
+    [Console]::Out.WriteLine($Prompt)
     $response = Read-ConfirmationInput
     return ($response -ceq "y" -or $response -ceq "Y")
 }
