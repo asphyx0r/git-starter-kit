@@ -318,7 +318,8 @@ deferred, or explicitly excluded from the template.
   user confirmation.
 - Usage: Run with `--path <directory>` and optional `--tag <tag>`,
   `--remote <url>`, and `--verbose`. Run without arguments to show help.
-- Notes: Validates SemVer tags covered by CI smoke cases, requires
+- Notes: Requires Bash 4 or newer, validates SemVer tags covered by CI smoke
+  cases, requires
   existing non-empty target directories,
   previews committable files from Git porcelain status without creating target
   Git metadata, warns on risky credential, direnv, and artifact paths, refuses

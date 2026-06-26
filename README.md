@@ -90,6 +90,8 @@ Both scripts preview the files Git can commit before creating target `.git`
 metadata. If commit confirmation is declined, the target directory is left
 uninitialized.
 
+The Bash script requires Bash 4 or newer.
+
 Use `--remote <url>` when the initialized repository should add `origin` and
 push `main` with tags. When `--remote` is omitted, the scripts do not push.
 
