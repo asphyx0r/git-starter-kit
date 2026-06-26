@@ -6,6 +6,21 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v1.5.3 - 2026-06-26
+
+### Changed in v1.5.3
+
+- Documented the Bash 4 requirement for the Bash Git initialization script.
+- Documented the WSL-compatible `.tmp/` audit path used for PowerShell checks.
+- Aligned Codespell archive skips with generic archive ignore rules.
+- Added an EditorConfig rule for tab-indented Git configuration templates.
+
+### Fixed in v1.5.3
+
+- Removed ScriptAnalyzer's `Write-Host` warning from the PowerShell Git
+  initialization confirmation prompt.
+- Clarified the release package workflow tag input description.
+
 ## v1.5.2 - 2026-06-25
 
 ### Added in v1.5.2
