@@ -66,6 +66,10 @@ PyPI for Codespell bootstrapping, and GitHub for the latest agent-rules smoke
 check. Use `markdown`, `spelling`, or `static` to run one audit family at a
 time when diagnosing network or tool availability problems.
 
+When the audit runs from WSL with Windows PowerShell for PowerShell checks,
+it uses the ignored `.tmp/` path for temporary files that both environments
+can access.
+
 Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records the requested and resolved source in
 `_agent-rules-source.json`. See [Release Package](docs/release-package.md) for

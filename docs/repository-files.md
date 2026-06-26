@@ -305,7 +305,8 @@ deferred, or explicitly excluded from the template.
   intentionally resolves the latest
   published `agent-coding-rules` release during release package smoke checks,
   bootstraps pinned Codespell in a temporary Python target, handles WSL-aware
-  PowerShell command, path, and temporary directory compatibility, uses
+  PowerShell command, path, and temporary directory compatibility through the
+  ignored `.tmp/` path when needed, uses
   version-pinned package downloads without hash verification, documents the
   npm, PyPI, and GitHub network requirements, and fails when required local
   tools are unavailable instead of silently skipping CI rules.
