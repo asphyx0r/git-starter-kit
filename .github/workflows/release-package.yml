@@ -7,7 +7,8 @@ name: Release package
   workflow_dispatch:
     inputs:
       tag:
-        description: Git starter kit release tag to package and upload to
+        description: >-
+          Git starter kit release tag whose package asset will be uploaded
         required: true
         type: string
       agent_rules_ref:
