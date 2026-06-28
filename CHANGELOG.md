@@ -6,6 +6,13 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v1.5.4 - 2026-06-28
+
+### Changed in v1.5.4
+
+- Documented the decision to defer `.gitleaks.toml` and exclude
+  `.betterleaks.toml` as duplicate secret scanner configuration.
+
 ## v1.5.3 - 2026-06-26
 
 ### Changed in v1.5.3

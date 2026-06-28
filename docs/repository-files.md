@@ -21,6 +21,15 @@ deferred, or explicitly excluded from the template.
 
 ## File and directory records
 
+### `.betterleaks.toml`
+
+- Type: `file`
+- Status: `duplicate`
+- Goal: Would define Betterleaks-specific secret scanning rules.
+- Usage: Not included; Betterleaks can read the shared `.gitleaks.toml` path
+  if secret scanning later needs configuration.
+- Notes: Keep one scanner configuration owner to avoid drift.
+
 ### `.codespellrc`
 
 - Type: `file`
@@ -47,6 +56,17 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines Git text normalization and common binary formats.
 - Usage: Git normalizes text to LF and preserves CRLF for Windows scripts.
 - Notes: Keep the binary list focused on common formats.
+
+### `.gitleaks.toml`
+
+- Type: `file`
+- Status: `deferred`
+- Goal: Would define shared secret scanning rules for Gitleaks-compatible
+  tools.
+- Usage: Not included; default Gitleaks and Betterleaks scans currently pass
+  without repository-specific configuration.
+- Notes: Add only with an approved secret scanning audit gate and only if
+  default rules need stable generic overrides or allowlists.
 
 ### `.github/`
 
