@@ -1,0 +1,6 @@
+interface:
+  display_name: "Git Commit Push Tag"
+  short_description: "Manual safe Git commit, atomic push, and SemVer tag workflow."
+  default_prompt: "Use $git-commit-push-tag to commit expected changes, push the branch, create a SemVer tag, and verify synchronization."
+policy:
+  allow_implicit_invocation: false

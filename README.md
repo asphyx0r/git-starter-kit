@@ -21,6 +21,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Shared local and CI repository audit script for release readiness checks.
 - Release package automation for exports enriched with coding-agent rules.
 - Interactive Git initialization scripts for PowerShell and Bash.
+- Repository-scoped Codex skill for guarded commit, atomic push, and SemVer
+  tag workflows.
 
 ## Installation
 
@@ -100,6 +102,9 @@ Use `--remote <url>` when the initialized repository should add `origin` and
 push `main` with tags. When `--remote` is omitted, the scripts do not push.
 
 Run either script without arguments, or with `--help`, to show usage.
+
+Invoke `$git-commit-push-tag` in Codex only when a guarded commit, atomic push,
+and SemVer tag workflow is explicitly requested.
 
 ## Contributing
 

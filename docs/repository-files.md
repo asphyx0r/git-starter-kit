@@ -21,6 +21,60 @@ deferred, or explicitly excluded from the template.
 
 ## File and directory records
 
+### `.agents/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores repository-scoped Codex agent assets.
+- Usage: Codex discovers checked-in skills from `.agents/skills` when working
+  in this repository.
+- Notes: Keep agent assets generic, explicit, and documented in this
+  inventory.
+
+### `.agents/skills/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores reusable Codex skills for repository workflows.
+- Usage: Invoke skills explicitly when their workflow is requested.
+- Notes: Keep each skill focused and avoid auxiliary documentation files.
+
+### `.agents/skills/git-commit-push-tag/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Provides a guarded commit, atomic push, and SemVer tag workflow.
+- Usage: Use through `$git-commit-push-tag` only when explicitly requested.
+- Notes: The skill must not create a GitHub Release without separate explicit
+  validation.
+
+### `.agents/skills/git-commit-push-tag/SKILL.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines the guarded Git commit, push, and tag workflow instructions.
+- Usage: Codex loads this file after explicit skill invocation.
+- Notes: Keep checks shell-portable or provide shell-specific commands with
+  equivalent abort conditions.
+
+### `.agents/skills/git-commit-push-tag/agents/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores Codex app metadata for the `git-commit-push-tag` skill.
+- Usage: Keep machine-facing metadata separate from the skill instructions.
+- Notes: Include only metadata needed for discovery, policy, or dependencies.
+
+### `.agents/skills/git-commit-push-tag/agents/openai.yaml`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Configures display metadata and explicit-invocation policy for the
+  `git-commit-push-tag` skill.
+- Usage: Codex uses this metadata in skill UI and invocation policy handling.
+- Notes: `allow_implicit_invocation` remains `false` so the skill runs only
+  when explicitly selected.
+
 ### `.betterleaks.toml`
 
 - Type: `file`

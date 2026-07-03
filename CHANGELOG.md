@@ -6,6 +6,17 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v1.6.0 - 2026-07-03
+
+### Added in v1.6.0
+
+- Added a repository-scoped Codex skill for guarded commit, atomic push, and
+  SemVer tag workflows.
+
+### Changed in v1.6.0
+
+- Documented the Codex skill in the README and repository file inventory.
+
 ## v1.5.4 - 2026-06-28
 
 ### Changed in v1.5.4
