@@ -26,21 +26,24 @@ Use `.gitmessage` as a commit message template when helpful:
 git commit --template=.gitmessage
 ```
 
-Commit messages should follow the rules in `commitlint.config.cjs`. This
-repository does not install a commit-message hook by default; run `commitlint`
-manually or from a downstream hook when strict validation is needed.
+Commit messages must use scoped Conventional Commit headers that follow the
+rules in `commitlint.config.cjs`, for example `docs(readme): update usage`.
+Run `commitlint` manually or enable the repository hooks when strict local
+validation is needed.
 
-## Optional pre-commit hook
+## Optional Git hooks
 
-Enable the repository hook path when staged Markdown and YAML validation should
-run before each commit:
+Enable the repository hook path when local pre-commit and commit-message
+validation should run:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-The hook requires `markdownlint-cli2` for staged `*.md` files and `yamllint` for
-staged `*.yml` or `*.yaml` files.
+The pre-commit hook requires `markdownlint-cli2` for staged `*.md` files and
+`yamllint` for staged `*.yml` or `*.yaml` files. The commit-msg hook requires
+`commitlint` and rejects messages that do not match the repository-specific
+scoped Conventional Commit rules.
 
 ## Pull requests
 

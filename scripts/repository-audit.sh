@@ -450,9 +450,11 @@ run_static() {
 
   check_git_whitespace
   bash -n .githooks/pre-commit
+  bash -n .githooks/commit-msg
   bash -n scripts/git-init.sh
   shellcheck --version
   shellcheck .githooks/pre-commit
+  shellcheck .githooks/commit-msg
   shellcheck scripts/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   run_powershell_parse

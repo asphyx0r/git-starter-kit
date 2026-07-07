@@ -3,23 +3,24 @@
 #   git commit --template=.gitmessage
 
 # === Summary (required) ===
-# Format: <type>: <short imperative summary>
+# Format: <type>(<scope>): <short imperative summary>
+# Scope is required and must match commitlint.config.cjs.
 # Short imperative sentence, max 50 characters.
 # Do not end the subject line with a period.
 # Separate subject from body with a blank line.
 #
 # Common types:
-#   feat: add a user-facing capability
-#   fix: correct a bug
-#   docs: update documentation only
-#   chore: maintain repository metadata or tooling
-#   refactor: restructure code without behavior changes
-#   test: add or update tests
+#   feat(<scope>): add a user-facing capability
+#   fix(<scope>): correct a bug
+#   docs(<scope>): update documentation only
+#   chore(<scope>): maintain repository metadata or tooling
+#   refactor(<scope>): restructure code without behavior changes
+#   test(<scope>): add or update tests
 #
 # Examples:
-#   fix: handle empty configuration
-#   feat: add user deletion endpoint
-#   docs: update repository inventory
+#   fix(config): handle empty configuration
+#   feat(scripts): add repository bootstrap
+#   docs(readme): update repository inventory
 
 <summary>
 

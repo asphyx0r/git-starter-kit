@@ -220,6 +220,15 @@ deferred, or explicitly excluded from the template.
   desired.
 - Notes: Hooks remain versioned but inactive until each clone opts in.
 
+### `.githooks/commit-msg`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Blocks commits when commit messages fail scoped Conventional Commit
+  validation.
+- Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
+- Notes: Checks the commit message file with `commitlint.config.cjs`.
+
 ### `.githooks/pre-commit`
 
 - Type: `file`
@@ -246,7 +255,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Provides a reusable commit message template.
 - Usage: Use with `git commit --template=.gitmessage` or local Git config.
-- Notes: Advisory only; it does not enforce commit validation.
+- Notes: Advisory only; it uses scoped Conventional Commit examples and does
+  not enforce commit validation.
 
 ### `.markdownlint-cli2.yaml`
 
@@ -317,7 +327,7 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines the default commitlint rules for Conventional Commits.
 - Usage: Run `commitlint` from the repository root or from a commit-msg hook.
 - Notes: Keeps parser options and strict commit rules explicit to reject
-  loosely formatted commit messages. No commit hook is installed by default.
+  loosely formatted or unscoped commit messages.
 
 ### `CONTRIBUTING.md`
 
@@ -325,9 +335,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Explains how contributors should propose and verify changes.
 - Usage: Read before contributing to the starter kit.
-- Notes: Documents optional pre-commit hook activation while keeping commit
-  message hook enforcement advisory. Future-project placeholders belong in
-  `templates/CONTRIBUTING.md`.
+- Notes: Documents optional Git hook activation and scoped commit message
+  validation. Future-project placeholders belong in `templates/CONTRIBUTING.md`.
 
 ### `LICENSE`
 
@@ -343,7 +352,7 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
-- Notes: Summarizes audit prerequisites, optional pre-commit hook activation,
+- Notes: Summarizes audit prerequisites, optional Git hook activation,
   release package behavior, and generic ignore coverage. Do not leave
   future-project placeholders in the root README.
 

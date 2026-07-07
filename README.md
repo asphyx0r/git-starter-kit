@@ -7,8 +7,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Git and editor conventions for repository consistency.
 - Generic ignore rules for local files, secrets, direnv files, runtime
   storage, caches, and build outputs.
-- Commit message guidance with a reusable Git commit template and strict
-  commitlint rules.
+- Commit message guidance with a reusable Git commit template, strict scoped
+  commitlint rules, and optional commit-message validation.
 - Optional staged Markdown and YAML pre-commit hook.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
@@ -44,7 +44,9 @@ git config core.hooksPath .githooks
 
 The optional pre-commit hook checks staged `*.md` files with
 `markdownlint-cli2` and staged `*.yml` or `*.yaml` files with `yamllint`.
-Install those tools before enabling the hook, or leave `core.hooksPath` unset.
+The optional commit-msg hook checks commit messages with `commitlint` and the
+repository-specific scoped Conventional Commit rules. Install those tools before
+enabling the hooks, or leave `core.hooksPath` unset.
 
 Copy files from `templates/` when starting a new project and replace the
 placeholder values with project-specific content.

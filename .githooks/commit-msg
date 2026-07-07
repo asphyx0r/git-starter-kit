@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+resolve_commitlint_command() {
+  if command -v commitlint >/dev/null 2>&1; then
+    command -v commitlint
+    return
+  fi
+
+  printf '%s\n' 'commit-msg: commitlint is required to validate commit messages.' >&2
+  printf '%s\n' 'commit-msg: install commitlint before creating a commit.' >&2
+  exit 1
+}
+
+to_host_path() {
+  local file_path="$1"
+
+  if [[ "${file_path}" != /* ]]; then
+    printf '%s\n' "${file_path}"
+    return
+  fi
+
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "${file_path}"
+    return
+  fi
+
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "${file_path}"
+    return
+  fi
+
+  printf '%s\n' "${file_path}"
+}
+
+require_commit_message_file() {
+  local commit_message_file="$1"
+
+  if [[ -z "${commit_message_file}" ]]; then
+    printf '%s\n' 'commit-msg: commit message file path is required.' >&2
+    exit 1
+  fi
+
+  if [[ ! -f "${commit_message_file}" ]]; then
+    printf 'commit-msg: commit message file does not exist: %s\n' "${commit_message_file}" >&2
+    exit 1
+  fi
+}
+
+run_commitlint() {
+  local commit_message_file="$1"
+  local commitlint_cli
+  local commitlint_command
+  local commitlint_config
+  local commitlint_dir
+  local host_commit_message_file
+  local host_commitlint_cli
+  local host_commitlint_config
+  local node_exe
+  local repo_root
+
+  commitlint_command="$(resolve_commitlint_command)"
+  repo_root="$(git rev-parse --show-toplevel)"
+  commitlint_config="${repo_root}/commitlint.config.cjs"
+
+  if [[ ! -f "${commitlint_config}" ]]; then
+    printf 'commit-msg: commitlint config does not exist: %s\n' "${commitlint_config}" >&2
+    exit 1
+  fi
+
+  printf '%s\n' 'commit-msg: running commitlint on commit message.'
+
+  if ! command -v node >/dev/null 2>&1 && command -v node.exe >/dev/null 2>&1; then
+    node_exe="$(command -v node.exe)"
+    commitlint_dir="$(dirname "${commitlint_command}")"
+    commitlint_cli="${commitlint_dir}/node_modules/@commitlint/cli/cli.js"
+
+    if [[ -f "${commitlint_cli}" ]]; then
+      host_commit_message_file="$(to_host_path "${commit_message_file}")"
+      host_commitlint_cli="$(to_host_path "${commitlint_cli}")"
+      host_commitlint_config="$(to_host_path "${commitlint_config}")"
+
+      "${node_exe}" "${host_commitlint_cli}" \
+        --edit "${host_commit_message_file}" \
+        --config "${host_commitlint_config}"
+      return
+    fi
+  fi
+
+  "${commitlint_command}" \
+    --edit "${commit_message_file}" \
+    --config "${commitlint_config}"
+}
+
+main() {
+  local commit_message_file="${1:-}"
+
+  require_commit_message_file "${commit_message_file}"
+  run_commitlint "${commit_message_file}"
+}
+
+main "$@"

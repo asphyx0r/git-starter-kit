@@ -6,16 +6,19 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## v1.7.0 - 2026-07-07
 
 ### Added in Unreleased
 
 - Added an opt-in pre-commit hook for staged Markdown and YAML validation.
+- Added an opt-in commit-msg hook for scoped Conventional Commit validation.
 
 ### Changed in Unreleased
 
-- Documented pre-commit hook activation and added hook validation to the
+- Documented Git hook activation and added hook validation to the
   repository audit.
+- Required scoped commit messages in the commitlint configuration.
+- Aligned the commit message template with scoped commit headers.
 
 ## v1.6.0 - 2026-07-03
 
