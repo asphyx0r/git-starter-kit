@@ -449,8 +449,10 @@ run_static() {
   node_cmd="$(resolve_command node node.exe)"
 
   check_git_whitespace
+  bash -n .githooks/pre-commit
   bash -n scripts/git-init.sh
   shellcheck --version
+  shellcheck .githooks/pre-commit
   shellcheck scripts/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   run_powershell_parse

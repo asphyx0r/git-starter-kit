@@ -6,6 +6,17 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added in Unreleased
+
+- Added an opt-in pre-commit hook for staged Markdown and YAML validation.
+
+### Changed in Unreleased
+
+- Documented pre-commit hook activation and added hook validation to the
+  repository audit.
+
 ## v1.6.0 - 2026-07-03
 
 ### Added in v1.6.0

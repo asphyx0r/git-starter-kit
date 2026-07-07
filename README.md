@@ -9,6 +9,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
   storage, caches, and build outputs.
 - Commit message guidance with a reusable Git commit template and strict
   commitlint rules.
+- Optional staged Markdown and YAML pre-commit hook.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - VS Code workspace recommendations for consistent local editing.
@@ -38,7 +39,12 @@ cd <new-project-name>
 ```bash
 git status
 git config commit.template .gitmessage
+git config core.hooksPath .githooks
 ```
+
+The optional pre-commit hook checks staged `*.md` files with
+`markdownlint-cli2` and staged `*.yml` or `*.yaml` files with `yamllint`.
+Install those tools before enabling the hook, or leave `core.hooksPath` unset.
 
 Copy files from `templates/` when starting a new project and replace the
 placeholder values with project-specific content.

@@ -211,6 +211,25 @@ deferred, or explicitly excluded from the template.
   credentials. Shell validation messages are wrapped for YAML lint
   readability.
 
+### `.githooks/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores opt-in Git hooks for local repository validation.
+- Usage: Enable with `git config core.hooksPath .githooks` when local hooks are
+  desired.
+- Notes: Hooks remain versioned but inactive until each clone opts in.
+
+### `.githooks/pre-commit`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Blocks commits when staged Markdown or YAML files fail syntax and style
+  validation.
+- Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
+- Notes: Checks staged `*.md` files with `markdownlint-cli2` and staged `*.yml`
+  or `*.yaml` files with `yamllint` from a temporary index checkout.
+
 ### `.gitignore`
 
 - Type: `file`
@@ -306,7 +325,9 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Explains how contributors should propose and verify changes.
 - Usage: Read before contributing to the starter kit.
-- Notes: Future-project placeholders belong in `templates/CONTRIBUTING.md`.
+- Notes: Documents optional pre-commit hook activation while keeping commit
+  message hook enforcement advisory. Future-project placeholders belong in
+  `templates/CONTRIBUTING.md`.
 
 ### `LICENSE`
 
@@ -322,9 +343,9 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
-- Notes: Summarizes audit prerequisites, release package behavior, and generic
-  ignore coverage. Do not leave future-project placeholders in the root
-  README.
+- Notes: Summarizes audit prerequisites, optional pre-commit hook activation,
+  release package behavior, and generic ignore coverage. Do not leave
+  future-project placeholders in the root README.
 
 ### `SECURITY.md`
 
@@ -374,7 +395,8 @@ deferred, or explicitly excluded from the template.
   release tag or GitHub release. GitHub Actions invokes the same script with
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
-  ShellCheck, PowerShell parsing, SemVer pattern drift checks, smoke behavior,
+  ShellCheck for shell scripts and Git hooks, PowerShell parsing, SemVer
+  pattern drift checks, smoke behavior,
   release package manifest, commitlint configuration, and commit message
   checks for newly introduced commits. It
   intentionally resolves the latest

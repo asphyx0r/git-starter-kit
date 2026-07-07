@@ -27,8 +27,20 @@ git commit --template=.gitmessage
 ```
 
 Commit messages should follow the rules in `commitlint.config.cjs`. This
-repository does not install a commit hook by default; run `commitlint` manually
-or from a downstream hook when strict validation is needed.
+repository does not install a commit-message hook by default; run `commitlint`
+manually or from a downstream hook when strict validation is needed.
+
+## Optional pre-commit hook
+
+Enable the repository hook path when staged Markdown and YAML validation should
+run before each commit:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook requires `markdownlint-cli2` for staged `*.md` files and `yamllint` for
+staged `*.yml` or `*.yaml` files.
 
 ## Pull requests
 
