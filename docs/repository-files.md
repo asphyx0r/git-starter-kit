@@ -395,6 +395,17 @@ deferred, or explicitly excluded from the template.
   and verifies required files in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
+### `tools/README.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Documents the repository tools with man-page-style operational
+  reference sections.
+- Usage: Read before running scripts in `tools/` to understand their purpose,
+  command-line interfaces, examples, exit status, and best practices.
+- Notes: Keep entries aligned with current tool behavior whenever scripts are
+  changed.
+
 ### `tools/repository-audit.sh`
 
 - Type: `file`

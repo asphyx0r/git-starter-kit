@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added in Unreleased
 
+- Added man-page-style reference documentation for every script in `tools/`.
 - Added an opt-in pre-commit hook for staged Markdown and YAML validation.
 - Added an opt-in commit-msg hook for scoped Conventional Commit validation.
 

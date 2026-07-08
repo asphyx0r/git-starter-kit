@@ -14,6 +14,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - VS Code workspace recommendations for consistent local editing.
 - Repository file inventory in `docs/repository-files.md`.
+- Tool reference documentation in `tools/README.md`.
 - Reusable templates for README, changelog, contributing, code of conduct,
   security, support, environment, Git, Codex, and release notes files.
 - GitHub community files for pull requests, issues, conduct, and support.
@@ -112,6 +113,9 @@ Use `--remote <url>` when the initialized repository should add `origin` and
 push `main` with tags. When `--remote` is omitted, the scripts do not push.
 
 Run either script without arguments, or with `--help`, to show usage.
+
+See [Tools](tools/README.md) for detailed tool synopsis, options, examples,
+exit status, and usage notes.
 
 Invoke `$git-commit-push-tag` in Codex only when a guarded commit, atomic push,
 and SemVer tag workflow is explicitly requested.
