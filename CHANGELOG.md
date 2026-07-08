@@ -20,6 +20,11 @@ uses [Semantic Versioning](https://semver.org/).
 - Required scoped commit messages in the commitlint configuration.
 - Aligned the commit message template with scoped commit headers.
 
+### Fixed in Unreleased
+
+- Made the PowerShell Git initializer explain unreadable preexisting `.git`
+  metadata before previewing committable files.
+
 ## v1.6.0 - 2026-07-03
 
 ### Added in v1.6.0

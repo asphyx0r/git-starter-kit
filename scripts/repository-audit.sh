@@ -352,6 +352,21 @@ run_script_smoke() {
     exit 1
   fi
 
+  local pwsh_invalid_git_target="$audit_temp/git-init-pwsh-invalid-git"
+  local pwsh_invalid_git_output="$audit_temp/git-init-pwsh-invalid-git.out"
+  mkdir -p "$pwsh_invalid_git_target/.git"
+  printf 'hello\n' > "$pwsh_invalid_git_target/README.md"
+  if printf 'y\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
+    --path "$(to_pwsh_path "$pwsh_invalid_git_target")" \
+    --tag v1.0.0 >"$pwsh_invalid_git_output" 2>&1; then
+    echo "PowerShell init accepted invalid .git metadata." >&2
+    exit 1
+  fi
+  if ! grep -F "Target contains .git metadata" "$pwsh_invalid_git_output" >/dev/null; then
+    echo "PowerShell init did not explain invalid .git metadata." >&2
+    exit 1
+  fi
+
   local pwsh_cancel_target="$audit_temp/git-init-pwsh-cancel"
   mkdir -p "$pwsh_cancel_target"
   printf 'hello\n' > "$pwsh_cancel_target/README.md"

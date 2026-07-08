@@ -103,6 +103,8 @@ powershell -NoProfile -File scripts\git-init.ps1 --path ..\example-app --tag v1.
 Both scripts preview the files Git can commit before creating target `.git`
 metadata. If commit confirmation is declined, the target directory is left
 uninitialized.
+If a target already contains unreadable `.git` metadata, repair or remove it
+before rerunning the initializer.
 
 The Bash script requires Bash 4 or newer.
 

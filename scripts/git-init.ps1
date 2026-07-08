@@ -97,6 +97,33 @@ function Test-GitSuccess {
     }
 }
 
+function Assert-ReadableGitMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryPath,
+        [Parameter(Mandatory = $true)][string]$GitMetadataPath
+    )
+
+    try {
+        $gitRoot = ((Invoke-Git -Arguments @(
+                    "-C", $RepositoryPath, "rev-parse", "--show-toplevel"
+                )) -join "").Trim()
+    }
+    catch {
+        throw "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $GitMetadataPath"
+    }
+
+    $trimCharacters = @(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    $expectedPath = [System.IO.Path]::GetFullPath($RepositoryPath).TrimEnd($trimCharacters)
+    $actualPath = [System.IO.Path]::GetFullPath($gitRoot).TrimEnd($trimCharacters)
+
+    if (-not [string]::Equals($actualPath, $expectedPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $GitMetadataPath"
+    }
+}
+
 function Get-CommittableFile {
     param([Parameter(Mandatory = $true)][string]$RepositoryPath)
 
@@ -104,6 +131,8 @@ function Get-CommittableFile {
     try {
         $gitMetadataPath = Join-Path $RepositoryPath ".git"
         if (Test-Path -LiteralPath $gitMetadataPath) {
+            Assert-ReadableGitMetadata -RepositoryPath $RepositoryPath -GitMetadataPath $gitMetadataPath
+
             $statusArguments = @(
                 "-C", $RepositoryPath, "status", "--porcelain=v1", "-z",
                 "--untracked-files=all"
@@ -285,6 +314,8 @@ if ($targetEntries.Count -eq 0) {
 }
 
 if (Test-Path -LiteralPath $gitMetadataPath) {
+    Assert-ReadableGitMetadata -RepositoryPath $targetPath -GitMetadataPath $gitMetadataPath
+
     if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "HEAD")) {
         throw "Target repository already has commits: $targetPath"
     }

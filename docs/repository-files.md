@@ -429,7 +429,8 @@ deferred, or explicitly excluded from the template.
   cases, requires
   existing non-empty target directories,
   previews committable files from Git porcelain status without creating target
-  Git metadata, warns on risky credential, direnv, and artifact paths, refuses
+  Git metadata, explains invalid preexisting `.git` metadata, warns on risky
+  credential, direnv, and artifact paths, refuses
   existing target commits, writes prompts without polluting confirmation
   return values, reads confirmation answers from standard input for
   deterministic CI smoke tests, warns on runtime storage paths, creates the
