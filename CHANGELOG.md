@@ -6,26 +6,34 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
-## v1.7.0 - 2026-07-07
+## v1.7.1 - 2026-07-08
 
-### Added in Unreleased
+### Added in v1.7.1
 
 - Added man-page-style reference documentation for every script in `tools/`.
+
+### Changed in v1.7.1
+
+- Renamed repository management paths from `scripts/` to `tools/`.
+
+### Fixed in v1.7.1
+
+- Made the Git initializers explain unreadable preexisting `.git` metadata
+  before previewing committable files.
+
+## v1.7.0 - 2026-07-07
+
+### Added in v1.7.0
+
 - Added an opt-in pre-commit hook for staged Markdown and YAML validation.
 - Added an opt-in commit-msg hook for scoped Conventional Commit validation.
 
-### Changed in Unreleased
+### Changed in v1.7.0
 
 - Documented Git hook activation and added hook validation to the
   repository audit.
 - Required scoped commit messages in the commitlint configuration.
 - Aligned the commit message template with scoped commit headers.
-- Renamed repository management paths from `scripts/` to `tools/`.
-
-### Fixed in Unreleased
-
-- Made the Git initializers explain unreadable preexisting `.git` metadata
-  before previewing committable files.
 
 ## v1.6.0 - 2026-07-03
 
