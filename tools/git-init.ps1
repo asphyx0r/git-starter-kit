@@ -19,7 +19,7 @@ function Write-Usage {
     Write-Output "git-init.ps1 $ScriptVersion"
     Write-Output ""
     Write-Output "Usage:"
-    Write-Output "  powershell -NoProfile -File scripts\git-init.ps1 -p <path> [-t <tag>] [-r <remote>] [-v]"
+    Write-Output "  powershell -NoProfile -File tools\git-init.ps1 -p <path> [-t <tag>] [-r <remote>] [-v]"
     Write-Output ""
     Write-Output "Options:"
     Write-Output "  -h, --help       Show version and help."

@@ -86,7 +86,7 @@ jobs:
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
           AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
         run: |
-          ./scripts/build-release-package.ps1 `
+          ./tools/build-release-package.ps1 `
             -StarterRef $env:STARTER_REF `
             -AgentRulesRef $env:AGENT_RULES_REF `
             -OutputDirectory $env:RUNNER_TEMP

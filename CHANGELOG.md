@@ -19,6 +19,7 @@ uses [Semantic Versioning](https://semver.org/).
   repository audit.
 - Required scoped commit messages in the commitlint configuration.
 - Aligned the commit message template with scoped commit headers.
+- Renamed repository management paths from `scripts/` to `tools/`.
 
 ### Fixed in Unreleased
 

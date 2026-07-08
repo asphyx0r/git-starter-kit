@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
 
       - name: Run markdown audit
-        run: bash scripts/repository-audit.sh markdown
+        run: bash tools/repository-audit.sh markdown
 
   spelling:
     name: Spelling
@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Run spelling audit
-        run: bash scripts/repository-audit.sh spelling
+        run: bash tools/repository-audit.sh spelling
 
   static:
     name: Static checks
@@ -58,4 +58,4 @@ jobs:
           GIT_AUTHOR_EMAIL: codex@example.com
           GIT_COMMITTER_NAME: Codex
           GIT_COMMITTER_EMAIL: codex@example.com
-        run: bash scripts/repository-audit.sh static
+        run: bash tools/repository-audit.sh static

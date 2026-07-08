@@ -20,7 +20,7 @@ usage() {
 git-init.sh $script_version
 
 Usage:
-  bash scripts/git-init.sh -p <path> [-t <tag>] [-r <remote>] [-v]
+  bash tools/git-init.sh -p <path> [-t <tag>] [-r <remote>] [-v]
 
 Options:
   -h, --help       Show version and help.

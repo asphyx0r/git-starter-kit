@@ -22,7 +22,7 @@ trap cleanup EXIT
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/repository-audit.sh [all|markdown|spelling|static]
+Usage: bash tools/repository-audit.sh [all|markdown|spelling|static]
 
 Runs the same repository audit rules locally and in GitHub Actions.
 USAGE
@@ -150,25 +150,25 @@ function extractWorkflowPattern() {
 
 const patterns = new Map([
   [
-    "scripts/git-init.sh",
+    "tools/git-init.sh",
     extractSingle(
-      "scripts/git-init.sh",
+      "tools/git-init.sh",
       /^semver_tag_pattern='([^']+)'$/m,
       "Bash init SemVer pattern"
     ),
   ],
   [
-    "scripts/git-init.ps1",
+    "tools/git-init.ps1",
     extractSingle(
-      "scripts/git-init.ps1",
+      "tools/git-init.ps1",
       /^\$SemVerTagPattern = "([^"]+)"$/m,
       "PowerShell init SemVer pattern"
     ),
   ],
   [
-    "scripts/build-release-package.ps1",
+    "tools/build-release-package.ps1",
     extractSingle(
-      "scripts/build-release-package.ps1",
+      "tools/build-release-package.ps1",
       /^\$SemVerTagPattern = "([^"]+)"$/m,
       "release package SemVer pattern"
     ),
@@ -279,8 +279,8 @@ PS
 
   "$pwsh_cmd" -NoProfile -ExecutionPolicy Bypass -File \
     "$(to_pwsh_path "$parse_script")" \
-    "$(to_pwsh_path "$repository_root/scripts/build-release-package.ps1")" \
-    "$(to_pwsh_path "$repository_root/scripts/git-init.ps1")"
+    "$(to_pwsh_path "$repository_root/tools/build-release-package.ps1")" \
+    "$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
 }
 
 run_script_smoke() {
@@ -301,11 +301,11 @@ run_script_smoke() {
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1
   local build_release_package_ps1
-  git_init_ps1="$(to_pwsh_path "$repository_root/scripts/git-init.ps1")"
-  build_release_package_ps1="$(to_pwsh_path "$repository_root/scripts/build-release-package.ps1")"
+  git_init_ps1="$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
+  build_release_package_ps1="$(to_pwsh_path "$repository_root/tools/build-release-package.ps1")"
 
-  bash scripts/git-init.sh --help
-  if bash scripts/git-init.sh --path "$audit_temp" --tag invalid; then
+  bash tools/git-init.sh --help
+  if bash tools/git-init.sh --path "$audit_temp" --tag invalid; then
     echo "Bash init accepted an invalid tag." >&2
     exit 1
   fi
@@ -314,7 +314,7 @@ run_script_smoke() {
   local bash_invalid_git_output="$audit_temp/git-init-bash-invalid-git.out"
   mkdir -p "$bash_invalid_git_target/.git"
   printf 'hello\n' > "$bash_invalid_git_target/README.md"
-  if printf 'y\n' | bash scripts/git-init.sh \
+  if printf 'y\n' | bash tools/git-init.sh \
     --path "$bash_invalid_git_target" \
     --tag v1.0.0 >"$bash_invalid_git_output" 2>&1; then
     echo "Bash init accepted invalid .git metadata." >&2
@@ -328,7 +328,7 @@ run_script_smoke() {
   local bash_cancel_target="$audit_temp/git-init-bash-cancel"
   mkdir -p "$bash_cancel_target"
   printf 'hello\n' > "$bash_cancel_target/README.md"
-  printf 'y\nn\n' | bash scripts/git-init.sh \
+  printf 'y\nn\n' | bash tools/git-init.sh \
     --path "$bash_cancel_target" \
     --tag v1.0.0
   if [ -e "$bash_cancel_target/.git" ]; then
@@ -340,7 +340,7 @@ run_script_smoke() {
   mkdir -p "$bash_target"
   printf 'hello\n' > "$bash_target/README.md"
   printf 'hello spaces\n' > "$bash_target/notes with spaces.txt"
-  printf 'y\ny\n' | bash scripts/git-init.sh \
+  printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_target" \
     --tag v1.0.0
   if [ -n "$(git -C "$bash_target" status --short)" ]; then
@@ -351,7 +351,7 @@ run_script_smoke() {
   local bash_semver_target="$audit_temp/git-init-bash-semver-smoke"
   mkdir -p "$bash_semver_target"
   printf 'hello\n' > "$bash_semver_target/README.md"
-  printf 'y\ny\n' | bash scripts/git-init.sh \
+  printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_semver_target" \
     --tag "$complex_semver_tag"
   if [ -n "$(git -C "$bash_semver_target" status --short)" ]; then
@@ -481,11 +481,11 @@ run_static() {
   check_git_whitespace
   bash -n .githooks/pre-commit
   bash -n .githooks/commit-msg
-  bash -n scripts/git-init.sh
+  bash -n tools/git-init.sh
   shellcheck --version
   shellcheck .githooks/pre-commit
   shellcheck .githooks/commit-msg
-  shellcheck scripts/git-init.sh
+  shellcheck tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   run_powershell_parse
   run_script_smoke

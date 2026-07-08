@@ -50,7 +50,7 @@ tag, commit SHA, and release date.
 Use this mode for the normal release process.
 
 1. Prepare the release commit in `git-starter-kit`.
-2. From a clean repository, run `bash scripts/repository-audit.sh` locally.
+2. From a clean repository, run `bash tools/repository-audit.sh` locally.
 3. Stop if the local audit fails; do not create a release tag or release.
 4. Create and push the release tag, for example `v1.3.0`.
 5. On GitHub, open the repository page.
@@ -115,7 +115,7 @@ that the ZIP asset is listed under the release assets.
 Run the full repository audit locally before publishing a release:
 
 ```bash
-bash scripts/repository-audit.sh
+bash tools/repository-audit.sh
 ```
 
 The full audit intentionally resolves the latest published full
@@ -130,7 +130,7 @@ You can also test only the package generation locally before publishing a releas
 From the repository root, run:
 
 ```powershell
-powershell -NoProfile -File scripts\build-release-package.ps1 `
+powershell -NoProfile -File tools\build-release-package.ps1 `
   -StarterRef local-test `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip

@@ -57,7 +57,7 @@ reviewable with minimal process.
 Run the same audit suite locally that GitHub Actions runs:
 
 ```bash
-bash scripts/repository-audit.sh
+bash tools/repository-audit.sh
 ```
 
 Do not create a release tag or GitHub release if this local audit fails. The
@@ -93,11 +93,11 @@ and the resolved SemVer tag.
 Initialize a target repository with an explicit confirmation prompt:
 
 ```bash
-bash scripts/git-init.sh --path ../example-app --tag v1.0.0
+bash tools/git-init.sh --path ../example-app --tag v1.0.0
 ```
 
 ```powershell
-powershell -NoProfile -File scripts\git-init.ps1 --path ..\example-app --tag v1.0.0
+powershell -NoProfile -File tools\git-init.ps1 --path ..\example-app --tag v1.0.0
 ```
 
 Both scripts preview the files Git can commit before creating target `.git`

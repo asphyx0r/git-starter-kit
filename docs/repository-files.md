@@ -187,7 +187,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Executes on pushes, pull requests, and manual dispatch.
 - Notes: The workflow uses a pinned runner and a checkout action pinned by
   SHA for `actions/checkout@v7.0.0`. It delegates Markdown, spelling,
-  static, smoke, and configuration rules to `scripts/repository-audit.sh` so
+  static, smoke, and configuration rules to `tools/repository-audit.sh` so
   local and CI audits share the same
   source of truth. Tool downloads are version-pinned but not hash-verified;
   this is an accepted lightweight CI tradeoff for a generic starter kit with
@@ -206,7 +206,7 @@ deferred, or explicitly excluded from the template.
   `actions/checkout@v7.0.0`, disables checkout credential persistence, uses
   `latest` automatically for release packages, validates manual
   release tags and agent rules references, then calls
-  `scripts/build-release-package.ps1` without passing the workflow token to
+  `tools/build-release-package.ps1` without passing the workflow token to
   the build step, then uploads the generated ZIP with upload-only GitHub CLI
   credentials. Shell validation messages are wrapped for YAML lint
   readability.
@@ -373,15 +373,15 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before opening support questions or asking for help.
 - Notes: Keep support scope distinct from security reporting.
 
-### `scripts/`
+### `tools/`
 
 - Type: `directory`
 - Status: `optional`
-- Goal: Stores small repository maintenance scripts.
-- Usage: Keep scripts generic and tied to documented repository workflows.
+- Goal: Stores small repository management and maintenance tools.
+- Usage: Keep tools generic and tied to documented repository workflows.
 - Notes: Avoid project-specific build, test, or deploy automation here.
 
-### `scripts/build-release-package.ps1`
+### `tools/build-release-package.ps1`
 
 - Type: `file`
 - Status: `optional`
@@ -395,12 +395,12 @@ deferred, or explicitly excluded from the template.
   and verifies required files in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
-### `scripts/repository-audit.sh`
+### `tools/repository-audit.sh`
 
 - Type: `file`
 - Status: `optional`
 - Goal: Runs the shared local and CI repository audit rules.
-- Usage: Run `bash scripts/repository-audit.sh` locally before creating a
+- Usage: Run `bash tools/repository-audit.sh` locally before creating a
   release tag or GitHub release. GitHub Actions invokes the same script with
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
@@ -417,7 +417,7 @@ deferred, or explicitly excluded from the template.
   npm, PyPI, and GitHub network requirements, and fails when required local
   tools are unavailable instead of silently skipping CI rules.
 
-### `scripts/git-init.ps1`
+### `tools/git-init.ps1`
 
 - Type: `file`
 - Status: `optional`
@@ -437,7 +437,7 @@ deferred, or explicitly excluded from the template.
   first Conventional Commit on `main`, tags it, and only pushes when
   `--remote` is provided.
 
-### `scripts/git-init.sh`
+### `tools/git-init.sh`
 
 - Type: `file`
 - Status: `optional`

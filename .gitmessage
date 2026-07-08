@@ -19,7 +19,7 @@
 #
 # Examples:
 #   fix(config): handle empty configuration
-#   feat(scripts): add repository bootstrap
+#   feat(tools): add repository bootstrap
 #   docs(readme): update repository inventory
 
 <summary>
