@@ -6,9 +6,9 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## v1.7.2 - 2026-07-08
 
-### Added
+### Added in v1.7.2
 
 - Reusable tool-directory README template for documenting script and utility
   collections.
