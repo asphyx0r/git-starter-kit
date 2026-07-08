@@ -72,6 +72,30 @@ run_git() {
     git "$@"
 }
 
+assert_readable_git_metadata() {
+    local repository_path="$1"
+    local git_metadata_path="$2"
+    local expected_root
+    local actual_root
+    local git_root
+
+    if ! git_root="$(git -C "$repository_path" rev-parse --show-toplevel 2>/dev/null)"; then
+        fail "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $git_metadata_path"
+    fi
+
+    if ! expected_root="$(cd -- "$repository_path" && pwd -P)"; then
+        fail "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $git_metadata_path"
+    fi
+
+    if ! actual_root="$(cd -- "$git_root" && pwd -P)"; then
+        fail "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $git_metadata_path"
+    fi
+
+    if [ "$actual_root" != "$expected_root" ]; then
+        fail "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $git_metadata_path"
+    fi
+}
+
 git_status_files() {
     local preview_git_dir=""
     local status_args
@@ -86,7 +110,9 @@ git_status_files() {
         --untracked-files=all
     )
 
-    if [ ! -e "$target_path/.git" ]; then
+    if [ -e "$target_path/.git" ]; then
+        assert_readable_git_metadata "$target_path" "$target_path/.git"
+    else
         preview_git_dir="$(mktemp -d)"
         git init --bare "$preview_git_dir" >/dev/null
         status_args=(
@@ -233,6 +259,8 @@ if [ "$target_has_content" -eq 0 ]; then
 fi
 
 if [ -e "$target_path/.git" ]; then
+    assert_readable_git_metadata "$target_path" "$target_path/.git"
+
     if git_success -C "$target_path" rev-parse --verify HEAD; then
         fail "Target repository already has commits: $target_path"
     fi

@@ -22,8 +22,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed in Unreleased
 
-- Made the PowerShell Git initializer explain unreadable preexisting `.git`
-  metadata before previewing committable files.
+- Made the Git initializers explain unreadable preexisting `.git` metadata
+  before previewing committable files.
 
 ## v1.6.0 - 2026-07-03
 

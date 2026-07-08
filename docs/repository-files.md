@@ -448,10 +448,10 @@ deferred, or explicitly excluded from the template.
 - Notes: Validates SemVer tags covered by CI smoke cases, requires
   existing non-empty target directories,
   previews committable files from Git porcelain status without creating target
-  Git metadata, warns on risky credential, direnv, artifact, and runtime
-  storage paths, refuses existing target commits, creates the first
-  Conventional Commit on `main`, tags it, and only pushes when `--remote` is
-  provided.
+  Git metadata, explains invalid preexisting `.git` metadata, warns on risky
+  credential, direnv, artifact, and runtime storage paths, refuses existing
+  target commits, creates the first Conventional Commit on `main`, tags it,
+  and only pushes when `--remote` is provided.
 
 ### `docs/`
 

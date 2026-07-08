@@ -310,6 +310,21 @@ run_script_smoke() {
     exit 1
   fi
 
+  local bash_invalid_git_target="$audit_temp/git-init-bash-invalid-git"
+  local bash_invalid_git_output="$audit_temp/git-init-bash-invalid-git.out"
+  mkdir -p "$bash_invalid_git_target/.git"
+  printf 'hello\n' > "$bash_invalid_git_target/README.md"
+  if printf 'y\n' | bash scripts/git-init.sh \
+    --path "$bash_invalid_git_target" \
+    --tag v1.0.0 >"$bash_invalid_git_output" 2>&1; then
+    echo "Bash init accepted invalid .git metadata." >&2
+    exit 1
+  fi
+  if ! grep -F "Target contains .git metadata" "$bash_invalid_git_output" >/dev/null; then
+    echo "Bash init did not explain invalid .git metadata." >&2
+    exit 1
+  fi
+
   local bash_cancel_target="$audit_temp/git-init-bash-cancel"
   mkdir -p "$bash_cancel_target"
   printf 'hello\n' > "$bash_cancel_target/README.md"
