@@ -10,6 +10,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Reusable tool-directory README template for documenting script and utility
+  collections.
 - Added PowerShell execution-policy troubleshooting for downloaded
   `git-init.ps1` release copies.
 

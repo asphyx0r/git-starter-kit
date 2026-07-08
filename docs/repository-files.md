@@ -584,6 +584,17 @@ deferred, or explicitly excluded from the template.
 - Usage: Replace placeholders with project-specific content.
 - Notes: Keep the root README concrete and this file generic.
 
+### `templates/README_TOOLS.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable README structure for directories that contain
+  scripts, command-line tools, or maintenance utilities.
+- Usage: Copy to a tool directory as `README.md`, then replace placeholders
+  with exact commands, options, inputs, outputs, side effects, and exit codes.
+- Notes: Use for collections such as `tools/`; keep per-tool entries aligned
+  with the current implementation and avoid inventing undocumented behavior.
+
 ### `templates/SECURITY.md`
 
 - Type: `file`
