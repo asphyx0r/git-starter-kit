@@ -404,7 +404,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before running scripts in `tools/` to understand their purpose,
   command-line interfaces, examples, exit status, and best practices.
 - Notes: Keep entries aligned with current tool behavior whenever scripts are
-  changed.
+  changed. Documents execution-policy troubleshooting for downloaded
+  `git-init.ps1` copies that PowerShell blocks before launch.
 
 ### `tools/repository-audit.sh`
 

@@ -200,6 +200,38 @@ powershell -NoProfile -File tools\git-init.ps1 --version
   existed, no committable files were found, Git failed, or another terminating
   PowerShell error occurred.
 
+### Troubleshooting
+
+When `git-init.ps1` comes from a downloaded GitHub release ZIP, PowerShell may
+block it before the script starts. The error can be localized, but it usually
+includes `PSSecurityException`, `UnauthorizedAccess`, and text similar to:
+
+```text
+.\git-init.ps1 : File C:\Path\To\Project\tools\git-init.ps1 cannot be loaded.
+The file C:\Path\To\Project\tools\git-init.ps1 is not digitally signed. You
+cannot run this script on the current system.
+FullyQualifiedErrorId : UnauthorizedAccess
+```
+
+PowerShell is enforcing the current execution policy or the downloaded-file
+mark on the extracted script. Inspect the active policies, then use a per-user
+`RemoteSigned` policy and unblock the trusted script file:
+
+```powershell
+Get-ExecutionPolicy -List
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+Unblock-File -Path .\tools\git-init.ps1
+powershell -NoProfile -File .\tools\git-init.ps1 `
+  --path ..\example-app `
+  --tag v1.0.0
+```
+
+Use the actual path where you extracted or copied `git-init.ps1`; for example,
+replace `.\tools\git-init.ps1` with `.\scripts\git-init.ps1` if the script was
+copied to `scripts`. Unblock only files from a trusted release package. If an
+organization manages execution policy through `MachinePolicy` or `UserPolicy`,
+follow that policy instead of bypassing it.
+
 ### Appendix
 
 Review the file preview before confirming the commit. If risky paths are
