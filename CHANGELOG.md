@@ -6,6 +6,13 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v1.7.3 - 2026-07-13
+
+### Added in v1.7.3
+
+- Reusable skill documentation template for source-based repository skill
+  inventories.
+
 ## v1.7.2 - 2026-07-08
 
 ### Added in v1.7.2

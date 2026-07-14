@@ -17,7 +17,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Tool reference documentation in `tools/README.md`.
 - Reusable templates for README, tool-directory README, changelog,
   contributing, code of conduct, security, support, environment, Git, Codex,
-  and release notes files.
+  skill documentation, and release notes files.
 - GitHub community files for pull requests, issues, conduct, and support.
 - GitHub Actions workflow for lightweight Markdown, spelling, commit message,
   script, and configuration audits.

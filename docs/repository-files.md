@@ -603,6 +603,18 @@ deferred, or explicitly excluded from the template.
 - Usage: Replace placeholders with project-specific security policy details.
 - Notes: Keep the root file concrete and this file generic.
 
+### `templates/SKILLS.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a reusable documentation-only inventory structure for Codex
+  skills.
+- Usage: Copy to a repository documentation directory as `SKILLS.md`, then
+  replace placeholders from existing skill source files.
+- Notes: Keep the generated inventory in English, source-based, and limited to
+  capabilities and paths that actually exist. Each `SKILL.md` file remains
+  authoritative.
+
 ### `templates/SUPPORT.md`
 
 - Type: `file`
