@@ -35,8 +35,7 @@ Before creating the tag, determine:
 
 - the current branch;
 - the latest existing SemVer tag, if any;
-- the target SemVer tag or requested bump type: `major`, `minor`, or `patch`;
-- the repository's existing tag style: annotated or lightweight.
+- the target SemVer tag or requested bump type: `major`, `minor`, or `patch`.
 
 If the target tag or bump type is not explicit, inspect the changes since the
 latest SemVer tag and propose the smallest SemVer bump with a short rationale,
@@ -45,8 +44,8 @@ then ask the user to confirm before creating the tag.
 If there is no previous SemVer tag, ask the user to confirm the initial version.
 Do not invent an initial tag.
 
-If the repository's tag style cannot be determined, ask whether to create an
-annotated or lightweight tag. Prefer matching the repository's existing style.
+Create new release tags as annotated tags. Existing lightweight tags are
+historical inputs only and do not change this policy.
 
 ## Safety rules
 
@@ -235,19 +234,10 @@ For these absence checks, exit code `0` means the tag exists and must abort.
 The expected non-existing-tag exit codes are `1` for `rev-parse` and `2` for
 `ls-remote --exit-code`. Abort on any other exit code.
 
-Create the tag only after all previous checks pass. Match the repository's
-existing tag style.
-
-For an annotated tag:
+Create an annotated tag only after all previous checks pass:
 
 ```powershell
 git tag -a <tag> -m "<tag>"
-```
-
-For a lightweight tag:
-
-```powershell
-git tag <tag>
 ```
 
 ### 5. Push branch and tag atomically

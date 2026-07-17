@@ -341,11 +341,12 @@ when the target path is a native Windows path.
 ### Features
 
 - Runs the shared local and CI repository audit suite.
-- Supports full or focused audit modes.
+- Defaults to the full audit profile.
+- Supports an optional read-only profile and focused CI audit modes.
 - Checks Markdown, spelling, whitespace, shell scripts, PowerShell parsing,
-  SemVer pattern drift, script smoke behavior, and commit messages.
-- Bootstraps pinned Markdown and spelling tools during audit runs.
-- Exercises release package generation and Git initializer smoke cases.
+  YAML, workflows, secrets, SemVer pattern drift, and commit messages.
+- Bootstraps pinned tools and exercises mutating smoke cases only in full
+  profiles.
 - Uses WSL-aware temporary paths when Windows PowerShell is invoked from WSL.
 
 ### Synopsis
@@ -354,7 +355,9 @@ when the target path is a native Windows path.
 usage: bash tools/repository-audit.sh [mode]
 
 modes:
-  all       run markdown, spelling, and static checks, default
+  all       run markdown, spelling, static, and smoke checks, default
+  full      alias for all
+  readonly  run non-mutating checks with installed tools
   markdown  run Markdown lint only
   spelling  run Codespell only
   static    run static checks and script smoke tests only
@@ -365,21 +368,30 @@ modes:
 
 ### Description
 
-`repository-audit.sh` is the source of truth for repository validation. GitHub
-Actions calls the same script in mode-specific jobs, and maintainers can run it
-locally before preparing release tags or GitHub releases.
+`repository-audit.sh` is the source of truth for repository validation. Its
+default `all` mode and the explicit `full` alias run Markdown lint, spelling
+checks, and static checks. The `static` mode includes Git whitespace checks,
+Bash syntax checks, ShellCheck, PowerShell parsing, SemVer pattern drift
+checks, script smoke tests, Node syntax checks, and commitlint validation for
+introduced commits.
 
-The `all` mode runs Markdown lint, spelling checks, and static checks. The
-`static` mode includes Git whitespace checks, Bash syntax checks, ShellCheck,
-PowerShell parsing, SemVer pattern drift checks, script smoke tests, Node
-syntax checks, and commitlint validation for introduced commits.
+The optional `readonly` mode uses only installed tools, disables optional Git
+locks, and does not install packages, access the network, create temporary
+files, or run mutating smoke tests. GitHub Actions calls explicit focused
+modes.
 
 ### Usage/Examples
 
-Run the full audit:
+Run the default full audit:
 
 ```bash
 bash tools/repository-audit.sh
+```
+
+Run the optional read-only audit:
+
+```bash
+bash tools/repository-audit.sh readonly
 ```
 
 Run only Markdown checks:
@@ -402,8 +414,10 @@ bash tools/repository-audit.sh static
 
 ### Options
 
-- `all`: runs Markdown, spelling, and static checks. This is the default when
-  no mode is provided.
+- `all`: runs Markdown, spelling, static, and smoke checks. This is the default
+  when no mode is provided.
+- `full`: alias for `all`.
+- `readonly`: runs non-mutating checks with installed tools.
 - `markdown`: runs `markdownlint-cli2` against repository Markdown files.
 - `spelling`: runs Codespell with the repository configuration.
 - `static`: runs Git whitespace checks, Bash and ShellCheck checks,
@@ -419,9 +433,9 @@ bash tools/repository-audit.sh static
 
 ### Appendix
 
-Run the full audit before creating a release tag or GitHub release. Treat any
-failure as a blocker until the underlying validation issue is understood and
-fixed.
+Run the audit profile required for the operation before creating a release tag
+or GitHub release. Treat any failure as a blocker until the underlying
+validation issue is understood and fixed.
 
 The full audit needs local tools such as `git`, `bash`, `shellcheck`, a
 PowerShell command, `python`, `node`, and `npx`. It also needs network access
@@ -432,3 +446,12 @@ smoke checks.
 Use focused modes while diagnosing failures. For example, `markdown` and
 `spelling` isolate documentation issues, while `static` isolates script,
 configuration, and smoke-test behavior.
+
+On Windows, Codex may repeatedly create Git processes while a repository is
+open, as tracked in
+[openai/codex#26812](https://github.com/openai/codex/issues/26812). Treat this
+as an external, mitigated defect: before write-sensitive Git operations,
+inspect Git processes and lock files from a terminal outside Codex. If the
+behavior recurs, close Codex normally. Never terminate a process or remove a
+lock automatically; first confirm that it is orphaned and no active process
+owns it.

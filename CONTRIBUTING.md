@@ -45,6 +45,12 @@ The pre-commit hook requires `markdownlint-cli2` for staged `*.md` files and
 `commitlint` and rejects messages that do not match the repository-specific
 scoped Conventional Commit rules.
 
+## Release tags
+
+Create all new SemVer release tags as annotated tags. The published `v1.2.1`,
+`v1.2.2`, and `v1.3.0` tags are historical lightweight exceptions and must not
+be rewritten.
+
 ## Pull requests
 
 A good pull request should explain:

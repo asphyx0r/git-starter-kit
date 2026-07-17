@@ -6,6 +6,30 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v1.8.0 - 2026-07-17
+
+### Added in v1.8.0
+
+- Optional non-mutating repository audit profile using installed tools without
+  package installation, network access, temporary files, or mutating smoke
+  tests.
+- Windows mitigation guidance for the external Codex Git process issue.
+- Annotated-tag policy for new releases, with documented lightweight
+  historical exceptions.
+
+### Changed in v1.8.0
+
+- Preserved the full repository audit as the default behavior and added
+  `full` as an explicit alias.
+- Made new release tag creation consistently use annotated tags.
+
+### Fixed in v1.8.0
+
+- Corrected the Git commit, push, and tag skill agent YAML metadata.
+- Guarded full-audit temporary cleanup against unexpected paths.
+- Preserved read-only PowerShell parsing when Windows PowerShell is called
+  from WSL.
+
 ## v1.7.3 - 2026-07-13
 
 ### Added in v1.7.3

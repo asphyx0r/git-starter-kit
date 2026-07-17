@@ -55,7 +55,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines the guarded Git commit, push, and tag workflow instructions.
 - Usage: Codex loads this file after explicit skill invocation.
 - Notes: Keep checks shell-portable or provide shell-specific commands with
-  equivalent abort conditions.
+  equivalent abort conditions. New SemVer release tags are always annotated;
+  historical lightweight tags remain unchanged.
 
 ### `.agents/skills/git-commit-push-tag/agents/`
 
@@ -415,12 +416,15 @@ deferred, or explicitly excluded from the template.
 - Usage: Run `bash tools/repository-audit.sh` locally before creating a
   release tag or GitHub release. GitHub Actions invokes the same script with
   mode-specific `markdown`, `spelling`, and `static` arguments.
-- Notes: Owns Markdown lint, spelling, Git whitespace, Bash syntax,
-  ShellCheck for shell scripts and Git hooks, PowerShell parsing, SemVer
-  pattern drift checks, smoke behavior,
-  release package manifest, commitlint configuration, and commit message
-  checks for newly introduced commits. It
-  intentionally resolves the latest
+- Notes: Defaults to the full profile, with `full` as an explicit alias. Full
+  profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
+  for shell scripts and Git hooks, PowerShell parsing, SemVer pattern drift
+  checks, smoke behavior, release package manifest, commitlint configuration,
+  and commit message checks for newly introduced commits. The optional
+  `readonly` profile uses installed tools, disables optional Git locks, avoids
+  network access, temporary files, package installation, and mutating smoke
+  tests, and also checks YAML, workflows, and secrets. Full profiles
+  intentionally resolve the latest
   published `agent-coding-rules` release during release package smoke checks,
   bootstraps pinned Codespell in a temporary Python target, handles WSL-aware
   PowerShell command, path, and temporary directory compatibility through the

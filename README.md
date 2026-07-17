@@ -62,21 +62,39 @@ Run the same audit suite locally that GitHub Actions runs:
 bash tools/repository-audit.sh
 ```
 
-Do not create a release tag or GitHub release if this local audit fails. The
-script bootstraps `codespell` 2.4.2 in a temporary Python target and
-requires the same tools as CI, including `shellcheck`, `pwsh`, `python`,
-`node`, `git`, and `npx`. The full audit intentionally resolves the
-latest published `agent-coding-rules` release during release package smoke
-checks; do not pin that check to an older rules release.
+The default audit is the full profile. Run it only in an environment where
+package bootstrap, temporary files, network access, and smoke repositories are
+allowed. The explicit `full` mode is an alias for this default behavior:
+
+```bash
+bash tools/repository-audit.sh full
+```
+
+Use the optional read-only profile when installations, network access,
+temporary files, and mutating smoke tests are not allowed:
+
+```bash
+bash tools/repository-audit.sh readonly
+```
+
+The read-only profile uses installed tools and disables optional Git locks.
+Missing tools fail the audit instead of being installed or skipped.
+
+Do not create a release tag or GitHub release if the full audit fails. The full
+profile bootstraps `codespell` 2.4.2 in a temporary Python target and requires
+the same tools as CI, including `shellcheck`, `pwsh`, `python`, `node`, `git`,
+and `npx`. It intentionally resolves the latest published
+`agent-coding-rules` release during release package smoke checks; do not pin
+that check to an older rules release.
 
 Audit tool bootstrap uses version-pinned package downloads from npm and PyPI
 without package hash verification. This is an accepted lightweight trust
 tradeoff for the generic starter kit.
 
-The full audit needs network access to npm for Markdown lint bootstrapping,
+The full profile needs network access to npm for Markdown lint bootstrapping,
 PyPI for Codespell bootstrapping, and GitHub for the latest agent-rules smoke
-check. Use `markdown`, `spelling`, or `static` to run one audit family at a
-time when diagnosing network or tool availability problems.
+check. Use `markdown`, `spelling`, or `static` to run one full-profile audit
+family at a time when diagnosing network or tool availability problems.
 
 When the audit runs from WSL with Windows PowerShell for PowerShell checks,
 it uses the ignored `.tmp/` path for temporary files that both environments

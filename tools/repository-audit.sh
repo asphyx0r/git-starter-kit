@@ -1,28 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mode="${1:-all}"
+
+if [ "$mode" = "readonly" ]; then
+  export GIT_OPTIONAL_LOCKS=0
+fi
+
 repository_root="$(git rev-parse --show-toplevel)"
 cd "$repository_root"
 
-mode="${1:-all}"
 audit_temp=""
 audit_temp_parent=""
+audit_temp_parent_created="false"
 
 cleanup() {
-  if [ -n "$audit_temp" ] && [ -d "$audit_temp" ]; then
-    rm -rf "$audit_temp"
+  if [ -n "$audit_temp" ] && [ -n "$audit_temp_parent" ]; then
+    case "$audit_temp" in
+      "$audit_temp_parent"/repository-audit.*)
+        if [ -d "$audit_temp" ]; then
+          rm -rf -- "$audit_temp"
+        fi
+        ;;
+      *)
+        echo "Refusing to remove unexpected audit path: $audit_temp" >&2
+        return 1
+        ;;
+    esac
   fi
 
-  if [ -n "$audit_temp_parent" ] && [ -d "$audit_temp_parent" ]; then
+  if [ "$audit_temp_parent_created" = "true" ] &&
+    [ -n "$audit_temp_parent" ] &&
+    [ -d "$audit_temp_parent" ]; then
     rmdir "$audit_temp_parent" 2>/dev/null || true
   fi
 }
 
-trap cleanup EXIT
-
 usage() {
   cat <<'USAGE'
-Usage: bash tools/repository-audit.sh [all|markdown|spelling|static]
+Usage: bash tools/repository-audit.sh [all|full|readonly|markdown|spelling|static]
 
 Runs the same repository audit rules locally and in GitHub Actions.
 USAGE
@@ -55,7 +71,14 @@ resolve_powershell_command() {
     return 0
   fi
 
-  resolve_command pwsh pwsh.exe
+  case "$(uname -s 2>/dev/null || true)" in
+    CYGWIN*|MINGW*|MSYS*)
+      resolve_command powershell.exe pwsh.exe pwsh
+      return
+      ;;
+  esac
+
+  resolve_command pwsh pwsh.exe powershell.exe
 }
 
 ensure_audit_temp() {
@@ -65,17 +88,21 @@ ensure_audit_temp() {
 
   if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
     command -v powershell.exe >/dev/null 2>&1; then
-    local wsl_temp_parent="$repository_root/.tmp"
-    if [ ! -d "$wsl_temp_parent" ]; then
-      mkdir -p "$wsl_temp_parent"
-      audit_temp_parent="$wsl_temp_parent"
+    audit_temp_parent="$repository_root/.tmp"
+    if [ ! -d "$audit_temp_parent" ]; then
+      mkdir -p "$audit_temp_parent"
+      audit_temp_parent_created="true"
     fi
 
-    audit_temp="$(mktemp -d "$wsl_temp_parent/repository-audit.XXXXXX")"
+    audit_temp="$(mktemp -d "$audit_temp_parent/repository-audit.XXXXXX")"
+    trap cleanup EXIT
     return
   fi
 
-  audit_temp="$(mktemp -d)"
+  audit_temp_parent="${TMPDIR:-/tmp}"
+  audit_temp_parent="${audit_temp_parent%/}"
+  audit_temp="$(mktemp -d "$audit_temp_parent/repository-audit.XXXXXX")"
+  trap cleanup EXIT
 }
 
 to_pwsh_path() {
@@ -281,6 +308,84 @@ PS
     "$(to_pwsh_path "$parse_script")" \
     "$(to_pwsh_path "$repository_root/tools/build-release-package.ps1")" \
     "$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
+}
+
+run_powershell_parse_readonly() {
+  local pwsh_cmd
+  local build_release_package_path
+  local git_init_path
+  pwsh_cmd="$(resolve_powershell_command)"
+  build_release_package_path="$(
+    to_pwsh_path "$repository_root/tools/build-release-package.ps1"
+  )"
+  git_init_path="$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
+
+  if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ]; then
+    WSLENV="${WSLENV:+$WSLENV:}AUDIT_PS_PATH_1:AUDIT_PS_PATH_2"
+    export WSLENV
+  fi
+
+  # PowerShell expands these variables after Bash passes the literal command.
+  # shellcheck disable=SC2016
+  AUDIT_PS_PATH_1="$build_release_package_path" \
+    AUDIT_PS_PATH_2="$git_init_path" \
+    "$pwsh_cmd" -NoProfile -Command '
+$ErrorActionPreference = "Stop"
+$errors = @()
+foreach ($path in @($env:AUDIT_PS_PATH_1, $env:AUDIT_PS_PATH_2)) {
+    $tokens = $null
+    $parseErrors = $null
+    $source = Get-Content -LiteralPath $path -Raw
+    [System.Management.Automation.Language.Parser]::ParseInput(
+        $source,
+        $path,
+        [ref]$tokens,
+        [ref]$parseErrors
+    ) | Out-Null
+
+    if ($parseErrors.Count -gt 0) {
+        $errors += $parseErrors
+    }
+}
+
+if ($errors.Count -gt 0) {
+    $errors | ForEach-Object { Write-Error $_ }
+    exit 1
+}
+'
+}
+
+run_commitlint_readonly() {
+  local commitlint_cmd="$1"
+
+  local zero_sha="0000000000000000000000000000000000000000"
+  local from_ref=""
+  local commit_count
+
+  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
+    [ -n "${GITHUB_BASE_REF:-}" ]; then
+    from_ref="origin/$GITHUB_BASE_REF"
+  elif [ -n "${BEFORE_SHA:-}" ] && [ "$BEFORE_SHA" != "$zero_sha" ]; then
+    from_ref="$BEFORE_SHA"
+  elif git rev-parse --abbrev-ref --symbolic-full-name \
+    '@{upstream}' >/dev/null 2>&1; then
+    from_ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')"
+  fi
+
+  if [ -n "$from_ref" ]; then
+    commit_count="$(git rev-list --count "$from_ref..HEAD")"
+    if [ "$commit_count" -eq 0 ]; then
+      return
+    fi
+
+    "$commitlint_cmd" \
+      --config commitlint.config.cjs \
+      --from "$from_ref" \
+      --to HEAD
+  else
+    git log -1 --format=%B HEAD |
+      "$commitlint_cmd" --config commitlint.config.cjs
+  fi
 }
 
 run_script_smoke() {
@@ -493,8 +598,53 @@ run_static() {
   run_commitlint
 }
 
+run_readonly() {
+  require_command git
+  require_command bash
+
+  local actionlint_cmd
+  local codespell_cmd
+  local commitlint_cmd
+  local gitleaks_cmd
+  local markdownlint_cmd
+  local node_cmd
+  local shellcheck_cmd
+  local yamllint_cmd
+  actionlint_cmd="$(resolve_command actionlint actionlint.exe)"
+  codespell_cmd="$(resolve_command codespell codespell.cmd codespell.exe)"
+  commitlint_cmd="$(resolve_command commitlint commitlint.cmd)"
+  gitleaks_cmd="$(resolve_command gitleaks gitleaks.exe)"
+  markdownlint_cmd="$(
+    resolve_command markdownlint-cli2 markdownlint-cli2.cmd
+  )"
+  node_cmd="$(resolve_command node node.exe)"
+  shellcheck_cmd="$(resolve_command shellcheck shellcheck.exe)"
+  yamllint_cmd="$(resolve_command yamllint yamllint.exe)"
+
+  "$markdownlint_cmd" "**/*.md"
+  "$codespell_cmd" .
+  "$yamllint_cmd" .
+  "$actionlint_cmd"
+  check_git_whitespace
+  bash -n .githooks/pre-commit
+  bash -n .githooks/commit-msg
+  bash -n tools/git-init.sh
+  "$shellcheck_cmd" --version
+  "$shellcheck_cmd" .githooks/pre-commit
+  "$shellcheck_cmd" .githooks/commit-msg
+  "$shellcheck_cmd" tools/git-init.sh
+  check_semver_pattern_drift "$node_cmd"
+  run_powershell_parse_readonly
+  "$node_cmd" --check commitlint.config.cjs
+  run_commitlint_readonly "$commitlint_cmd"
+  "$gitleaks_cmd" git --redact --no-banner --no-color .
+}
+
 case "$mode" in
-  all)
+  readonly)
+    run_readonly
+    ;;
+  full|all)
     run_markdown
     run_spelling
     run_static
