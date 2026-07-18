@@ -354,8 +354,9 @@ deferred, or explicitly excluded from the template.
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
 - Notes: Summarizes audit prerequisites, optional Git hook activation,
-  release package behavior, and generic ignore coverage. Do not leave
-  future-project placeholders in the root README.
+  release package behavior, generic ignore coverage, and the maintainer
+  migration record. Do not leave future-project placeholders in the root
+  README.
 
 ### `SECURITY.md`
 
@@ -494,6 +495,15 @@ deferred, or explicitly excluded from the template.
   assets.
 - Notes: Covers the release package workflow, generated ZIP contents, local
   testing, and common troubleshooting steps.
+
+### `docs/repository-migration.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the verified migration of the canonical maintainer worktree.
+- Usage: Consult before selecting a local worktree for future repository work.
+- Notes: Documents the reason, validation evidence, operating decision, and
+  safeguards without changing reusable starter-kit behavior.
 
 ### `templates/`
 

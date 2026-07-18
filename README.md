@@ -139,6 +139,12 @@ exit status, and usage notes.
 Invoke `$git-commit-push-tag` in Codex only when a guarded commit, atomic push,
 and SemVer tag workflow is explicitly requested.
 
+## Maintainer operations
+
+The verified migration of the canonical maintainer worktree from Google Drive
+to local NTFS storage is recorded in
+[Repository migration](docs/repository-migration.md).
+
 ## Contributing
 
 Keep changes minimal, generic, and directly useful for reusable Git/GitHub

@@ -6,6 +6,20 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v1.8.1 - 2026-07-18
+
+### Added in v1.8.1
+
+- Maintainer documentation recording the reason, validation evidence, and
+  operating guidance for the repository migration from Google Drive to local
+  NTFS storage.
+
+### Changed in v1.8.1
+
+- Designated `C:\codex\git-starter-kit` as the canonical worktree after
+  verifying Git data preservation, remote synchronization, repository
+  integrity, and transactional commit-object writes.
+
 ## v1.8.0 - 2026-07-17
 
 ### Added in v1.8.0
