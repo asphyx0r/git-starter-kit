@@ -6,6 +6,14 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed in Unreleased
+
+- Authenticated cross-repository agent-rules release resolution with a
+  read-only GitHub App installation token to avoid anonymous REST API rate
+  limits in release-package workflows.
+
 ## v2.0.0 - 2026-07-21
 
 ### Added in v2.0.0

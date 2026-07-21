@@ -72,6 +72,18 @@ jobs:
           echo "starter_ref=$starter_ref" >> "$GITHUB_OUTPUT"
           echo "agent_rules_ref=$agent_rules_ref" >> "$GITHUB_OUTPUT"
 
+      - name: Generate agent rules token
+        id: agent-rules-token
+        # actions/create-github-app-token@v3
+        # yamllint disable-line rule:line-length
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.AGENT_RULES_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}
+          owner: asphyx0r
+          repositories: agent-coding-rules
+          permission-contents: read
+
       - name: Checkout release tag
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -85,6 +97,7 @@ jobs:
         env:
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
           AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
+          GITHUB_TOKEN: ${{ steps.agent-rules-token.outputs.token }}
         run: |
           ./tools/build-release-package.ps1 `
             -StarterRef $env:STARTER_REF `

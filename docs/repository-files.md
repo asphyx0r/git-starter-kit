@@ -219,14 +219,12 @@ deferred, or explicitly excluded from the template.
 - Goal: Builds and uploads an enriched release package asset.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
-- Notes: Uses a pinned runner and a checkout action pinned by SHA for
-  `actions/checkout@v7.0.0`, disables checkout credential persistence, uses
-  `latest` automatically for release packages, validates manual
-  release tags and agent rules references, then calls
-  `tools/build-release-package.ps1` without passing the workflow token to
-  the build step, then uploads the generated ZIP with upload-only GitHub CLI
-  credentials. Shell validation messages are wrapped for YAML lint
-  readability.
+- Notes: Uses a pinned runner and actions pinned by SHA, disables checkout
+  credential persistence, uses `latest` automatically for release packages,
+  validates manual release tags and agent rules references, and generates a
+  read-only GitHub App token scoped to `agent-coding-rules` for the build step.
+  The generated ZIP is uploaded with the built-in workflow token. Shell
+  validation messages are wrapped for YAML lint readability.
 
 ### `.githooks/`
 
@@ -510,8 +508,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Explains automatic and manual enriched release package generation.
 - Usage: Read before publishing or manually regenerating release package
   assets.
-- Notes: Covers the release package workflow, generated ZIP contents, local
-  testing, and common troubleshooting steps.
+- Notes: Covers GitHub App authentication, the release package workflow,
+  generated ZIP contents, local testing, and common troubleshooting steps.
 
 ### `docs/repository-migration.md`
 

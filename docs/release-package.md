@@ -45,6 +45,19 @@ The ZIP also includes `_agent-rules-source.json`. This manifest records where
 the agent rules came from, including the requested reference, resolved release
 tag, commit SHA, and release date.
 
+## GitHub App Authentication
+
+Resolving agent-rules releases across repositories uses a GitHub App installed
+on `agent-coding-rules` with read-only **Contents** permission. Configure these
+Actions values in `git-starter-kit`:
+
+- Repository variable `AGENT_RULES_APP_CLIENT_ID`
+- Repository secret `AGENT_RULES_APP_PRIVATE_KEY`
+
+The workflow generates a short-lived installation token and passes it only to
+the package build step. The built-in workflow token remains responsible for
+uploading the generated asset to the `git-starter-kit` release.
+
 ## Automatic Release Mode
 
 Use this mode for the normal release process.
