@@ -24,8 +24,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Shared local and CI repository audit script for release readiness checks.
 - Release package automation for exports enriched with coding-agent rules.
 - Interactive Git initialization scripts for PowerShell and Bash.
-- Repository-scoped Codex skill for guarded commit, atomic push, and SemVer
-  tag workflows.
+- Repository-scoped Codex skill for canonical SemVer bump analysis, explicitly
+  gated commits and tags, atomic pushes, and optional GitHub Releases.
 
 ## Installation
 
@@ -136,8 +136,11 @@ Run either script without arguments, or with `--help`, to show usage.
 See [Tools](tools/README.md) for detailed tool synopsis, options, examples,
 exit status, and usage notes.
 
-Invoke `$git-commit-push-tag` in Codex only when a guarded commit, atomic push,
-and SemVer tag workflow is explicitly requested.
+Invoke `$git-commit-push-tag` in Codex only when its guarded release workflow
+is explicitly requested. Without `BUMP=patch`, `BUMP=minor`, or `BUMP=major`,
+the skill reports the recommended bump and tag without modifying the
+repository. A GitHub Release is created from the release-notes template only
+when `CREATE_GITHUB_RELEASE=true` is explicitly provided.
 
 ## Maintainer operations
 

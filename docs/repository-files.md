@@ -43,20 +43,19 @@ deferred, or explicitly excluded from the template.
 
 - Type: `directory`
 - Status: `optional`
-- Goal: Provides a guarded commit, atomic push, and SemVer tag workflow.
+- Goal: Provides the canonical guarded SemVer analysis and publication
+  workflow.
 - Usage: Use through `$git-commit-push-tag` only when explicitly requested.
-- Notes: The skill must not create a GitHub Release without separate explicit
-  validation.
+- Notes: Repository mutation requires an explicit bump. GitHub Release
+  publication requires a separate explicit parameter.
 
 ### `.agents/skills/git-commit-push-tag/SKILL.md`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Defines the guarded Git commit, push, and tag workflow instructions.
+- Goal: Loads the canonical guarded Git workflow instructions.
 - Usage: Codex loads this file after explicit skill invocation.
-- Notes: Keep checks shell-portable or provide shell-specific commands with
-  equivalent abort conditions. New SemVer release tags are always annotated;
-  historical lightweight tags remain unchanged.
+- Notes: The canonical reference is the sole behavioral source of truth.
 
 ### `.agents/skills/git-commit-push-tag/agents/`
 
@@ -76,6 +75,23 @@ deferred, or explicitly excluded from the template.
 - Notes: `allow_implicit_invocation` remains `false` so the skill runs only
   when explicitly selected.
 
+### `.agents/skills/git-commit-push-tag/references/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores the canonical workflow loaded by the skill.
+- Usage: Keep behavioral reference files beside the skill that consumes them.
+- Notes: Do not duplicate the canonical workflow in `SKILL.md`.
+
+### `.agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines canonical bump analysis, commit, tag, atomic push,
+  synchronization, and optional GitHub Release behavior.
+- Usage: Read completely before the skill takes any action or runs Git.
+- Notes: Preserve this file as the skill's sole behavioral source of truth.
+
 ### `.betterleaks.toml`
 
 - Type: `file`
@@ -93,7 +109,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Run `codespell` from the repository root.
 - Notes: Checks hidden files, file names, and tracked workspace configs while
   skipping generated, dependency, report, cache, runtime, temporary, archive,
-  and binary paths.
+  binary, and canonical French reference paths.
 
 ### `.editorconfig`
 
@@ -310,7 +326,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Tracks notable changes to this repository.
 - Usage: Update with notable repository changes before release commits.
 - Notes: Keep release entries aligned with changes since the previous tag.
-  Future-project placeholders belong in `templates/CHANGELOG.md`.
+  Record breaking skill behavior explicitly. Future-project placeholders
+  belong in `templates/CHANGELOG.md`.
 
 ### `CODE_OF_CONDUCT.md`
 
@@ -354,9 +371,9 @@ deferred, or explicitly excluded from the template.
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
 - Notes: Summarizes audit prerequisites, optional Git hook activation,
-  release package behavior, generic ignore coverage, and the maintainer
-  migration record. Do not leave future-project placeholders in the root
-  README.
+  release package behavior, the canonical skill invocation contract, generic
+  ignore coverage, and the maintainer migration record. Do not leave
+  future-project placeholders in the root README.
 
 ### `SECURITY.md`
 

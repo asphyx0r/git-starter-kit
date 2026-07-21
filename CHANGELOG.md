@@ -6,6 +6,23 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## v2.0.0 - 2026-07-21
+
+### Added in v2.0.0
+
+- Canonical reference instructions for guarded SemVer analysis, commit, tag,
+  atomic push, synchronization checks, and optional template-based GitHub
+  Release publication.
+
+### Changed in v2.0.0
+
+- Replaced the inline `git-commit-push-tag` workflow with the canonical
+  reference as its sole behavioral source of truth.
+- Made invocations without an explicit `BUMP` stop after reporting the
+  recommended bump and tag, before any repository mutation.
+- Aligned skill metadata and repository documentation with the canonical
+  workflow and its explicit GitHub Release gate.
+
 ## v1.8.1 - 2026-07-18
 
 ### Added in v1.8.1

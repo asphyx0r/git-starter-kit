@@ -1,0 +1,314 @@
+Objectif : analyser puis, uniquement après validation explicite du bump,
+créer un commit, un tag SemVer, effectuer un push atomique et, si cela
+est explicitement demandé, créer une GitHub Release à partir du template
+`GITHUB_RELEASE_NOTES.md`.
+
+PARAMÈTRES EXPLICITES DE LA DEMANDE COURANTE
+
+- BUMP peut valoir : patch, minor ou major.
+- BUMP est absent par défaut.
+- CREATE_GITHUB_RELEASE vaut false par défaut.
+- CREATE_GITHUB_RELEASE ne vaut true que si l'utilisateur le demande
+  explicitement dans la demande courante.
+- `GITHUB_RELEASE_NOTES.md` est optionnel tant que
+  `CREATE_GITHUB_RELEASE=false`, et obligatoire lorsqu'il vaut true.
+- Ne déduis jamais qu'un paramètre a été validé à partir d'une
+  suggestion produite lors d'une exécution précédente.
+
+RÈGLES GÉNÉRALES
+
+- Travaille uniquement depuis la racine retournée par :
+  `git rev-parse --show-toplevel`.
+- Vérifie que cette racine correspond au repository actuellement ouvert.
+- Exécute toutes les commandes Git séquentiellement, une seule à la fois.
+- N'exécute aucune commande Git en parallèle ou en arrière-plan.
+- Ne relance automatiquement aucune commande.
+- Si une commande échoue ou ne termine pas normalement, arrête
+  immédiatement le workflow et rapporte la commande exacte.
+- Ne lance pas `git clean`, `git reset --hard`, `git gc` ou une commande
+  destructive sans validation explicite.
+- Ne contourne jamais les hooks avec `--no-verify`.
+- N'ouvre aucun éditeur interactif.
+- Avant toute création de commit ou de tag, exécute exactement une fois :
+  `git fetch origin --prune --tags`.
+
+PHASE 1 — ANALYSE DU BUMP
+
+1. Identifie :
+   - la racine du repository ;
+   - la branche locale courante ;
+   - `origin/<branche>` ;
+   - l'éventuelle branche upstream ;
+   - les opérations Git éventuellement en cours.
+
+2. Arrête-toi immédiatement si :
+   - HEAD est détaché ;
+   - `origin/<branche>` n'existe pas ;
+   - un merge, rebase, cherry-pick ou revert est en cours ;
+   - des fichiers sont en conflit ;
+   - le repository ne peut pas être lu correctement.
+
+3. Vérifie que la branche locale n'est pas en retard ou divergente :
+   `origin/<branche>` doit être un ancêtre de `HEAD`.
+
+4. Identifie le dernier tag stable au format SemVer qui :
+   - correspond exactement à `vMAJOR.MINOR.PATCH` ;
+   - est accessible depuis `HEAD` ;
+   - appartient à l'historique de la branche courante.
+
+5. Applique la convention de tag suivante :
+   - le préfixe `v` est obligatoire ;
+   - préserve le type de tag annoté ou léger utilisé par le repository.
+   Si des tags SemVer stables sans préfixe `v` sont accessibles depuis
+   `HEAD`, ou si le type de tag est mélangé ou ambigu, arrête-toi.
+
+6. Si aucun tag SemVer de base ne peut être identifié avec certitude,
+   arrête-toi. Ne propose pas arbitrairement `v0.1.0` ou `v1.0.0`.
+
+7. Détermine le contenu complet de la prochaine release :
+   - tous les commits du range `<dernier-tag>..HEAD` ;
+   - les modifications locales suivies ;
+   - les fichiers non suivis qui semblent destinés au commit.
+
+8. Analyse l'effet net des changements :
+   - ne te base pas uniquement sur les sujets de commit ;
+   - inspecte les diffs pertinents ;
+   - décompose les merge commits ;
+   - prends en compte les reverts ;
+   - identifie les interfaces publiques du projet ;
+   - consulte la politique de versioning du repository ;
+   - utilise l'historique des tags comme élément de comparaison.
+
+9. Classe chaque changement publiable :
+   - major : rupture de compatibilité publique ;
+   - minor : fonctionnalité publique rétrocompatible ;
+   - patch : correction ou maintenance rétrocompatible ;
+   - none : aucun changement justifiant une nouvelle version.
+
+10. Le bump recommandé est le niveau le plus élevé constaté.
+
+PRÉCONDITION CONDITIONNELLE DU TEMPLATE DE RELEASE
+
+- N'applique cette section que si `CREATE_GITHUB_RELEASE=true`.
+- Recherche un template accessible dans cet ordre strict :
+  - le fichier joint à la demande courante nommé exactement
+    `GITHUB_RELEASE_NOTES.md` ;
+  - à défaut d'un tel fichier joint accessible,
+    `templates/GITHUB_RELEASE_NOTES.md`, résolu relativement à la
+    racine du repository.
+- Un template est accessible uniquement si son contenu complet peut
+  être lu et s'il n'est pas vide.
+- Enregistre la source exacte du template retenu pour le reste du
+  workflow.
+- Si aucun template n'est accessible :
+  - produis et affiche le rapport de bump défini au point 11 ;
+  - si BUMP est absent, affiche aussi `BUMP_RECOMMANDÉ=<valeur>` et
+    `TAG_RECOMMANDÉ=<tag exact>` ;
+  - avertis explicitement l'utilisateur et indique les deux sources
+    vérifiées ;
+  - ne modifie aucun fichier, ne stage rien, ne crée aucun commit ni
+    tag, ne pousse rien et ne crée aucune GitHub Release ;
+  - arrête le workflow avant la phase 2.
+
+11. Produis un rapport contenant :
+    - le dernier tag SemVer ;
+    - le range de commits analysé ;
+    - les commits et modifications significatifs ;
+    - la classification de chaque changement ;
+    - le bump minimal déduit ;
+    - le prochain tag exact ;
+    - les éventuelles incertitudes ;
+    - la justification factuelle du choix ;
+    - si `CREATE_GITHUB_RELEASE=true`, la source du template retenu ou
+      l'erreur bloquante qui empêche son utilisation.
+
+12. Si plusieurs bumps restent plausibles :
+    - recommande le niveau le plus conservateur, donc le plus élevé ;
+    - signale explicitement l'incertitude ;
+    - n'exécute aucune opération de release.
+
+13. Si BUMP est absent :
+    - affiche `BUMP_RECOMMANDÉ=<valeur>` ;
+    - affiche `TAG_RECOMMANDÉ=<tag exact>` ;
+    - ne modifie aucun fichier ;
+    - ne stage aucun fichier ;
+    - ne crée aucun commit ;
+    - ne crée aucun tag ;
+    - ne pousse rien ;
+    - ne crée aucune GitHub Release ;
+    - arrête immédiatement le workflow.
+
+14. Si BUMP est fourni :
+    - refais ou valide l'analyse ;
+    - vérifie qu'il correspond au bump minimal déduit ;
+    - si BUMP est inférieur, arrête-toi ;
+    - si BUMP est supérieur, demande une validation explicite ;
+    - ne continue automatiquement que s'il correspond exactement au
+      bump déduit.
+
+PHASE 2 — PRÉPARATION DU COMMIT
+
+15. Recherche les fichiers `.gitkeep` parmi :
+    - les fichiers suivis ;
+    - les fichiers non suivis et non ignorés.
+    N'analyse pas le contenu de `.git` ni les fichiers ignorés.
+
+16. Un `.gitkeep` est inutile uniquement si son répertoire contient
+    déjà un autre fichier destiné à être suivi.
+    En cas d'ambiguïté, conserve-le.
+
+17. Mets à jour, uniquement si nécessaire et à partir du contenu de la
+    release analysée :
+    - `README.md` ;
+    - `CHANGELOG.md` ;
+    - `TODO.md`, s'il existe.
+
+18. Examine une seule fois l'état du working tree avec :
+    `git --no-optional-locks status --porcelain=v1`
+
+19. Vérifie les fichiers modifiés et non suivis.
+    Exclue les secrets, identifiants, fichiers locaux, données privées,
+    artefacts temporaires et fichiers non désirés.
+
+20. Stage uniquement une liste explicite de fichiers attendus.
+    N'utilise pas `git add .` ni `git add -A`.
+
+21. Vérifie le contenu staged avec :
+    - `git diff --cached --name-status`
+    - `git diff --cached --check`
+    - `git ls-files -u`
+
+22. Vérifie exactement une fois l'intégrité et la connectivité du
+    repository avec :
+    `git fsck --connectivity-only --no-dangling`
+
+23. Vérifie que chaque commit du range de release est lisible et
+    accessible depuis `HEAD`.
+
+24. Arrête-toi si :
+    - un secret ou fichier non désiré est staged ;
+    - un conflit existe ;
+    - le diff contient une erreur ;
+    - le contrôle d'intégrité échoue ;
+    - `origin/<branche>` n'est plus un ancêtre de `HEAD` ;
+    - aucun changement attendu n'est staged.
+
+PHASE 3 — COMMIT ET TAG
+
+25. Crée un commit sans ouvrir d'éditeur.
+
+26. Le titre du commit doit :
+    - être rédigé en anglais ;
+    - contenir au maximum 50 caractères ;
+    - décrire succinctement le changement principal.
+
+27. Le corps du commit doit :
+    - être rédigé en anglais ;
+    - contenir des lignes de 72 caractères maximum ;
+    - décrire les modifications apportées ;
+    - expliquer succinctement leur raison.
+
+28. N'utilise pas `--no-verify`.
+    Si un hook échoue, arrête immédiatement le workflow.
+
+29. Après le commit, vérifie que :
+    - le working tree est propre ;
+    - aucun fichier attendu n'a été omis ;
+    - `origin/<branche>` est toujours un ancêtre de `HEAD`.
+
+30. Calcule le tag exact, toujours préfixé par `v`, à partir du
+    dernier tag et de BUMP :
+    - patch : incrémente PATCH ;
+    - minor : incrémente MINOR et remet PATCH à zéro ;
+    - major : incrémente MAJOR et remet MINOR et PATCH à zéro.
+
+31. Préserve le type de tag utilisé par le repository.
+
+32. Vérifie que le tag calculé n'existe ni localement ni sur origin.
+    En cas de collision, arrête-toi.
+    N'incrémente pas automatiquement une seconde fois.
+
+PRÉPARATION CONDITIONNELLE DES RELEASE NOTES
+
+- N'applique cette section que si `CREATE_GITHUB_RELEASE=true`.
+- Après la création du commit et avant la création du tag, génère les
+  Release Notes dans un fichier temporaire situé hors du working tree.
+- Utilise exclusivement le template retenu pendant la phase 1 et ne
+  modifie jamais le fichier source.
+- Préserve la structure, l'ordre, les titres, les colonnes et les
+  textes fixes du template.
+- Remplace chaque occurrence de `vX.Y.Z` par le tag exact calculé.
+- Remplace `{RELEASE-SUMMARY-NOTES}` par une synthèse factuelle de la
+  release.
+- Dans `Highlights`, produis un nombre quelconque de puces supérieur
+  ou égal à un. Répète ou supprime les lignes de puces du template
+  selon les changements réels, sans appliquer de limite arbitraire.
+- Dans le tableau `Changes`, produis exactement une ligne par
+  changement publiable identifié pendant l'analyse. Répète ou
+  supprime les lignes du template selon les besoins.
+- Chaque ligne de `Changes` contient les références Git
+  correspondantes, une date au format ISO `YYYY-MM-DD`, une
+  description factuelle et les auteurs Git dédupliqués.
+- Ne laisse aucun placeholder non résolu. N'invente aucune section,
+  colonne ou structure absente du template.
+- Si les Release Notes ne peuvent pas être générées et validées à
+  partir du template, avertis explicitement l'utilisateur et
+  arrête-toi avant de créer le tag ou d'effectuer le push.
+  N'utilise aucune structure de remplacement ni aucune génération
+  automatique de notes.
+
+33. Crée le tag uniquement après la réussite de toutes les vérifications.
+
+PHASE 4 — PUSH ET VALIDATION
+
+34. Pousse la branche et le tag ensemble, exactement une fois :
+    `git push --atomic origin <branche> <tag>`
+
+35. Si le push échoue :
+    - ne réessaie pas ;
+    - ne force aucun push ;
+    - ne déplace aucun tag ;
+    - rapporte précisément l'état du commit et du tag local ;
+    - vérifie si possible si le remote a été modifié ;
+    - arrête le workflow.
+
+36. Après un push réussi, exécute exactement une fois :
+    `git fetch origin --prune --tags`
+
+37. Compare :
+    - `git rev-parse HEAD`
+    - `git rev-parse origin/<branche>`
+    - `git rev-parse <tag>^{}`
+
+38. Les trois identifiants doivent être strictement identiques.
+
+39. Vérifie finalement que :
+    - le working tree est propre ;
+    - la branche locale et la branche distante sont synchronisées ;
+    - le tag local et le tag distant correspondent ;
+    - le repository ne comporte aucune erreur détectée.
+
+40. Une GitHub Release ne peut être créée que si :
+    - CREATE_GITHUB_RELEASE=true a été fourni explicitement ;
+    - toutes les vérifications finales ont réussi ;
+    - les Release Notes ont été générées et validées à partir du
+      template retenu.
+    Lorsque ces conditions sont remplies :
+    - crée la GitHub Release pour le tag exact ;
+    - fournis explicitement comme corps le contenu rendu du template ;
+    - n'utilise jamais de notes générées automatiquement ni de
+      structure de remplacement ;
+    - vérifie que la Release publiée cible le tag exact et que son
+      corps correspond aux Release Notes rendues.
+    Sinon, ne crée et ne publie aucune GitHub Release.
+
+41. Termine par un compte rendu contenant :
+    - le commit créé ;
+    - le bump appliqué ;
+    - le tag créé ;
+    - le résultat du push atomique ;
+    - les trois identifiants vérifiés ;
+    - si une GitHub Release a été demandée, la source du template,
+      le résultat de génération des Release Notes et le résultat de
+      création de la Release ;
+    - l'état final du repository.
