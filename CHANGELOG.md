@@ -8,7 +8,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Fixed in Unreleased
+## v2.0.2 - 2026-07-21
+
+### Fixed in v2.0.2
 
 - Supplied explicit repository context when the release promotion job invokes
   GitHub CLI without a local checkout.
