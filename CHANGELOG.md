@@ -6,6 +6,13 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed in Unreleased
+
+- Supplied explicit repository context when the release promotion job invokes
+  GitHub CLI without a local checkout.
+
 ## v2.0.1 - 2026-07-21
 
 ### Changed in v2.0.1

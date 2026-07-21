@@ -228,7 +228,8 @@ deferred, or explicitly excluded from the template.
   read-only GitHub App token scoped to `agent-coding-rules` for the build step.
   The generated ZIP is uploaded with the built-in workflow token. A dependent
   job promotes automatic prereleases only after successful packaging; manual
-  runs never promote releases. Shell validation messages are wrapped for YAML
+  runs never promote releases. The checkout-free promotion command receives
+  explicit repository context. Shell validation messages are wrapped for YAML
   lint readability.
 
 ### `.githooks/`

@@ -123,5 +123,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release edit "$RELEASE_TAG" --prerelease=false --latest
+        run: >-
+          gh release edit "$RELEASE_TAG" --repo "$REPOSITORY"
+          --prerelease=false --latest
