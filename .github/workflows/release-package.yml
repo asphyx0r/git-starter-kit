@@ -111,3 +111,17 @@ jobs:
           PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
         run: gh release upload "$STARTER_REF" "$PACKAGE_PATH"
+
+  promote:
+    name: Promote validated release
+    needs: package
+    if: github.event_name == 'release' && github.event.release.prerelease
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Promote release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release edit "$RELEASE_TAG" --prerelease=false --latest

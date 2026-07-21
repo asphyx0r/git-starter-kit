@@ -69,11 +69,13 @@ Use this mode for the normal release process.
 5. On GitHub, open the repository page.
 6. Open **Releases**.
 7. Create a new release from the tag.
-8. Publish the release.
+8. Mark it as a prerelease and do not mark it as latest.
+9. Publish the prerelease.
 
-After the release is published, GitHub starts the `Release package` workflow
-automatically. Automatic releases intentionally use `latest` so the package
-always includes the latest published full `agent-coding-rules` release.
+After the prerelease is published, GitHub starts the `Release package`
+workflow automatically. Automatic releases intentionally use `latest` so the
+package always includes the latest published full `agent-coding-rules`
+release.
 
 The workflow then:
 
@@ -87,6 +89,13 @@ The workflow then:
 7. Creates the ZIP file.
 8. Verifies that the required files are present in the ZIP.
 9. Uploads the ZIP to the GitHub release as a release asset.
+10. Promotes the prerelease to the latest stable release in a separate job
+    that depends on successful packaging.
+
+The release is complete only when this exact `release.published` workflow run
+finishes with `success`, the release is no longer a prerelease, and the
+expected asset and provenance manifest have been verified. A manual workflow
+run does not satisfy this completion gate.
 
 When the workflow finishes, the GitHub release should show an asset such as:
 
@@ -106,6 +115,10 @@ The release must already exist on GitHub before running the workflow manually.
 The `tag` input must be an existing GitHub release tag that uses SemVer with a
 leading `v`, for example `v1.3.0`. The manual workflow uploads an asset to
 that release; it does not create the release itself.
+
+Manual runs never promote a prerelease. If an automatic release run failed,
+rerun the failed jobs of that same `release` run after correcting the cause.
+Do not substitute a `workflow_dispatch` run for the automatic completion gate.
 
 1. Open the `git-starter-kit` repository on GitHub.
 2. Open the **Actions** tab.
@@ -169,11 +182,15 @@ should be built from committed repository content.
 If the release asset is missing, open the **Actions** tab and inspect the latest
 `Release package` workflow run.
 
+If a release remains a prerelease, inspect the matching run triggered by the
+`release` event. The run must match the release tag and tag commit and must end
+with `success` before the release is complete.
+
 If the manual workflow fails, check that the `tag` input matches an existing
 GitHub release tag using SemVer with a leading `v`.
 
-If the upload fails because the asset already exists, delete the old asset from
-the release page and run the workflow again.
+If only the promotion job fails, rerun only the failed jobs of the same
+automatic run. Do not delete a valid asset or start a manual replacement run.
 
 If the package must use a specific agent rules version, run the manual
 workflow again with an explicit SemVer `agent_rules_ref` value.

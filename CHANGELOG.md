@@ -6,9 +6,16 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repository
 uses [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## v2.0.1 - 2026-07-21
 
-### Fixed in Unreleased
+### Changed in v2.0.1
+
+- Made GitHub Releases start as prereleases and become stable only after the
+  automatic `Release package` workflow succeeds.
+- Required the canonical skill workflow to identify and verify the exact
+  release-triggered CI run and packaged asset before reporting completion.
+
+### Fixed in v2.0.1
 
 - Authenticated cross-repository agent-rules release resolution with a
   read-only GitHub App installation token to avoid anonymous REST API rate

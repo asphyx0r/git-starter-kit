@@ -47,7 +47,8 @@ deferred, or explicitly excluded from the template.
   workflow.
 - Usage: Use through `$git-commit-push-tag` only when explicitly requested.
 - Notes: Repository mutation requires an explicit bump. GitHub Release
-  publication requires a separate explicit parameter.
+  publication requires a separate explicit parameter and successful automatic
+  package CI before completion.
 
 ### `.agents/skills/git-commit-push-tag/SKILL.md`
 
@@ -55,7 +56,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Loads the canonical guarded Git workflow instructions.
 - Usage: Codex loads this file after explicit skill invocation.
-- Notes: The canonical reference is the sole behavioral source of truth.
+- Notes: The canonical reference is the sole behavioral source of truth,
+  including the mandatory release CI completion gate.
 
 ### `.agents/skills/git-commit-push-tag/agents/`
 
@@ -72,8 +74,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Configures display metadata and explicit-invocation policy for the
   `git-commit-push-tag` skill.
 - Usage: Codex uses this metadata in skill UI and invocation policy handling.
-- Notes: `allow_implicit_invocation` remains `false` so the skill runs only
-  when explicitly selected.
+- Notes: Advertises the CI-gated release flow while
+  `allow_implicit_invocation` remains `false`.
 
 ### `.agents/skills/git-commit-push-tag/references/`
 
@@ -88,7 +90,7 @@ deferred, or explicitly excluded from the template.
 - Type: `file`
 - Status: `optional`
 - Goal: Defines canonical bump analysis, commit, tag, atomic push,
-  synchronization, and optional GitHub Release behavior.
+  synchronization, and CI-gated GitHub Release behavior.
 - Usage: Read completely before the skill takes any action or runs Git.
 - Notes: Preserve this file as the skill's sole behavioral source of truth.
 
@@ -216,15 +218,18 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Builds and uploads an enriched release package asset.
+- Goal: Builds and uploads an enriched release package asset, then promotes a
+  validated prerelease.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
 - Notes: Uses a pinned runner and actions pinned by SHA, disables checkout
   credential persistence, uses `latest` automatically for release packages,
   validates manual release tags and agent rules references, and generates a
   read-only GitHub App token scoped to `agent-coding-rules` for the build step.
-  The generated ZIP is uploaded with the built-in workflow token. Shell
-  validation messages are wrapped for YAML lint readability.
+  The generated ZIP is uploaded with the built-in workflow token. A dependent
+  job promotes automatic prereleases only after successful packaging; manual
+  runs never promote releases. Shell validation messages are wrapped for YAML
+  lint readability.
 
 ### `.githooks/`
 
@@ -508,8 +513,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Explains automatic and manual enriched release package generation.
 - Usage: Read before publishing or manually regenerating release package
   assets.
-- Notes: Covers GitHub App authentication, the release package workflow,
-  generated ZIP contents, local testing, and common troubleshooting steps.
+- Notes: Covers GitHub App authentication, prerelease promotion, the mandatory
+  automatic CI gate, generated ZIP contents, local testing, and troubleshooting.
 
 ### `docs/repository-migration.md`
 

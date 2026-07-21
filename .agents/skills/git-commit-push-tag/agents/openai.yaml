@@ -2,11 +2,10 @@
 interface:
   display_name: "Git Commit Push Tag"
   short_description: >-
-    Canonical guarded commit, tag, push, and release flow.
+    CI-gated commit, tag, push, and release flow.
   default_prompt: >-
-    Use $git-commit-push-tag to analyze the next SemVer bump under its
-    canonical workflow; treat BUMP as absent unless I provide it in this
-    request, and create a GitHub Release only when I provide
-    CREATE_GITHUB_RELEASE=true.
+    Use $git-commit-push-tag to analyze the next SemVer bump; mutate only with
+    an explicit BUMP and complete a requested GitHub Release only after its
+    automatic Release package CI succeeds.
 policy:
   allow_implicit_invocation: false
