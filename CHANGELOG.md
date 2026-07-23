@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.0.3 - 2026-07-23
+
+### Added in v2.0.3
+
+- Repository-scoped skills documentation in `docs/SKILLS.md`, generated from
+  authoritative skill sources and registered in the repository file
+  inventory.
+
 ## v2.0.2 - 2026-07-21
 
 ### Fixed in v2.0.2

@@ -499,6 +499,16 @@ deferred, or explicitly excluded from the template.
 - Usage: Keep maintained documentation that supports the starter kit here.
 - Notes: Avoid duplicating root-level community files.
 
+### `docs/SKILLS.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Documents repository-scoped Codex skills.
+- Usage: Consult to discover available skills, supported invocations,
+  capabilities, dependencies, and limitations.
+- Notes: This file is documentation-only. Each skill's `SKILL.md` remains the
+  authoritative source for its behavior and instructions.
+
 ### `docs/repository-files.md`
 
 - Type: `file`
