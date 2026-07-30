@@ -25,10 +25,11 @@ of the starter kit files.
 
 ## Generated File
 
-The generated asset is named like this:
+The generated assets are named like this:
 
 ```text
 git-starter-kit-vX.Y.Z-with-agent-rules.zip
+git-starter-kit-vX.Y.Z-upgrade-toolkit.zip
 ```
 
 The ZIP includes the normal starter kit files plus these files from
@@ -47,6 +48,10 @@ The ZIP also includes two provenance files:
   kit, and agent-rules references and commits.
 - `_starter-kit-files.json` records each managed path, SHA-256 digest, Git
   mode, and upgrade strategy.
+
+The upgrade toolkit contains the guarded updater and the complete enriched
+package. It can build a cumulative upgrade from the exact earlier package used
+to initialize a target repository.
 
 ## GitHub App Authentication
 
@@ -91,19 +96,21 @@ The workflow then:
 7. Creates the ZIP file.
 8. Verifies that the required files and managed-file hashes are present.
 9. Extracts the composed package and runs its Markdown and Codespell audits.
-10. Uploads the ZIP to the GitHub release as a release asset.
-11. Promotes the prerelease to the latest stable release in a separate job
+10. Bundles the guarded updater and complete package as an upgrade toolkit.
+11. Uploads both ZIP files to the GitHub release as release assets.
+12. Promotes the prerelease to the latest stable release in a separate job
     that depends on successful packaging.
 
 The release is complete only when this exact `release.published` workflow run
-finishes with `success`, the release is no longer a prerelease, and the
-expected asset and provenance manifest have been verified. A manual workflow
-run does not satisfy this completion gate.
+finishes with `success`, the release is no longer a prerelease, and both
+expected assets and their provenance have been verified. A manual workflow run
+does not satisfy this completion gate.
 
 When the workflow finishes, the GitHub release should show an asset such as:
 
 ```text
 git-starter-kit-v1.3.0-with-agent-rules.zip
+git-starter-kit-v1.3.0-upgrade-toolkit.zip
 ```
 
 Download this ZIP when you want a ready-to-use starter kit with agent rules

@@ -263,6 +263,80 @@ Treat failures as release blockers. The script verifies both the resolved
 agent-rules tag and the generated archive so that a broken package is not
 uploaded silently.
 
+## starter-kit-upgrade.py
+
+### Features
+
+- Builds cumulative upgrade ZIPs from exact base and new release packages.
+- Verifies release provenance, managed-file hashes, and archive paths.
+- Produces a per-file plan without modifying the target.
+- Updates only files that still match the proven baseline.
+- Preserves initialization-only, deleted, additional, and locally modified
+  files.
+- Requires a clean Git repository, an external rollback directory, and zero
+  conflicts before application.
+- Bundles the updater and a complete new package as a release toolkit.
+
+### Synopsis
+
+```text
+usage: python tools/starter-kit-upgrade.py [options] COMMAND
+
+options:
+  -h, --help    show help and exit
+  --version     show version and exit
+  --dry-run     validate and print the execution plan without writing
+  -v, --verbose show additional diagnostics
+
+commands:
+  build   build a cumulative upgrade ZIP
+  toolkit bundle the updater and a new full package
+  plan    inspect a target without writing
+  apply   apply a conflict-free upgrade
+```
+
+### Usage/Examples
+
+Build an upgrade from the exact package used for initialization:
+
+```bash
+python tools/starter-kit-upgrade.py build \
+  --base-package git-starter-kit-v2.0.3-with-agent-rules.zip \
+  --new-package git-starter-kit-v2.1.0-with-agent-rules.zip \
+  --output git-starter-kit-v2.0.3-to-v2.1.0-upgrade.zip
+```
+
+Inspect a target without modifying it:
+
+```bash
+python tools/starter-kit-upgrade.py plan \
+  --upgrade-package git-starter-kit-v2.0.3-to-v2.1.0-upgrade.zip \
+  --target ../example-repository
+```
+
+Apply a conflict-free plan while creating a rollback archive outside the
+target:
+
+```bash
+python tools/starter-kit-upgrade.py apply \
+  --upgrade-package git-starter-kit-v2.0.3-to-v2.1.0-upgrade.zip \
+  --target ../example-repository \
+  --backup-directory ../upgrade-backups
+```
+
+### Safety Model
+
+The target `_agent-rules-source.json` must match the base package exactly.
+Older repositories can instead use a reviewed `.starter-kit-adoption.json`
+that records the base archive hash, starter-kit commit, and an ancestor commit
+containing the audited baseline. Adoption proves provenance only; modified or
+missing managed files remain conflicts.
+
+The tool performs no deletion, commit, tag, push, or network operation. An
+upgrade is all-or-nothing: any conflict blocks application. If a write fails,
+files already written in that attempt are restored immediately. The external
+rollback ZIP records every replaced file for operator-controlled recovery.
+
 ## git-init.ps1
 
 ### Features

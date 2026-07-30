@@ -430,7 +430,7 @@ run_script_smoke() {
 
   "$python_cmd" -B -m unittest discover \
     -s tests \
-    -p "test_backup_target_directory.py"
+    -p "test_*.py"
 
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1

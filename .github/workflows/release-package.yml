@@ -121,13 +121,30 @@ jobs:
             codespell==2.4.2
           codespell .
 
+      - name: Build upgrade toolkit
+        id: toolkit
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+          REPOSITORY_REF: ${{ steps.refs.outputs.starter_ref }}
+        run: |
+          toolkit_path="$RUNNER_TEMP/git-starter-kit-${REPOSITORY_REF}-upgrade-toolkit.zip"
+          python tools/starter-kit-upgrade.py toolkit \
+            --new-package "$PACKAGE_PATH" \
+            --output "$toolkit_path"
+          echo "toolkit_path=$toolkit_path" >> "$GITHUB_OUTPUT"
+
       - name: Upload release asset
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+          TOOLKIT_PATH: ${{ steps.toolkit.outputs.toolkit_path }}
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
-        run: gh release upload "$STARTER_REF" "$PACKAGE_PATH"
+        run: >-
+          gh release upload "$STARTER_REF"
+          "$PACKAGE_PATH"
+          "$TOOLKIT_PATH"
 
   promote:
     name: Promote validated release

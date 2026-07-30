@@ -226,11 +226,12 @@ deferred, or explicitly excluded from the template.
   credential persistence, uses `latest` automatically for release packages,
   validates manual release tags and agent rules references, and generates a
   read-only GitHub App token scoped to `agent-coding-rules` for the build step.
-  The composed ZIP must pass Markdown and Codespell before upload with the
-  built-in workflow token. A dependent job promotes automatic prereleases only
-  after successful packaging; manual runs never promote releases. The
-  checkout-free promotion command receives explicit repository context. Shell
-  validation messages are wrapped for YAML lint readability.
+  The composed ZIP must pass Markdown and Codespell before the full package and
+  upgrade toolkit are uploaded with the built-in workflow token. A dependent
+  job promotes automatic prereleases only after successful packaging; manual
+  runs never promote releases. The checkout-free promotion command receives
+  explicit repository context. Shell validation messages are wrapped for YAML
+  lint readability.
 
 ### `.githooks/`
 
@@ -465,7 +466,8 @@ deferred, or explicitly excluded from the template.
 - Notes: Keep entries aligned with current tool behavior whenever scripts are
   changed. Documents execution-policy troubleshooting for downloaded
   `git-init.ps1` copies that PowerShell blocks before launch, and records the
-  backup tool's provenance, consistency, and restoration limits.
+  backup and cumulative upgrade tools' provenance, consistency, and
+  restoration limits.
 
 ### `tools/repository-audit.sh`
 
@@ -478,9 +480,9 @@ deferred, or explicitly excluded from the template.
 - Notes: Defaults to the full profile, with `full` as an explicit alias. Full
   profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
   for shell scripts and Git hooks, PowerShell parsing, cross-language SemVer
-  pattern drift checks, Python backup tests, smoke behavior, release package
-  manifest, commitlint configuration, and commit message checks for newly
-  introduced commits. The optional
+  pattern drift checks, Python backup and upgrade tests, smoke behavior,
+  release package manifests, commitlint configuration, and commit message
+  checks for newly introduced commits. The optional
   `readonly` profile uses installed tools, disables optional Git locks, avoids
   network access, temporary files, package installation, and mutating smoke
   tests, and also checks YAML, workflows, and secrets. Full profiles
@@ -492,6 +494,18 @@ deferred, or explicitly excluded from the template.
   version-pinned package downloads without hash verification, documents the
   npm, PyPI, and GitHub network requirements, and fails when required local
   tools are unavailable instead of silently skipping CI rules.
+
+### `tools/starter-kit-upgrade.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Builds, inspects, and applies cumulative starter-kit upgrade packages.
+- Usage: Build from exact base and new full packages, inspect with `plan`, and
+  use `apply` only with an external backup directory.
+- Notes: Validates ZIP paths, package and target provenance, per-file SHA-256
+  hashes, Git cleanliness, and conflicts. It preserves locally owned files,
+  performs no deletion or Git publication, and restores writes after a failed
+  application attempt.
 
 ### `tools/git-init.ps1`
 
@@ -551,6 +565,17 @@ deferred, or explicitly excluded from the template.
 - Notes: Uses only `unittest` and the Python standard library. Git-dependent
   and symbolic-link cases skip only when the required platform capability is
   unavailable.
+
+### `tests/test_starter_kit_upgrade.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies cumulative package construction, three-state planning,
+  provenance gates, conflict handling, rollback, and archive path safety.
+- Usage: Run
+  `python -B -m unittest discover -s tests -p "test_starter_kit_upgrade.py"`.
+- Notes: Uses temporary Git repositories and ZIP files without changing the
+  working repository.
 
 ### `docs/`
 
