@@ -8,10 +8,32 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Added
+## v2.1.0 - 2026-07-30
+
+### Added in v2.1.0
 
 - Git-aware staged ZIP backup tooling with focused Python tests, shared audit
   coverage, operational documentation, and repository inventory entries.
+- Cumulative starter-kit upgrade tooling with per-file hash comparison,
+  provenance gates, conflict reporting, external rollback archives, focused
+  tests, and a reusable release toolkit.
+
+### Changed in v2.1.0
+
+- Added a portable Markdownlint baseline and recorded managed-file hashes,
+  modes, ownership strategies, repository identity, starter-kit provenance,
+  and agent-rules provenance in composed release packages.
+- Made release package naming and provenance reusable by downstream
+  repositories while preserving `StarterRef` as a compatibility alias.
+- Required the automatic release workflow to validate composed Markdown and
+  spelling content before uploading the full package and upgrade toolkit.
+
+### Fixed in v2.1.0
+
+- Kept verbose Git traces separate from captured command output in Bash and
+  PowerShell repository initialization.
+- Accepted the valid Rust term `statics` in the shared spelling policy so
+  packages enriched with agent rules pass Codespell.
 
 ## v2.0.3 - 2026-07-23
 
