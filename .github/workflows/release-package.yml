@@ -8,7 +8,7 @@ name: Release package
     inputs:
       tag:
         description: >-
-          Git starter kit release tag whose package asset will be uploaded
+          Repository release tag whose package assets will be uploaded
         required: true
         type: string
       agent_rules_ref:
@@ -128,7 +128,8 @@ jobs:
           PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
           REPOSITORY_REF: ${{ steps.refs.outputs.starter_ref }}
         run: |
-          toolkit_path="$RUNNER_TEMP/git-starter-kit-${REPOSITORY_REF}-upgrade-toolkit.zip"
+          repository_name="${GITHUB_REPOSITORY##*/}"
+          toolkit_path="$RUNNER_TEMP/${repository_name}-${REPOSITORY_REF}-upgrade-toolkit.zip"
           python tools/starter-kit-upgrade.py toolkit \
             --new-package "$PACKAGE_PATH" \
             --output "$toolkit_path"

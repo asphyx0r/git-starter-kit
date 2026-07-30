@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.1.2 - 2026-07-30
+
+### Fixed in v2.1.2
+
+- Derived upgrade toolkit names from the packaged repository in reusable
+  release workflows instead of retaining the `git-starter-kit` prefix in
+  downstream repositories.
+
 ## v2.1.1 - 2026-07-30
 
 ### Fixed in v2.1.1

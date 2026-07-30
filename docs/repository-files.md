@@ -229,7 +229,8 @@ deferred, or explicitly excluded from the template.
   The composed ZIP must pass Markdown and Codespell before the full package and
   upgrade toolkit are uploaded with the built-in workflow token. A dependent
   job promotes automatic prereleases only after successful packaging; manual
-  runs never promote releases. The checkout-free promotion command receives
+  runs never promote releases. Package and toolkit names are derived from the
+  repository being packaged. The checkout-free promotion command receives
   explicit repository context. Shell validation messages are wrapped for YAML
   lint readability.
 

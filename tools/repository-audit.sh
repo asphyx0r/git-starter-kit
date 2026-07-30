@@ -238,6 +238,22 @@ for (const [source, pattern] of patterns) {
 JS
 }
 
+check_release_package_portability() {
+  if grep -F \
+    'toolkit_path="$RUNNER_TEMP/git-starter-kit-' \
+    .github/workflows/release-package.yml >/dev/null; then
+    echo "Release workflow hard-codes the starter-kit toolkit name." >&2
+    exit 1
+  fi
+
+  if ! grep -F \
+    'repository_name="${GITHUB_REPOSITORY##*/}"' \
+    .github/workflows/release-package.yml >/dev/null; then
+    echo "Release workflow does not derive the packaged repository name." >&2
+    exit 1
+  fi
+}
+
 run_commitlint() {
   require_command npx
 
@@ -715,6 +731,7 @@ run_static() {
   shellcheck .githooks/commit-msg
   shellcheck tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
+  check_release_package_portability
   run_powershell_parse
   run_script_smoke
   "$node_cmd" --check commitlint.config.cjs
@@ -757,6 +774,7 @@ run_readonly() {
   "$shellcheck_cmd" .githooks/commit-msg
   "$shellcheck_cmd" tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
+  check_release_package_portability
   run_powershell_parse_readonly
   "$node_cmd" --check commitlint.config.cjs
   run_commitlint_readonly "$commitlint_cmd"
