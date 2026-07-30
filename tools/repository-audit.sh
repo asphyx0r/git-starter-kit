@@ -686,9 +686,11 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     if files["schemaVersion"] != 1:
         raise SystemExit("Unexpected managed-file schema.")
     listed = set()
+    strategies = {}
     for entry in files["files"]:
         path = entry["path"]
         listed.add(path)
+        strategies[path] = entry["strategy"]
         if path not in names:
             raise SystemExit(f"Managed file missing from ZIP: {path}")
         digest = hashlib.sha256(archive.read(path)).hexdigest()
@@ -705,6 +707,13 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             f"Missing: {missing or '(none)'}. "
             f"Unexpected: {unexpected or '(none)'}."
         )
+    expected_strategies = {
+        "docs/release-package.md": "merge",
+        "docs/repository-migration.md": "initialize-only",
+    }
+    for path, strategy in expected_strategies.items():
+        if strategies.get(path) != strategy:
+            raise SystemExit(f"Unexpected upgrade strategy for {path}.")
 PY
 
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \

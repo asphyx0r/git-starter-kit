@@ -454,7 +454,8 @@ deferred, or explicitly excluded from the template.
   per-file SHA-256 hashes, modes, and upgrade strategies for every tracked
   file, including dotfiles, validates package file names before writing ZIP
   files, keeps SemVer validation aligned with CI smoke cases, and verifies
-  exhaustive manifest coverage in the archive. Helper
+  exhaustive manifest coverage and repository-owned documentation strategies
+  in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
 ### `tools/README.md`

@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.1.3 - 2026-07-30
+
+### Fixed in v2.1.3
+
+- Classified release documentation for three-way merge and repository
+  migration records as initialization-only so cumulative upgrades cannot
+  replace downstream-specific documentation.
+
 ## v2.1.2 - 2026-07-30
 
 ### Fixed in v2.1.2

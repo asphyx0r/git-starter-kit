@@ -193,7 +193,8 @@ function Get-UpgradeStrategy {
         "LICENSE",
         "README.md",
         "SECURITY.md",
-        "SUPPORT.md"
+        "SUPPORT.md",
+        "docs/repository-migration.md"
     )
     if ($initializeOnly -contains $Path) {
         return "initialize-only"
@@ -207,6 +208,7 @@ function Get-UpgradeStrategy {
         ".github/workflows/release-package.yml",
         ".github/workflows/repository-audit.yml",
         "docs/SKILLS.md",
+        "docs/release-package.md",
         "docs/repository-files.md",
         "tools/README.md",
         "tools/build-release-package.ps1",
