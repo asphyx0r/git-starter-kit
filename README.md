@@ -15,6 +15,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - VS Code workspace recommendations for consistent local editing.
 - Repository file inventory in `docs/repository-files.md`.
 - Tool reference documentation in `tools/README.md`.
+- Staged ZIP backup utility with exact Git `HEAD` and SemVer tag provenance.
 - Reusable templates for README, tool-directory README, changelog,
   contributing, code of conduct, security, support, environment, Git, Codex,
   skill documentation, and release notes files.
@@ -100,6 +101,21 @@ family at a time when diagnosing network or tool availability problems.
 When the audit runs from WSL with Windows PowerShell for PowerShell checks,
 it uses the ignored `.tmp/` path for temporary files that both environments
 can access.
+
+Preview a staged backup of the current repository into an existing external
+directory:
+
+```bash
+python tools/backup-target-directory.py \
+  --dry-run \
+  --source-directory . \
+  --target-directory ../backups
+```
+
+Remove `--dry-run` to create the ZIP. Keep repository writers stopped during
+the copy when a consistent point-in-time backup is required. See
+[Tools](tools/README.md) for archive contents, provenance rules, limitations,
+and restoration caveats.
 
 Published releases can attach a generated ZIP package that overlays a resolved
 `agent-coding-rules` release and records the requested and resolved source in

@@ -8,6 +8,11 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Git-aware staged ZIP backup tooling with focused Python tests, shared audit
+  coverage, operational documentation, and repository inventory entries.
+
 ## v2.0.3 - 2026-07-23
 
 ### Added in v2.0.3

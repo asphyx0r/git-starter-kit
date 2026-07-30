@@ -404,6 +404,21 @@ deferred, or explicitly excluded from the template.
 - Usage: Keep tools generic and tied to documented repository workflows.
 - Notes: Avoid project-specific build, test, or deploy automation here.
 
+### `tools/backup-target-directory.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Creates a staged ZIP backup of a directory tree with Git provenance in
+  the archive name.
+- Usage: Run with an existing source and external target directory; use
+  `--dry-run` before creating the archive.
+- Notes: Uses only the Python standard library, includes `.git` and all files
+  present during staging, rejects symbolic links, and accepts an optional
+  staging parent. The archive name contains the captured 12-character `HEAD`
+  and only a SemVer tag that points to that commit. The copy is not
+  transactional and does not preserve every NTFS metadata class or add a
+  cryptographic manifest.
+
 ### `tools/build-release-package.ps1`
 
 - Type: `file`
@@ -428,7 +443,8 @@ deferred, or explicitly excluded from the template.
   command-line interfaces, examples, exit status, and best practices.
 - Notes: Keep entries aligned with current tool behavior whenever scripts are
   changed. Documents execution-policy troubleshooting for downloaded
-  `git-init.ps1` copies that PowerShell blocks before launch.
+  `git-init.ps1` copies that PowerShell blocks before launch, and records the
+  backup tool's provenance, consistency, and restoration limits.
 
 ### `tools/repository-audit.sh`
 
@@ -440,9 +456,10 @@ deferred, or explicitly excluded from the template.
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Defaults to the full profile, with `full` as an explicit alias. Full
   profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
-  for shell scripts and Git hooks, PowerShell parsing, SemVer pattern drift
-  checks, smoke behavior, release package manifest, commitlint configuration,
-  and commit message checks for newly introduced commits. The optional
+  for shell scripts and Git hooks, PowerShell parsing, cross-language SemVer
+  pattern drift checks, Python backup tests, smoke behavior, release package
+  manifest, commitlint configuration, and commit message checks for newly
+  introduced commits. The optional
   `readonly` profile uses installed tools, disables optional Git locks, avoids
   network access, temporary files, package installation, and mutating smoke
   tests, and also checks YAML, workflows, and secrets. Full profiles
@@ -490,6 +507,27 @@ deferred, or explicitly excluded from the template.
   credential, direnv, artifact, and runtime storage paths, refuses existing
   target commits, creates the first Conventional Commit on `main`, tags it,
   and only pushes when `--remote` is provided.
+
+### `tests/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Stores focused automated tests for reusable repository tools.
+- Usage: Run the Python suite directly or through the repository audit.
+- Notes: Tests must isolate filesystem and Git mutations in temporary
+  directories and must not leave repository artifacts.
+
+### `tests/test_backup_target_directory.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies the backup tool's CLI, Git provenance, safety checks, staging
+  cleanup, archive contents, and readable ZIP output.
+- Usage: Run
+  `python -B -m unittest discover -s tests -p "test_backup_target_directory.py"`.
+- Notes: Uses only `unittest` and the Python standard library. Git-dependent
+  and symbolic-link cases skip only when the required platform capability is
+  unavailable.
 
 ### `docs/`
 

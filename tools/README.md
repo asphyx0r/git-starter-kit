@@ -7,6 +7,135 @@ kit. Each tool is documented as an operational reference: what it does, how to
 run it, which options it accepts, how it exits, and what practices keep usage
 safe.
 
+## backup-target-directory.py
+
+### Features
+
+- Copies an entire source directory tree into a temporary staging directory.
+- Includes Git metadata, hidden files, and tracked, untracked, or ignored files
+  that are present during the copy.
+- Creates a compressed ZIP archive in a separate existing target directory.
+- Rejects symbolic links in the source tree.
+- Names archives with the source directory, timestamp, Git `HEAD`, and an exact
+  matching SemVer tag.
+- Supports a side-effect-free dry run and an optional staging parent directory.
+
+### Synopsis
+
+```text
+usage: python tools/backup-target-directory.py [options]
+
+options:
+  -h, --help                       show help and exit
+  --version                        show version and exit
+  --dry-run                        simulate execution without modifying data
+  -v, --verbose                    enable DEBUG logs
+  -d, --source-directory BASEDIR   existing source directory tree to back up
+  -t, --target-directory TARGETDIR existing directory for the ZIP archive
+  -b, --buffer-directory BUFFERDIR existing staging parent directory
+```
+
+### Description
+
+`backup-target-directory.py` creates a staged ZIP backup of an existing
+directory tree. The target and staging directories must remain outside the
+source so the generated data cannot enter the backup. The script copies the
+source to temporary staging before creating a same-directory temporary ZIP and
+publishing the final archive.
+
+When the source belongs to a readable Git repository, the archive name records
+the 12-character abbreviated `HEAD`. It includes a SemVer tag only when that
+tag points exactly to the captured commit. Every final archive uses this
+format:
+
+```text
+<SOURCE>-<YYYYMMDD>-<HHMMSS>-<HEAD>-<SEMVER-TAG>.zip
+```
+
+For example:
+
+```text
+git-starter-kit-20260730-165813-0d3ae03a4a86-v2.0.3.zip
+```
+
+When no commit can be read, `<HEAD>` is `000000000000`. When no matching
+SemVer tag can be read, `<SEMVER-TAG>` is `v0.0.0`. These placeholders keep
+the filename structure stable.
+
+After staging, the script resolves the source Git identity again. It stops
+before ZIP creation if `HEAD` or the selected tag changed during the copy.
+
+### Usage/Examples
+
+Preview a backup of the current repository into an existing sibling
+directory:
+
+```bash
+python tools/backup-target-directory.py \
+  --dry-run \
+  --source-directory . \
+  --target-directory ../backups
+```
+
+Create the archive:
+
+```bash
+python tools/backup-target-directory.py \
+  --source-directory . \
+  --target-directory ../backups
+```
+
+Use an existing staging parent on another volume:
+
+```bash
+python tools/backup-target-directory.py \
+  --source-directory . \
+  --target-directory ../backups \
+  --buffer-directory /path/to/staging
+```
+
+### Options
+
+- `-h`, `--help`: prints the version and usage information, then exits.
+- `--version`: prints script version `0.1.0`, then exits.
+- `--dry-run`: validates the source, target, staging location, symbolic-link
+  policy, Git identity, and final name without creating staging data or a ZIP.
+- `-v`, `--verbose`: prints DEBUG logs in addition to normal status messages.
+- `-d PATH`, `--source-directory PATH`: existing directory tree to back up.
+  This option is required.
+- `-t PATH`, `--target-directory PATH`: existing directory where the ZIP is
+  created. This option is required and must not be inside the source.
+- `-b PATH`, `--buffer-directory PATH`: optional existing staging parent. An
+  unusable value produces a warning and falls back to the user temporary
+  directory.
+
+### Exit Status
+
+- `0`: help or version was shown, the dry run completed, or the archive was
+  created successfully.
+- `1`: path or filesystem validation failed, a symbolic link was found, the
+  Git identity changed during staging, or staging/archive creation failed.
+- `2`: command-line argument parsing failed.
+
+The script also refuses to run with effective user ID `0` on Linux.
+
+### Appendix
+
+This is a staged filesystem copy, not a transactional repository snapshot.
+The post-copy check detects changes to `HEAD` or the selected tag, but not
+concurrent edits to working-tree files, the index, other refs, or reflogs. Stop
+repository writers while the backup runs when a restorable point-in-time copy
+is required.
+
+The archive includes `.git` when it is contained in the source. Linked
+worktrees and submodules may instead use a `.git` file that refers to metadata
+outside the source; such an archive is not self-contained.
+
+ZIP preserves file bytes and modification times at ZIP precision, but this
+tool does not preserve NTFS ACLs, alternate data streams, creation/access
+times, or a cryptographic manifest. The `v0.0.0` placeholder is also
+indistinguishable in the filename from a real tag with that exact name.
+
 ## build-release-package.ps1
 
 ### Features
@@ -344,7 +473,8 @@ when the target path is a native Windows path.
 - Defaults to the full audit profile.
 - Supports an optional read-only profile and focused CI audit modes.
 - Checks Markdown, spelling, whitespace, shell scripts, PowerShell parsing,
-  YAML, workflows, secrets, SemVer pattern drift, and commit messages.
+  YAML, workflows, secrets, cross-language SemVer pattern drift, Python backup
+  behavior, and commit messages.
 - Bootstraps pinned tools and exercises mutating smoke cases only in full
   profiles.
 - Uses WSL-aware temporary paths when Windows PowerShell is invoked from WSL.
@@ -421,8 +551,8 @@ bash tools/repository-audit.sh static
 - `markdown`: runs `markdownlint-cli2` against repository Markdown files.
 - `spelling`: runs Codespell with the repository configuration.
 - `static`: runs Git whitespace checks, Bash and ShellCheck checks,
-  PowerShell parsing, SemVer drift checks, script smoke tests, Node syntax
-  checks, and commitlint checks.
+  PowerShell parsing, SemVer drift checks, Python backup tests, script smoke
+  tests, Node syntax checks, and commitlint checks.
 - `-h`, `--help`, `help`: prints usage information, then exits.
 
 ### Exit Status

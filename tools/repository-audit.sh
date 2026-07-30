@@ -175,6 +175,30 @@ function extractWorkflowPattern() {
   return parts.join("");
 }
 
+function extractPythonPattern() {
+  const content = readFile("tools/backup-target-directory.py");
+  const block = content.match(
+    /^SEMVER_TAG_PATTERN = re\.compile\(\n([\s\S]*?)^\)$/m
+  );
+  if (!block) {
+    throw new Error("Unable to extract Python backup SemVer pattern.");
+  }
+
+  const parts = [];
+  const expression = /^\s*r"([^"]*)"$/gm;
+  let match = expression.exec(block[1]);
+  while (match) {
+    parts.push(match[1]);
+    match = expression.exec(block[1]);
+  }
+
+  if (parts.length === 0) {
+    throw new Error("Unable to extract Python backup SemVer fragments.");
+  }
+
+  return parts.join("");
+}
+
 const patterns = new Map([
   [
     "tools/git-init.sh",
@@ -200,6 +224,7 @@ const patterns = new Map([
       "release package SemVer pattern"
     ),
   ],
+  ["tools/backup-target-directory.py", extractPythonPattern()],
   [".github/workflows/release-package.yml", extractWorkflowPattern()],
 ]);
 
@@ -402,6 +427,10 @@ run_script_smoke() {
   export GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-codex@example.com}"
   export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-Codex}"
   export GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-codex@example.com}"
+
+  "$python_cmd" -B -m unittest discover \
+    -s tests \
+    -p "test_backup_target_directory.py"
 
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1
