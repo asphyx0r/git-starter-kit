@@ -8,6 +8,16 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.1.4 - 2026-07-30
+
+### Fixed in v2.1.4
+
+- Excluded a previously tracked managed-file manifest before regenerating
+  package metadata, so aligned downstream repositories can build exhaustive
+  release packages.
+- Marked literal workflow-pattern checks explicitly so ShellCheck validates
+  the repository audit script without false expansion warnings.
+
 ## v2.1.3 - 2026-07-30
 
 ### Fixed in v2.1.3

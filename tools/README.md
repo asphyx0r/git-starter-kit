@@ -176,6 +176,9 @@ options:
 resolved `agent-coding-rules` release. The generated ZIP includes the normal
 repository content, the required rule files, `_agent-rules-source.json`, and
 the per-file `_starter-kit-files.json` upgrade manifest.
+When a downstream repository already tracks an earlier managed-file manifest,
+the builder excludes that stale copy before generating the new exhaustive
+manifest.
 
 The script resolves `-AgentRulesRef latest` through the GitHub releases API.
 An explicit `-AgentRulesRef` must be a SemVer tag prefixed with `v`.

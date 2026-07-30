@@ -455,8 +455,10 @@ deferred, or explicitly excluded from the template.
   file, including dotfiles, validates package file names before writing ZIP
   files, keeps SemVer validation aligned with CI smoke cases, and verifies
   exhaustive manifest coverage and repository-owned documentation strategies
-  in the archive. Helper
-  functions use ScriptAnalyzer-compatible names and explicit parameters.
+  in the archive. A previously tracked managed-file manifest is excluded before
+  its replacement is generated, so aligned downstream repositories remain
+  packageable. Helper functions use ScriptAnalyzer-compatible names and
+  explicit parameters.
 
 ### `tools/README.md`
 

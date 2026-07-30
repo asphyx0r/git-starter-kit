@@ -460,8 +460,10 @@ try {
     Write-Utf8NoBomFile -Path $manifestPath -Content ($manifest | ConvertTo-Json -Depth 6)
     $fileModes["_agent-rules-source.json"] = "100644"
 
+    $fileManifestPath = Join-Path $stagingRoot "_starter-kit-files.json"
     $managedFiles = @(
         Get-ChildItem -LiteralPath $stagingRoot -File -Recurse -Force |
+            Where-Object { $_.FullName -cne $fileManifestPath } |
             ForEach-Object {
                 $relativePath = $_.FullName.Substring($stagingRoot.Length + 1)
                 $relativePath = $relativePath -replace "\\", "/"
@@ -491,7 +493,6 @@ try {
         }
         files         = $managedFiles
     }
-    $fileManifestPath = Join-Path $stagingRoot "_starter-kit-files.json"
     Write-Utf8NoBomFile `
         -Path $fileManifestPath `
         -Content ($fileManifest | ConvertTo-Json -Depth 8)

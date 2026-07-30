@@ -239,6 +239,7 @@ JS
 }
 
 check_release_package_portability() {
+  # shellcheck disable=SC2016
   if grep -F \
     'toolkit_path="$RUNNER_TEMP/git-starter-kit-' \
     .github/workflows/release-package.yml >/dev/null; then
@@ -246,6 +247,7 @@ check_release_package_portability() {
     exit 1
   fi
 
+  # shellcheck disable=SC2016
   if ! grep -F \
     'repository_name="${GITHUB_REPOSITORY##*/}"' \
     .github/workflows/release-package.yml >/dev/null; then
@@ -714,6 +716,71 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     for path, strategy in expected_strategies.items():
         if strategies.get(path) != strategy:
             raise SystemExit(f"Unexpected upgrade strategy for {path}.")
+PY
+
+  local downstream_root="$audit_temp/downstream-package-repository"
+  local downstream_package="$release_output/downstream-release-package.zip"
+  local starter_commit
+  starter_commit="$(git rev-parse HEAD)"
+  mkdir -p "$downstream_root"
+  printf '# Downstream repository\n' >"$downstream_root/README.md"
+  "$python_cmd" - "$downstream_root" "$starter_commit" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+starter_commit = sys.argv[2]
+(root / "_agent-rules-source.json").write_text(
+    json.dumps(
+        {
+            "starterKit": {
+                "repository": "https://github.com/asphyx0r/git-starter-kit",
+                "ref": "v0.0.0",
+                "commit": starter_commit,
+            }
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+(root / "_starter-kit-files.json").write_text(
+    '{"stale": true}\n',
+    encoding="utf-8",
+)
+PY
+  git init -q "$downstream_root"
+  git -C "$downstream_root" config user.name "Repository Audit"
+  git -C "$downstream_root" config user.email "audit@example.com"
+  git -C "$downstream_root" add --all
+  git -C "$downstream_root" commit -q -m "chore: initialize fixture"
+
+  "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
+    -RepositoryRoot "$(to_pwsh_path "$downstream_root")" \
+    -RepositoryRef v1.0.0 \
+    -RepositorySlug example/downstream \
+    -AgentRulesRef "$manifest_ref" \
+    -OutputDirectory "$(to_pwsh_path "$release_output")" \
+    -PackageName downstream-release-package.zip
+
+  "$python_cmd" - "$downstream_package" <<'PY'
+import json
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    names = {name for name in archive.namelist() if not name.endswith("/")}
+    source = json.load(archive.open("_agent-rules-source.json"))
+    files = json.load(archive.open("_starter-kit-files.json"))
+    listed = {entry["path"] for entry in files["files"]}
+    if source["repository"]["name"] != "downstream":
+        raise SystemExit("Unexpected downstream repository name.")
+    if "_starter-kit-files.json" in listed:
+        raise SystemExit("Generated manifest listed its previous source copy.")
+    names.remove("_starter-kit-files.json")
+    if names != listed:
+        raise SystemExit("Downstream managed-file coverage mismatch.")
 PY
 
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
