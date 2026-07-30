@@ -609,7 +609,7 @@ run_script_smoke() {
   local release_output="$audit_temp/release-package-smoke"
   local latest_package="$release_output/latest-release-package.zip"
   "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
-    -StarterRef local-test \
+    -RepositoryRef local-test \
     -AgentRulesRef latest \
     -OutputDirectory "$(to_pwsh_path "$release_output")" \
     -PackageName latest-release-package.zip
@@ -653,8 +653,35 @@ PY
     exit 1
   fi
 
+  "$python_cmd" - "$latest_package" <<'PY'
+import hashlib
+import json
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    names = set(archive.namelist())
+    source = json.load(archive.open("_agent-rules-source.json"))
+    files = json.load(archive.open("_starter-kit-files.json"))
+    if source["schemaVersion"] != 2:
+        raise SystemExit("Unexpected release provenance schema.")
+    if source["repository"]["name"] != "git-starter-kit":
+        raise SystemExit("Unexpected packaged repository name.")
+    if files["schemaVersion"] != 1:
+        raise SystemExit("Unexpected managed-file schema.")
+    for entry in files["files"]:
+        path = entry["path"]
+        if path not in names:
+            raise SystemExit(f"Managed file missing from ZIP: {path}")
+        digest = hashlib.sha256(archive.read(path)).hexdigest()
+        if digest != entry["sha256"]:
+            raise SystemExit(f"Managed file digest mismatch: {path}")
+        if entry["strategy"] not in {"initialize-only", "merge", "replace"}:
+            raise SystemExit(f"Unexpected upgrade strategy: {path}")
+PY
+
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
-    -StarterRef local-test \
+    -RepositoryRef local-test \
     -AgentRulesRef invalid \
     -OutputDirectory "$(to_pwsh_path "$release_output")"; then
     echo "Release package accepted an invalid agent rules ref." >&2

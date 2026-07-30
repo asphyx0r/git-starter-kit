@@ -95,14 +95,31 @@ jobs:
         id: package
         shell: pwsh
         env:
-          STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
+          REPOSITORY_REF: ${{ steps.refs.outputs.starter_ref }}
           AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
           GITHUB_TOKEN: ${{ steps.agent-rules-token.outputs.token }}
         run: |
           ./tools/build-release-package.ps1 `
-            -StarterRef $env:STARTER_REF `
+            -RepositoryRef $env:REPOSITORY_REF `
             -AgentRulesRef $env:AGENT_RULES_REF `
             -OutputDirectory $env:RUNNER_TEMP
+
+      - name: Validate composed package
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+        run: |
+          validation_root="$RUNNER_TEMP/release-package-validation"
+          mkdir -p "$validation_root"
+          python -m zipfile -e "$PACKAGE_PATH" "$validation_root"
+          cd "$validation_root"
+          NPM_CONFIG_IGNORE_SCRIPTS=true \
+            npx --yes markdownlint-cli2@0.22.1 "**/*.md"
+          python -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            codespell==2.4.2
+          codespell .
 
       - name: Upload release asset
         shell: bash

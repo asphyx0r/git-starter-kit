@@ -2,7 +2,12 @@ param(
     [string]$RepositoryRoot = (Get-Location).Path,
     [string]$OutputDirectory = (Join-Path (Get-Location).Path "dist"),
     [string]$PackageName = "",
-    [string]$StarterRef = $env:GITHUB_REF_NAME,
+    [Alias("StarterRef")]
+    [string]$RepositoryRef = $env:GITHUB_REF_NAME,
+    [string]$RepositorySlug = $env:GITHUB_REPOSITORY,
+    [string]$StarterKitRepository = "asphyx0r/git-starter-kit",
+    [string]$StarterKitRef = "",
+    [string]$StarterKitCommit = "",
     [string]$AgentRulesRepository = "asphyx0r/agent-coding-rules",
     [string]$AgentRulesRef = "latest"
 )
@@ -140,6 +145,160 @@ function Copy-TrackedRepositoryFile {
     }
 }
 
+function Get-GitFileModes {
+    param([Parameter(Mandatory = $true)][string]$Repository)
+
+    $modes = @{}
+    $indexLines = Invoke-GitLine -Arguments @("-C", $Repository, "ls-files", "--stage")
+    foreach ($line in $indexLines) {
+        $match = [regex]::Match(
+            $line,
+            "^(?<mode>[0-9]{6}) [0-9a-f]+ [0-9]+`t(?<path>.+)$"
+        )
+        if ($match.Success) {
+            $modes[$match.Groups["path"].Value] = $match.Groups["mode"].Value
+        }
+    }
+
+    return $modes
+}
+
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $digest = $sha256.ComputeHash($stream)
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+
+    return (($digest | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+function Get-UpgradeStrategy {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $initializeOnly = @(
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "SUPPORT.md"
+    )
+    if ($initializeOnly -contains $Path) {
+        return "initialize-only"
+    }
+
+    $mergeManaged = @(
+        ".codespellrc",
+        ".editorconfig",
+        ".gitattributes",
+        ".gitignore",
+        ".github/workflows/release-package.yml",
+        ".github/workflows/repository-audit.yml",
+        "docs/SKILLS.md",
+        "docs/repository-files.md",
+        "tools/README.md",
+        "tools/build-release-package.ps1",
+        "tools/repository-audit.sh"
+    )
+    if ($mergeManaged -contains $Path) {
+        return "merge"
+    }
+
+    return "replace"
+}
+
+function Get-RepositoryName {
+    param(
+        [string]$Slug,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Slug)) {
+        $parts = $Slug.Trim().Split("/")
+        if ($parts.Count -eq 2 -and
+            -not [string]::IsNullOrWhiteSpace($parts[0]) -and
+            -not [string]::IsNullOrWhiteSpace($parts[1])) {
+            return $parts[1]
+        }
+
+        throw "RepositorySlug must use the owner/name format."
+    }
+
+    return (Split-Path -Leaf $Root)
+}
+
+function ConvertTo-GitHubRepositorySlug {
+    param([Parameter(Mandatory = $true)][string]$Repository)
+
+    $normalized = $Repository.Trim()
+    $normalized = $normalized -replace "^https://github\.com/", ""
+    $normalized = $normalized -replace "\.git$", ""
+    if ($normalized -notmatch "^[^/]+/[^/]+$") {
+        throw "Repository values must use owner/name or a GitHub repository URL."
+    }
+
+    return $normalized
+}
+
+function Resolve-StarterKitProvenance {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$RepositoryName,
+        [Parameter(Mandatory = $true)][string]$RepositoryCommit,
+        [Parameter(Mandatory = $true)][string]$RepositoryReference,
+        [string]$StarterRepository,
+        [string]$StarterReference,
+        [string]$StarterCommit
+    )
+
+    $sourceManifestPath = Join-Path $Root "_agent-rules-source.json"
+    if (([string]::IsNullOrWhiteSpace($StarterReference) -or
+            [string]::IsNullOrWhiteSpace($StarterCommit)) -and
+        (Test-Path -LiteralPath $sourceManifestPath -PathType Leaf)) {
+        $sourceManifest = Get-Content -LiteralPath $sourceManifestPath -Raw |
+            ConvertFrom-Json
+        if ($null -ne $sourceManifest.starterKit) {
+            if ([string]::IsNullOrWhiteSpace($StarterRepository)) {
+                $StarterRepository = [string]$sourceManifest.starterKit.repository
+            }
+            if ([string]::IsNullOrWhiteSpace($StarterReference)) {
+                $StarterReference = [string]$sourceManifest.starterKit.ref
+            }
+            if ([string]::IsNullOrWhiteSpace($StarterCommit)) {
+                $StarterCommit = [string]$sourceManifest.starterKit.commit
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($StarterReference) -or
+        [string]::IsNullOrWhiteSpace($StarterCommit)) {
+        if ($RepositoryName -cne "git-starter-kit") {
+            throw "StarterKitRef and StarterKitCommit are required when the packaged repository has no starterKit provenance."
+        }
+
+        $StarterReference = $RepositoryReference
+        $StarterCommit = $RepositoryCommit
+    }
+
+    return [ordered]@{
+        Repository = ConvertTo-GitHubRepositorySlug -Repository $StarterRepository
+        Ref        = $StarterReference
+        Commit     = $StarterCommit
+    }
+}
+
 function Write-Utf8NoBomFile {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -197,14 +356,26 @@ $agentRulesRoot = Join-Path $tempRoot "agent-coding-rules"
 
 
 try {
-    $starterCommit = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "HEAD")) -join "").Trim()
-    if ([string]::IsNullOrWhiteSpace($StarterRef)) {
-        $StarterRef = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
+    $repositoryCommit = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "HEAD")) -join "").Trim()
+    if ([string]::IsNullOrWhiteSpace($RepositoryRef)) {
+        $RepositoryRef = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "--short", "HEAD")) -join "").Trim()
     }
 
+    $repositoryName = Get-RepositoryName `
+        -Slug $RepositorySlug `
+        -Root $repoRoot
+    $starterKit = Resolve-StarterKitProvenance `
+        -Root $repoRoot `
+        -RepositoryName $repositoryName `
+        -RepositoryCommit $repositoryCommit `
+        -RepositoryReference $RepositoryRef `
+        -StarterRepository $StarterKitRepository `
+        -StarterReference $StarterKitRef `
+        -StarterCommit $StarterKitCommit
+
     if ([string]::IsNullOrWhiteSpace($PackageName)) {
-        $safeRef = $StarterRef -replace "[^A-Za-z0-9._-]", "-"
-        $PackageName = "git-starter-kit-$safeRef-with-agent-rules.zip"
+        $safeRef = $RepositoryRef -replace "[^A-Za-z0-9._-]", "-"
+        $PackageName = "$repositoryName-$safeRef-with-agent-rules.zip"
     }
     elseif (-not $PackageName.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
         $PackageName = "$PackageName.zip"
@@ -242,6 +413,8 @@ try {
     }
 
     Copy-TrackedRepositoryFile -SourceRoot $repoRoot -TargetRoot $stagingRoot
+    $fileModes = Get-GitFileModes -Repository $repoRoot
+    $agentRuleModes = Get-GitFileModes -Repository $agentRulesRoot
 
     foreach ($ruleFile in $RequiredRuleFiles) {
         $sourcePath = Join-Path $agentRulesRoot $ruleFile
@@ -250,14 +423,24 @@ try {
         }
 
         Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $stagingRoot $ruleFile) -Force
+        if ($agentRuleModes.ContainsKey($ruleFile)) {
+            $fileModes[$ruleFile] = $agentRuleModes[$ruleFile]
+        }
     }
 
     $manifest = [ordered]@{
-        generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+        schemaVersion = 2
+        generatedAt   = (Get-Date).ToUniversalTime().ToString("o")
+        repository  = [ordered]@{
+            name       = $repositoryName
+            slug       = $RepositorySlug
+            ref        = $RepositoryRef
+            commit     = $repositoryCommit
+        }
         starterKit  = [ordered]@{
-            repository = "https://github.com/asphyx0r/git-starter-kit"
-            ref        = $StarterRef
-            commit     = $starterCommit
+            repository = "https://github.com/$($starterKit.Repository)"
+            ref        = $starterKit.Ref
+            commit     = $starterKit.Commit
         }
         agentRules = [ordered]@{
             repository   = "https://github.com/$AgentRulesRepository"
@@ -273,8 +456,49 @@ try {
 
     $manifestPath = Join-Path $stagingRoot "_agent-rules-source.json"
     Write-Utf8NoBomFile -Path $manifestPath -Content ($manifest | ConvertTo-Json -Depth 6)
+    $fileModes["_agent-rules-source.json"] = "100644"
 
-    foreach ($requiredFile in ($RequiredRuleFiles + "_agent-rules-source.json")) {
+    $managedFiles = @(
+        Get-ChildItem -LiteralPath $stagingRoot -File -Recurse |
+            ForEach-Object {
+                $relativePath = $_.FullName.Substring($stagingRoot.Length + 1)
+                $relativePath = $relativePath -replace "\\", "/"
+                $mode = "100644"
+                if ($fileModes.ContainsKey($relativePath)) {
+                    $mode = $fileModes[$relativePath]
+                }
+
+                [ordered]@{
+                    path     = $relativePath
+                    sha256   = Get-Sha256 -Path $_.FullName
+                    mode     = $mode
+                    strategy = Get-UpgradeStrategy -Path $relativePath
+                }
+            } |
+            Sort-Object -Property path
+    )
+    $fileManifest = [ordered]@{
+        schemaVersion = 1
+        generatedAt   = $manifest.generatedAt
+        repository    = $manifest.repository
+        starterKit    = $manifest.starterKit
+        agentRules    = [ordered]@{
+            repository = $manifest.agentRules.repository
+            ref        = $manifest.agentRules.ref
+            commit     = $manifest.agentRules.commit
+        }
+        files         = $managedFiles
+    }
+    $fileManifestPath = Join-Path $stagingRoot "_starter-kit-files.json"
+    Write-Utf8NoBomFile `
+        -Path $fileManifestPath `
+        -Content ($fileManifest | ConvertTo-Json -Depth 8)
+
+    $requiredFiles = $RequiredRuleFiles + @(
+        "_agent-rules-source.json",
+        "_starter-kit-files.json"
+    )
+    foreach ($requiredFile in $requiredFiles) {
         $stagedPath = Join-Path $stagingRoot $requiredFile
         if (-not (Test-Path -LiteralPath $stagedPath -PathType Leaf)) {
             throw "Release package staging is missing required file: $requiredFile"
@@ -297,7 +521,7 @@ try {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
     try {
         $zipEntries = @($zip.Entries | ForEach-Object { $_.FullName -replace "\\", "/" })
-        foreach ($requiredFile in ($RequiredRuleFiles + "_agent-rules-source.json")) {
+        foreach ($requiredFile in $requiredFiles) {
             if ($zipEntries -notcontains $requiredFile) {
                 throw "Release package archive is missing required file: $requiredFile"
             }

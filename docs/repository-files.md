@@ -226,11 +226,11 @@ deferred, or explicitly excluded from the template.
   credential persistence, uses `latest` automatically for release packages,
   validates manual release tags and agent rules references, and generates a
   read-only GitHub App token scoped to `agent-coding-rules` for the build step.
-  The generated ZIP is uploaded with the built-in workflow token. A dependent
-  job promotes automatic prereleases only after successful packaging; manual
-  runs never promote releases. The checkout-free promotion command receives
-  explicit repository context. Shell validation messages are wrapped for YAML
-  lint readability.
+  The composed ZIP must pass Markdown and Codespell before upload with the
+  built-in workflow token. A dependent job promotes automatic prereleases only
+  after successful packaging; manual runs never promote releases. The
+  checkout-free promotion command receives explicit repository context. Shell
+  validation messages are wrapped for YAML lint readability.
 
 ### `.githooks/`
 
@@ -282,12 +282,14 @@ deferred, or explicitly excluded from the template.
 ### `.markdownlint-cli2.yaml`
 
 - Type: `file`
-- Status: `rejected`
-- Goal: Would define repository-level Markdown lint rules.
-- Usage: Not included; the audit workflow uses markdownlint defaults.
-- Notes: The reviewed candidate was project-specific, included a broad proper
-  names list, and rejected valid starter-kit placeholders such as
-  `{GITHUB-USERNAME}`.
+- Status: `required`
+- Goal: Defines the portable Markdown lint baseline shared by generated
+  repositories.
+- Usage: Markdownlint CLI tools load it from the repository root.
+- Notes: Keeps the default rules while allowing 120-character lines outside
+  code blocks, headings, and tables, and limits duplicate-heading checks to
+  sibling sections. Repository-specific proper-name and link-style policies
+  remain local extensions.
 
 ### `.vscode/`
 
@@ -314,6 +316,25 @@ deferred, or explicitly excluded from the template.
 - Notes: Keep settings aligned with `.editorconfig` and generic editor
   recommendations. Format-on-save settings are human VS Code defaults only;
   they do not permit agents to run formatters or automatic fixers.
+
+### `_agent-rules-source.json`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Records repository, upstream starter-kit, and agent-rules provenance.
+- Usage: Generated inside enriched release packages and retained by projects
+  initialized from those packages.
+- Notes: The schema is backward compatible with the existing `starterKit` and
+  `agentRules` records while adding the packaged repository identity.
+
+### `_starter-kit-files.json`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Records the managed files in an enriched release package.
+- Usage: Generated inside the ZIP and used by cumulative upgrade tooling.
+- Notes: Stores SHA-256 digests, Git modes, and `replace`, `merge`, or
+  `initialize-only` strategies. The manifest does not include its own digest.
 
 ### `AGENTS.md`
 
@@ -425,12 +446,12 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
-- Notes: Copies tracked starter-kit files, resolves `latest` through the GitHub
+- Notes: Copies tracked repository files, resolves `latest` through the GitHub
   release API by default, verifies the cloned tag, overlays tagged
-  `agent-coding-rules` files, writes `_agent-rules-source.json` with requested
-  and resolved refs, validates package file names before writing ZIP files,
-  keeps SemVer validation aligned with CI smoke cases,
-  and verifies required files in the archive. Helper
+  `agent-coding-rules` files, writes repository and dependency provenance plus
+  per-file SHA-256 hashes, modes, and upgrade strategies, validates package
+  file names before writing ZIP files, keeps SemVer validation aligned with CI
+  smoke cases, and verifies required files in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
 ### `tools/README.md`

@@ -41,9 +41,12 @@ The ZIP includes the normal starter kit files plus these files from
 - `LANGUAGE_RULES.md`
 - `RELEASE_RULES.md`
 
-The ZIP also includes `_agent-rules-source.json`. This manifest records where
-the agent rules came from, including the requested reference, resolved release
-tag, commit SHA, and release date.
+The ZIP also includes two provenance files:
+
+- `_agent-rules-source.json` records the packaged repository, upstream starter
+  kit, and agent-rules references and commits.
+- `_starter-kit-files.json` records each managed path, SHA-256 digest, Git
+  mode, and upgrade strategy.
 
 ## GitHub App Authentication
 
@@ -84,12 +87,12 @@ The workflow then:
 3. Verifies that the cloned agent rules checkout matches the resolved tag.
 4. Copies the tracked starter-kit files into a temporary package folder.
 5. Copies the six agent rule files into that package folder.
-6. Writes `_agent-rules-source.json` with the requested and resolved
-   agent-rules references.
+6. Writes the provenance and managed-file manifests.
 7. Creates the ZIP file.
-8. Verifies that the required files are present in the ZIP.
-9. Uploads the ZIP to the GitHub release as a release asset.
-10. Promotes the prerelease to the latest stable release in a separate job
+8. Verifies that the required files and managed-file hashes are present.
+9. Extracts the composed package and runs its Markdown and Codespell audits.
+10. Uploads the ZIP to the GitHub release as a release asset.
+11. Promotes the prerelease to the latest stable release in a separate job
     that depends on successful packaging.
 
 The release is complete only when this exact `release.published` workflow run
@@ -157,7 +160,7 @@ From the repository root, run:
 
 ```powershell
 powershell -NoProfile -File tools\build-release-package.ps1 `
-  -StarterRef local-test `
+  -RepositoryRef local-test `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip
 ```
@@ -167,6 +170,7 @@ Inspect the generated ZIP:
 ```powershell
 tar -tf .tmp\release-package-test\test-release-package.zip
 tar -xOf .tmp\release-package-test\test-release-package.zip _agent-rules-source.json
+tar -xOf .tmp\release-package-test\test-release-package.zip _starter-kit-files.json
 ```
 
 The local test creates a ZIP only. It does not upload anything to GitHub.

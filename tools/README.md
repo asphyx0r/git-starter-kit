@@ -140,10 +140,13 @@ indistinguishable in the filename from a real tag with that exact name.
 
 ### Features
 
-- Builds an enriched Git starter kit ZIP package.
-- Copies tracked starter-kit files into a temporary staging directory.
+- Builds an enriched repository ZIP package.
+- Copies tracked repository files into a temporary staging directory.
 - Overlays required coding-agent rule files from `agent-coding-rules`.
-- Writes `_agent-rules-source.json` with requested and resolved rule metadata.
+- Writes `_agent-rules-source.json` with repository, starter-kit, and resolved
+  rule provenance.
+- Writes `_starter-kit-files.json` with managed-file hashes, modes, and upgrade
+  strategies.
 - Verifies required files before and after ZIP creation.
 - Emits GitHub Actions outputs when `GITHUB_OUTPUT` is set.
 
@@ -156,7 +159,11 @@ options:
   -RepositoryRoot PATH        repository root to package
   -OutputDirectory PATH       directory where the ZIP is written
   -PackageName NAME           ZIP file name, with .zip appended if needed
-  -StarterRef REF             starter-kit ref recorded in the manifest
+  -RepositoryRef REF          packaged repository ref
+  -RepositorySlug OWNER/NAME  packaged GitHub repository
+  -StarterKitRepository NAME  upstream starter-kit owner/name
+  -StarterKitRef REF          upstream starter-kit ref
+  -StarterKitCommit SHA       upstream starter-kit commit
   -AgentRulesRepository NAME  owner/name repository for agent rules
   -AgentRulesRef REF          latest or SemVer agent-rules tag
 ```
@@ -167,7 +174,8 @@ options:
 `Release package` GitHub Actions workflow. It packages files reported by
 `git ls-files`, then copies the required coding-agent rule files from a
 resolved `agent-coding-rules` release. The generated ZIP includes the normal
-starter-kit content, the required rule files, and `_agent-rules-source.json`.
+repository content, the required rule files, `_agent-rules-source.json`, and
+the per-file `_starter-kit-files.json` upgrade manifest.
 
 The script resolves `-AgentRulesRef latest` through the GitHub releases API.
 An explicit `-AgentRulesRef` must be a SemVer tag prefixed with `v`.
@@ -179,7 +187,7 @@ Create a local test package in the ignored `.tmp/` directory:
 
 ```powershell
 powershell -NoProfile -File tools\build-release-package.ps1 `
-  -StarterRef local-test `
+  -RepositoryRef local-test `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip
 ```
@@ -188,7 +196,7 @@ Create a package with a specific agent-rules release:
 
 ```powershell
 powershell -NoProfile -File tools\build-release-package.ps1 `
-  -StarterRef v1.5.0 `
+  -RepositoryRef v1.5.0 `
   -AgentRulesRef v1.36.1 `
   -OutputDirectory dist
 ```
@@ -209,11 +217,21 @@ tar -xOf .tmp\release-package-test\test-release-package.zip `
   `dist` under the current working directory. The directory is created when
   needed.
 - `-PackageName NAME`: output file name. When omitted, the script derives
-  `git-starter-kit-{StarterRef}-with-agent-rules.zip`. If the provided name
-  does not end with `.zip`, the extension is appended.
-- `-StarterRef REF`: starter-kit ref recorded in the manifest and used in the
-  default package name. Defaults to `GITHUB_REF_NAME`; if that is empty, the
-  script uses the short current commit SHA.
+  `{RepositoryName}-{RepositoryRef}-with-agent-rules.zip`. If the provided
+  name does not end with `.zip`, the extension is appended.
+- `-RepositoryRef REF`: packaged repository ref recorded in the manifest and
+  used in the default package name. `-StarterRef` remains an alias for
+  compatibility. Defaults to `GITHUB_REF_NAME`; if that is empty, the script
+  uses the short current commit SHA.
+- `-RepositorySlug OWNER/NAME`: packaged GitHub repository. Defaults to
+  `GITHUB_REPOSITORY`; outside Actions, the repository directory name supplies
+  the package name.
+- `-StarterKitRepository OWNER/NAME`: upstream starter-kit repository recorded
+  in the provenance. Defaults to `asphyx0r/git-starter-kit`.
+- `-StarterKitRef REF`: upstream starter-kit ref. Defaults to the packaged
+  repository ref when the packaged repository is the starter kit.
+- `-StarterKitCommit SHA`: upstream starter-kit commit. Defaults to the
+  packaged repository commit when the packaged repository is the starter kit.
 - `-AgentRulesRepository NAME`: GitHub `owner/name` repository used as the
   agent-rules source. Defaults to `asphyx0r/agent-coding-rules`.
 - `-AgentRulesRef REF`: agent-rules reference to package. Defaults to
