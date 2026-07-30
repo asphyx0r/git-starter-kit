@@ -58,7 +58,7 @@ function Write-Trace {
     param([Parameter(Mandatory = $true)][string]$Message)
 
     if ($verboseMode) {
-        Write-Output $Message
+        [Console]::Out.WriteLine($Message)
     }
 }
 

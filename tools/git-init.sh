@@ -39,7 +39,7 @@ fail() {
 
 trace() {
     if [ "$verbose_mode" -eq 1 ]; then
-        printf '%s\n' "$*"
+        printf '%s\n' "$*" >&2
     fi
 }
 
@@ -79,6 +79,7 @@ assert_readable_git_metadata() {
     local actual_root
     local git_root
 
+    trace "git -C $repository_path rev-parse --show-toplevel"
     if ! git_root="$(git -C "$repository_path" rev-parse --show-toplevel 2>/dev/null)"; then
         fail "Target contains .git metadata, but Git cannot read it as a repository. Repair or remove: $git_metadata_path"
     fi
@@ -114,7 +115,7 @@ git_status_files() {
         assert_readable_git_metadata "$target_path" "$target_path/.git"
     else
         preview_git_dir="$(mktemp -d)"
-        git init --bare "$preview_git_dir" >/dev/null
+        run_git init --bare "$preview_git_dir" >/dev/null
         status_args=(
             --git-dir="$preview_git_dir"
             --work-tree="$target_path"
@@ -125,7 +126,7 @@ git_status_files() {
         )
     fi
 
-    if ! git "${status_args[@]}" >"$status_file"; then
+    if ! run_git "${status_args[@]}" >"$status_file"; then
         rm -f -- "$status_file"
         if [ -n "$preview_git_dir" ]; then
             rm -rf -- "$preview_git_dir"

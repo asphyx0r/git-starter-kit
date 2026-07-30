@@ -471,23 +471,50 @@ run_script_smoke() {
   fi
 
   local bash_target="$audit_temp/git-init-bash-smoke"
+  local bash_verbose_output="$audit_temp/git-init-bash-smoke.out"
+  local bash_verbose_error="$audit_temp/git-init-bash-smoke.err"
   mkdir -p "$bash_target"
   printf 'hello\n' > "$bash_target/README.md"
   printf 'hello spaces\n' > "$bash_target/notes with spaces.txt"
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_target" \
-    --tag v1.0.0
+    --tag v1.0.0 \
+    --verbose >"$bash_verbose_output" 2>"$bash_verbose_error"
+  if grep -F "git " "$bash_verbose_output" >/dev/null; then
+    echo "Bash verbose init wrote Git traces to standard output." >&2
+    exit 1
+  fi
+  if ! grep -Fx "  README.md" "$bash_verbose_output" >/dev/null ||
+    ! grep -Fx "  notes with spaces.txt" "$bash_verbose_output" >/dev/null; then
+    echo "Bash verbose init corrupted the committable file preview." >&2
+    exit 1
+  fi
+  if ! grep -Fx "git init $bash_target" "$bash_verbose_error" >/dev/null ||
+    ! grep -Fx "git -C $bash_target add --all" "$bash_verbose_error" >/dev/null ||
+    ! grep -Fx \
+      "git -C $bash_target commit -m chore: initialize repository" \
+      "$bash_verbose_error" >/dev/null; then
+    echo "Bash verbose init did not expose init, add, and commit traces." >&2
+    exit 1
+  fi
   if [ -n "$(git -C "$bash_target" status --short)" ]; then
     echo "Bash init smoke repository is not clean." >&2
     exit 1
   fi
 
   local bash_semver_target="$audit_temp/git-init-bash-semver-smoke"
+  local bash_semver_output="$audit_temp/git-init-bash-semver-smoke.out"
+  local bash_semver_error="$audit_temp/git-init-bash-semver-smoke.err"
   mkdir -p "$bash_semver_target"
   printf 'hello\n' > "$bash_semver_target/README.md"
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_semver_target" \
-    --tag "$complex_semver_tag"
+    --tag "$complex_semver_tag" \
+    >"$bash_semver_output" 2>"$bash_semver_error"
+  if grep -h -E '^git ' "$bash_semver_output" "$bash_semver_error" >/dev/null; then
+    echo "Bash init wrote Git traces without --verbose." >&2
+    exit 1
+  fi
   if [ -n "$(git -C "$bash_semver_target" status --short)" ]; then
     echo "Bash init SemVer smoke repository is not clean." >&2
     exit 1
@@ -528,23 +555,52 @@ run_script_smoke() {
   fi
 
   local pwsh_target="$audit_temp/git-init-pwsh-smoke"
+  local pwsh_target_path
+  local pwsh_verbose_output="$audit_temp/git-init-pwsh-smoke.out"
+  local pwsh_verbose_error="$audit_temp/git-init-pwsh-smoke.err"
   mkdir -p "$pwsh_target"
   printf 'hello\n' > "$pwsh_target/README.md"
   printf 'hello spaces\n' > "$pwsh_target/notes with spaces.txt"
+  pwsh_target_path="$(to_pwsh_path "$pwsh_target")"
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
-    --path "$(to_pwsh_path "$pwsh_target")" \
-    --tag v1.0.0
+    --path "$pwsh_target_path" \
+    --tag v1.0.0 \
+    --verbose >"$pwsh_verbose_output" 2>"$pwsh_verbose_error"
+  if ! tr -d '\r' < "$pwsh_verbose_output" |
+    grep -E \
+      '^git --git-dir=.* --work-tree=.* status --porcelain=v1 -z --untracked-files=all$' \
+      >/dev/null; then
+    echo "PowerShell verbose init did not expose a standalone status trace." >&2
+    exit 1
+  fi
+  if ! tr -d '\r' < "$pwsh_verbose_output" |
+    grep -Fx "  README.md" >/dev/null ||
+    ! tr -d '\r' < "$pwsh_verbose_output" |
+      grep -Fx "  notes with spaces.txt" >/dev/null; then
+    echo "PowerShell verbose init corrupted the committable file preview." >&2
+    exit 1
+  fi
   if [ -n "$(git -C "$pwsh_target" status --short)" ]; then
     echo "PowerShell init smoke repository is not clean." >&2
     exit 1
   fi
 
   local pwsh_semver_target="$audit_temp/git-init-pwsh-semver-smoke"
+  local pwsh_semver_output="$audit_temp/git-init-pwsh-semver-smoke.out"
+  local pwsh_semver_error="$audit_temp/git-init-pwsh-semver-smoke.err"
   mkdir -p "$pwsh_semver_target"
   printf 'hello\n' > "$pwsh_semver_target/README.md"
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$(to_pwsh_path "$pwsh_semver_target")" \
-    --tag "$complex_semver_tag"
+    --tag "$complex_semver_tag" \
+    >"$pwsh_semver_output" 2>"$pwsh_semver_error"
+  if tr -d '\r' < "$pwsh_semver_output" |
+    grep -E '^git ' >/dev/null ||
+    tr -d '\r' < "$pwsh_semver_error" |
+      grep -E '^git ' >/dev/null; then
+    echo "PowerShell init wrote Git traces without --verbose." >&2
+    exit 1
+  fi
   if [ -n "$(git -C "$pwsh_semver_target" status --short)" ]; then
     echo "PowerShell init SemVer smoke repository is not clean." >&2
     exit 1

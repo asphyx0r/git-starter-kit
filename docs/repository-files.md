@@ -487,7 +487,8 @@ deferred, or explicitly excluded from the template.
   Git metadata, explains invalid preexisting `.git` metadata, warns on risky
   credential, direnv, and artifact paths, refuses
   existing target commits, writes prompts without polluting confirmation
-  return values, reads confirmation answers from standard input for
+  return values, writes verbose traces without polluting Git command return
+  values, reads confirmation answers from standard input for
   deterministic CI smoke tests, warns on runtime storage paths, creates the
   first Conventional Commit on `main`, tags it, and only pushes when
   `--remote` is provided.
@@ -505,8 +506,9 @@ deferred, or explicitly excluded from the template.
   previews committable files from Git porcelain status without creating target
   Git metadata, explains invalid preexisting `.git` metadata, warns on risky
   credential, direnv, artifact, and runtime storage paths, refuses existing
-  target commits, creates the first Conventional Commit on `main`, tags it,
-  and only pushes when `--remote` is provided.
+  target commits, writes verbose Git traces to standard error so they remain
+  visible when command output is suppressed, creates the first Conventional
+  Commit on `main`, tags it, and only pushes when `--remote` is provided.
 
 ### `tests/`
 
