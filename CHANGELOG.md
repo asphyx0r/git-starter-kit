@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.1.1 - 2026-07-30
+
+### Fixed in v2.1.1
+
+- Included dotfiles and files below dot-directories in managed-file manifests
+  on Linux release runners, and made archive coverage mismatches fail package
+  generation.
+
 ## v2.1.0 - 2026-07-30
 
 ### Added in v2.1.0

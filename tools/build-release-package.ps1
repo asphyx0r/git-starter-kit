@@ -459,7 +459,7 @@ try {
     $fileModes["_agent-rules-source.json"] = "100644"
 
     $managedFiles = @(
-        Get-ChildItem -LiteralPath $stagingRoot -File -Recurse |
+        Get-ChildItem -LiteralPath $stagingRoot -File -Recurse -Force |
             ForEach-Object {
                 $relativePath = $_.FullName.Substring($stagingRoot.Length + 1)
                 $relativePath = $relativePath -replace "\\", "/"
@@ -525,6 +525,28 @@ try {
             if ($zipEntries -notcontains $requiredFile) {
                 throw "Release package archive is missing required file: $requiredFile"
             }
+        }
+
+        $archiveManagedPaths = @(
+            $zipEntries |
+                Where-Object {
+                    -not $_.EndsWith("/") -and
+                    $_ -cne "_starter-kit-files.json"
+                } |
+                Sort-Object
+        )
+        $manifestManagedPaths = @(
+            $managedFiles |
+                ForEach-Object { $_.path } |
+                Sort-Object
+        )
+        $manifestDifference = @(
+            Compare-Object `
+                -ReferenceObject $archiveManagedPaths `
+                -DifferenceObject $manifestManagedPaths
+        )
+        if ($manifestDifference.Count -ne 0) {
+            throw "Managed-file manifest does not cover every archive file."
         }
     }
     finally {

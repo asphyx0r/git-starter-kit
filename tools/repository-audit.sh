@@ -660,7 +660,7 @@ import sys
 import zipfile
 
 with zipfile.ZipFile(sys.argv[1]) as archive:
-    names = set(archive.namelist())
+    names = {name for name in archive.namelist() if not name.endswith("/")}
     source = json.load(archive.open("_agent-rules-source.json"))
     files = json.load(archive.open("_starter-kit-files.json"))
     if source["schemaVersion"] != 2:
@@ -669,8 +669,10 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         raise SystemExit("Unexpected packaged repository name.")
     if files["schemaVersion"] != 1:
         raise SystemExit("Unexpected managed-file schema.")
+    listed = set()
     for entry in files["files"]:
         path = entry["path"]
+        listed.add(path)
         if path not in names:
             raise SystemExit(f"Managed file missing from ZIP: {path}")
         digest = hashlib.sha256(archive.read(path)).hexdigest()
@@ -678,6 +680,15 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             raise SystemExit(f"Managed file digest mismatch: {path}")
         if entry["strategy"] not in {"initialize-only", "merge", "replace"}:
             raise SystemExit(f"Unexpected upgrade strategy: {path}")
+    names.remove("_starter-kit-files.json")
+    if names != listed:
+        missing = ", ".join(sorted(names - listed))
+        unexpected = ", ".join(sorted(listed - names))
+        raise SystemExit(
+            "Managed-file coverage mismatch. "
+            f"Missing: {missing or '(none)'}. "
+            f"Unexpected: {unexpected or '(none)'}."
+        )
 PY
 
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \

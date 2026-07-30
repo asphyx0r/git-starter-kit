@@ -450,9 +450,10 @@ deferred, or explicitly excluded from the template.
 - Notes: Copies tracked repository files, resolves `latest` through the GitHub
   release API by default, verifies the cloned tag, overlays tagged
   `agent-coding-rules` files, writes repository and dependency provenance plus
-  per-file SHA-256 hashes, modes, and upgrade strategies, validates package
-  file names before writing ZIP files, keeps SemVer validation aligned with CI
-  smoke cases, and verifies required files in the archive. Helper
+  per-file SHA-256 hashes, modes, and upgrade strategies for every tracked
+  file, including dotfiles, validates package file names before writing ZIP
+  files, keeps SemVer validation aligned with CI smoke cases, and verifies
+  exhaustive manifest coverage in the archive. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters.
 
 ### `tools/README.md`
