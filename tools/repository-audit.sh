@@ -731,6 +731,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "docs/repository-files.md": "initialize-only",
         "docs/repository-migration.md": "initialize-only",
         "tools/README.md": "initialize-only",
+        "tools/repository-audit.sh": "initialize-only",
     }
     for path, strategy in expected_strategies.items():
         if strategies.get(path) != strategy:

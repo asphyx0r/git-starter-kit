@@ -343,7 +343,9 @@ preserved merge-managed customizations.
 Repository-specific inventories and operator documentation use the
 `initialize-only` strategy. The updater preserves `docs/SKILLS.md`,
 `docs/release-package.md`, `docs/repository-files.md`, and `tools/README.md`
-because their contents legitimately diverge in downstream repositories.
+because their contents legitimately diverge in downstream repositories. It
+also preserves `tools/repository-audit.sh`, whose checks must remain aligned
+with the target repository's own languages, tools, and tests.
 
 The tool performs no deletion, commit, tag, push, or network operation. An
 upgrade is all-or-nothing: any conflict blocks application. If a write fails,

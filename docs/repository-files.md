@@ -486,7 +486,8 @@ deferred, or explicitly excluded from the template.
   release tag or GitHub release. GitHub Actions invokes the same script with
   mode-specific `markdown`, `spelling`, and `static` arguments.
 - Notes: Static and read-only modes validate `tools/git-init.sh` with
-  ShellCheck and Shfmt using two-space indentation.
+  ShellCheck and Shfmt using two-space indentation. Cumulative upgrades treat
+  this repository-specific audit as initialization-only.
 - Notes: Defaults to the full profile, with `full` as an explicit alias. Full
   profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
   for shell scripts and Git hooks, PowerShell parsing, cross-language SemVer

@@ -65,7 +65,9 @@ those files through its own pull-request workflow.
 Repository-specific inventories and operator documentation are
 initialization-only. Cumulative upgrades preserve `docs/SKILLS.md`,
 `docs/release-package.md`, `docs/repository-files.md`, and `tools/README.md`
-instead of attempting an unsafe generic merge.
+instead of attempting an unsafe generic merge. They also preserve
+`tools/repository-audit.sh`, whose test and tool inventory belongs to the
+target repository.
 
 ## GitHub App Authentication
 

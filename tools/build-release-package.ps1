@@ -243,7 +243,8 @@ function Get-UpgradeStrategy {
         "docs/release-package.md",
         "docs/repository-files.md",
         "docs/repository-migration.md",
-        "tools/README.md"
+        "tools/README.md",
+        "tools/repository-audit.sh"
     )
     if ($initializeOnly -contains $Path) {
         return "initialize-only"
@@ -256,8 +257,7 @@ function Get-UpgradeStrategy {
         ".gitignore",
         ".github/workflows/release-package.yml",
         ".github/workflows/repository-audit.yml",
-        "tools/build-release-package.ps1",
-        "tools/repository-audit.sh"
+        "tools/build-release-package.ps1"
     )
     if ($mergeManaged -contains $Path) {
         return "merge"

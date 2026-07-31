@@ -20,8 +20,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Delegated the six root agent-rule files and their provenance to each target
   repository's autonomous rule synchronization workflow.
-- Preserved repository-specific skill, release, file-inventory, and tool
-  documentation as initialization-only during cumulative upgrades.
+- Preserved repository-specific skill, release, file-inventory, tool
+  documentation, and audit logic as initialization-only during cumulative
+  upgrades.
 - Limited upgrade toolkit publication to `git-starter-kit`; downstream release
   workflows now publish only their enriched repository package.
 
