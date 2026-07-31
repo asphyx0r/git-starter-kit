@@ -726,8 +726,11 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     expected_strategies = {
         "AGENTS.md": "agent-rules",
         "_agent-rules-source.json": "agent-rules",
-        "docs/release-package.md": "merge",
+        "docs/SKILLS.md": "initialize-only",
+        "docs/release-package.md": "initialize-only",
+        "docs/repository-files.md": "initialize-only",
         "docs/repository-migration.md": "initialize-only",
+        "tools/README.md": "initialize-only",
     }
     for path, strategy in expected_strategies.items():
         if strategies.get(path) != strategy:
@@ -811,6 +814,7 @@ PY
 run_static() {
   require_command git
   require_command shellcheck
+  require_command shfmt
   local node_cmd
   node_cmd="$(resolve_command node node.exe)"
 
@@ -822,6 +826,7 @@ run_static() {
   shellcheck .githooks/pre-commit
   shellcheck .githooks/commit-msg
   shellcheck tools/git-init.sh
+  shfmt -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   check_release_package_portability
   run_powershell_parse
@@ -841,6 +846,7 @@ run_readonly() {
   local markdownlint_cmd
   local node_cmd
   local shellcheck_cmd
+  local shfmt_cmd
   local yamllint_cmd
   actionlint_cmd="$(resolve_command actionlint actionlint.exe)"
   codespell_cmd="$(resolve_command codespell codespell.cmd codespell.exe)"
@@ -851,6 +857,7 @@ run_readonly() {
   )"
   node_cmd="$(resolve_command node node.exe)"
   shellcheck_cmd="$(resolve_command shellcheck shellcheck.exe)"
+  shfmt_cmd="$(resolve_command shfmt shfmt.exe)"
   yamllint_cmd="$(resolve_command yamllint yamllint.exe)"
 
   "$markdownlint_cmd" "**/*.md"
@@ -865,6 +872,7 @@ run_readonly() {
   "$shellcheck_cmd" .githooks/pre-commit
   "$shellcheck_cmd" .githooks/commit-msg
   "$shellcheck_cmd" tools/git-init.sh
+  "$shfmt_cmd" -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   check_release_package_portability
   run_powershell_parse_readonly

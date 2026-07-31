@@ -62,6 +62,11 @@ The cumulative updater classifies the six rule files and
 writes them. Each target repository remains responsible for synchronizing
 those files through its own pull-request workflow.
 
+Repository-specific inventories and operator documentation are
+initialization-only. Cumulative upgrades preserve `docs/SKILLS.md`,
+`docs/release-package.md`, `docs/repository-files.md`, and `tools/README.md`
+instead of attempting an unsafe generic merge.
+
 ## GitHub App Authentication
 
 Resolving agent-rules releases across repositories uses a GitHub App installed

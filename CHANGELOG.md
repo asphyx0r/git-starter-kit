@@ -20,6 +20,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Delegated the six root agent-rule files and their provenance to each target
   repository's autonomous rule synchronization workflow.
+- Preserved repository-specific skill, release, file-inventory, and tool
+  documentation as initialization-only during cumulative upgrades.
 - Limited upgrade toolkit publication to `git-starter-kit`; downstream release
   workflows now publish only their enriched repository package.
 
@@ -27,6 +29,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Compared starter provenance semantically so agent-rule updates and
   newline-only changes cannot invalidate a proven starter baseline.
+- Normalized the Bash initialization script to the enforced Shfmt layout and
+  added that check to static and read-only repository audits.
 - Preserved unrelated untracked files while continuing to block tracked
   worktree changes, missing managed files, and merge conflicts.
 

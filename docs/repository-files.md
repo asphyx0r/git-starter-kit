@@ -474,7 +474,8 @@ deferred, or explicitly excluded from the template.
   changed. Documents execution-policy troubleshooting for downloaded
   `git-init.ps1` copies that PowerShell blocks before launch, and records the
   backup and cumulative upgrade tools' provenance, consistency, and
-  restoration limits.
+  restoration limits. Cumulative upgrades treat this repository-specific
+  operator reference as initialization-only.
 
 ### `tools/repository-audit.sh`
 
@@ -484,6 +485,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Run `bash tools/repository-audit.sh` locally before creating a
   release tag or GitHub release. GitHub Actions invokes the same script with
   mode-specific `markdown`, `spelling`, and `static` arguments.
+- Notes: Static and read-only modes validate `tools/git-init.sh` with
+  ShellCheck and Shfmt using two-space indentation.
 - Notes: Defaults to the full profile, with `full` as an explicit alias. Full
   profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
   for shell scripts and Git hooks, PowerShell parsing, cross-language SemVer
@@ -601,7 +604,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Consult to discover available skills, supported invocations,
   capabilities, dependencies, and limitations.
 - Notes: This file is documentation-only. Each skill's `SKILL.md` remains the
-  authoritative source for its behavior and instructions.
+  authoritative source for its behavior and instructions. Cumulative upgrades
+  preserve this repository-specific inventory as initialization-only.
 
 ### `docs/repository-files.md`
 
@@ -610,6 +614,7 @@ deferred, or explicitly excluded from the template.
 - Goal: Maintains the inventory of repository files and directories.
 - Usage: Update whenever repository files or directories are added or changed.
 - Notes: This file is the source of truth for repository file ownership.
+  Cumulative upgrades preserve it as initialization-only.
 
 ### `docs/release-package.md`
 
@@ -619,7 +624,9 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before publishing or manually regenerating release package
   assets.
 - Notes: Covers GitHub App authentication, prerelease promotion, the mandatory
-  automatic CI gate, generated ZIP contents, local testing, and troubleshooting.
+  automatic CI gate, generated ZIP contents, local testing, and
+  troubleshooting. Cumulative upgrades preserve this repository-specific
+  guide as initialization-only.
 
 ### `docs/repository-migration.md`
 

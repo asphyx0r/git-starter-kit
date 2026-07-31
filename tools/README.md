@@ -340,6 +340,11 @@ starter-kit commit, and an ancestor commit containing the audited baseline.
 Successful application writes the next adoption baseline, including hashes for
 preserved merge-managed customizations.
 
+Repository-specific inventories and operator documentation use the
+`initialize-only` strategy. The updater preserves `docs/SKILLS.md`,
+`docs/release-package.md`, `docs/repository-files.md`, and `tools/README.md`
+because their contents legitimately diverge in downstream repositories.
+
 The tool performs no deletion, commit, tag, push, or network operation. An
 upgrade is all-or-nothing: any conflict blocks application. If a write fails,
 files already written in that attempt are restored immediately. The external
