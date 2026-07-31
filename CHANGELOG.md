@@ -12,7 +12,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed in v2.2.1
 
-- Provisioned a pinned Shfmt release before the hosted static audit.
+- Provisioned pinned Go and Shfmt releases before the hosted static audit.
 
 ## v2.2.0 - 2026-07-31
 
