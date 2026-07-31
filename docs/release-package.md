@@ -57,6 +57,9 @@ toolkit. When the release workflow is inherited by a downstream repository,
 the repository publishes its own enriched package but skips the starter
 upgrade toolkit.
 
+For a concise usage procedure in French, see
+[Upgrade toolkit](upgrade-toolkit.md).
+
 The cumulative updater classifies the six rule files and
 `_agent-rules-source.json` as `agent-rules`. It reports those paths but never
 writes them. Each target repository remains responsible for synchronizing
