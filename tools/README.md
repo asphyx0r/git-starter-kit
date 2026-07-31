@@ -142,9 +142,9 @@ indistinguishable in the filename from a real tag with that exact name.
 
 - Builds an enriched repository ZIP package.
 - Copies tracked repository files into a temporary staging directory.
-- Overlays required coding-agent rule files from `agent-coding-rules`.
-- Writes `_agent-rules-source.json` with repository, starter-kit, and resolved
-  rule provenance.
+- Validates tracked coding-agent rule files against their source provenance.
+- Writes `_agent-rules-source.json` with repository, starter-kit, resolved
+  rule provenance, and any preserved customization records.
 - Writes `_starter-kit-files.json` with managed-file hashes, modes, and upgrade
   strategies.
 - Verifies required files before and after ZIP creation.
@@ -172,10 +172,12 @@ options:
 
 `build-release-package.ps1` creates the release asset used by the
 `Release package` GitHub Actions workflow. It packages files reported by
-`git ls-files`, then copies the required coding-agent rule files from a
-resolved `agent-coding-rules` release. The generated ZIP includes the normal
-repository content, the required rule files, `_agent-rules-source.json`, and
-the per-file `_starter-kit-files.json` upgrade manifest.
+`git ls-files`, including the required coding-agent rule files already tracked
+by the repository. It resolves an `agent-coding-rules` release only to assert
+that provenance and canonical rule hashes are current. The generated ZIP
+includes the normal repository content, the required rule files,
+`_agent-rules-source.json`, and the per-file `_starter-kit-files.json` upgrade
+manifest.
 When a downstream repository already tracks an earlier managed-file manifest,
 the builder excludes that stale copy before generating the new exhaustive
 manifest.
@@ -240,7 +242,8 @@ tar -xOf .tmp\release-package-test\test-release-package.zip `
 - `-AgentRulesRef REF`: agent-rules reference to package. Defaults to
   `latest`. Accepted values are `latest` or a SemVer tag prefixed with `v`.
 - `GITHUB_TOKEN`: optional environment variable used as a bearer token for the
-  GitHub releases API when resolving `latest`.
+  public GitHub releases API when resolving `latest`; no token is required for
+  the canonical public source.
 - `GITHUB_OUTPUT`: optional environment variable used by GitHub Actions. When
   set, the script writes `package_path`, `package_name`, `agent_rules_ref`,
   and `agent_rules_commit`.
@@ -258,13 +261,13 @@ Use this script from a clean, committed repository when preparing release
 assets. Local untracked files are intentionally excluded because package
 content comes from `git ls-files`.
 
-Use `latest` for normal release automation so the package includes the latest
-published full `agent-coding-rules` release. Use an explicit SemVer tag only
-when recreating a package from a known rules release.
+Use `latest` for normal release automation so packaging fails if tracked rules
+lag behind the latest full `agent-coding-rules` release. Use an explicit SemVer
+tag only when recreating a package from a known rules release.
 
-Treat failures as release blockers. The script verifies both the resolved
-agent-rules tag and the generated archive so that a broken package is not
-uploaded silently.
+Treat failures as release blockers. The script verifies the resolved
+agent-rules tag, tracked rule hashes, preserved customization records, and the
+generated archive so that a broken package is not uploaded silently.
 
 ## starter-kit-upgrade.py
 

@@ -222,12 +222,12 @@ deferred, or explicitly excluded from the template.
   agent-rule release without a central repository registry.
 - Usage: Runs daily or by manual dispatch and opens a repository-local pull
   request when the six rule files change.
-- Notes: Downloads the stateless synchronization tool from
-  `coding-agent-toolchain v1.6.1`, uses separate target and source GitHub App
-  tokens, and restricts changes to the six rules and their provenance file.
-  The official starter-kit source repository skips the update job because its
-  release builder injects the canonical rules. Cumulative upgrades replace
-  this universal workflow.
+- Notes: Uses the synchronization tool from the resolved
+  `agent-coding-rules` release and one target-repository GitHub App token. It
+  restricts changes to the six rules and provenance, preserves customized rule
+  files, and runs in the starter kit as well as downstream repositories. Set
+  `AGENT_RULES_SYNC_ENABLED=false` to suspend the job. Cumulative upgrades
+  replace this universal workflow.
 
 ### `.github/workflows/release-package.yml`
 
@@ -239,9 +239,9 @@ deferred, or explicitly excluded from the template.
   dispatch.
 - Notes: Uses a pinned runner and actions pinned by SHA, disables checkout
   credential persistence, uses `latest` automatically for release packages,
-  validates manual release tags and agent rules references, and generates a
-  read-only GitHub App token scoped to `agent-coding-rules` for the build step.
-  The composed ZIP must pass Markdown and Codespell before the full package and
+  and validates manual release tags and agent-rules references against tracked
+  provenance. The public source lookup requires no GitHub App token. The
+  composed ZIP must pass Markdown and Codespell before the full package and
   upgrade toolkit are uploaded with the built-in workflow token. A dependent
   job promotes automatic prereleases only after successful packaging; manual
   runs never promote releases. Package and toolkit names are derived from the
@@ -337,12 +337,12 @@ deferred, or explicitly excluded from the template.
 ### `_agent-rules-source.json`
 
 - Type: `file`
-- Status: `optional`
+- Status: `required`
 - Goal: Records repository, upstream starter-kit, and agent-rules provenance.
-- Usage: Generated inside enriched release packages and retained by projects
-  initialized from those packages.
-- Notes: The schema is backward compatible with the existing `starterKit` and
-  `agentRules` records while adding the packaged repository identity.
+- Usage: Updated by the autonomous synchronization workflow and validated by
+  release packaging.
+- Notes: Schema 3 retains repository and starter-kit provenance, records source
+  file hashes, and lists customized rule files under `preservedFiles`.
 
 ### `_starter-kit-files.json`
 
@@ -361,6 +361,41 @@ deferred, or explicitly excluded from the template.
 - Goal: Provides repository-level instructions for coding agents.
 - Usage: Read before making changes in this repository.
 - Notes: Avoid duplicating agent instructions in GitHub-specific files.
+
+### `CODING_RULES.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Provides language-agnostic code-quality rules.
+- Usage: Applied through the instruction scope defined in `AGENTS.md`.
+
+### `COMMIT_RULES.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines repository readiness and commit-message requirements.
+- Usage: Read before creating commits.
+
+### `DOCUMENTATION_RULES.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines documentation and README quality requirements.
+- Usage: Read before changing project documentation.
+
+### `LANGUAGE_RULES.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines language-, dialect-, and framework-specific coding rules.
+- Usage: Apply only the sections relevant to files being changed.
+
+### `RELEASE_RULES.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines SemVer, tag, and release-readiness requirements.
+- Usage: Read before creating Git tags or releases.
 
 ### `CHANGELOG.md`
 
@@ -464,9 +499,9 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
-- Notes: Copies tracked repository files, resolves `latest` through the GitHub
-  release API by default, verifies the cloned tag, overlays tagged
-  `agent-coding-rules` files, writes repository and dependency provenance plus
+- Notes: Copies tracked repository files, resolves `latest` through the public
+  GitHub release API by default, and verifies tracked rule hashes and
+  provenance against that release. It writes repository provenance plus
   per-file raw and canonical SHA-256 hashes, content kinds, modes, and upgrade
   strategies for every tracked file, including dotfiles, validates package
   file names before writing ZIP files, keeps SemVer validation aligned with CI
@@ -640,7 +675,7 @@ deferred, or explicitly excluded from the template.
 - Goal: Explains automatic and manual enriched release package generation.
 - Usage: Read before publishing or manually regenerating release package
   assets.
-- Notes: Covers GitHub App authentication, prerelease promotion, the mandatory
+- Notes: Covers the rule-freshness gate, prerelease promotion, the mandatory
   automatic CI gate, generated ZIP contents, local testing, and
   troubleshooting. Cumulative upgrades preserve this repository-specific
   guide as initialization-only.

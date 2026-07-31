@@ -316,15 +316,18 @@ function Resolve-StarterKitProvenance {
         (Test-Path -LiteralPath $sourceManifestPath -PathType Leaf)) {
         $sourceManifest = Get-Content -LiteralPath $sourceManifestPath -Raw |
             ConvertFrom-Json
-        if ($null -ne $sourceManifest.starterKit) {
+        $starterKitProperty = $sourceManifest.PSObject.Properties["starterKit"]
+        if ($null -ne $starterKitProperty -and
+            $null -ne $starterKitProperty.Value) {
+            $sourceStarterKit = $starterKitProperty.Value
             if ([string]::IsNullOrWhiteSpace($StarterRepository)) {
-                $StarterRepository = [string]$sourceManifest.starterKit.repository
+                $StarterRepository = [string]$sourceStarterKit.repository
             }
             if ([string]::IsNullOrWhiteSpace($StarterReference)) {
-                $StarterReference = [string]$sourceManifest.starterKit.ref
+                $StarterReference = [string]$sourceStarterKit.ref
             }
             if ([string]::IsNullOrWhiteSpace($StarterCommit)) {
-                $StarterCommit = [string]$sourceManifest.starterKit.commit
+                $StarterCommit = [string]$sourceStarterKit.commit
             }
         }
     }
@@ -399,7 +402,6 @@ $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
 $stagingRoot = Join-Path $tempRoot "package"
-$agentRulesRoot = Join-Path $tempRoot "agent-coding-rules"
 
 
 try {
@@ -436,47 +438,82 @@ try {
         -RequestedRef $AgentRulesRef `
         -Repository $AgentRulesRepository
     $resolvedAgentRulesRef = $resolvedAgentRules.Ref
-    $agentRulesCloneUrl = "https://github.com/$AgentRulesRepository.git"
+
+    $sourceProvenancePath = Join-Path $repoRoot "_agent-rules-source.json"
+    if (-not (Test-Path -LiteralPath $sourceProvenancePath -PathType Leaf)) {
+        throw "Tracked agent-rules provenance is required: _agent-rules-source.json"
+    }
+    try {
+        $sourceProvenance = Get-Content -LiteralPath $sourceProvenancePath -Raw |
+            ConvertFrom-Json
+    }
+    catch {
+        throw "Tracked agent-rules provenance is invalid JSON."
+    }
+    if ([int]$sourceProvenance.schemaVersion -lt 3 -or
+        $null -eq $sourceProvenance.agentRules) {
+        throw "Tracked agent-rules provenance must use schema version 3."
+    }
+
+    $trackedAgentRulesRef = [string]$sourceProvenance.agentRules.ref
+    if ($trackedAgentRulesRef -cne $resolvedAgentRulesRef) {
+        throw "Tracked agent rules ref $trackedAgentRulesRef does not match requested ref $resolvedAgentRulesRef."
+    }
+    $trackedAgentRulesRepository = [string]$sourceProvenance.agentRules.repository
+    $expectedAgentRulesRepository = "https://github.com/$AgentRulesRepository"
+    if ($trackedAgentRulesRepository -cne $expectedAgentRulesRepository) {
+        throw "Tracked agent rules repository does not match $expectedAgentRulesRepository."
+    }
+    $agentRulesCommit = [string]$sourceProvenance.agentRules.commit
+    if ($agentRulesCommit -notmatch "^[0-9a-f]{40}$") {
+        throw "Tracked agent-rules provenance has an invalid commit."
+    }
+    $preservedProperty = $sourceProvenance.PSObject.Properties["preservedFiles"]
+    $preservedFiles = @()
+    if ($null -ne $preservedProperty -and $null -ne $preservedProperty.Value) {
+        $preservedFiles = @($preservedProperty.Value)
+    }
 
     New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
-    Write-Output "Using agent rules ref $resolvedAgentRulesRef from $AgentRulesRepository."
-    Invoke-GitLine -Arguments @(
-        "clone",
-        "--depth", "1",
-        "--branch", $resolvedAgentRulesRef,
-        $agentRulesCloneUrl,
-        $agentRulesRoot
-    ) | Out-Null
-
-    $agentRulesCommit = ((Invoke-GitLine -Arguments @("-C", $agentRulesRoot, "rev-parse", "HEAD")) -join "").Trim()
-    $agentRulesCommitDate = ((Invoke-GitLine -Arguments @("-C", $agentRulesRoot, "log", "-1", "--format=%cI")) -join "").Trim()
-    $agentRulesTagCommit = ((Invoke-GitLine -Arguments @(
-        "-C", $agentRulesRoot, "rev-parse", "refs/tags/$resolvedAgentRulesRef^{commit}"
-    )) -join "").Trim()
-    if ($agentRulesCommit -cne $agentRulesTagCommit) {
-        throw "Cloned agent rules HEAD does not match resolved tag $resolvedAgentRulesRef."
-    }
+    Write-Output "Validating tracked agent rules ref $resolvedAgentRulesRef."
 
     Copy-TrackedRepositoryFile -SourceRoot $repoRoot -TargetRoot $stagingRoot
     $fileModes = Get-GitFileModes -Repository $repoRoot
-    $agentRuleModes = Get-GitFileModes -Repository $agentRulesRoot
 
     foreach ($ruleFile in $RequiredRuleFiles) {
-        $sourcePath = Join-Path $agentRulesRoot $ruleFile
-        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-            throw "Required rule file missing from agent rules source: $ruleFile"
+        $rulePath = Join-Path $repoRoot $ruleFile
+        if (-not (Test-Path -LiteralPath $rulePath -PathType Leaf)) {
+            throw "Tracked rule file is missing: $ruleFile"
         }
-
-        Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $stagingRoot $ruleFile) -Force
-        if ($agentRuleModes.ContainsKey($ruleFile)) {
-            $fileModes[$ruleFile] = $agentRuleModes[$ruleFile]
+        $ruleItem = Get-Item -LiteralPath $rulePath -Force
+        if (($ruleItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Tracked rule file must not be a symbolic link: $ruleFile"
+        }
+        $hashProperty = $sourceProvenance.agentRules.fileHashes.PSObject.Properties[$ruleFile]
+        if ($null -eq $hashProperty -or
+            [string]::IsNullOrWhiteSpace([string]$hashProperty.Value)) {
+            throw "Tracked provenance has no canonical hash for $ruleFile."
+        }
+        $actualHash = (Get-ContentMetadata -Path $rulePath).canonicalSha256
+        $expectedHash = [string]$hashProperty.Value
+        if ($actualHash -cne $expectedHash) {
+            $preservedMatch = @(
+                $preservedFiles |
+                    Where-Object {
+                        [string]$_.path -ceq $ruleFile -and
+                        [string]$_.canonicalSha256 -ceq $actualHash
+                    }
+            )
+            if ($preservedMatch.Count -ne 1) {
+                throw "Tracked rule $ruleFile differs from source without a matching preservedFiles record."
+            }
         }
     }
 
     $manifest = [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         generatedAt   = (Get-Date).ToUniversalTime().ToString("o")
         repository  = [ordered]@{
             name       = $repositoryName
@@ -490,19 +527,22 @@ try {
             commit     = $starterKit.Commit
         }
         agentRules = [ordered]@{
-            repository   = "https://github.com/$AgentRulesRepository"
+            repository   = $trackedAgentRulesRepository
             requestedRef = $resolvedAgentRules.RequestedRef
             ref          = $resolvedAgentRulesRef
             commit       = $agentRulesCommit
-            commitDate   = $agentRulesCommitDate
             releaseUrl   = $resolvedAgentRules.ReleaseUrl
             releaseDate  = $resolvedAgentRules.ReleaseDate
             files        = $RequiredRuleFiles
+            fileHashes   = $sourceProvenance.agentRules.fileHashes
         }
+    }
+    if ($preservedFiles.Count -gt 0) {
+        $manifest["preservedFiles"] = $preservedFiles
     }
 
     $manifestPath = Join-Path $stagingRoot "_agent-rules-source.json"
-    Write-Utf8NoBomFile -Path $manifestPath -Content ($manifest | ConvertTo-Json -Depth 6)
+    Write-Utf8NoBomFile -Path $manifestPath -Content ($manifest | ConvertTo-Json -Depth 8)
     $fileModes["_agent-rules-source.json"] = "100644"
 
     $fileManifestPath = Join-Path $stagingRoot "_starter-kit-files.json"

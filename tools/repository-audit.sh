@@ -690,7 +690,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     names = {name for name in archive.namelist() if not name.endswith("/")}
     source = json.load(archive.open("_agent-rules-source.json"))
     files = json.load(archive.open("_starter-kit-files.json"))
-    if source["schemaVersion"] != 2:
+    if source["schemaVersion"] != 3:
         raise SystemExit("Unexpected release provenance schema.")
     if source["repository"]["name"] != "git-starter-kit":
         raise SystemExit("Unexpected packaged repository name.")
@@ -726,6 +726,11 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     expected_strategies = {
         ".github/workflows/agent-rules-update.yml": "replace",
         "AGENTS.md": "agent-rules",
+        "CODING_RULES.md": "agent-rules",
+        "COMMIT_RULES.md": "agent-rules",
+        "DOCUMENTATION_RULES.md": "agent-rules",
+        "LANGUAGE_RULES.md": "agent-rules",
+        "RELEASE_RULES.md": "agent-rules",
         "_agent-rules-source.json": "agent-rules",
         "docs/SKILLS.md": "initialize-only",
         "docs/release-package.md": "initialize-only",
@@ -748,6 +753,15 @@ PY
   cp \
     "$repository_root/.github/workflows/agent-rules-update.yml" \
     "$downstream_root/.github/workflows/agent-rules-update.yml"
+  cp \
+    "$repository_root/AGENTS.md" \
+    "$repository_root/CODING_RULES.md" \
+    "$repository_root/COMMIT_RULES.md" \
+    "$repository_root/DOCUMENTATION_RULES.md" \
+    "$repository_root/LANGUAGE_RULES.md" \
+    "$repository_root/RELEASE_RULES.md" \
+    "$repository_root/_agent-rules-source.json" \
+    "$downstream_root/"
   printf '# Downstream repository\n' >"$downstream_root/README.md"
   "$python_cmd" - "$downstream_root" "$starter_commit" <<'PY'
 import json
@@ -756,18 +770,15 @@ import sys
 
 root = pathlib.Path(sys.argv[1])
 starter_commit = sys.argv[2]
+provenance_path = root / "_agent-rules-source.json"
+provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+provenance["starterKit"] = {
+    "repository": "https://github.com/asphyx0r/git-starter-kit",
+    "ref": "v0.0.0",
+    "commit": starter_commit,
+}
 (root / "_agent-rules-source.json").write_text(
-    json.dumps(
-        {
-            "starterKit": {
-                "repository": "https://github.com/asphyx0r/git-starter-kit",
-                "ref": "v0.0.0",
-                "commit": starter_commit,
-            }
-        },
-        indent=2,
-    )
-    + "\n",
+    json.dumps(provenance, indent=2) + "\n",
     encoding="utf-8",
 )
 (root / "_starter-kit-files.json").write_text(

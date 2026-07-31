@@ -20,9 +20,9 @@ Those archives contain only the files that are committed in `git-starter-kit`
 at the release tag.
 
 The release package workflow adds two downloadable files to a
-`git-starter-kit` release. The enriched ZIP overlays a resolved
-`agent-coding-rules` release on top of the starter kit files, and the upgrade
-toolkit packages the guarded cumulative updater.
+`git-starter-kit` release. The enriched ZIP contains the canonical rule files
+already tracked at the release tag, and the upgrade toolkit packages the
+guarded cumulative updater.
 
 ## Generated File
 
@@ -73,18 +73,15 @@ When an initialization-only file changed upstream, the plan reports
 `review-initialize-only`. The signal does not block or write the target; it
 identifies repository-owned content that maintainers should review separately.
 
-## GitHub App Authentication
+## Rule Freshness Gate
 
-Resolving agent-rules releases across repositories uses a GitHub App installed
-on `agent-coding-rules` with read-only **Contents** permission. Configure these
-Actions values in `git-starter-kit`:
+The package builder resolves the requested public `agent-coding-rules` release
+and compares it with the tracked `_agent-rules-source.json`. It then verifies
+the canonical hash of every tracked rule. A customized file is accepted only
+when provenance schema 3 contains its matching `preservedFiles` record.
 
-- Repository variable `AGENT_RULES_APP_CLIENT_ID`
-- Repository secret `AGENT_RULES_APP_PRIVATE_KEY`
-
-The workflow generates a short-lived installation token and passes it only to
-the package build step. The built-in workflow token remains responsible for
-uploading the generated asset to the `git-starter-kit` release.
+No source-repository GitHub App token is required. The built-in workflow token
+is used only to upload assets to the current repository release.
 
 ## Automatic Release Mode
 
@@ -109,10 +106,10 @@ The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag.
 2. Resolves `latest` to the latest published full `agent-coding-rules` release.
-3. Verifies that the cloned agent rules checkout matches the resolved tag.
+3. Verifies that tracked provenance and rule hashes match the resolved tag.
 4. Copies the tracked starter-kit files into a temporary package folder.
-5. Copies the six agent rule files into that package folder.
-6. Writes the provenance and managed-file manifests.
+5. Retains the six tracked rule files in that package folder.
+6. Writes validated provenance and the managed-file manifest.
 7. Creates the ZIP file.
 8. Verifies that the required files and managed-file hashes are present.
 9. Extracts the composed package and runs its Markdown and Codespell audits.
@@ -201,8 +198,9 @@ tar -xOf .tmp\release-package-test\test-release-package.zip _starter-kit-files.j
 ```
 
 The local test creates a ZIP only. It does not upload anything to GitHub.
-`AgentRulesRef` defaults to `latest`; pass a SemVer tag only when you need a
-known agent-rules release.
+`AgentRulesRef` defaults to `latest`; pass a SemVer tag only when you need to
+assert a known agent-rules release. The argument validates tracked content; it
+does not overlay files from the source repository.
 
 The script copies files reported by `git ls-files`. Local untracked files are
 not included in the package. This is intentional, because release packages

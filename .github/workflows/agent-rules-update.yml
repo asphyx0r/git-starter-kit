@@ -16,12 +16,10 @@ concurrency:
 env:
   RULES_REPOSITORY: asphyx0r/agent-coding-rules
   SYNC_BRANCH: automation/agent-rules-update
-  TOOLCHAIN_REPOSITORY: asphyx0r/coding-agent-toolchain
-  TOOLCHAIN_REF: v1.6.1
 
 jobs:
   update:
-    if: github.repository != 'asphyx0r/git-starter-kit'
+    if: vars.AGENT_RULES_SYNC_ENABLED != 'false'
     name: Prepare agent rules pull request
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -36,29 +34,15 @@ jobs:
         uses: >-
           actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
-          client-id: ${{ vars.RULE_SYNC_APP_CLIENT_ID }}
-          private-key: ${{ secrets.RULE_SYNC_APP_PRIVATE_KEY }}
+          client-id: ${{ vars.AGENT_RULES_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
             ${{ github.event.repository.name }}
           permission-contents: write
           permission-pull-requests: write
 
-      - name: Generate source repository token
-        id: source-token
-        # actions/create-github-app-token@v3
-        uses: >-
-          actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
-        with:
-          client-id: ${{ vars.RULE_SYNC_APP_CLIENT_ID }}
-          private-key: ${{ secrets.RULE_SYNC_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            agent-coding-rules
-            coding-agent-toolchain
-          permission-contents: read
-
-      - name: Check out repository
+      - name: Check out target repository
         # actions/checkout@v4
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -71,37 +55,37 @@ jobs:
         id: rules
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.source-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           latest_ref="$(
             gh api "repos/${RULES_REPOSITORY}/releases/latest" --jq '.tag_name'
           )"
-          if [[ ! "${latest_ref}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
+          pattern='^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$'
+          if [[ ! "${latest_ref}" =~ ${pattern} ]]; then
             printf 'Invalid agent rules release tag: %s\n' "${latest_ref}" >&2
             exit 1
           fi
           printf 'ref=%s\n' "${latest_ref}" >>"${GITHUB_OUTPUT}"
 
-      - name: Check out synchronization tool
-        # actions/checkout@v4
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          repository: ${{ env.TOOLCHAIN_REPOSITORY }}
-          ref: ${{ env.TOOLCHAIN_REF }}
-          path: coding-agent-toolchain
-          persist-credentials: false
-          token: ${{ steps.source-token.outputs.token }}
-
-      - name: Check out agent rules release
-        # actions/checkout@v4
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          repository: ${{ env.RULES_REPOSITORY }}
-          ref: ${{ steps.rules.outputs.ref }}
-          path: agent-rules-source
-          persist-credentials: false
-          token: ${{ steps.source-token.outputs.token }}
+      - name: Check out canonical source and synchronization tool
+        shell: bash
+        env:
+          RULES_REF: ${{ steps.rules.outputs.ref }}
+        run: |
+          set -euo pipefail
+          source_root='../agent-rules-source'
+          git init "${source_root}"
+          git -C "${source_root}" remote add origin \
+            "https://github.com/${RULES_REPOSITORY}.git"
+          git -C "${source_root}" fetch --depth=1 origin \
+            "refs/tags/${RULES_REF}:refs/tags/${RULES_REF}"
+          git -C "${source_root}" checkout --detach \
+            "refs/tags/${RULES_REF}^{}"
+          actual_ref="$(
+            git -C "${source_root}" describe --tags --exact-match HEAD
+          )"
+          test "${actual_ref}" = "${RULES_REF}"
 
       - name: Prepare synchronization branch
         shell: bash
@@ -111,11 +95,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python ../coding-agent-toolchain/tools/agent-rules-sync.py plan \
+          sync_tool='../agent-rules-source/tools/agent-rules-sync.py'
+          python "${sync_tool}" plan \
             --source ../agent-rules-source \
             --target . \
             >"${RUNNER_TEMP}/agent-rules-plan.json"
-          python ../coding-agent-toolchain/tools/agent-rules-sync.py apply \
+          python "${sync_tool}" apply \
             --source ../agent-rules-source \
             --target . \
             --backup-directory "${RUNNER_TEMP}/agent-rules-backup"
@@ -124,7 +109,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python ../coding-agent-toolchain/tools/agent-rules-sync.py check \
+          python ../agent-rules-source/tools/agent-rules-sync.py check \
             --source ../agent-rules-source \
             --target .
 
@@ -186,7 +171,7 @@ jobs:
           git push --force-with-lease origin \
             "HEAD:refs/heads/${SYNC_BRANCH}"
 
-      - name: Open pull request
+      - name: Open or update pull request
         if: steps.changes.outputs.changed == 'true'
         shell: bash
         env:
@@ -194,17 +179,35 @@ jobs:
           RULES_REF: ${{ steps.rules.outputs.ref }}
         run: |
           set -euo pipefail
-          if gh pr view "${SYNC_BRANCH}" --json url >/dev/null 2>&1; then
-            exit 0
-          fi
-          body="$(
-            printf '%s\n\n%s\n\n%s\n' \
-              "Synchronizes the six canonical agent rule files." \
-              "Source release: \`${RULES_REF}\`" \
-              "The repository validation workflow must pass before merge."
+          preserved="$(
+            jq -r '
+              [
+                .actions[]
+                | select(
+                    .action == "preserved"
+                    or .action == "preserve-customized"
+                  )
+                | "- `\(.path)`"
+              ]
+              | if length == 0 then "None." else join("\n") end
+            ' "${RUNNER_TEMP}/agent-rules-plan.json"
           )"
-          gh pr create \
-            --base "${{ github.event.repository.default_branch }}" \
-            --head "${SYNC_BRANCH}" \
-            --title "chore(rules): sync agent rules to ${RULES_REF}" \
-            --body "${body}"
+          body="$(
+            printf '%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n' \
+              "Synchronizes rules from the canonical source." \
+              "Source release: \`${RULES_REF}\`" \
+              "Customized files preserved:" \
+              "${preserved}" \
+              "The repository validation workflow must pass before merge." \
+              "Automatic merge is intentionally disabled."
+          )"
+          title="chore(rules): sync agent rules to ${RULES_REF}"
+          if gh pr view "${SYNC_BRANCH}" --json url >/dev/null 2>&1; then
+            gh pr edit "${SYNC_BRANCH}" --title "${title}" --body "${body}"
+          else
+            gh pr create \
+              --base "${{ github.event.repository.default_branch }}" \
+              --head "${SYNC_BRANCH}" \
+              --title "${title}" \
+              --body "${body}"
+          fi

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 3,
+  "agentRules": {
+    "repository": "https://github.com/asphyx0r/agent-coding-rules",
+    "requestedRef": "v1.41.1",
+    "ref": "v1.41.1",
+    "commit": "88731bf279cc77fb8aaf2499901b38ecf6c3a159",
+    "files": [
+      "AGENTS.md",
+      "CODING_RULES.md",
+      "COMMIT_RULES.md",
+      "DOCUMENTATION_RULES.md",
+      "LANGUAGE_RULES.md",
+      "RELEASE_RULES.md"
+    ],
+    "fileHashes": {
+      "AGENTS.md": "6bade8daa4a712c17eae637cdc761a0edd235f32dd3b8cdfb7f1a867c4c2b711",
+      "CODING_RULES.md": "c550d0a6c60c64b1ed1bb7ce0e0f305225648d261dbbf855a83952d70b84a241",
+      "COMMIT_RULES.md": "9c0b84eaa56c6c46d32db444129c42a1d6c90e35f6bec0e3521a50ef6889df52",
+      "DOCUMENTATION_RULES.md": "a1bd7eb55d64c102285b4bf50207094de2781eca0383624f98c2d9bf64e6425f",
+      "LANGUAGE_RULES.md": "8493bf17910c22ed9a4d7ede25e7f528de1f89efca0c6de8837655854b2744ed",
+      "RELEASE_RULES.md": "8b76e33f4597e0b963e0151fb37c1b171578fc61d49d680d37281c50bc6ce16f"
+    }
+  }
+}

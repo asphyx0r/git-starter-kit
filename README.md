@@ -119,10 +119,11 @@ the copy when a consistent point-in-time backup is required. See
 [Tools](tools/README.md) for archive contents, provenance rules, limitations,
 and restoration caveats.
 
-Published releases can attach a generated ZIP package that overlays a resolved
-`agent-coding-rules` release and records the requested and resolved source in
-`_agent-rules-source.json`. See [Release Package](docs/release-package.md) for
-automatic and manual usage.
+Published releases can attach a generated ZIP package containing the tracked
+rule files and their `_agent-rules-source.json` provenance. The package build
+asserts that the recorded source matches the requested `agent-coding-rules`
+release. See [Release Package](docs/release-package.md) for automatic and
+manual usage.
 
 Automatic release packages use the latest published full `agent-coding-rules`
 release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
@@ -131,13 +132,15 @@ and the resolved SemVer tag.
 
 Each initialized repository owns its agent-rule synchronization. The
 `Agent rules update` workflow resolves the latest `agent-coding-rules` release,
-downloads the synchronization tool from `coding-agent-toolchain v1.6.1`, and
-opens a pull request only in the repository that executed the workflow.
-Configure `RULE_SYNC_APP_CLIENT_ID` as a repository variable and
-`RULE_SYNC_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App on
-the target repository and on the two read-only source repositories. The
-official `git-starter-kit` source repository skips this workflow because its
-release builder injects the canonical rules directly into generated packages.
+uses the synchronization tool owned by that same release, and opens or updates
+a pull request only in the repository that executed the workflow. Configure
+`AGENT_RULES_APP_CLIENT_ID` as a repository variable and
+`AGENT_RULES_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App
+on the target repository with **Contents** and **Pull requests** write access.
+Set `AGENT_RULES_SYNC_ENABLED=false` as a repository Actions variable to
+suspend synchronization and intentionally break the automatic dependency.
+The workflow also runs in `git-starter-kit`, so its tracked rule files remain
+current instead of being injected only during package generation.
 
 Initialize a target repository with an explicit confirmation prompt:
 
