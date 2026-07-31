@@ -724,6 +724,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             f"Unexpected: {unexpected or '(none)'}."
         )
     expected_strategies = {
+        ".github/workflows/agent-rules-update.yml": "replace",
         "AGENTS.md": "agent-rules",
         "_agent-rules-source.json": "agent-rules",
         "docs/SKILLS.md": "initialize-only",
@@ -743,6 +744,10 @@ PY
   local starter_commit
   starter_commit="$(git rev-parse HEAD)"
   mkdir -p "$downstream_root"
+  mkdir -p "$downstream_root/.github/workflows"
+  cp \
+    "$repository_root/.github/workflows/agent-rules-update.yml" \
+    "$downstream_root/.github/workflows/agent-rules-update.yml"
   printf '# Downstream repository\n' >"$downstream_root/README.md"
   "$python_cmd" - "$downstream_root" "$starter_commit" <<'PY'
 import json

@@ -214,6 +214,21 @@ deferred, or explicitly excluded from the template.
   persistence, and without forwarding the workflow token to checked-out audit
   code.
 
+### `.github/workflows/agent-rules-update.yml`
+
+- Type: `file`
+- Status: `required`
+- Goal: Keeps each initialized repository aligned with the latest canonical
+  agent-rule release without a central repository registry.
+- Usage: Runs daily or by manual dispatch and opens a repository-local pull
+  request when the six rule files change.
+- Notes: Downloads the stateless synchronization tool from
+  `coding-agent-toolchain v1.6.0`, uses separate target and source GitHub App
+  tokens, and restricts changes to the six rules and their provenance file.
+  The official starter-kit source repository skips the update job because its
+  release builder injects the canonical rules. Cumulative upgrades replace
+  this universal workflow.
+
 ### `.github/workflows/release-package.yml`
 
 - Type: `file`

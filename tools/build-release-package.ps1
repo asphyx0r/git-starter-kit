@@ -546,6 +546,7 @@ try {
         -Content ($fileManifest | ConvertTo-Json -Depth 8)
 
     $requiredFiles = $RequiredRuleFiles + @(
+        ".github/workflows/agent-rules-update.yml",
         "_agent-rules-source.json",
         "_starter-kit-files.json"
     )

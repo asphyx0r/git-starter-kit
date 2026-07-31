@@ -22,6 +22,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - GitHub community files for pull requests, issues, conduct, and support.
 - GitHub Actions workflow for lightweight Markdown, spelling, commit message,
   script, and configuration audits.
+- Per-repository scheduled workflow that proposes canonical agent-rule updates
+  through a repository-local pull request.
 - Shared local and CI repository audit script for release readiness checks.
 - CI-gated release package automation for exports enriched with coding-agent
   rules.
@@ -126,6 +128,16 @@ Automatic release packages use the latest published full `agent-coding-rules`
 release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
 is used, the generated manifest records both the requested `latest` reference
 and the resolved SemVer tag.
+
+Each initialized repository owns its agent-rule synchronization. The
+`Agent rules update` workflow resolves the latest `agent-coding-rules` release,
+downloads the synchronization tool from `coding-agent-toolchain v1.6.0`, and
+opens a pull request only in the repository that executed the workflow.
+Configure `RULE_SYNC_APP_CLIENT_ID` as a repository variable and
+`RULE_SYNC_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App on
+the target repository and on the two read-only source repositories. The
+official `git-starter-kit` source repository skips this workflow because its
+release builder injects the canonical rules directly into generated packages.
 
 Initialize a target repository with an explicit confirmation prompt:
 

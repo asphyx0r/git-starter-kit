@@ -15,6 +15,8 @@ uses [Semantic Versioning](https://semver.org/).
 - Added canonical text digests and content kinds to managed-file manifests.
 - Added three-way merge payloads and durable adoption state for customized
   merge-managed files.
+- Added a universal per-repository workflow for autonomous agent-rule update
+  pull requests without a central consumer registry.
 
 ### Changed in v2.1.5
 
