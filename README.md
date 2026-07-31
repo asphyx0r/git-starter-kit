@@ -131,7 +131,7 @@ and the resolved SemVer tag.
 
 Each initialized repository owns its agent-rule synchronization. The
 `Agent rules update` workflow resolves the latest `agent-coding-rules` release,
-downloads the synchronization tool from `coding-agent-toolchain v1.6.0`, and
+downloads the synchronization tool from `coding-agent-toolchain v1.6.1`, and
 opens a pull request only in the repository that executed the workflow.
 Configure `RULE_SYNC_APP_CLIENT_ID` as a repository variable and
 `RULE_SYNC_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App on

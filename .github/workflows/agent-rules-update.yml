@@ -17,7 +17,7 @@ env:
   RULES_REPOSITORY: asphyx0r/agent-coding-rules
   SYNC_BRANCH: automation/agent-rules-update
   TOOLCHAIN_REPOSITORY: asphyx0r/coding-agent-toolchain
-  TOOLCHAIN_REF: v1.6.0
+  TOOLCHAIN_REF: v1.6.1
 
 jobs:
   update:

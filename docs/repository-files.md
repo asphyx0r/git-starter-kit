@@ -223,7 +223,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Runs daily or by manual dispatch and opens a repository-local pull
   request when the six rule files change.
 - Notes: Downloads the stateless synchronization tool from
-  `coding-agent-toolchain v1.6.0`, uses separate target and source GitHub App
+  `coding-agent-toolchain v1.6.1`, uses separate target and source GitHub App
   tokens, and restricts changes to the six rules and their provenance file.
   The official starter-kit source repository skips the update job because its
   release builder injects the canonical rules. Cumulative upgrades replace
