@@ -8,6 +8,25 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.3.0 - 2026-07-31
+
+### Added in v2.3.0
+
+- Added the six canonical rule files and schema 3 source provenance as tracked
+  starter-kit content.
+
+### Changed in v2.3.0
+
+- Updated the autonomous workflow to use the synchronization engine owned by
+  `agent-coding-rules` and to preserve repository-specific rule files.
+- Changed release packages to validate and include tracked rule files instead
+  of overlaying a second source checkout during the build.
+
+### Removed in v2.3.0
+
+- Removed `coding-agent-toolchain` from the rule synchronization path.
+- Removed source-repository GitHub App authentication from package builds.
+
 ## v2.2.1 - 2026-07-31
 
 ### Fixed in v2.2.1
