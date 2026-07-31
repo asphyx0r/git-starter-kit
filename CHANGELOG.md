@@ -8,9 +8,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-## v2.1.5 - 2026-07-31
+## v2.2.0 - 2026-07-31
 
-### Added in v2.1.5
+### Added in v2.2.0
 
 - Added canonical text digests and content kinds to managed-file manifests.
 - Added three-way merge payloads and durable adoption state for customized
@@ -18,7 +18,7 @@ uses [Semantic Versioning](https://semver.org/).
 - Added a universal per-repository workflow for autonomous agent-rule update
   pull requests without a central consumer registry.
 
-### Changed in v2.1.5
+### Changed in v2.2.0
 
 - Delegated the six root agent-rule files and their provenance to each target
   repository's autonomous rule synchronization workflow.
@@ -30,7 +30,7 @@ uses [Semantic Versioning](https://semver.org/).
 - Limited upgrade toolkit publication to `git-starter-kit`; downstream release
   workflows now publish only their enriched repository package.
 
-### Fixed in v2.1.5
+### Fixed in v2.2.0
 
 - Compared starter provenance semantically so agent-rule updates and
   newline-only changes cannot invalidate a proven starter baseline.
