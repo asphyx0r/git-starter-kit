@@ -183,8 +183,53 @@ function Get-Sha256 {
     return (($digest | ForEach-Object { $_.ToString("x2") }) -join "")
 }
 
+function Get-Sha256Bytes {
+    param([Parameter(Mandatory = $true)][byte[]]$Content)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash($Content)
+    }
+    finally {
+        $sha256.Dispose()
+    }
+
+    return (($digest | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+function Get-ContentMetadata {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $content = [System.IO.File]::ReadAllBytes($Path)
+    $encoding = New-Object System.Text.UTF8Encoding($false, $true)
+    try {
+        $text = $encoding.GetString($content)
+        $canonicalText = $text -replace "`r`n?", "`n"
+        if ($canonicalText.Length -gt 0) {
+            $canonicalText = $canonicalText.TrimEnd([char]"`n") + "`n"
+        }
+        $canonicalEncoding = New-Object System.Text.UTF8Encoding($false)
+        $canonicalContent = $canonicalEncoding.GetBytes($canonicalText)
+        return [ordered]@{
+            contentKind     = "text"
+            canonicalSha256 = Get-Sha256Bytes -Content $canonicalContent
+        }
+    }
+    catch [System.Text.DecoderFallbackException] {
+        return [ordered]@{
+            contentKind     = "binary"
+            canonicalSha256 = Get-Sha256Bytes -Content $content
+        }
+    }
+}
+
 function Get-UpgradeStrategy {
     param([Parameter(Mandatory = $true)][string]$Path)
+
+    $agentRules = $RequiredRuleFiles + @("_agent-rules-source.json")
+    if ($agentRules -contains $Path) {
+        return "agent-rules"
+    }
 
     $initializeOnly = @(
         "CHANGELOG.md",
@@ -471,18 +516,21 @@ try {
                 if ($fileModes.ContainsKey($relativePath)) {
                     $mode = $fileModes[$relativePath]
                 }
+                $contentMetadata = Get-ContentMetadata -Path $_.FullName
 
                 [ordered]@{
-                    path     = $relativePath
-                    sha256   = Get-Sha256 -Path $_.FullName
-                    mode     = $mode
-                    strategy = Get-UpgradeStrategy -Path $relativePath
+                    path            = $relativePath
+                    sha256          = Get-Sha256 -Path $_.FullName
+                    canonicalSha256 = $contentMetadata.canonicalSha256
+                    contentKind     = $contentMetadata.contentKind
+                    mode            = $mode
+                    strategy        = Get-UpgradeStrategy -Path $relativePath
                 }
             } |
             Sort-Object -Property path
     )
     $fileManifest = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         generatedAt   = $manifest.generatedAt
         repository    = $manifest.repository
         starterKit    = $manifest.starterKit

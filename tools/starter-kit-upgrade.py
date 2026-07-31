@@ -15,13 +15,14 @@ import tempfile
 from typing import Any
 import zipfile
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 MAX_ARCHIVE_SIZE = 256 * 1024 * 1024
 PROVENANCE_PATH = "_agent-rules-source.json"
 FILES_MANIFEST_PATH = "_starter-kit-files.json"
 ADOPTION_PATH = ".starter-kit-adoption.json"
 UPGRADE_MANIFEST_PATH = "upgrade-manifest.json"
 PAYLOAD_PREFIX = "payload/"
+BASE_PAYLOAD_PREFIX = "base/"
 
 
 class UpgradeError(RuntimeError):
@@ -38,6 +39,29 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def canonicalize_text(content: bytes) -> bytes:
+    """Return UTF-8 text with LF endings and exactly one final newline."""
+    text = content.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return (text.rstrip("\n") + "\n").encode("utf-8") if text else b""
+
+
+def content_metadata(content: bytes) -> tuple[str, str]:
+    """Classify content and return its canonical SHA-256 digest."""
+    try:
+        canonical = canonicalize_text(content)
+    except UnicodeDecodeError:
+        return "binary", sha256_bytes(content)
+    return "text", sha256_bytes(canonical)
+
+
+def canonical_sha256(content: bytes, content_kind: str) -> str:
+    if content_kind == "binary":
+        return sha256_bytes(content)
+    if content_kind == "text":
+        return sha256_bytes(canonicalize_text(content))
+    raise UpgradeError(f"Unsupported content kind: {content_kind}")
 
 
 def validate_relative_path(value: str) -> str:
@@ -99,17 +123,18 @@ def require_package_provenance(
 
 def validate_new_package(
     files: dict[str, bytes],
-) -> tuple[dict[str, Any], list[dict[str, str]]]:
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     provenance = require_package_provenance(files, "new package")
     if FILES_MANIFEST_PATH not in files:
         raise UpgradeError(f"New package is missing {FILES_MANIFEST_PATH}.")
     manifest = load_json_bytes(
         files[FILES_MANIFEST_PATH], f"new package/{FILES_MANIFEST_PATH}"
     )
-    if manifest.get("schemaVersion") != 1 or not isinstance(manifest.get("files"), list):
+    schema_version = manifest.get("schemaVersion")
+    if schema_version not in {1, 2} or not isinstance(manifest.get("files"), list):
         raise UpgradeError("Unsupported managed-file manifest schema.")
 
-    managed: list[dict[str, str]] = []
+    managed: list[dict[str, Any]] = []
     seen: set[str] = set()
     for raw_entry in manifest["files"]:
         if not isinstance(raw_entry, dict):
@@ -122,13 +147,26 @@ def validate_new_package(
         if digest != sha256_bytes(files[path]):
             raise UpgradeError(f"Managed-file digest mismatch: {path}")
         strategy = str(raw_entry.get("strategy", ""))
-        if strategy not in {"initialize-only", "merge", "replace"}:
+        if strategy not in {"agent-rules", "initialize-only", "merge", "replace"}:
             raise UpgradeError(f"Invalid upgrade strategy for {path}: {strategy}")
         mode = str(raw_entry.get("mode", "100644"))
         if mode not in {"100644", "100755"}:
             raise UpgradeError(f"Unsupported Git mode for {path}: {mode}")
+        content_kind, canonical_digest = content_metadata(files[path])
+        if schema_version == 2:
+            if raw_entry.get("contentKind") != content_kind:
+                raise UpgradeError(f"Managed-file content kind mismatch: {path}")
+            if raw_entry.get("canonicalSha256") != canonical_digest:
+                raise UpgradeError(f"Managed-file canonical digest mismatch: {path}")
         managed.append(
-            {"path": path, "sha256": digest, "strategy": strategy, "mode": mode}
+            {
+                "path": path,
+                "sha256": digest,
+                "canonicalSha256": canonical_digest,
+                "contentKind": content_kind,
+                "strategy": strategy,
+                "mode": mode,
+            }
         )
     return provenance, managed
 
@@ -158,6 +196,10 @@ def build_upgrade(args: argparse.Namespace) -> int:
         {
             "path": FILES_MANIFEST_PATH,
             "sha256": sha256_bytes(new_files[FILES_MANIFEST_PATH]),
+            "canonicalSha256": content_metadata(
+                new_files[FILES_MANIFEST_PATH]
+            )[1],
+            "contentKind": content_metadata(new_files[FILES_MANIFEST_PATH])[0],
             "strategy": "replace",
             "mode": "100644",
         }
@@ -166,16 +208,30 @@ def build_upgrade(args: argparse.Namespace) -> int:
         path = entry["path"]
         payload_path = PAYLOAD_PREFIX + path
         payload[payload_path] = new_files[path]
+        base_content = base_files.get(path)
+        base_payload_path = None
+        if entry["strategy"] == "merge" and base_content is not None:
+            base_payload_path = BASE_PAYLOAD_PREFIX + path
+            payload[base_payload_path] = base_content
+        base_canonical_digest = (
+            canonical_sha256(base_content, entry["contentKind"])
+            if base_content is not None
+            else None
+        )
         entries.append(
             {
                 "path": path,
                 "strategy": entry["strategy"],
                 "mode": entry["mode"],
+                "contentKind": entry["contentKind"],
                 "baseSha256": (
-                    sha256_bytes(base_files[path]) if path in base_files else None
+                    sha256_bytes(base_content) if base_content is not None else None
                 ),
+                "baseCanonicalSha256": base_canonical_digest,
                 "newSha256": entry["sha256"],
+                "newCanonicalSha256": entry["canonicalSha256"],
                 "payload": payload_path,
+                "basePayload": base_payload_path,
             }
         )
 
@@ -185,7 +241,7 @@ def build_upgrade(args: argparse.Namespace) -> int:
         if path not in managed_paths and path != FILES_MANIFEST_PATH
     )
     manifest = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "base": {
             "archiveSha256": sha256_file(base_path),
             "provenanceSha256": sha256_bytes(base_files[PROVENANCE_PATH]),
@@ -314,7 +370,8 @@ def load_upgrade(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
     if UPGRADE_MANIFEST_PATH not in files:
         raise UpgradeError(f"Upgrade package is missing {UPGRADE_MANIFEST_PATH}.")
     manifest = load_json_bytes(files[UPGRADE_MANIFEST_PATH], UPGRADE_MANIFEST_PATH)
-    if manifest.get("schemaVersion") != 1 or not isinstance(
+    schema_version = manifest.get("schemaVersion")
+    if schema_version not in {1, 2} or not isinstance(
         manifest.get("entries"), list
     ):
         raise UpgradeError("Unsupported upgrade package schema.")
@@ -328,6 +385,22 @@ def load_upgrade(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
             raise UpgradeError(f"Missing upgrade payload for {path}.")
         if sha256_bytes(files[payload_path]) != entry.get("newSha256"):
             raise UpgradeError(f"Upgrade payload digest mismatch: {path}")
+        if schema_version == 2:
+            content_kind = str(entry.get("contentKind", ""))
+            if canonical_sha256(files[payload_path], content_kind) != entry.get(
+                "newCanonicalSha256"
+            ):
+                raise UpgradeError(f"Upgrade canonical digest mismatch: {path}")
+            base_payload = entry.get("basePayload")
+            if base_payload is not None:
+                base_payload = validate_relative_path(str(base_payload))
+                if (
+                    not base_payload.startswith(BASE_PAYLOAD_PREFIX)
+                    or base_payload not in files
+                ):
+                    raise UpgradeError(f"Missing base payload for {path}.")
+                if sha256_bytes(files[base_payload]) != entry.get("baseSha256"):
+                    raise UpgradeError(f"Base payload digest mismatch: {path}")
     return manifest, files
 
 
@@ -354,25 +427,64 @@ def run_git(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
 
 def validate_adoption(
     root: Path, manifest: dict[str, Any], adoption_path: Path
-) -> bool:
+) -> dict[str, Any] | None:
     if not adoption_path.is_file():
-        return False
+        return None
     adoption = load_json_bytes(adoption_path.read_bytes(), str(adoption_path))
-    if adoption.get("schemaVersion") != 1:
-        return False
+    if adoption.get("schemaVersion") not in {1, 2}:
+        return None
     if adoption.get("baseArchiveSha256") != manifest["base"]["archiveSha256"]:
-        return False
+        return None
     starter = adoption.get("starterKit")
     base_starter = manifest["base"]["provenance"].get("starterKit")
     if not isinstance(starter, dict) or not isinstance(base_starter, dict):
-        return False
+        return None
     if starter.get("commit") != base_starter.get("commit"):
-        return False
+        return None
     evidence_commit = adoption.get("repositoryCommit")
     if not isinstance(evidence_commit, str) or not evidence_commit:
-        return False
+        return None
     result = run_git(root, "merge-base", "--is-ancestor", evidence_commit, "HEAD")
-    return result.returncode == 0
+    return adoption if result.returncode == 0 else None
+
+
+def starter_commit(provenance: dict[str, Any]) -> str | None:
+    starter = provenance.get("starterKit")
+    if not isinstance(starter, dict):
+        return None
+    commit = starter.get("commit")
+    return commit if isinstance(commit, str) and commit else None
+
+
+def merge_text_payload(local: bytes, base: bytes, new: bytes) -> bytes | None:
+    """Return a clean three-way text merge, or None when Git reports conflicts."""
+    with tempfile.TemporaryDirectory(prefix="starter-kit-merge-") as directory:
+        merge_root = Path(directory)
+        paths = {
+            "local": merge_root / "local",
+            "base": merge_root / "base",
+            "new": merge_root / "new",
+        }
+        paths["local"].write_bytes(canonicalize_text(local))
+        paths["base"].write_bytes(canonicalize_text(base))
+        paths["new"].write_bytes(canonicalize_text(new))
+        result = subprocess.run(
+            [
+                "git",
+                "merge-file",
+                "-p",
+                str(paths["local"]),
+                str(paths["base"]),
+                str(paths["new"]),
+            ],
+            check=False,
+            capture_output=True,
+        )
+    if result.returncode == 0:
+        return result.stdout
+    if 1 <= result.returncode <= 127:
+        return None
+    raise UpgradeError("Unable to perform the three-way file merge.")
 
 
 def evaluate_target(
@@ -384,28 +496,55 @@ def evaluate_target(
         raise UpgradeError(f"Target is not a Git repository: {root}")
 
     provenance_path = root / PROVENANCE_PATH
-    provenance_digest = (
-        sha256_file(provenance_path) if provenance_path.is_file() else None
-    )
-    expected_base = manifest["base"]["provenanceSha256"]
-    expected_target = manifest["target"]["provenanceSha256"]
     provenance_status = "invalid"
-    if provenance_digest == expected_base:
-        provenance_status = "base"
-    elif provenance_digest == expected_target:
-        provenance_status = "target"
-    elif validate_adoption(root, manifest, root / ADOPTION_PATH):
+    if provenance_path.is_file():
+        try:
+            local_provenance = load_json_bytes(
+                provenance_path.read_bytes(), str(provenance_path)
+            )
+        except UpgradeError:
+            local_provenance = {}
+        local_starter_commit = starter_commit(local_provenance)
+        if local_starter_commit == starter_commit(
+            manifest["base"]["provenance"]
+        ):
+            provenance_status = "base"
+        elif local_starter_commit == starter_commit(
+            manifest["target"]["provenance"]
+        ):
+            provenance_status = "target"
+    adoption = validate_adoption(root, manifest, root / ADOPTION_PATH)
+    if provenance_status == "invalid" and adoption is not None:
         provenance_status = "adopted"
 
     actions: list[dict[str, Any]] = []
     for entry in manifest["entries"]:
         relative = entry["path"]
         local_path = target_path(root, relative)
-        local_digest = sha256_file(local_path) if local_path.is_file() else None
-        base_digest = entry.get("baseSha256")
-        new_digest = entry["newSha256"]
+        local_content = local_path.read_bytes() if local_path.is_file() else None
+        content_kind = str(entry.get("contentKind", "binary"))
+        schema_version = manifest.get("schemaVersion")
+        local_digest = (
+            canonical_sha256(local_content, content_kind)
+            if local_content is not None and schema_version == 2
+            else sha256_bytes(local_content)
+            if local_content is not None
+            else None
+        )
+        base_digest = (
+            entry.get("baseCanonicalSha256")
+            if schema_version == 2
+            else entry.get("baseSha256")
+        )
+        new_digest = (
+            entry.get("newCanonicalSha256")
+            if schema_version == 2
+            else entry["newSha256"]
+        )
         strategy = entry["strategy"]
-        if strategy == "initialize-only":
+        if strategy == "agent-rules":
+            action = "delegate-agent-rules"
+        elif strategy == "initialize-only":
             action = "preserve"
         elif local_digest == new_digest:
             action = "aligned"
@@ -415,6 +554,22 @@ def evaluate_target(
             action = "conflict-missing"
         elif local_digest == base_digest:
             action = "update"
+        elif (
+            strategy == "merge"
+            and content_kind == "text"
+            and entry.get("basePayload") in files
+        ):
+            merged = merge_text_payload(
+                local_content,
+                files[entry["basePayload"]],
+                files[entry["payload"]],
+            )
+            if merged is None:
+                action = "conflict-merge"
+            elif canonical_sha256(merged, content_kind) == local_digest:
+                action = "aligned"
+            else:
+                action = "merge"
         else:
             action = "conflict-modified"
         actions.append(
@@ -422,23 +577,44 @@ def evaluate_target(
                 "path": relative,
                 "strategy": strategy,
                 "action": action,
-                "localSha256": local_digest,
-                "baseSha256": base_digest,
-                "newSha256": new_digest,
+                "localCanonicalSha256": local_digest,
+                "baseCanonicalSha256": base_digest,
+                "newCanonicalSha256": new_digest,
             }
         )
 
     conflicts = [
         action for action in actions if action["action"].startswith("conflict-")
     ]
-    status = run_git(root, "status", "--porcelain=v1", "--untracked-files=all")
+    status = run_git(
+        root, "status", "--porcelain=v1", "-z", "--untracked-files=all"
+    )
     if status.returncode != 0:
         raise UpgradeError("Unable to inspect target Git status.")
+    write_paths = {
+        action["path"]
+        for action in actions
+        if action["action"] in {"add", "merge", "update"}
+    } | {ADOPTION_PATH}
+    blocking_status: list[str] = []
+    preserved_untracked: list[str] = []
+    for status_entry in status.stdout.split("\0"):
+        if not status_entry:
+            continue
+        if status_entry.startswith("?? "):
+            untracked_path = status_entry[3:]
+            if untracked_path in write_paths:
+                blocking_status.append(status_entry)
+            else:
+                preserved_untracked.append(untracked_path)
+        else:
+            blocking_status.append(status_entry)
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "target": str(root),
         "provenance": provenance_status,
-        "clean": not bool(status.stdout),
+        "clean": not blocking_status,
+        "preservedUntrackedPaths": sorted(preserved_untracked),
         "actions": actions,
         "obsoletePaths": manifest.get("obsoletePaths", []),
         "summary": {
@@ -446,15 +622,18 @@ def evaluate_target(
             for name in (
                 "add",
                 "aligned",
+                "delegate-agent-rules",
+                "conflict-merge",
                 "conflict-missing",
                 "conflict-modified",
+                "merge",
                 "preserve",
                 "update",
             )
         },
         "applicable": provenance_status in {"base", "adopted"}
         and not conflicts
-        and not bool(status.stdout),
+        and not blocking_status,
     }
 
 
@@ -484,15 +663,24 @@ def create_rollback_archive(
         raise UpgradeError(f"Backup already exists: {backup_path}")
     with zipfile.ZipFile(backup_path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         saved: list[str] = []
+        created: list[str] = []
         for action in actions:
-            if action["action"] != "update":
-                continue
             relative = action["path"]
-            archive.write(target_path(root, relative), "files/" + relative)
-            saved.append(relative)
+            existing = target_path(root, relative)
+            if action["action"] in {"merge", "update"} and existing.is_file():
+                archive.write(existing, "files/" + relative)
+                saved.append(relative)
+            elif action["action"] == "add":
+                created.append(relative)
         archive.writestr(
             "rollback-manifest.json",
-            write_json({"schemaVersion": 1, "savedPaths": saved}),
+            write_json(
+                {
+                    "schemaVersion": 2,
+                    "savedPaths": saved,
+                    "createdPaths": created,
+                }
+            ),
         )
     return backup_path
 
@@ -532,9 +720,18 @@ def apply_upgrade(
     if not plan["applicable"]:
         raise UpgradeError("Upgrade is not applicable; inspect the plan.")
     changes = [
-        action for action in plan["actions"] if action["action"] in {"add", "update"}
+        action
+        for action in plan["actions"]
+        if action["action"] in {"add", "merge", "update"}
     ]
-    backup_path = create_rollback_archive(root, backup_directory, changes)
+    adoption_path = target_path(root, ADOPTION_PATH)
+    adoption_action = {
+        "path": ADOPTION_PATH,
+        "action": "update" if adoption_path.is_file() else "add",
+    }
+    backup_path = create_rollback_archive(
+        root, backup_directory, changes + [adoption_action]
+    )
     originals: dict[str, bytes | None] = {}
     try:
         entries = {entry["path"]: entry for entry in manifest["entries"]}
@@ -545,7 +742,46 @@ def apply_upgrade(
                 destination.read_bytes() if destination.is_file() else None
             )
             entry = entries[relative]
-            write_payload(destination, files[entry["payload"]], entry["mode"])
+            content = files[entry["payload"]]
+            if action["action"] == "merge":
+                base_payload = entry.get("basePayload")
+                if not isinstance(base_payload, str):
+                    raise UpgradeError(f"Missing merge baseline for {relative}.")
+                content = merge_text_payload(
+                    originals[relative],
+                    files[base_payload],
+                    content,
+                )
+                if content is None:
+                    raise UpgradeError(f"Merge became conflicted for {relative}.")
+            write_payload(destination, content, entry["mode"])
+
+        originals[ADOPTION_PATH] = (
+            adoption_path.read_bytes() if adoption_path.is_file() else None
+        )
+        head = run_git(root, "rev-parse", "HEAD")
+        if head.returncode != 0:
+            raise UpgradeError("Unable to resolve the target Git commit.")
+        accepted_files: dict[str, str] = {}
+        for entry in manifest["entries"]:
+            if entry["strategy"] != "merge":
+                continue
+            destination = target_path(root, entry["path"])
+            if not destination.is_file():
+                continue
+            current_digest = canonical_sha256(
+                destination.read_bytes(), entry.get("contentKind", "binary")
+            )
+            if current_digest != entry.get("newCanonicalSha256"):
+                accepted_files[entry["path"]] = current_digest
+        adoption = {
+            "schemaVersion": 2,
+            "baseArchiveSha256": manifest["target"]["archiveSha256"],
+            "starterKit": manifest["target"]["provenance"]["starterKit"],
+            "repositoryCommit": head.stdout.strip(),
+            "acceptedFiles": accepted_files,
+        }
+        write_payload(adoption_path, write_json(adoption), "100644")
     except Exception:
         for relative, content in reversed(list(originals.items())):
             destination = target_path(root, relative)

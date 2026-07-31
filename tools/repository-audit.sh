@@ -677,6 +677,15 @@ import json
 import sys
 import zipfile
 
+def canonical_digest(content):
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return "binary", hashlib.sha256(content).hexdigest()
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    canonical = (normalized.rstrip("\n") + "\n").encode("utf-8") if normalized else b""
+    return "text", hashlib.sha256(canonical).hexdigest()
+
 with zipfile.ZipFile(sys.argv[1]) as archive:
     names = {name for name in archive.namelist() if not name.endswith("/")}
     source = json.load(archive.open("_agent-rules-source.json"))
@@ -685,7 +694,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         raise SystemExit("Unexpected release provenance schema.")
     if source["repository"]["name"] != "git-starter-kit":
         raise SystemExit("Unexpected packaged repository name.")
-    if files["schemaVersion"] != 1:
+    if files["schemaVersion"] != 2:
         raise SystemExit("Unexpected managed-file schema.")
     listed = set()
     strategies = {}
@@ -698,7 +707,12 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         digest = hashlib.sha256(archive.read(path)).hexdigest()
         if digest != entry["sha256"]:
             raise SystemExit(f"Managed file digest mismatch: {path}")
-        if entry["strategy"] not in {"initialize-only", "merge", "replace"}:
+        kind, canonical = canonical_digest(archive.read(path))
+        if kind != entry["contentKind"] or canonical != entry["canonicalSha256"]:
+            raise SystemExit(f"Managed file canonical digest mismatch: {path}")
+        if entry["strategy"] not in {
+            "agent-rules", "initialize-only", "merge", "replace"
+        }:
             raise SystemExit(f"Unexpected upgrade strategy: {path}")
     names.remove("_starter-kit-files.json")
     if names != listed:
@@ -710,6 +724,8 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             f"Unexpected: {unexpected or '(none)'}."
         )
     expected_strategies = {
+        "AGENTS.md": "agent-rules",
+        "_agent-rules-source.json": "agent-rules",
         "docs/release-package.md": "merge",
         "docs/repository-migration.md": "initialize-only",
     }

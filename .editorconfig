@@ -62,3 +62,6 @@ indent_size = 2
 
 [*.{nfo,ans,asc,txt}]
 trim_trailing_whitespace = false
+
+[.codespellrc]
+max_line_length = off

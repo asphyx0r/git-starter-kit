@@ -273,11 +273,14 @@ uploaded silently.
 - Builds cumulative upgrade ZIPs from exact base and new release packages.
 - Verifies release provenance, managed-file hashes, and archive paths.
 - Produces a per-file plan without modifying the target.
-- Updates only files that still match the proven baseline.
-- Preserves initialization-only, deleted, additional, and locally modified
-  files.
-- Requires a clean Git repository, an external rollback directory, and zero
-  conflicts before application.
+- Compares text through canonical UTF-8, LF, and final-newline hashes.
+- Updates unchanged files and three-way merges explicitly merge-managed files.
+- Delegates the six root rule files and `_agent-rules-source.json` to the
+  target repository's autonomous rule synchronization workflow.
+- Preserves initialization-only, deleted, additional, unrelated untracked, and
+  conflicting locally modified files.
+- Requires no tracked worktree changes, an external rollback directory, and
+  zero conflicts before application.
 - Bundles the updater and a complete new package as a release toolkit.
 
 ### Synopsis
@@ -329,16 +332,19 @@ python tools/starter-kit-upgrade.py apply \
 
 ### Safety Model
 
-The target `_agent-rules-source.json` must match the base package exactly.
-Older repositories can instead use a reviewed `.starter-kit-adoption.json`
-that records the base archive hash, starter-kit commit, and an ancestor commit
-containing the audited baseline. Adoption proves provenance only; modified or
-missing managed files remain conflicts.
+The starter-kit commit recorded inside target `_agent-rules-source.json` must
+match the base package. Agent-rule version changes and newline-only differences
+do not invalidate this starter provenance. Older repositories can instead use
+a reviewed `.starter-kit-adoption.json` that records the base archive hash,
+starter-kit commit, and an ancestor commit containing the audited baseline.
+Successful application writes the next adoption baseline, including hashes for
+preserved merge-managed customizations.
 
 The tool performs no deletion, commit, tag, push, or network operation. An
 upgrade is all-or-nothing: any conflict blocks application. If a write fails,
 files already written in that attempt are restored immediately. The external
-rollback ZIP records every replaced file for operator-controlled recovery.
+rollback ZIP records every replaced or merged file and the prior adoption
+state for operator-controlled recovery.
 
 ## git-init.ps1
 

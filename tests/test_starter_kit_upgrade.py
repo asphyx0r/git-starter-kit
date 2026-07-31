@@ -56,36 +56,43 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.base_files = {
             "_agent-rules-source.json": self.base_provenance,
             "a.txt": b"base a\n",
-            "merge.txt": b"base merge\n",
+            "merge.txt": (
+                b"first base\nstable one\nstable two\nlast base\n"
+            ),
             "README.md": b"base readme\n",
             "removed.txt": b"preserve removed\n",
         }
         self.new_files = {
             "_agent-rules-source.json": self.new_provenance,
             "a.txt": b"new a\n",
-            "merge.txt": b"new merge\n",
+            "merge.txt": (
+                b"first new\nstable one\nstable two\nlast base\n"
+            ),
             "new.txt": b"new file\n",
             "README.md": b"new readme\n",
         }
         managed = []
         strategies = {
-            "_agent-rules-source.json": "replace",
+            "_agent-rules-source.json": "agent-rules",
             "a.txt": "replace",
             "merge.txt": "merge",
             "new.txt": "replace",
             "README.md": "initialize-only",
         }
         for path, content in sorted(self.new_files.items()):
+            content_kind, canonical_digest = UPGRADE.content_metadata(content)
             managed.append(
                 {
                     "path": path,
                     "sha256": UPGRADE.sha256_bytes(content),
+                    "canonicalSha256": canonical_digest,
+                    "contentKind": content_kind,
                     "mode": "100644",
                     "strategy": strategies[path],
                 }
             )
         files_manifest = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "starterKit": provenance("c" * 40, "d" * 40)["starterKit"],
             "agentRules": provenance("c" * 40, "d" * 40)["agentRules"],
             "files": managed,
@@ -152,6 +159,9 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(actions["merge.txt"], "update")
         self.assertEqual(actions["new.txt"], "add")
         self.assertEqual(actions["README.md"], "preserve")
+        self.assertEqual(
+            actions["_agent-rules-source.json"], "delegate-agent-rules"
+        )
         self.assertIn("removed.txt", plan["obsoletePaths"])
 
         backup = UPGRADE.apply_upgrade(
@@ -160,7 +170,10 @@ class StarterKitUpgradeTests(unittest.TestCase):
 
         self.assertTrue(backup.is_file())
         self.assertEqual((target / "a.txt").read_bytes(), b"new a\n")
-        self.assertEqual((target / "merge.txt").read_bytes(), b"new merge\n")
+        self.assertEqual(
+            (target / "merge.txt").read_bytes(),
+            b"first new\nstable one\nstable two\nlast base\n",
+        )
         self.assertEqual((target / "new.txt").read_bytes(), b"new file\n")
         self.assertEqual((target / "README.md").read_bytes(), b"base readme\n")
         self.assertEqual(
@@ -168,9 +181,10 @@ class StarterKitUpgradeTests(unittest.TestCase):
         )
         self.assertEqual(
             (target / "_agent-rules-source.json").read_bytes(),
-            self.new_provenance,
+            self.base_provenance,
         )
         self.assertTrue((target / "_starter-kit-files.json").is_file())
+        self.assertTrue((target / ".starter-kit-adoption.json").is_file())
 
     def test_toolkit_contains_upgrader_and_full_package(self):
         toolkit = self.root / "toolkit.zip"
@@ -199,8 +213,33 @@ class StarterKitUpgradeTests(unittest.TestCase):
         action = next(
             item for item in plan["actions"] if item["path"] == "merge.txt"
         )
-        self.assertEqual(action["action"], "conflict-modified")
+        self.assertEqual(action["action"], "conflict-merge")
         self.assertFalse(plan["applicable"])
+
+    def test_non_overlapping_merge_customization_is_preserved(self):
+        target = self.create_target()
+        (target / "merge.txt").write_text(
+            "first base\nstable one\nstable two\nlast local\n",
+            encoding="utf-8",
+        )
+        self.run_git(target, "add", "merge.txt")
+        self.run_git(target, "commit", "-m", "test: customize merge file")
+        manifest, files, plan = self.load_plan(target)
+
+        action = next(
+            item for item in plan["actions"] if item["path"] == "merge.txt"
+        )
+        self.assertEqual(action["action"], "merge")
+        self.assertTrue(plan["applicable"])
+
+        UPGRADE.apply_upgrade(
+            manifest, files, target, plan, self.backup_directory
+        )
+
+        self.assertEqual(
+            (target / "merge.txt").read_text(encoding="utf-8"),
+            "first new\nstable one\nstable two\nlast local\n",
+        )
 
     def test_missing_managed_file_is_a_conflict(self):
         target = self.create_target()
@@ -227,16 +266,41 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(plan["provenance"], "invalid")
         self.assertFalse(plan["applicable"])
 
-    def test_dirty_repository_blocks_application_and_preserves_extra_file(self):
+    def test_agent_rules_provenance_drift_does_not_hide_starter_baseline(self):
+        target = self.create_target()
+        changed = provenance("a" * 40, "e" * 40)
+        changed["generatedAt"] = "2026-07-31T00:00:00Z"
+        (target / "_agent-rules-source.json").write_bytes(
+            json.dumps(changed, indent=2).replace("\n", "\r\n").encode("utf-8")
+        )
+        self.run_git(target, "add", "_agent-rules-source.json")
+        self.run_git(target, "commit", "-m", "test: update agent rules")
+
+        _, _, plan = self.load_plan(target)
+
+        self.assertEqual(plan["provenance"], "base")
+        self.assertTrue(plan["applicable"])
+
+    def test_untracked_project_file_is_preserved_and_does_not_block(self):
         target = self.create_target()
         extra = target / "project-only.txt"
         extra.write_text("keep\n", encoding="utf-8")
 
         _, _, plan = self.load_plan(target)
 
+        self.assertTrue(plan["clean"])
+        self.assertTrue(plan["applicable"])
+        self.assertEqual(plan["preservedUntrackedPaths"], ["project-only.txt"])
+        self.assertEqual(extra.read_text(encoding="utf-8"), "keep\n")
+
+    def test_tracked_worktree_change_blocks_application(self):
+        target = self.create_target()
+        (target / "a.txt").write_text("dirty\n", encoding="utf-8")
+
+        _, _, plan = self.load_plan(target)
+
         self.assertFalse(plan["clean"])
         self.assertFalse(plan["applicable"])
-        self.assertEqual(extra.read_text(encoding="utf-8"), "keep\n")
 
     def test_adoption_manifest_accepts_a_proven_baseline_commit(self):
         target = self.create_target()
@@ -267,8 +331,20 @@ class StarterKitUpgradeTests(unittest.TestCase):
             for item in plan["actions"]
             if item["path"] == "_agent-rules-source.json"
         )
-        self.assertEqual(provenance_action["action"], "conflict-modified")
-        self.assertFalse(plan["applicable"])
+        self.assertEqual(provenance_action["action"], "delegate-agent-rules")
+        self.assertTrue(plan["applicable"])
+
+    def test_text_line_endings_do_not_create_false_drift(self):
+        target = self.create_target()
+        (target / "a.txt").write_bytes(b"base a\r\n\r\n")
+        self.run_git(target, "add", "a.txt")
+        self.run_git(target, "commit", "-m", "test: use Windows line endings")
+
+        _, _, plan = self.load_plan(target)
+
+        action = next(item for item in plan["actions"] if item["path"] == "a.txt")
+        self.assertEqual(action["action"], "update")
+        self.assertTrue(plan["applicable"])
 
     def test_archive_path_traversal_is_rejected(self):
         malicious = self.root / "malicious.zip"

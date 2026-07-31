@@ -335,8 +335,9 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Records the managed files in an enriched release package.
 - Usage: Generated inside the ZIP and used by cumulative upgrade tooling.
-- Notes: Stores SHA-256 digests, Git modes, and `replace`, `merge`, or
-  `initialize-only` strategies. The manifest does not include its own digest.
+- Notes: Stores raw and canonical SHA-256 digests, content kinds, Git modes,
+  and `agent-rules`, `replace`, `merge`, or `initialize-only` strategies. The
+  manifest does not include its own digest.
 
 ### `AGENTS.md`
 
@@ -451,14 +452,15 @@ deferred, or explicitly excluded from the template.
 - Notes: Copies tracked repository files, resolves `latest` through the GitHub
   release API by default, verifies the cloned tag, overlays tagged
   `agent-coding-rules` files, writes repository and dependency provenance plus
-  per-file SHA-256 hashes, modes, and upgrade strategies for every tracked
-  file, including dotfiles, validates package file names before writing ZIP
-  files, keeps SemVer validation aligned with CI smoke cases, and verifies
-  exhaustive manifest coverage and repository-owned documentation strategies
-  in the archive. A previously tracked managed-file manifest is excluded before
-  its replacement is generated, so aligned downstream repositories remain
-  packageable. Helper functions use ScriptAnalyzer-compatible names and
-  explicit parameters.
+  per-file raw and canonical SHA-256 hashes, content kinds, modes, and upgrade
+  strategies for every tracked file, including dotfiles, validates package
+  file names before writing ZIP files, keeps SemVer validation aligned with CI
+  smoke cases, and verifies exhaustive manifest coverage and repository-owned
+  documentation strategies in the archive. Agent-rule paths use an independent
+  strategy so cumulative starter upgrades cannot overwrite them. A previously
+  tracked managed-file manifest is excluded before its replacement is
+  generated, so aligned downstream repositories remain packageable. Helper
+  functions use ScriptAnalyzer-compatible names and explicit parameters.
 
 ### `tools/README.md`
 
@@ -507,10 +509,11 @@ deferred, or explicitly excluded from the template.
 - Goal: Builds, inspects, and applies cumulative starter-kit upgrade packages.
 - Usage: Build from exact base and new full packages, inspect with `plan`, and
   use `apply` only with an external backup directory.
-- Notes: Validates ZIP paths, package and target provenance, per-file SHA-256
-  hashes, Git cleanliness, and conflicts. It preserves locally owned files,
-  performs no deletion or Git publication, and restores writes after a failed
-  application attempt.
+- Notes: Validates ZIP paths, semantic starter provenance, raw and canonical
+  per-file SHA-256 hashes, tracked worktree cleanliness, and conflicts. It
+  delegates agent-rule paths, three-way merges designated text files,
+  preserves locally owned and unrelated untracked files, performs no deletion
+  or Git publication, and restores writes after a failed application attempt.
 
 ### `tools/git-init.ps1`
 

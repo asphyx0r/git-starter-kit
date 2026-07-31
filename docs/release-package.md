@@ -19,9 +19,10 @@ GitHub always adds two source archives to each release:
 Those archives contain only the files that are committed in `git-starter-kit`
 at the release tag.
 
-The release package workflow adds one more downloadable file to the same
-release. This extra ZIP overlays a resolved `agent-coding-rules` release on top
-of the starter kit files.
+The release package workflow adds two downloadable files to a
+`git-starter-kit` release. The enriched ZIP overlays a resolved
+`agent-coding-rules` release on top of the starter kit files, and the upgrade
+toolkit packages the guarded cumulative updater.
 
 ## Generated File
 
@@ -46,12 +47,20 @@ The ZIP also includes two provenance files:
 
 - `_agent-rules-source.json` records the packaged repository, upstream starter
   kit, and agent-rules references and commits.
-- `_starter-kit-files.json` records each managed path, SHA-256 digest, Git
-  mode, and upgrade strategy.
+- `_starter-kit-files.json` records each managed path, raw and canonical
+  SHA-256 digests, content kind, Git mode, and upgrade strategy.
 
 The upgrade toolkit contains the guarded updater and the complete enriched
 package. It can build a cumulative upgrade from the exact earlier package used
-to initialize a target repository.
+to initialize a target repository. Only `git-starter-kit` publishes this
+toolkit. When the release workflow is inherited by a downstream repository,
+the repository publishes its own enriched package but skips the starter
+upgrade toolkit.
+
+The cumulative updater classifies the six rule files and
+`_agent-rules-source.json` as `agent-rules`. It reports those paths but never
+writes them. Each target repository remains responsible for synchronizing
+those files through its own pull-request workflow.
 
 ## GitHub App Authentication
 

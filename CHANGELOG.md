@@ -8,6 +8,28 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.1.5 - 2026-07-31
+
+### Added in v2.1.5
+
+- Added canonical text digests and content kinds to managed-file manifests.
+- Added three-way merge payloads and durable adoption state for customized
+  merge-managed files.
+
+### Changed in v2.1.5
+
+- Delegated the six root agent-rule files and their provenance to each target
+  repository's autonomous rule synchronization workflow.
+- Limited upgrade toolkit publication to `git-starter-kit`; downstream release
+  workflows now publish only their enriched repository package.
+
+### Fixed in v2.1.5
+
+- Compared starter provenance semantically so agent-rule updates and
+  newline-only changes cannot invalidate a proven starter baseline.
+- Preserved unrelated untracked files while continuing to block tracked
+  worktree changes, missing managed files, and merge conflicts.
+
 ## v2.1.4 - 2026-07-30
 
 ### Fixed in v2.1.4

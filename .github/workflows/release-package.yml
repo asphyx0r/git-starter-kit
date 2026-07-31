@@ -122,6 +122,7 @@ jobs:
           codespell .
 
       - name: Build upgrade toolkit
+        if: github.repository == 'asphyx0r/git-starter-kit'
         id: toolkit
         shell: bash
         env:
@@ -135,16 +136,25 @@ jobs:
             --output "$toolkit_path"
           echo "toolkit_path=$toolkit_path" >> "$GITHUB_OUTPUT"
 
-      - name: Upload release asset
+      - name: Upload release package
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
-          TOOLKIT_PATH: ${{ steps.toolkit.outputs.toolkit_path }}
           STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
         run: >-
           gh release upload "$STARTER_REF"
           "$PACKAGE_PATH"
+
+      - name: Upload starter upgrade toolkit
+        if: github.repository == 'asphyx0r/git-starter-kit'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TOOLKIT_PATH: ${{ steps.toolkit.outputs.toolkit_path }}
+          STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
+        run: >-
+          gh release upload "$STARTER_REF"
           "$TOOLKIT_PATH"
 
   promote:
