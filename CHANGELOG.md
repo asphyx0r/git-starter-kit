@@ -32,6 +32,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed in v2.2.0
 
+- Targeted the published `coding-agent-toolchain v1.6.1` release from the
+  autonomous agent-rule update workflow.
 - Compared starter provenance semantically so agent-rule updates and
   newline-only changes cannot invalidate a proven starter baseline.
 - Normalized the Bash initialization script to the enforced Shfmt layout and
