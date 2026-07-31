@@ -8,7 +8,9 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Fixed
+## v2.2.1 - 2026-07-31
+
+### Fixed in v2.2.1
 
 - Provisioned a pinned Shfmt release before the hosted static audit.
 
