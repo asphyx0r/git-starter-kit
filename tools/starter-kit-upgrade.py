@@ -545,7 +545,12 @@ def evaluate_target(
         if strategy == "agent-rules":
             action = "delegate-agent-rules"
         elif strategy == "initialize-only":
-            action = "preserve"
+            if local_digest == new_digest:
+                action = "aligned"
+            elif base_digest != new_digest:
+                action = "review-initialize-only"
+            else:
+                action = "preserve"
         elif local_digest == new_digest:
             action = "aligned"
         elif local_digest is None and base_digest is None:
@@ -628,6 +633,7 @@ def evaluate_target(
                 "conflict-modified",
                 "merge",
                 "preserve",
+                "review-initialize-only",
                 "update",
             )
         },

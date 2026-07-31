@@ -69,6 +69,10 @@ instead of attempting an unsafe generic merge. They also preserve
 `tools/repository-audit.sh`, whose test and tool inventory belongs to the
 target repository.
 
+When an initialization-only file changed upstream, the plan reports
+`review-initialize-only`. The signal does not block or write the target; it
+identifies repository-owned content that maintainers should review separately.
+
 ## GitHub App Authentication
 
 Resolving agent-rules releases across repositories uses a GitHub App installed

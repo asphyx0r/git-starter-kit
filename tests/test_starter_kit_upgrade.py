@@ -158,7 +158,8 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(actions["a.txt"], "update")
         self.assertEqual(actions["merge.txt"], "update")
         self.assertEqual(actions["new.txt"], "add")
-        self.assertEqual(actions["README.md"], "preserve")
+        self.assertEqual(actions["README.md"], "review-initialize-only")
+        self.assertEqual(plan["summary"]["review-initialize-only"], 1)
         self.assertEqual(
             actions["_agent-rules-source.json"], "delegate-agent-rules"
         )

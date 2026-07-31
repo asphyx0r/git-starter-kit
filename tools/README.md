@@ -347,6 +347,10 @@ because their contents legitimately diverge in downstream repositories. It
 also preserves `tools/repository-audit.sh`, whose checks must remain aligned
 with the target repository's own languages, tools, and tests.
 
+When an initialization-only file changed upstream, the plan reports
+`review-initialize-only` without blocking or writing the target. This makes
+required local review visible while preserving repository ownership.
+
 The tool performs no deletion, commit, tag, push, or network operation. An
 upgrade is all-or-nothing: any conflict blocks application. If a write fails,
 files already written in that attempt are restored immediately. The external

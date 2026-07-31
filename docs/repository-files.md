@@ -516,8 +516,9 @@ deferred, or explicitly excluded from the template.
 - Notes: Validates ZIP paths, semantic starter provenance, raw and canonical
   per-file SHA-256 hashes, tracked worktree cleanliness, and conflicts. It
   delegates agent-rule paths, three-way merges designated text files,
-  preserves locally owned and unrelated untracked files, performs no deletion
-  or Git publication, and restores writes after a failed application attempt.
+  flags changed initialization-only files for local review, preserves locally
+  owned and unrelated untracked files, performs no deletion or Git
+  publication, and restores writes after a failed application attempt.
 
 ### `tools/git-init.ps1`
 

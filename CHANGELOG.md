@@ -20,6 +20,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 - Delegated the six root agent-rule files and their provenance to each target
   repository's autonomous rule synchronization workflow.
+- Reported changed initialization-only files as explicit local-review actions
+  without blocking or writing the target repository.
 - Preserved repository-specific skill, release, file-inventory, tool
   documentation, and audit logic as initialization-only during cumulative
   upgrades.
