@@ -8,6 +8,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.3.2
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| ff29659 | fix(agents): harden release safeguards | asphyx |
+
 ## v2.3.1
 
 | References | Description | Author(s) |
