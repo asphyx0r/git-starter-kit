@@ -256,6 +256,54 @@ check_release_package_portability() {
   fi
 }
 
+check_release_guard_contract() {
+  local reference_path=".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
+  local workflow_path=".github/workflows/release-package.yml"
+
+  if grep -F "token d'installation de la GitHub App" \
+    "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard requires obsolete GitHub App authentication." >&2
+    exit 1
+  fi
+
+  if ! grep -F \
+    "les tags historiques d'un autre type comme des exceptions" \
+    "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not preserve historical tag exceptions." >&2
+    exit 1
+  fi
+
+  if ! grep -F "n'exige aucun token GitHub App" \
+    "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not require public source access." >&2
+    exit 1
+  fi
+
+  if ! grep -F "contient exactement deux assets nommés" \
+    "$reference_path" >/dev/null ||
+    ! grep -F 'git-starter-kit-<tag>-with-agent-rules.zip' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'git-starter-kit-<tag>-upgrade-toolkit.zip' \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not require both release assets." >&2
+    exit 1
+  fi
+
+  if grep -F "actions/create-github-app-token" \
+    "$workflow_path" >/dev/null; then
+    printf '%s\n' "Release workflow uses obsolete GitHub App authentication." >&2
+    exit 1
+  fi
+
+  if ! grep -F "name: Upload release package" \
+    "$workflow_path" >/dev/null ||
+    ! grep -F "name: Upload starter upgrade toolkit" \
+      "$workflow_path" >/dev/null; then
+    printf '%s\n' "Release workflow does not upload both release assets." >&2
+    exit 1
+  fi
+}
+
 run_commitlint() {
   require_command npx
 
@@ -854,6 +902,7 @@ run_static() {
   shfmt -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   check_release_package_portability
+  check_release_guard_contract
   run_powershell_parse
   run_script_smoke
   "$node_cmd" --check commitlint.config.cjs
@@ -900,6 +949,7 @@ run_readonly() {
   "$shfmt_cmd" -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
   check_release_package_portability
+  check_release_guard_contract
   run_powershell_parse_readonly
   "$node_cmd" --check commitlint.config.cjs
   run_commitlint_readonly "$commitlint_cmd"

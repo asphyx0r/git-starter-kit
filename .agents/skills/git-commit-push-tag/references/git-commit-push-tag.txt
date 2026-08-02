@@ -64,9 +64,15 @@ PHASE 1 — ANALYSE DU BUMP
 
 5. Applique la convention de tag suivante :
    - le préfixe `v` est obligatoire ;
-   - préserve le type de tag annoté ou léger utilisé par le repository.
+   - si le repository définit une politique explicite de type de tag,
+     notamment dans `RELEASE_RULES.md`, applique cette politique ;
+   - considère les tags historiques d'un autre type comme des exceptions
+     immuables qui ne rendent pas la politique courante ambiguë ;
+   - en l'absence de politique explicite, déduis le type uniquement si
+     tous les tags SemVer stables accessibles utilisent le même type.
    Si des tags SemVer stables sans préfixe `v` sont accessibles depuis
-   `HEAD`, ou si le type de tag est mélangé ou ambigu, arrête-toi.
+   `HEAD`, ou si aucune politique explicite ne permet de résoudre un type
+   de tag mélangé ou ambigu, arrête-toi.
 
 6. Si aucun tag SemVer de base ne peut être identifié avec certitude,
    arrête-toi. Ne propose pas arbitrairement `v0.1.0` ou `v1.0.0`.
@@ -110,9 +116,12 @@ PRÉCONDITION CONDITIONNELLE DU TEMPLATE DE RELEASE
   - est suivi par Git et entièrement lisible ;
   - porte exactement le nom `Release package` ;
   - écoute l'événement `release` avec le type `published` ;
-  - authentifie l'accès en lecture à `agent-coding-rules` avec le token
-    d'installation de la GitHub App ;
-  - construit et téléverse l'archive dans un job de packaging ;
+  - délègue à l'outil suivi du repository la validation de la provenance
+    publique enregistrée dans `_agent-rules-source.json` ;
+  - n'exige aucun token GitHub App pour accéder au repository source
+    public `agent-coding-rules` ;
+  - construit et téléverse le package complet et l'upgrade toolkit dans
+    un job de packaging ;
   - contient un job de promotion dépendant du packaging, exécuté
     uniquement pour une prerelease issue de l'événement `release`.
 - Si ce workflow CI est absent, illisible ou non conforme, applique les
@@ -240,7 +249,9 @@ PHASE 3 — COMMIT ET TAG
     - minor : incrémente MINOR et remet PATCH à zéro ;
     - major : incrémente MAJOR et remet MINOR et PATCH à zéro.
 
-31. Préserve le type de tag utilisé par le repository.
+31. Utilise le type de tag résolu au point 5. Lorsqu'une politique
+    explicite l'impose, ne reproduis pas le type d'un tag historique
+    exceptionnel.
 
 32. Vérifie que le tag calculé n'existe ni localement ni sur origin.
     En cas de collision, arrête-toi.
@@ -362,17 +373,24 @@ CONTRÔLE CI OBLIGATOIRE DE LA GITHUB RELEASE
   - cible toujours le tag exact et conserve les Release Notes rendues ;
   - n'est ni un draft ni une prerelease ;
   - est marquée comme dernière release ;
-  - contient exactement un asset nommé
-    `git-starter-kit-<tag>-with-agent-rules.zip`.
-- Télécharge cet asset dans un répertoire temporaire hors du working tree
-  et vérifie :
-  - que son SHA-256 correspond au digest publié par GitHub ;
-  - qu'il contient `AGENTS.md`, `CODING_RULES.md`, `COMMIT_RULES.md`,
+  - contient exactement deux assets nommés
+    `git-starter-kit-<tag>-with-agent-rules.zip` et
+    `git-starter-kit-<tag>-upgrade-toolkit.zip`.
+- Télécharge ces deux assets dans un répertoire temporaire hors du working
+  tree et vérifie que le SHA-256 de chacun correspond au digest publié par
+  GitHub.
+- Vérifie le package complet :
+  - il contient `AGENTS.md`, `CODING_RULES.md`, `COMMIT_RULES.md`,
     `DOCUMENTATION_RULES.md`, `LANGUAGE_RULES.md`, `RELEASE_RULES.md` et
     `_agent-rules-source.json` ;
-  - que le manifeste contient le tag et le commit exacts du starter kit,
+  - son manifeste contient le tag et le commit exacts du starter kit,
     `requestedRef=latest`, ainsi qu'un tag SemVer et un commit résolus pour
     `agent-coding-rules`.
+- Vérifie que l'upgrade toolkit contient exactement `README.md`,
+  `starter-kit-upgrade.py` et
+  `packages/git-starter-kit-<tag>-with-agent-rules.zip`, puis que le
+  SHA-256 du package imbriqué est identique à celui du package complet
+  publié séparément.
 - Supprime uniquement le répertoire temporaire de vérification après avoir
   confirmé qu'il reste dans la racine temporaire attendue.
 - Fixe `RELEASE_STATUS=complete` uniquement après la réussite de tous ces
@@ -388,5 +406,5 @@ CONTRÔLE CI OBLIGATOIRE DE LA GITHUB RELEASE
       le résultat de génération des Release Notes et le résultat de
       création de la Release, `RELEASE_STATUS`, l'identifiant, l'attempt,
       l'événement, le SHA, la conclusion et l'URL du run CI obligatoire,
-      ainsi que le nom, le digest et la provenance de l'asset vérifié ;
+      ainsi que les noms, digests et provenances des assets vérifiés ;
     - l'état final du repository.
