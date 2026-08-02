@@ -9,7 +9,7 @@ is the authoritative source for its behavior and instructions.
 | Skill | Purpose | Path |
 | --- | --- | --- |
 <!-- markdownlint-disable-next-line MD013 -->
-| **Git Commit, Push, Tag, and GitHub Release** | Runs guarded SemVer analysis, commit, tag, atomic push, synchronization checks, and an optional template-based GitHub Release. | `.agents/skills/git-commit-push-tag` |
+| **Git Commit, Push, Tag, and GitHub Release** | Runs guarded SemVer analysis, exact commit validation, audit preflight, tag, atomic final push, and an optional template-based GitHub Release. | `.agents/skills/git-commit-push-tag` |
 
 ## Git Commit, Push, Tag, and GitHub Release
 
@@ -17,8 +17,9 @@ is the authoritative source for its behavior and instructions.
 - **Path:** `.agents/skills/git-commit-push-tag`
 - **Invocation:** `$git-commit-push-tag`
 
-Runs the canonical guarded SemVer analysis, validated commit, tag, atomic push,
-synchronization checks, and optional template-based GitHub Release workflow.
+Runs the canonical guarded SemVer analysis, exact-file commit validation,
+remote SHA preflight, tag, atomic final push, synchronization checks, and
+optional template-based GitHub Release workflow.
 
 ### When to use
 
@@ -35,8 +36,9 @@ synchronization checks, and optional template-based GitHub Release workflow.
 ### Key capabilities
 
 - Analyze the next SemVer bump before mutation.
-- Perform an explicitly validated commit, tag, atomic push, and synchronization
-  checks.
+- Commit the exact file accepted by Commitlint through the repository hooks.
+- Prevalidate the release SHA, then require every expected branch and tag audit
+  run around the atomic final push.
 - Complete a requested, template-based GitHub Release after every applicable
   repository-specific check succeeds.
 

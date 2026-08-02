@@ -39,6 +39,8 @@ RÈGLES GÉNÉRALES
   destructive sans validation explicite.
 - Ne contourne jamais les hooks avec `--no-verify`.
 - N'ouvre aucun éditeur interactif.
+- N'utilise jamais `git commit -m`. Valide et transmets toujours le même
+  fichier de message au hook et à `git commit`.
 - Avant toute création de commit ou de tag, exécute exactement une fois :
   `git fetch origin --prune --tags`.
 
@@ -270,12 +272,28 @@ PHASE 3 — COMMIT ET TAG
     - décrire les modifications apportées ;
     - expliquer succinctement leur raison.
 
-28. Valide le message exact avec
-    `commitlint --edit <fichier-temporaire>` lorsque commitlint est
-    disponible ou requis, puis crée le commit sans ouvrir d'éditeur.
-    N'utilise pas `--no-verify`. Si commitlint, un hook ou la création du
-    commit échoue, arrête immédiatement le workflow. Répète les points 18 à
-    28 pour chaque autre commit publiable nécessaire.
+28. Commitlint est obligatoire. Vérifie d'abord que `.githooks/commit-msg` et
+    `commitlint.config.cjs` sont suivis et lisibles, puis valide le message
+    exact avec `commitlint --edit <fichier-temporaire>`. Le fichier temporaire
+    doit être hors du working tree, encodé en UTF-8 sans BOM et contenir le
+    message complet définitif. Immédiatement après cette validation et avant
+    le commit, exige que le hook et la configuration soient restés inchangés.
+    Sans modifier ni reconstruire le message, crée le commit depuis la racine
+    avec exactement :
+
+    ```text
+    git -c core.hooksPath=.githooks commit \
+      --file=<même-fichier-temporaire> \
+      --cleanup=verbatim
+    ```
+
+    N'utilise ni `-m`, ni `--no-verify`. Après le succès, compare le message
+    enregistré par Git au fichier validé et exige une identité exacte hors
+    fins de ligne finales normales. Supprime uniquement ce fichier temporaire
+    après cette vérification. Si commitlint est indisponible, s'il échoue, ou
+    si un hook, la création du commit ou la comparaison échoue, arrête
+    immédiatement le workflow. Répète les points 18 à 28 pour chaque autre
+    commit publiable nécessaire.
 
 29. Une fois les commits publiables finalisés, vérifie ou mets à jour la
     section exacte du prochain tag dans `CHANGELOG.md` à partir de
@@ -334,16 +352,76 @@ PRÉPARATION CONDITIONNELLE DES RELEASE NOTES
   N'utilise aucune structure de remplacement ni aucune génération
   automatique de notes.
 
+PRÉVALIDATION DISTANTE OBLIGATOIRE
+
+- Applique cette section avant toute création de tag, avec ou sans GitHub
+  Release demandée.
+- Exige que `.github/workflows/repository-audit.yml` soit suivi, lisible,
+  nommé exactement `Repository audit`, déclenché par `push` et qu'il publie
+  un job agrégateur nommé exactement `Repository audit` pour les pushes non
+  manuels. Ce job doit réussir uniquement si tous ses jobs enfants réussissent.
+- Exige que `tools/verify-repository-audit-runs.py` soit suivi, lisible et que
+  son aide et sa version puissent être exécutées. Utilise uniquement cet outil
+  suivi pour sélectionner et attendre les runs d'audit obligatoires.
+- Résous l'identifiant exact de ce workflow avec l'API GitHub. Si le workflow,
+  son identité ou son contrat ne peut pas être vérifié, arrête-toi avant le
+  tag et avant tout push.
+- Inspecte la protection de `origin/<branche>`. Lorsque GitHub permet les
+  checks requis pour ce repository, exige le check `Repository audit` fourni
+  par GitHub Actions, l'application aux administrateurs et l'absence de bypass.
+  Une protection absente, relâchée ou impossible à inspecter arrête le workflow
+  avant le tag et avant tout push. Si cette fonctionnalité GitHub n'est pas
+  disponible pour le repository, rapporte la limitation et demande une
+  validation utilisateur explicite avant de continuer sans cette couche.
+- Enregistre le SHA distant exact de `origin/<branche>`, vérifie de nouveau que
+  le tag calculé est absent localement et sur `origin`, puis construis le nom
+  unique `codex/release-preflight-<tag>-<sha-court>`. Arrête-toi si ce ref
+  existe déjà sur `origin` ; ne le remplace et ne le force jamais.
+- Pousse uniquement `HEAD` sur ce ref avec
+  `git push origin HEAD:refs/heads/<branche-preflight>`. Ce push de
+  prévalidation est distinct du push atomique final. Enregistre immédiatement
+  avant le push un horodatage UTC `YYYY-MM-DDTHH:MM:SSZ`.
+- Recherche le run unique qui respecte simultanément :
+  - l'identifiant exact du workflow `Repository audit` ;
+  - `event=push` ;
+  - `headBranch=<branche-preflight>` ;
+  - `headSha=<SHA exact de HEAD>`.
+- Attends ce run jusqu'à son état terminal. Exige `status=completed` et
+  `conclusion=success`. Aucun run manuel, planifié, portant un autre ref ou un
+  autre SHA ne peut le remplacer. Un run absent, multiple, annulé, expiré,
+  ignoré, neutre ou en échec arrête le workflow avant le tag.
+- Effectue cette attente avec :
+
+  ```text
+  python tools/verify-repository-audit-runs.py \
+    --repository <owner/repository> \
+    --workflow-id <id> \
+    --sha <SHA exact de HEAD> \
+    --ref <branche-preflight> \
+    --created-after <horodatage-UTC>
+  ```
+- Après le succès, relis `origin/<branche>` sans le modifier et exige qu'il
+  corresponde encore au SHA distant enregistré. Relis aussi les tags distants
+  et exige que le tag calculé soit toujours absent. Toute évolution ou
+  ambiguïté arrête le workflow ; ne rebase, ne merge et ne recalcule rien
+  automatiquement.
+- Conserve le ref de prévalidation jusqu'à la réussite du push final et des
+  runs finaux. Si le workflow s'arrête avant cela, rapporte ce ref exact et ne
+  le supprime pas automatiquement.
+
 33. Immédiatement avant de créer le tag, exécute
+    exactement une fois `git fetch origin --prune --tags`, puis
     `git status --short --branch`, vérifie que le working tree est propre,
     qu'aucune opération Git n'est en cours, que `CHANGELOG.md` est exact et
     que le SHA cible est celui attendu, puis exécute `git fsck --full`.
     Crée le tag uniquement après la réussite de toutes ces vérifications.
 
-PHASE 4 — PUSH ET VALIDATION
+PHASE 4 — PUSH FINAL ET VALIDATION
 
-34. Pousse la branche et le tag ensemble, exactement une fois :
+34. Pousse la branche et le tag ensemble dans un unique push final :
     `git push --atomic origin <branche> <tag>`
+    Enregistre immédiatement avant ce push un nouvel horodatage UTC au format
+    `YYYY-MM-DDTHH:MM:SSZ`.
 
 35. Si le push échoue :
     - ne réessaie pas ;
@@ -369,9 +447,43 @@ PHASE 4 — PUSH ET VALIDATION
     - le tag local et le tag distant correspondent ;
     - le repository ne comporte aucune erreur détectée.
 
+CONTRÔLE CI FINAL OBLIGATOIRE
+
+- Applique cette section après le push atomique et avant toute GitHub Release.
+- Réutilise l'identifiant de workflow `Repository audit` résolu pendant la
+  prévalidation et le SHA exact vérifié au point 38.
+- Le run de tag est toujours attendu. Le run de `origin/<branche>` est aussi
+  attendu lorsque le SHA distant enregistré avant la prévalidation différait
+  de `HEAD`.
+- Pour chaque ref attendu, recherche le run unique avec simultanément :
+  - l'identifiant exact du workflow `Repository audit` ;
+  - `event=push` ;
+  - `headBranch` égal au tag ou à la branche attendue ;
+  - `headSha` égal au SHA cible exact.
+- Utilise `tools/verify-repository-audit-runs.py` avec le repository,
+  l'identifiant de workflow, le SHA, le nouvel horodatage UTC et un argument
+  `--ref` répété pour chaque ref attendu.
+- Attends tous les runs attendus jusqu'à leur état terminal. Un run
+  `workflow_dispatch`, planifié, portant seulement le même SHA ou provenant
+  d'un autre workflow ne peut jamais remplacer un run attendu.
+- Exige pour chaque run `status=completed` et `conclusion=success`. Si un seul
+  run est absent, multiple, annulé, expiré, ignoré, neutre ou en échec, conserve
+  le ref de prévalidation, fixe `REPOSITORY_AUDIT_STATUS=incomplete`, collecte
+  les métadonnées et logs utiles en lecture seule et arrête le workflow sans
+  créer de GitHub Release. Un autre run vert du même SHA ne compense jamais cet
+  échec.
+- Après le succès exact de tous les runs, supprime uniquement le ref de
+  prévalidation créé par cette exécution avec
+  `git push origin --delete <branche-preflight>`, puis vérifie son absence sur
+  `origin`. Une suppression impossible ou ambiguë arrête les mutations et est
+  rapportée.
+- Fixe `REPOSITORY_AUDIT_STATUS=complete` uniquement après ces contrôles et ce
+  nettoyage.
+
 40. Une GitHub Release ne peut être créée que si :
     - CREATE_GITHUB_RELEASE=true a été fourni explicitement ;
     - toutes les vérifications finales ont réussi ;
+    - `REPOSITORY_AUDIT_STATUS=complete` ;
     - les Release Notes ont été générées et validées à partir du
       template retenu.
     Lorsque ces conditions sont remplies :
@@ -408,4 +520,7 @@ CONTRÔLE CONDITIONNEL DE LA GITHUB RELEASE
       création de la Release, `RELEASE_STATUS`, l'identifiant, l'attempt,
       l'événement, le SHA, la conclusion et l'URL du run CI obligatoire,
       ainsi que les noms, digests et provenances des assets vérifiés ;
+    - `REPOSITORY_AUDIT_STATUS`, le ref de prévalidation, les identifiants,
+      refs, événements, SHA, conclusions et URL de tous les runs d'audit
+      attendus ;
     - l'état final du repository.

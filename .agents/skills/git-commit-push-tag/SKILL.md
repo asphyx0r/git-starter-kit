@@ -2,8 +2,8 @@
 name: git-commit-push-tag
 description: >-
   Execute the canonical guarded workflow for SemVer bump analysis, an
-  explicitly validated commit, tag, atomic push, synchronization checks,
-  and an optional template-based GitHub Release.
+  explicitly validated commit, remote audit preflight, tag, atomic final push,
+  synchronization checks, and an optional template-based GitHub Release.
   Use only when explicitly invoked with $git-commit-push-tag or explicitly
   requested by name; never invoke implicitly.
 ---

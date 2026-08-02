@@ -20,21 +20,25 @@ Review the existing repository context first:
 
 ## Commit messages
 
-Use `.gitmessage` as a commit message template when helpful:
+Use `.gitmessage` as a starting point when helpful, but write the complete
+candidate message to a temporary file outside the working tree. Validate and
+commit that exact file from the repository root:
 
 ```bash
-git commit --template=.gitmessage
+commitlint --edit /path/to/commit-message.txt
+git -c core.hooksPath=.githooks commit \
+  --file=/path/to/commit-message.txt \
+  --cleanup=verbatim
 ```
 
 Commit messages must use scoped Conventional Commit headers that follow the
 rules in `commitlint.config.cjs`, for example `docs(readme): update usage`.
-Run `commitlint` manually or enable the repository hooks when strict local
-validation is needed.
+Never use `-m` or `--no-verify`. A Commitlint or hook failure blocks the commit
+and requires correcting and revalidating the same candidate file.
 
-## Optional Git hooks
+## Git hooks
 
-Enable the repository hook path when local pre-commit and commit-message
-validation should run:
+Enable the repository hook path for ordinary local Git commands:
 
 ```bash
 git config core.hooksPath .githooks
@@ -43,7 +47,8 @@ git config core.hooksPath .githooks
 The pre-commit hook requires `markdownlint-cli2` for staged `*.md` files and
 `yamllint` for staged `*.yml` or `*.yaml` files. The commit-msg hook requires
 `commitlint` and rejects messages that do not match the repository-specific
-scoped Conventional Commit rules.
+scoped Conventional Commit rules. Guarded repository tools force this hook path
+independently of local Git configuration.
 
 ## Release tags
 

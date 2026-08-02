@@ -382,6 +382,8 @@ state for operator-controlled recovery.
 - Previews committable files before creating target Git metadata.
 - Requires explicit confirmation before initialization and commit.
 - Warns before committing risky credential, archive, cache, or runtime paths.
+- Validates one temporary message file with Commitlint before committing it
+  through the forced repository hooks.
 - Creates the first Conventional Commit on `main`.
 - Creates an annotated SemVer tag and optionally pushes to `origin`.
 
@@ -408,8 +410,10 @@ and the repository must not already have commits.
 
 The script asks for confirmation, previews files Git can commit, asks for a
 second confirmation, warns on risky paths when needed, then creates the initial
-commit, renames the branch to `main`, and creates an annotated tag. It pushes
-only when `--remote` is provided.
+commit from the exact temporary file accepted by `commitlint --edit` and the
+forced `.githooks/commit-msg` hook. It compares the recorded message with that
+file before renaming the branch to `main` and creating an annotated tag. It
+pushes only when `--remote` is provided.
 
 ### Usage/Examples
 
@@ -455,8 +459,8 @@ powershell -NoProfile -File tools\git-init.ps1 --version
   completed successfully.
 - Non-zero: an argument was invalid, the target directory was invalid, Git
   metadata was unreadable, the repository already had commits, the tag already
-  existed, no committable files were found, Git failed, or another terminating
-  PowerShell error occurred.
+  existed, no committable files were found, Commitlint or a Git hook failed,
+  Git failed, or another terminating PowerShell error occurred.
 
 ### Troubleshooting
 
@@ -495,6 +499,11 @@ follow that policy instead of bypassing it.
 Review the file preview before confirming the commit. If risky paths are
 reported, inspect them carefully and cancel unless they are intentional.
 
+The target must contain readable `.githooks/commit-msg` and
+`commitlint.config.cjs` files. Install Commitlint and every tool required by
+the target hooks before initialization. Any Commitlint or hook failure blocks
+`HEAD`, the tag, and the optional push.
+
 Use `--remote` only after checking that the target remote URL is correct. When
 `--remote` is omitted, the initializer creates only local Git history.
 
@@ -509,6 +518,8 @@ Run from PowerShell when working primarily on Windows paths. Use
 - Previews committable files before creating target Git metadata.
 - Requires explicit confirmation before initialization and commit.
 - Warns before committing risky credential, archive, cache, or runtime paths.
+- Validates one temporary message file with Commitlint before committing it
+  through the forced repository hooks.
 - Creates the first Conventional Commit on `main`.
 - Creates an annotated SemVer tag and optionally pushes to `origin`.
 
@@ -535,8 +546,10 @@ target repository must not already have commits.
 
 The script asks for confirmation, previews files Git can commit, asks for a
 second confirmation, warns on risky paths when needed, then creates the initial
-commit, renames the branch to `main`, and creates an annotated tag. It pushes
-only when `--remote` is provided.
+commit from the exact temporary file accepted by `commitlint --edit` and the
+forced `.githooks/commit-msg` hook. It compares the recorded message with that
+file before renaming the branch to `main` and creating an annotated tag. It
+pushes only when `--remote` is provided.
 
 ### Usage/Examples
 
@@ -580,19 +593,110 @@ bash tools/git-init.sh --version
   completed successfully.
 - `1`: an argument was invalid, the target directory was invalid, Git metadata
   was unreadable, the repository already had commits, the tag already existed,
-  no committable files were found, Git failed, or another checked failure
-  occurred.
+  no committable files were found, Commitlint or a Git hook failed, Git failed,
+  or another checked failure occurred.
 
 ### Appendix
 
 Review the file preview before confirming the commit. If risky paths are
 reported, inspect them carefully and cancel unless they are intentional.
 
+The target must contain readable and executable `.githooks/commit-msg` and a
+readable `commitlint.config.cjs`. Install Commitlint and every tool required by
+the target hooks before initialization. Any Commitlint or hook failure blocks
+`HEAD`, the tag, and the optional push.
+
 Use `--remote` only after checking that the target remote URL is correct. When
 `--remote` is omitted, the initializer creates only local Git history.
 
 Run from Bash 4 or newer. On Windows, the PowerShell initializer may be easier
 when the target path is a native Windows path.
+
+## verify-repository-audit-runs.py
+
+### Features
+
+- Queries and paginates GitHub Actions through the authenticated `gh` CLI
+  without mutation.
+- Selects runs by workflow ID, `push` event, exact SHA, expected ref, and
+  inclusive creation timestamp.
+- Requires exactly one completed successful run for every repeated `--ref`.
+- Rejects missing, ambiguous, failed, cancelled, skipped, or neutral runs.
+- Ignores manual, scheduled, stale, unrelated-workflow, and unrelated-ref runs.
+
+### Synopsis
+
+```text
+usage: verify-repository-audit-runs.py [-h] [--version] [--dry-run] [-v]
+                                       --repository OWNER/REPO
+                                       --workflow-id ID --sha SHA --ref REF
+                                       --created-after UTC
+                                       [--timeout-seconds SECONDS]
+                                       [--poll-seconds SECONDS]
+```
+
+### Description
+
+`verify-repository-audit-runs.py` is the read-only CI gate used by the guarded
+release skill before a tag and after the final atomic push. It prevents a green
+run for the same SHA from masking a failed required run on another ref. The
+caller resolves the exact `Repository audit` workflow ID, records the UTC time
+immediately before the corresponding push, and supplies every expected branch
+or tag with a separate `--ref` argument.
+
+### Usage/Examples
+
+Preview a preflight verification without contacting GitHub:
+
+```bash
+python tools/verify-repository-audit-runs.py \
+  --dry-run \
+  --repository example/project \
+  --workflow-id 123456 \
+  --sha 0123456789abcdef0123456789abcdef01234567 \
+  --ref codex/release-preflight-v1.2.3-0123456 \
+  --created-after 2026-08-02T12:00:00Z
+```
+
+Wait for both final push runs:
+
+```bash
+python tools/verify-repository-audit-runs.py \
+  --repository example/project \
+  --workflow-id 123456 \
+  --sha 0123456789abcdef0123456789abcdef01234567 \
+  --ref main \
+  --ref v1.2.3 \
+  --created-after 2026-08-02T12:05:00Z
+```
+
+### Options
+
+- `-h`, `--help`: shows help and exits.
+- `--version`: prints `v1.0.0` and exits.
+- `--dry-run`: prints the side-effect-free verification plan without querying
+  GitHub.
+- `-v`, `--verbose`: prints timestamped polling details.
+- `--repository OWNER/REPO`: selects the GitHub repository.
+- `--workflow-id ID`: selects the resolved numeric workflow ID.
+- `--sha SHA`: selects the exact 40-character target commit SHA.
+- `--ref REF`: declares one expected branch or tag; repeat as needed.
+- `--created-after UTC`: rejects runs created before the inclusive
+  `YYYY-MM-DDTHH:MM:SSZ` lower bound.
+- `--timeout-seconds SECONDS`: sets the maximum wait, default `600`.
+- `--poll-seconds SECONDS`: sets the polling interval, default `5`.
+
+### Exit Status
+
+- `0`: help, version, dry-run, or every expected run succeeded.
+- `1`: arguments, access, GitHub response, run identity, timeout, or run
+  conclusion failed validation.
+
+### Appendix
+
+The tool requires Python 3, `gh`, authenticated read access to Actions, and a
+workflow ID resolved independently from the tracked workflow path. It never
+reruns or cancels a workflow. Treat every nonzero exit as a release blocker.
 
 ## repository-audit.sh
 
@@ -604,6 +708,10 @@ when the target path is a native Windows path.
 - Checks Markdown, spelling, whitespace, shell scripts, PowerShell parsing,
   YAML, workflows, secrets, cross-language SemVer pattern drift, Python backup
   behavior, and commit messages.
+- Resolves new-ref and stable-tag commit ranges from the highest reachable
+  stable tag, including all reachable commits for a first release.
+- Exercises exact message-file commits through the forced `commit-msg` hook in
+  isolated temporary repositories.
 - Bootstraps pinned tools and exercises mutating smoke cases only in full
   profiles.
 - Uses WSL-aware temporary paths when Windows PowerShell is invoked from WSL.
@@ -632,7 +740,9 @@ default `all` mode and the explicit `full` alias run Markdown lint, spelling
 checks, and static checks. The `static` mode includes Git whitespace checks,
 Bash syntax checks, ShellCheck, PowerShell parsing, SemVer pattern drift
 checks, script smoke tests, Node syntax checks, and commitlint validation for
-introduced commits.
+every commit in the resolved push or release range. A zero `before` SHA uses
+the highest reachable stable tag, excluding the tag currently being audited;
+without an earlier stable tag, all reachable commits are checked.
 
 The optional `readonly` mode uses only installed tools, disables optional Git
 locks, and does not install packages, access the network, create temporary
@@ -681,7 +791,8 @@ bash tools/repository-audit.sh static
 - `spelling`: runs Codespell with the repository configuration.
 - `static`: runs Git whitespace checks, Bash and ShellCheck checks,
   PowerShell parsing, SemVer drift checks, Python backup tests, script smoke
-  tests, Node syntax checks, and commitlint checks.
+  tests, exact commit-message fixtures, Node syntax checks, and commitlint
+  checks.
 - `-h`, `--help`, `help`: prints usage information, then exits.
 
 ### Exit Status
@@ -695,6 +806,11 @@ bash tools/repository-audit.sh static
 Run the audit profile required for the operation before creating a release tag
 or GitHub release. Treat any failure as a blocker until the underlying
 validation issue is understood and fixed.
+
+The GitHub Actions workflow publishes an aggregate `Repository audit` check
+for push and pull request runs. Its manual counterpart has the distinct name
+`Repository audit (manual)` so a manual success cannot replace a failed push
+run for branch protection or release validation.
 
 The full audit needs local tools such as `git`, `bash`, `shellcheck`, a
 PowerShell command, `python`, `node`, and `npx`. It also needs network access

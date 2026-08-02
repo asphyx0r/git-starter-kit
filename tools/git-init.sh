@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_version="1.0.0"
 default_tag="v1.0.0"
-commit_message="chore: initialize repository"
+commit_message="chore(git): initialize repository"
 tag_message="Initial version/First commit"
 # Keep this pattern aligned with repository-audit SemVer smoke tests.
 semver_tag_pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
@@ -14,6 +14,7 @@ verbose_mode=0
 target_path=""
 remote=""
 tag="$default_tag"
+commit_message_file=""
 
 usage() {
   cat <<EOF
@@ -43,6 +44,14 @@ trace() {
   fi
 }
 
+cleanup_commit_message_file() {
+  if [ -n "$commit_message_file" ] && [ -f "$commit_message_file" ]; then
+    rm -f -- "$commit_message_file"
+  fi
+}
+
+trap cleanup_commit_message_file EXIT
+
 require_value() {
   option_name="$1"
   value="${2:-}"
@@ -70,6 +79,35 @@ git_success() {
 run_git() {
   trace "git $*"
   git "$@"
+}
+
+require_commit_validation() {
+  local commit_hook="$target_path/.githooks/commit-msg"
+  local commitlint_config="$target_path/commitlint.config.cjs"
+
+  if [ ! -r "$commit_hook" ] || [ ! -x "$commit_hook" ]; then
+    fail "Required executable commit-msg hook is unavailable: $commit_hook"
+  fi
+  if [ ! -r "$commitlint_config" ]; then
+    fail "Required Commitlint configuration is unavailable: $commitlint_config"
+  fi
+  if ! command -v commitlint >/dev/null 2>&1; then
+    fail "commitlint is required to validate the initial commit message."
+  fi
+}
+
+validate_commit_message() {
+  local commitlint_config="$target_path/commitlint.config.cjs"
+
+  trace "commitlint --edit $commit_message_file --config $commitlint_config"
+  if ! (
+    cd "$target_path"
+    commitlint \
+      --edit "$commit_message_file" \
+      --config "$commitlint_config"
+  ); then
+    fail "Commitlint rejected the initial commit message."
+  fi
 }
 
 assert_readable_git_metadata() {
@@ -330,6 +368,12 @@ if [ "${#risky_files[@]}" -gt 0 ]; then
   fi
 fi
 
+require_commit_validation
+commit_message_file="$(
+  mktemp "${TMPDIR:-/tmp}/git-init-commit-message.XXXXXX"
+)"
+printf '%s\n' "$commit_message" >"$commit_message_file"
+
 run_git init "$target_path" >/dev/null
 
 if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
@@ -337,7 +381,20 @@ if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
 fi
 
 run_git -C "$target_path" add --all >/dev/null
-run_git -C "$target_path" commit -m "$commit_message" >/dev/null
+validate_commit_message
+run_git -C "$target_path" \
+  -c core.hooksPath=.githooks \
+  commit \
+  --file="$commit_message_file" \
+  --cleanup=verbatim >/dev/null
+
+actual_commit_message="$(run_git -C "$target_path" log -1 --format=%B)"
+if [ "$actual_commit_message" != "$commit_message" ]; then
+  fail "Recorded commit message differs from the validated message file."
+fi
+
+cleanup_commit_message_file
+commit_message_file=""
 run_git -C "$target_path" branch -M main
 run_git -C "$target_path" tag -a "$tag" -m "$tag_message"
 

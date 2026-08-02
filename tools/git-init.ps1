@@ -1,6 +1,6 @@
 $ScriptVersion = "1.0.0"
 $DefaultTag = "v1.0.0"
-$CommitMessage = "chore: initialize repository"
+$CommitMessage = "chore(git): initialize repository"
 $TagMessage = "Initial version/First commit"
 # Keep this pattern aligned with repository-audit SemVer smoke tests.
 $SemVerTagPattern = "^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$"
@@ -93,6 +93,62 @@ function Invoke-Git {
     }
 
     return @($output | ForEach-Object { $_.ToString() })
+}
+
+function Assert-CommitValidationPrerequisite {
+    param([Parameter(Mandatory = $true)][string]$RepositoryPath)
+
+    $commitHook = Join-Path $RepositoryPath ".githooks\commit-msg"
+    $commitlintConfig = Join-Path $RepositoryPath "commitlint.config.cjs"
+    foreach ($requiredFile in @($commitHook, $commitlintConfig)) {
+        if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+            throw "Required commit validation file is unavailable: $requiredFile"
+        }
+
+        try {
+            $stream = [System.IO.File]::OpenRead($requiredFile)
+            $stream.Dispose()
+        }
+        catch {
+            throw "Required commit validation file is unreadable: $requiredFile"
+        }
+    }
+}
+
+function Invoke-Commitlint {
+    param(
+        [Parameter(Mandatory = $true)][string]$CommandPath,
+        [Parameter(Mandatory = $true)][string]$MessagePath,
+        [Parameter(Mandatory = $true)][string]$ConfigPath
+    )
+
+    Write-Trace "commitlint --edit $MessagePath --config $ConfigPath"
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & $CommandPath --edit $MessagePath --config $ConfigPath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $message = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+            throw "Commitlint rejected the initial commit message: $message"
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    return @($output | ForEach-Object { $_.ToString() })
+}
+
+function Resolve-CommitlintCommand {
+    foreach ($commandName in @("commitlint.cmd", "commitlint")) {
+        $command = Get-Command $commandName -ErrorAction SilentlyContinue
+        if ($null -ne $command) {
+            return $command.Source
+        }
+    }
+
+    throw "commitlint is required to validate the initial commit message."
 }
 
 function Test-GitSuccess {
@@ -378,14 +434,52 @@ if ($riskyFiles.Count -gt 0) {
     }
 }
 
-Invoke-Git -Arguments @("init", $targetPath) | Out-Null
+Assert-CommitValidationPrerequisite -RepositoryPath $targetPath
+$commitlintCommand = Resolve-CommitlintCommand
+$commitlintConfig = Join-Path $targetPath "commitlint.config.cjs"
+$commitMessagePath = Join-Path `
+    ([System.IO.Path]::GetTempPath()) `
+    "git-init-commit-message-$([guid]::NewGuid().ToString('N')).txt"
+$utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText(
+    $commitMessagePath,
+    "$CommitMessage`n",
+    $utf8WithoutBom
+)
 
-if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "refs/tags/$tag")) {
-    throw "Tag already exists in target repository: $tag"
+try {
+    Invoke-Git -Arguments @("init", $targetPath) | Out-Null
+
+    if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "refs/tags/$tag")) {
+        throw "Tag already exists in target repository: $tag"
+    }
+
+    Invoke-Git -Arguments @("-C", $targetPath, "add", "--all") | Out-Null
+    Invoke-Commitlint `
+        -CommandPath $commitlintCommand `
+        -MessagePath $commitMessagePath `
+        -ConfigPath $commitlintConfig | Out-Null
+    Invoke-Git -Arguments @(
+        "-C", $targetPath,
+        "-c", "core.hooksPath=.githooks",
+        "commit",
+        "--file=$commitMessagePath",
+        "--cleanup=verbatim"
+    ) | Out-Null
+
+    $actualCommitMessage = ((Invoke-Git -Arguments @(
+                "-C", $targetPath, "log", "-1", "--format=%B"
+            )) -join [Environment]::NewLine).TrimEnd([char[]]"`r`n")
+    if ($actualCommitMessage -cne $CommitMessage) {
+        throw "Recorded commit message differs from the validated message file."
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $commitMessagePath) {
+        Remove-Item -LiteralPath $commitMessagePath -Force
+    }
 }
 
-Invoke-Git -Arguments @("-C", $targetPath, "add", "--all") | Out-Null
-Invoke-Git -Arguments @("-C", $targetPath, "commit", "-m", $CommitMessage) | Out-Null
 Invoke-Git -Arguments @("-C", $targetPath, "branch", "-M", "main") | Out-Null
 Invoke-Git -Arguments @("-C", $targetPath, "tag", "-a", $tag, "-m", $TagMessage) | Out-Null
 

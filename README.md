@@ -8,8 +8,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Generic ignore rules for local files, secrets, direnv files, runtime
   storage, caches, and build outputs.
 - Commit message guidance with a reusable Git commit template, strict scoped
-  commitlint rules, and optional commit-message validation.
-- Optional staged Markdown and YAML pre-commit hook.
+  Commitlint rules, and blocking validation for guarded commits.
+- Versioned staged Markdown and YAML pre-commit hook.
 - Lightweight spelling configuration for documentation and repository files.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - VS Code workspace recommendations for consistent local editing.
@@ -52,7 +52,10 @@ The optional pre-commit hook checks staged `*.md` files with
 `markdownlint-cli2` and staged `*.yml` or `*.yaml` files with `yamllint`.
 The optional commit-msg hook checks commit messages with `commitlint` and the
 repository-specific scoped Conventional Commit rules. Install those tools before
-enabling the hooks, or leave `core.hooksPath` unset.
+enabling the hooks. Leaving `core.hooksPath` unset allows ordinary manual Git
+commands to bypass these local hooks. The guarded release skill therefore
+forces `core.hooksPath=.githooks` for every commit and commits the same message
+file that passed `commitlint --edit`.
 
 Copy files from `templates/` when starting a new project and replace the
 placeholder values with project-specific content.
@@ -90,6 +93,11 @@ the same tools as CI, including `shellcheck`, `pwsh`, `python`, `node`, `git`,
 and `npx`. It intentionally resolves the latest published
 `agent-coding-rules` release during release package smoke checks; do not pin
 that check to an older rules release.
+
+For new refs and stable release tags, the audit validates commit messages from
+the highest reachable stable tag through `HEAD`. A first release validates all
+reachable commits. Tag validation therefore cannot be replaced by a green
+check that inspected only the tag target commit.
 
 Audit tool bootstrap uses version-pinned package downloads from npm and PyPI
 without package hash verification. This is an accepted lightweight trust
@@ -159,6 +167,12 @@ uninitialized.
 If a target already contains unreadable `.git` metadata, repair or remove it
 before rerunning the initializer.
 
+The target must contain a readable `.githooks/commit-msg` and
+`commitlint.config.cjs`, and Commitlint must be installed. Both initializers
+validate one temporary UTF-8 message file with `commitlint --edit`, commit that
+same file with `core.hooksPath=.githooks`, and stop without creating `HEAD` if
+either validation fails.
+
 The Bash script requires Bash 4 or newer.
 
 Use `--remote <url>` when the initialized repository should add `origin` and
@@ -176,6 +190,14 @@ repository. A GitHub Release is created from the release-notes template only
 when `CREATE_GITHUB_RELEASE=true` is explicitly provided. It starts as a
 prerelease and is complete only after the automatic `Release package` workflow
 uploads both verified assets and promotes it to a stable release.
+
+Before creating a tag, the guarded workflow pushes the candidate SHA to a
+unique `codex/release-preflight-*` branch and requires the aggregate
+`Repository audit` check to succeed. After the final atomic branch-and-tag
+push, every expected branch and tag audit run must succeed; a manual or
+scheduled green run cannot replace a failed push run. Protect the default
+branch with this GitHub Actions check and apply the rule to administrators when
+the repository supports required checks.
 
 ## Maintainer operations
 

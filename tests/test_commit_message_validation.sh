@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
+
+# shellcheck disable=SC1091
+source "$source_root/tools/repository-audit.sh"
+audit_all_commits_marker="${audit_all_commits_marker:-__all_commits__}"
+
+test_temp="$(mktemp -d "${TMPDIR:-/tmp}/commit-message-validation.XXXXXX")"
+
+cleanup_test() {
+  case "$(basename "$test_temp")" in
+  commit-message-validation.*)
+    rm -rf -- "$test_temp"
+    ;;
+  *)
+    printf 'Refusing to remove unexpected test path: %s\n' "$test_temp" >&2
+    return 1
+    ;;
+  esac
+}
+
+trap cleanup_test EXIT
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
+
+require_test_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    fail "required command not found: $1"
+  fi
+}
+
+initialize_fixture() {
+  local fixture_root="$1"
+
+  git init -q "$fixture_root"
+  git -C "$fixture_root" branch -m main
+  git -C "$fixture_root" config user.name "Commit Validation Test"
+  git -C "$fixture_root" config user.email "commit-validation@example.com"
+  git -C "$fixture_root" config core.autocrlf false
+  mkdir -p "$fixture_root/.githooks" "$fixture_root/.disabled-hooks"
+  cp "$source_root/.githooks/commit-msg" "$fixture_root/.githooks/commit-msg"
+  cp "$source_root/commitlint.config.cjs" "$fixture_root/commitlint.config.cjs"
+  chmod +x "$fixture_root/.githooks/commit-msg"
+}
+
+commit_without_repository_hooks() {
+  local fixture_root="$1"
+  local message_file="$2"
+
+  git -c core.hooksPath="$fixture_root/.disabled-hooks" \
+    -C "$fixture_root" commit \
+    --file="$message_file" \
+    --cleanup=verbatim \
+    --quiet
+}
+
+write_initial_message() {
+  printf '%s\n' 'chore(config): initialize fixture' >"$1"
+}
+
+write_invalid_message() {
+  {
+    printf '%s\n\n' 'feat(agents): use canonical rule source'
+    printf '%s\n' 'Adopt the universal repository-owned update workflow, preserve local rule customizations, and validate release packages from tracked rules.'
+  } >"$1"
+}
+
+write_valid_message() {
+  {
+    printf '%s\n\n' 'feat(agents): use canonical rule source'
+    printf '%s\n' 'Adopt the universal repository-owned update workflow, preserve local'
+    printf '%s\n' 'rule customizations, and validate release packages from tracked rules.'
+  } >"$1"
+}
+
+require_test_command git
+require_test_command npx
+
+test_bin="$test_temp/bin"
+mkdir -p "$test_bin"
+export NPM_CONFIG_CACHE="$test_temp/npm-cache"
+cat >"$test_bin/commitlint" <<'COMMITLINT'
+#!/usr/bin/env bash
+set -euo pipefail
+NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes @commitlint/cli@21.0.2 "$@"
+COMMITLINT
+chmod +x "$test_bin/commitlint"
+export PATH="$test_bin:$PATH"
+commitlint_command="$test_bin/commitlint"
+
+range_fixture="$test_temp/range-fixture"
+initialize_fixture "$range_fixture"
+
+initial_message="$test_temp/initial-message.txt"
+invalid_message="$test_temp/invalid-message.txt"
+valid_message="$test_temp/valid-message.txt"
+write_initial_message "$initial_message"
+write_invalid_message "$invalid_message"
+write_valid_message "$valid_message"
+
+printf 'base\n' >"$range_fixture/tracked.txt"
+git -C "$range_fixture" add tracked.txt
+commit_without_repository_hooks "$range_fixture" "$initial_message"
+git -C "$range_fixture" tag -a v1.0.0 -m 'Release v1.0.0'
+
+printf 'invalid\n' >>"$range_fixture/tracked.txt"
+git -C "$range_fixture" add tracked.txt
+commit_without_repository_hooks "$range_fixture" "$invalid_message"
+invalid_commit="$(git -C "$range_fixture" rev-parse HEAD)"
+
+printf 'valid\n' >>"$range_fixture/tracked.txt"
+git -C "$range_fixture" add tracked.txt
+commit_without_repository_hooks "$range_fixture" "$valid_message"
+
+zero_sha="0000000000000000000000000000000000000000"
+export GITHUB_EVENT_NAME=push
+export GITHUB_REF_TYPE=branch
+export GITHUB_REF_NAME=codex/release-preflight-v1.1.0
+export BEFORE_SHA="$zero_sha"
+
+cd "$range_fixture"
+resolved_base="$(resolve_audit_from_ref)"
+if [ "$resolved_base" != "v1.0.0" ]; then
+  fail "preflight range did not resolve the previous stable tag"
+fi
+
+if ! git rev-list "$resolved_base..HEAD" | grep -Fx "$invalid_commit" >/dev/null; then
+  fail "preflight range omitted the invalid intermediate commit"
+fi
+
+range_failure_output="$test_temp/range-failure.out"
+if run_commitlint_readonly "$commitlint_command" \
+  >"$range_failure_output" 2>&1; then
+  fail "release range accepted the invalid intermediate commit"
+fi
+if ! grep -F 'body-max-line-length' "$range_failure_output" >/dev/null; then
+  sed 's/^/  /' "$range_failure_output" >&2
+  fail "release range failure did not report body-max-line-length"
+fi
+
+git tag -a v1.1.0 -m 'Release v1.1.0'
+export GITHUB_REF_TYPE=tag
+export GITHUB_REF_NAME=v1.1.0
+resolved_base="$(resolve_audit_from_ref)"
+if [ "$resolved_base" != "v1.0.0" ]; then
+  fail "tag range did not exclude the tag being audited"
+fi
+
+printf 'future\n' >>tracked.txt
+git add tracked.txt
+commit_without_repository_hooks "$range_fixture" "$valid_message"
+export GITHUB_REF_NAME=v1.1.1
+resolved_base="$(resolve_audit_from_ref)"
+if [ "$resolved_base" != "v1.1.0" ]; then
+  fail "future release did not use the immediately previous stable tag"
+fi
+run_commitlint_readonly "$commitlint_command" >/dev/null
+
+first_release_fixture="$test_temp/first-release-fixture"
+initialize_fixture "$first_release_fixture"
+printf 'first\n' >"$first_release_fixture/tracked.txt"
+git -C "$first_release_fixture" add tracked.txt
+commit_without_repository_hooks "$first_release_fixture" "$initial_message"
+cd "$first_release_fixture"
+export GITHUB_REF_TYPE=branch
+export GITHUB_REF_NAME=codex/release-preflight-v1.0.0
+resolved_base="$(resolve_audit_from_ref)"
+if [ "$resolved_base" != "$audit_all_commits_marker" ]; then
+  fail "first release did not select all reachable commits"
+fi
+run_commitlint_readonly "$commitlint_command" >/dev/null
+
+hook_fixture="$test_temp/hook-fixture"
+initialize_fixture "$hook_fixture"
+printf 'base\n' >"$hook_fixture/tracked.txt"
+git -C "$hook_fixture" add tracked.txt
+commit_without_repository_hooks "$hook_fixture" "$initial_message"
+
+if git -C "$hook_fixture" config --local --get core.hooksPath >/dev/null; then
+  fail "hook fixture unexpectedly configured core.hooksPath"
+fi
+
+printf 'candidate\n' >>"$hook_fixture/tracked.txt"
+git -C "$hook_fixture" add tracked.txt
+head_before="$(git -C "$hook_fixture" rev-parse HEAD)"
+hook_failure_output="$test_temp/hook-failure.out"
+if git -c core.hooksPath=.githooks -C "$hook_fixture" commit \
+  --file="$invalid_message" \
+  --cleanup=verbatim >"$hook_failure_output" 2>&1; then
+  fail "forced commit-msg hook accepted the invalid message"
+fi
+if ! grep -F 'body-max-line-length' "$hook_failure_output" >/dev/null; then
+  sed 's/^/  /' "$hook_failure_output" >&2
+  fail "forced hook failure did not report body-max-line-length"
+fi
+if [ "$(git -C "$hook_fixture" rev-parse HEAD)" != "$head_before" ]; then
+  fail "failed commit moved HEAD"
+fi
+
+git -c core.hooksPath=.githooks -C "$hook_fixture" commit \
+  --file="$valid_message" \
+  --cleanup=verbatim \
+  --quiet
+
+expected_message="$(tr -d '\r' <"$valid_message")"
+actual_message="$(git -C "$hook_fixture" log -1 --format=%B | tr -d '\r')"
+if [ "$actual_message" != "$expected_message" ]; then
+  fail "committed message differs from the validated file"
+fi
+
+printf '%s\n' 'PASS: commit message and release range validation'

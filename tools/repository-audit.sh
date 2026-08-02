@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mode="${1:-all}"
-
-if [ "$mode" = "readonly" ]; then
-  export GIT_OPTIONAL_LOCKS=0
-fi
-
-repository_root="$(git rev-parse --show-toplevel)"
-cd "$repository_root"
-
+repository_root=""
 audit_temp=""
 audit_temp_parent=""
 audit_temp_parent_created="false"
+audit_all_commits_marker="__all_commits__"
+stable_semver_tag_pattern='^v(0|[1-9][0-9]*)\.'
+stable_semver_tag_pattern+='(0|[1-9][0-9]*)\.'
+stable_semver_tag_pattern+='(0|[1-9][0-9]*)$'
 
 cleanup() {
   if [ -n "$audit_temp" ] && [ -n "$audit_temp_parent" ]; then
@@ -124,6 +120,8 @@ to_pwsh_path() {
 
 check_git_whitespace() {
   local zero_sha="0000000000000000000000000000000000000000"
+  local commit_sha
+  local from_ref
 
   if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
     git diff --check "origin/$GITHUB_BASE_REF...HEAD"
@@ -131,13 +129,84 @@ check_git_whitespace() {
     if [ "$BEFORE_SHA" != "$zero_sha" ]; then
       git diff --check "$BEFORE_SHA..HEAD"
     else
-      git diff-tree --check --root --no-commit-id -r HEAD
+      from_ref="$(resolve_audit_from_ref)"
+      if [ "$from_ref" = "$audit_all_commits_marker" ]; then
+        while IFS= read -r commit_sha; do
+          git diff-tree --check --root --no-commit-id -r "$commit_sha"
+        done < <(git rev-list --reverse HEAD)
+      else
+        git diff --check "$from_ref..HEAD"
+      fi
     fi
   else
     git diff --check
     git diff --cached --check
     git diff-tree --check --root --no-commit-id -r HEAD
   fi
+}
+
+find_highest_reachable_stable_tag() {
+  local excluded_tag="${1:-}"
+  local tag
+
+  while IFS= read -r tag; do
+    if ! [[ "$tag" =~ $stable_semver_tag_pattern ]]; then
+      continue
+    fi
+
+    if [ -n "$excluded_tag" ] && [ "$tag" = "$excluded_tag" ]; then
+      continue
+    fi
+
+    printf '%s\n' "$tag"
+    return 0
+  done < <(
+    git for-each-ref \
+      --merged=HEAD \
+      --sort=-version:refname \
+      --format='%(refname:short)' \
+      refs/tags
+  )
+
+  return 1
+}
+
+resolve_audit_from_ref() {
+  local excluded_tag=""
+  local stable_tag=""
+  local zero_sha="0000000000000000000000000000000000000000"
+
+  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
+    [ -n "${GITHUB_BASE_REF:-}" ]; then
+    printf 'origin/%s\n' "$GITHUB_BASE_REF"
+    return 0
+  fi
+
+  if [ -n "${BEFORE_SHA:-}" ]; then
+    if [ "$BEFORE_SHA" != "$zero_sha" ]; then
+      printf '%s\n' "$BEFORE_SHA"
+      return 0
+    fi
+
+    if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+      excluded_tag="${GITHUB_REF_NAME:-}"
+    fi
+
+    if stable_tag="$(find_highest_reachable_stable_tag "$excluded_tag")"; then
+      printf '%s\n' "$stable_tag"
+    else
+      printf '%s\n' "$audit_all_commits_marker"
+    fi
+    return 0
+  fi
+
+  if git rev-parse --abbrev-ref --symbolic-full-name \
+    '@{upstream}' >/dev/null 2>&1; then
+    git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'
+    return 0
+  fi
+
+  return 1
 }
 check_semver_pattern_drift() {
   local node_cmd="$1"
@@ -261,6 +330,72 @@ check_release_package_portability() {
   fi
 }
 
+check_repository_audit_workflow_contract() {
+  local workflow_path=".github/workflows/repository-audit.yml"
+
+  # shellcheck disable=SC2016
+  if ! grep -F "  repository-audit:" "$workflow_path" >/dev/null ||
+    ! grep -F "'Repository audit (manual)' || 'Repository audit'" \
+      "$workflow_path" >/dev/null ||
+    ! grep -F 'if: ${{ always() }}' "$workflow_path" >/dev/null; then
+    printf '%s\n' \
+      "Repository audit workflow does not publish distinct aggregate checks." \
+      >&2
+    exit 1
+  fi
+
+  # shellcheck disable=SC2016
+  if ! grep -F 'MARKDOWN_RESULT: ${{ needs.markdown.result }}' \
+    "$workflow_path" >/dev/null ||
+    ! grep -F 'SPELLING_RESULT: ${{ needs.spelling.result }}' \
+      "$workflow_path" >/dev/null ||
+    ! grep -F 'STATIC_RESULT: ${{ needs.static.result }}' \
+      "$workflow_path" >/dev/null ||
+    ! grep -F '[ "$STATIC_RESULT" != "success" ]' \
+      "$workflow_path" >/dev/null; then
+    printf '%s\n' \
+      "Repository audit aggregate check does not require every child job." >&2
+    exit 1
+  fi
+}
+
+check_initializer_commit_contract() {
+  local initializer
+
+  for initializer in tools/git-init.sh tools/git-init.ps1; do
+    if ! grep -F 'commitlint --edit' "$initializer" >/dev/null ||
+      ! grep -F 'core.hooksPath=.githooks' "$initializer" >/dev/null ||
+      ! grep -F -- '--file=' "$initializer" >/dev/null ||
+      ! grep -F -- '--cleanup=verbatim' "$initializer" >/dev/null ||
+      ! grep -F 'Recorded commit message differs' "$initializer" >/dev/null; then
+      printf 'Initializer omits exact-file commit validation: %s\n' \
+        "$initializer" >&2
+      exit 1
+    fi
+  done
+
+  if grep -F 'commit -m' tools/git-init.sh >/dev/null ||
+    grep -F '"commit", "-m"' tools/git-init.ps1 >/dev/null; then
+    printf '%s\n' \
+      "Initializer still constructs its initial commit with -m." >&2
+    exit 1
+  fi
+}
+
+check_commit_documentation_contract() {
+  # shellcheck disable=SC2016
+  if ! grep -F 'commitlint --edit /path/to/commit-message.txt' \
+    CONTRIBUTING.md >/dev/null ||
+    ! grep -F 'git -c core.hooksPath=.githooks commit' \
+      CONTRIBUTING.md >/dev/null ||
+    ! grep -F 'Never use `-m` or `--no-verify`' \
+      CONTRIBUTING.md >/dev/null; then
+    printf '%s\n' \
+      "Contributing guide omits blocking exact-file commit validation." >&2
+    exit 1
+  fi
+}
+
 check_release_guard_contract() {
   local reference_path=".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
   local release_reference_path=".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt"
@@ -327,6 +462,34 @@ check_release_guard_contract() {
     exit 1
   fi
 
+  if ! grep -F 'git -c core.hooksPath=.githooks commit' \
+    "$reference_path" >/dev/null ||
+    ! grep -F -- '--file=<même-fichier-temporaire>' \
+      "$reference_path" >/dev/null ||
+    ! grep -F "N'utilise jamais \`git commit -m\`" \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' \
+      "Release guard does not commit the exact validated message through hooks." \
+      >&2
+    exit 1
+  fi
+
+  # shellcheck disable=SC2016
+  if ! grep -F 'codex/release-preflight-<tag>-<sha-court>' \
+    "$reference_path" >/dev/null ||
+    ! grep -F 'tools/verify-repository-audit-runs.py' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'le check `Repository audit` fourni' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'REPOSITORY_AUDIT_STATUS=incomplete' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'Un autre run vert du même SHA ne compense jamais' \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' \
+      "Release guard omits remote preflight or all-run audit enforcement." >&2
+    exit 1
+  fi
+
   if ! grep -F "autant de fois que nécessaire" \
     "$reference_path" >/dev/null ||
     ! grep -F "immédiatement avant chaque commit" \
@@ -379,16 +542,19 @@ check_release_guard_contract() {
 run_commitlint() {
   require_command npx
 
-  local zero_sha="0000000000000000000000000000000000000000"
   local from_ref=""
+  local root_commit=""
   local commit_count
 
-  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-    from_ref="origin/$GITHUB_BASE_REF"
-  elif [ -n "${BEFORE_SHA:-}" ] && [ "$BEFORE_SHA" != "$zero_sha" ]; then
-    from_ref="$BEFORE_SHA"
-  elif git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
-    from_ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')"
+  if ! from_ref="$(resolve_audit_from_ref)"; then
+    from_ref=""
+  fi
+
+  if [ "$from_ref" = "$audit_all_commits_marker" ]; then
+    root_commit="$(git rev-list --max-parents=0 --reverse HEAD | tail -n 1)"
+    git log -1 --format=%B "$root_commit" | NPM_CONFIG_IGNORE_SCRIPTS=true \
+      npx --yes @commitlint/cli@21.0.2 --config commitlint.config.cjs
+    from_ref="$root_commit"
   fi
 
   if [ -n "$from_ref" ]; then
@@ -532,18 +698,19 @@ if ($errors.Count -gt 0) {
 run_commitlint_readonly() {
   local commitlint_cmd="$1"
 
-  local zero_sha="0000000000000000000000000000000000000000"
   local from_ref=""
+  local root_commit=""
   local commit_count
 
-  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
-    [ -n "${GITHUB_BASE_REF:-}" ]; then
-    from_ref="origin/$GITHUB_BASE_REF"
-  elif [ -n "${BEFORE_SHA:-}" ] && [ "$BEFORE_SHA" != "$zero_sha" ]; then
-    from_ref="$BEFORE_SHA"
-  elif git rev-parse --abbrev-ref --symbolic-full-name \
-    '@{upstream}' >/dev/null 2>&1; then
-    from_ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')"
+  if ! from_ref="$(resolve_audit_from_ref)"; then
+    from_ref=""
+  fi
+
+  if [ "$from_ref" = "$audit_all_commits_marker" ]; then
+    root_commit="$(git rev-list --max-parents=0 --reverse HEAD | tail -n 1)"
+    git log -1 --format=%B "$root_commit" |
+      "$commitlint_cmd" --config commitlint.config.cjs
+    from_ref="$root_commit"
   fi
 
   if [ -n "$from_ref" ]; then
@@ -562,15 +729,48 @@ run_commitlint_readonly() {
   fi
 }
 
+prepare_initializer_validation_fixture() {
+  local fixture_root="$1"
+  local strict_header_length="${2:-false}"
+
+  mkdir -p "$fixture_root/.githooks"
+  cp .githooks/commit-msg "$fixture_root/.githooks/commit-msg"
+  chmod +x "$fixture_root/.githooks/commit-msg"
+
+  if [ "$strict_header_length" = "true" ]; then
+    cat >"$fixture_root/commitlint.config.cjs" <<'COMMITLINT'
+module.exports = {
+  rules: {
+    "header-max-length": [2, "always", 10],
+  },
+};
+COMMITLINT
+  else
+    cp commitlint.config.cjs "$fixture_root/commitlint.config.cjs"
+  fi
+}
+
 run_script_smoke() {
   require_command bash
   require_command git
+  require_command npx
   local python_cmd
   local pwsh_cmd
   python_cmd="$(resolve_command python python3 python.exe)"
   pwsh_cmd="$(resolve_powershell_command)"
 
   ensure_audit_temp
+
+  local initializer_bin="$audit_temp/initializer-bin"
+  mkdir -p "$initializer_bin"
+  cat >"$initializer_bin/commitlint" <<'COMMITLINT'
+#!/usr/bin/env bash
+set -euo pipefail
+NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes @commitlint/cli@21.0.2 "$@"
+COMMITLINT
+  chmod +x "$initializer_bin/commitlint"
+  export NPM_CONFIG_CACHE="$audit_temp/npm-cache"
+  export PATH="$initializer_bin:$PATH"
 
   export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-Codex}"
   export GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-codex@example.com}"
@@ -628,6 +828,7 @@ run_script_smoke() {
   local bash_verbose_output="$audit_temp/git-init-bash-smoke.out"
   local bash_verbose_error="$audit_temp/git-init-bash-smoke.err"
   mkdir -p "$bash_target"
+  prepare_initializer_validation_fixture "$bash_target"
   printf 'hello\n' >"$bash_target/README.md"
   printf 'hello spaces\n' >"$bash_target/notes with spaces.txt"
   printf 'y\ny\n' | bash tools/git-init.sh \
@@ -645,10 +846,17 @@ run_script_smoke() {
   fi
   if ! grep -Fx "git init $bash_target_argument" "$bash_verbose_error" >/dev/null ||
     ! grep -Fx "git -C $bash_target_argument add --all" "$bash_verbose_error" >/dev/null ||
-    ! grep -Fx \
-      "git -C $bash_target_argument commit -m chore: initialize repository" \
-      "$bash_verbose_error" >/dev/null; then
-    echo "Bash verbose init did not expose init, add, and commit traces." >&2
+    ! grep -F "commitlint --edit " "$bash_verbose_error" >/dev/null ||
+    ! grep -F \
+      "git -C $bash_target_argument -c core.hooksPath=.githooks commit --file=" \
+      "$bash_verbose_error" >/dev/null ||
+    ! grep -F -- "--cleanup=verbatim" "$bash_verbose_error" >/dev/null; then
+    echo "Bash verbose init omitted exact-file validation or commit traces." >&2
+    exit 1
+  fi
+  if [ "$(git -C "$bash_target" log -1 --format=%B)" != \
+    "chore(git): initialize repository" ]; then
+    echo "Bash init did not preserve the validated commit message." >&2
     exit 1
   fi
   if [ -n "$(git -C "$bash_target" status --short)" ]; then
@@ -660,6 +868,7 @@ run_script_smoke() {
   local bash_semver_output="$audit_temp/git-init-bash-semver-smoke.out"
   local bash_semver_error="$audit_temp/git-init-bash-semver-smoke.err"
   mkdir -p "$bash_semver_target"
+  prepare_initializer_validation_fixture "$bash_semver_target"
   printf 'hello\n' >"$bash_semver_target/README.md"
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_semver_target" \
@@ -671,6 +880,29 @@ run_script_smoke() {
   fi
   if [ -n "$(git -C "$bash_semver_target" status --short)" ]; then
     echo "Bash init SemVer smoke repository is not clean." >&2
+    exit 1
+  fi
+
+  local bash_commitlint_failure_target="$audit_temp/git-init-bash-commitlint-failure"
+  local bash_commitlint_failure_output="$audit_temp/git-init-bash-commitlint-failure.out"
+  mkdir -p "$bash_commitlint_failure_target"
+  prepare_initializer_validation_fixture \
+    "$bash_commitlint_failure_target" true
+  printf 'hello\n' >"$bash_commitlint_failure_target/README.md"
+  if printf 'y\ny\n' | bash tools/git-init.sh \
+    --path "$bash_commitlint_failure_target" \
+    --tag v1.0.0 >"$bash_commitlint_failure_output" 2>&1; then
+    echo "Bash init ignored a Commitlint failure." >&2
+    exit 1
+  fi
+  if git -C "$bash_commitlint_failure_target" rev-parse --verify HEAD \
+    >/dev/null 2>&1; then
+    echo "Bash init created a commit after Commitlint failed." >&2
+    exit 1
+  fi
+  if ! grep -F "Commitlint rejected the initial commit message" \
+    "$bash_commitlint_failure_output" >/dev/null; then
+    echo "Bash init did not explain the blocking Commitlint failure." >&2
     exit 1
   fi
 
@@ -714,6 +946,7 @@ run_script_smoke() {
   local pwsh_verbose_output="$audit_temp/git-init-pwsh-smoke.out"
   local pwsh_verbose_error="$audit_temp/git-init-pwsh-smoke.err"
   mkdir -p "$pwsh_target"
+  prepare_initializer_validation_fixture "$pwsh_target"
   printf 'hello\n' >"$pwsh_target/README.md"
   printf 'hello spaces\n' >"$pwsh_target/notes with spaces.txt"
   pwsh_expected_target_path="$(to_pwsh_path "$pwsh_target")"
@@ -741,6 +974,22 @@ run_script_smoke() {
     echo "PowerShell verbose init corrupted the committable file preview." >&2
     exit 1
   fi
+  if ! tr -d '\r' <"$pwsh_verbose_output" |
+    grep -F "commitlint --edit " >/dev/null ||
+    ! tr -d '\r' <"$pwsh_verbose_output" |
+    grep -F \
+      "git -C $pwsh_expected_target_path -c core.hooksPath=.githooks commit --file=" \
+      >/dev/null ||
+    ! tr -d '\r' <"$pwsh_verbose_output" |
+    grep -F -- "--cleanup=verbatim" >/dev/null; then
+    echo "PowerShell init omitted exact-file validation or commit traces." >&2
+    exit 1
+  fi
+  if [ "$(git -C "$pwsh_target" log -1 --format=%B)" != \
+    "chore(git): initialize repository" ]; then
+    echo "PowerShell init did not preserve the validated commit message." >&2
+    exit 1
+  fi
   if [ -n "$(git -C "$pwsh_target" status --short)" ]; then
     echo "PowerShell init smoke repository is not clean." >&2
     exit 1
@@ -750,6 +999,7 @@ run_script_smoke() {
   local pwsh_semver_output="$audit_temp/git-init-pwsh-semver-smoke.out"
   local pwsh_semver_error="$audit_temp/git-init-pwsh-semver-smoke.err"
   mkdir -p "$pwsh_semver_target"
+  prepare_initializer_validation_fixture "$pwsh_semver_target"
   printf 'hello\n' >"$pwsh_semver_target/README.md"
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$(to_pwsh_path "$pwsh_semver_target")" \
@@ -764,6 +1014,30 @@ run_script_smoke() {
   fi
   if [ -n "$(git -C "$pwsh_semver_target" status --short)" ]; then
     echo "PowerShell init SemVer smoke repository is not clean." >&2
+    exit 1
+  fi
+
+  local pwsh_commitlint_failure_target="$audit_temp/git-init-pwsh-commitlint-failure"
+  local pwsh_commitlint_failure_output="$audit_temp/git-init-pwsh-commitlint-failure.out"
+  mkdir -p "$pwsh_commitlint_failure_target"
+  prepare_initializer_validation_fixture \
+    "$pwsh_commitlint_failure_target" true
+  printf 'hello\n' >"$pwsh_commitlint_failure_target/README.md"
+  if printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
+    --path "$(to_pwsh_path "$pwsh_commitlint_failure_target")" \
+    --tag v1.0.0 >"$pwsh_commitlint_failure_output" 2>&1; then
+    echo "PowerShell init ignored a Commitlint failure." >&2
+    exit 1
+  fi
+  if git -C "$pwsh_commitlint_failure_target" rev-parse --verify HEAD \
+    >/dev/null 2>&1; then
+    echo "PowerShell init created a commit after Commitlint failed." >&2
+    exit 1
+  fi
+  if ! grep -F "Commitlint rejected the initial commit message" \
+    "$pwsh_commitlint_failure_output" >/dev/null; then
+    sed 's/^/  /' "$pwsh_commitlint_failure_output" >&2
+    echo "PowerShell init did not explain the blocking Commitlint failure." >&2
     exit 1
   fi
 
@@ -951,18 +1225,27 @@ run_static() {
   check_git_whitespace
   bash -n .githooks/pre-commit
   bash -n .githooks/commit-msg
+  bash -n tests/test_commit_message_validation.sh
   bash -n tools/git-init.sh
   shellcheck --version
   shellcheck .githooks/pre-commit
   shellcheck .githooks/commit-msg
+  shellcheck tests/test_commit_message_validation.sh
   shellcheck tools/git-init.sh
+  shfmt -d -i 2 tests/test_commit_message_validation.sh
   shfmt -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
+  check_initializer_commit_contract
+  check_commit_documentation_contract
+  if [ -f .github/workflows/repository-audit.yml ]; then
+    check_repository_audit_workflow_contract
+  fi
   if [ -f .github/workflows/release-package.yml ]; then
     check_release_package_portability
     check_release_guard_contract
   fi
   run_powershell_parse
+  bash tests/test_commit_message_validation.sh
   run_script_smoke
   "$node_cmd" --check commitlint.config.cjs
   run_commitlint
@@ -1000,13 +1283,21 @@ run_readonly() {
   check_git_whitespace
   bash -n .githooks/pre-commit
   bash -n .githooks/commit-msg
+  bash -n tests/test_commit_message_validation.sh
   bash -n tools/git-init.sh
   "$shellcheck_cmd" --version
   "$shellcheck_cmd" .githooks/pre-commit
   "$shellcheck_cmd" .githooks/commit-msg
+  "$shellcheck_cmd" tests/test_commit_message_validation.sh
   "$shellcheck_cmd" tools/git-init.sh
+  "$shfmt_cmd" -d -i 2 tests/test_commit_message_validation.sh
   "$shfmt_cmd" -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
+  check_initializer_commit_contract
+  check_commit_documentation_contract
+  if [ -f .github/workflows/repository-audit.yml ]; then
+    check_repository_audit_workflow_contract
+  fi
   if [ -f .github/workflows/release-package.yml ]; then
     check_release_package_portability
     check_release_guard_contract
@@ -1017,29 +1308,44 @@ run_readonly() {
   "$gitleaks_cmd" git --redact --no-banner --no-color .
 }
 
-case "$mode" in
-readonly)
-  run_readonly
-  ;;
-full | all)
-  run_markdown
-  run_spelling
-  run_static
-  ;;
-markdown)
-  run_markdown
-  ;;
-spelling)
-  run_spelling
-  ;;
-static)
-  run_static
-  ;;
--h | --help | help)
-  usage
-  ;;
-*)
-  usage >&2
-  exit 1
-  ;;
-esac
+main() {
+  local mode="${1:-all}"
+
+  if [ "$mode" = "readonly" ]; then
+    export GIT_OPTIONAL_LOCKS=0
+  fi
+
+  repository_root="$(git rev-parse --show-toplevel)"
+  cd "$repository_root"
+
+  case "$mode" in
+  readonly)
+    run_readonly
+    ;;
+  full | all)
+    run_markdown
+    run_spelling
+    run_static
+    ;;
+  markdown)
+    run_markdown
+    ;;
+  spelling)
+    run_spelling
+    ;;
+  static)
+    run_static
+    ;;
+  -h | --help | help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

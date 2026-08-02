@@ -76,3 +76,30 @@ jobs:
           GIT_COMMITTER_NAME: Codex
           GIT_COMMITTER_EMAIL: codex@example.com
         run: bash tools/repository-audit.sh static
+
+  repository-audit:
+    name: >-
+      ${{ github.event_name == 'workflow_dispatch' &&
+      'Repository audit (manual)' || 'Repository audit' }}
+    needs:
+      - markdown
+      - spelling
+      - static
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Require every audit job
+        env:
+          MARKDOWN_RESULT: ${{ needs.markdown.result }}
+          SPELLING_RESULT: ${{ needs.spelling.result }}
+          STATIC_RESULT: ${{ needs.static.result }}
+        run: |
+          if [ "$MARKDOWN_RESULT" != "success" ] ||
+            [ "$SPELLING_RESULT" != "success" ] ||
+            [ "$STATIC_RESULT" != "success" ]; then
+            printf '%s\n' \
+              "Repository audit requires every child job to succeed." >&2
+            exit 1
+          fi

@@ -89,8 +89,9 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Defines canonical bump analysis, commit, tag, atomic push,
-  synchronization, and generic GitHub Release behavior.
+- Goal: Defines canonical bump analysis, exact-file commit validation, remote
+  audit preflight, tag, atomic final push, synchronization, and generic GitHub
+  Release behavior.
 - Usage: Read completely before the skill takes any action or runs Git.
 - Notes: Preserve this file as the generic behavioral source of truth. The
   starter-only extension adds its package release contract.
@@ -213,13 +214,18 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Runs a minimal repository documentation audit on GitHub Actions.
+- Goal: Runs the shared repository audit and publishes one aggregate required
+  check on GitHub Actions.
 - Usage: Executes on pushes, pull requests, and manual dispatch.
 - Notes: The workflow uses a pinned runner and a checkout action pinned by
   SHA for `actions/checkout@v7.0.0`. It delegates Markdown, spelling,
   static, smoke, and configuration rules to `tools/repository-audit.sh` so
-  local and CI audits share the same
-  source of truth. Tool downloads are version-pinned but not hash-verified;
+  local and CI audits share the same source of truth. New refs and release tags
+  validate the complete commit range since the highest reachable stable tag.
+  The aggregate job uses `Repository audit` for push and pull request runs and
+  `Repository audit (manual)` for manual runs, preventing a manual result from
+  satisfying the protected-branch check. Tool downloads are version-pinned but
+  not hash-verified;
   this is an accepted lightweight CI tradeoff for a generic starter kit with
   read-only repository audit permissions, disabled checkout credential
   persistence, and without forwarding the workflow token to checked-out audit
@@ -265,10 +271,12 @@ deferred, or explicitly excluded from the template.
 
 - Type: `directory`
 - Status: `optional`
-- Goal: Stores opt-in Git hooks for local repository validation.
+- Goal: Stores versioned Git hooks for local repository validation.
 - Usage: Enable with `git config core.hooksPath .githooks` when local hooks are
   desired.
-- Notes: Hooks remain versioned but inactive until each clone opts in.
+- Notes: Hooks remain inactive for ordinary Git commands until each clone opts
+  in. The guarded release skill forces this path for every commit independently
+  of local Git configuration.
 
 ### `.githooks/commit-msg`
 
@@ -276,7 +284,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Blocks commits when commit messages fail scoped Conventional Commit
   validation.
-- Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
+- Usage: Runs after local hook activation or through a guarded commit that
+  explicitly sets `core.hooksPath=.githooks`.
 - Notes: Checks the commit message file with `commitlint.config.cjs`.
 
 ### `.githooks/pre-commit`
@@ -304,7 +313,8 @@ deferred, or explicitly excluded from the template.
 - Type: `file`
 - Status: `required`
 - Goal: Provides a reusable commit message template.
-- Usage: Use with `git commit --template=.gitmessage` or local Git config.
+- Usage: Copy its structure into the temporary message file that will be
+  validated and committed unchanged.
 - Notes: Advisory only; it uses scoped Conventional Commit examples and does
   not enforce commit validation.
 
@@ -443,8 +453,9 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Explains how contributors should propose and verify changes.
 - Usage: Read before contributing to the starter kit.
-- Notes: Documents optional Git hook activation and scoped commit message
-  validation. Future-project placeholders belong in `templates/CONTRIBUTING.md`.
+- Notes: Documents local Git hook activation and the required exact-file
+  Commitlint sequence for guarded commits. Future-project placeholders belong
+  in `templates/CONTRIBUTING.md`.
 
 ### `LICENSE`
 
@@ -460,7 +471,7 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
-- Notes: Summarizes audit prerequisites, optional Git hook activation,
+- Notes: Summarizes audit prerequisites, local Git hook activation,
   release package behavior, the canonical skill invocation contract, generic
   ignore coverage, and the maintainer migration record. Do not leave
   future-project placeholders in the root README.
@@ -557,8 +568,9 @@ deferred, or explicitly excluded from the template.
   profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
   for shell scripts and Git hooks, PowerShell parsing, cross-language SemVer
   pattern drift checks, Python backup and upgrade tests, smoke behavior,
-  release package manifests, commitlint configuration, and commit message
-  checks for newly introduced commits. The optional
+  release package manifests, commitlint configuration, exact message and hook
+  fixtures, and commit message checks for every commit in the resolved push or
+  release range. The optional
   `readonly` profile uses installed tools, disables optional Git locks, avoids
   network access, temporary files, package installation, and mutating smoke
   tests, and also checks YAML, workflows, and secrets. Full profiles
@@ -570,6 +582,18 @@ deferred, or explicitly excluded from the template.
   version-pinned package downloads without hash verification, documents the
   npm, PyPI, and GitHub network requirements, and fails when required local
   tools are unavailable instead of silently skipping CI rules.
+
+### `tools/verify-repository-audit-runs.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Waits for the exact GitHub Actions push runs required by a guarded
+  release and rejects every missing, ambiguous, or unsuccessful run.
+- Usage: Supply the repository, resolved workflow ID, exact SHA, inclusive UTC
+  lower bound, and one `--ref` for every expected branch or tag.
+- Notes: Uses authenticated read-only `gh api` queries, ignores manual and
+  unrelated runs, exposes a side-effect-free `--dry-run`, and is included in
+  packages for derived repositories.
 
 ### `tools/starter-kit-upgrade.py`
 
@@ -605,8 +629,9 @@ deferred, or explicitly excluded from the template.
   return values, writes verbose traces without polluting Git command return
   values, reads confirmation answers from standard input for
   deterministic CI smoke tests, warns on runtime storage paths, creates the
-  first Conventional Commit on `main`, tags it, and only pushes when
-  `--remote` is provided.
+  first Conventional Commit from one temporary UTF-8 message file validated by
+  Commitlint and the forced repository hooks, verifies the recorded message,
+  tags it, and only pushes when `--remote` is provided.
 
 ### `tools/git-init.sh`
 
@@ -623,7 +648,9 @@ deferred, or explicitly excluded from the template.
   credential, direnv, artifact, and runtime storage paths, refuses existing
   target commits, writes verbose Git traces to standard error so they remain
   visible when command output is suppressed, creates the first Conventional
-  Commit on `main`, tags it, and only pushes when `--remote` is provided.
+  Commit from one temporary message file validated by Commitlint and the
+  forced repository hooks, verifies the recorded message, tags it, and only
+  pushes when `--remote` is provided.
 
 ### `tests/`
 
@@ -645,6 +672,28 @@ deferred, or explicitly excluded from the template.
 - Notes: Uses only `unittest` and the Python standard library. Git-dependent
   and symbolic-link cases skip only when the required platform capability is
   unavailable.
+
+### `tests/test_commit_message_validation.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Reproduces overlong commit bodies and verifies forced hooks, exact
+  message-file commits, preflight ranges, tag ranges, and first-release ranges.
+- Usage: Run `bash tests/test_commit_message_validation.sh` in an environment
+  with Git, Bash, Node.js, npm, and network access for pinned Commitlint.
+- Notes: Uses only temporary Git repositories, leaves the source repository
+  unchanged, and is included in packages for derived repositories.
+
+### `tests/test_verify_repository_audit_runs.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies exact workflow-run selection and proves that one failed
+  required ref blocks a release even when another run for the SHA is green.
+- Usage: Run
+  `python -B -m unittest discover -s tests -p "test_verify_repository_audit_runs.py"`.
+- Notes: Uses in-memory GitHub Actions fixtures, checks the CLI option order,
+  version, and dry-run contract, and performs no GitHub queries.
 
 ### `tests/test_starter_kit_upgrade.py`
 
