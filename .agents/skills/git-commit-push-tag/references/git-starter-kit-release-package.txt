@@ -1,8 +1,31 @@
 EXTENSION DE RELEASE PROPRE À GIT-STARTER-KIT
 
-Cette extension s'applique uniquement lorsque le remote `origin` est
-exactement `https://github.com/asphyx0r/git-starter-kit.git` et que
+Cette extension s'applique lorsque le remote `origin` est exactement
+`https://github.com/asphyx0r/git-starter-kit.git`. Les règles de création et
+de contrôle de la GitHub Release s'appliquent uniquement lorsque
 `CREATE_GITHUB_RELEASE=true`.
+
+PRÉPARATION DU MANIFESTE DE RELEASE
+
+- Après la finalisation du changelog au point 29 et avant toute prévalidation
+  distante, exige que `tools/starter-kit-manifest.py` et
+  `starter-kit-manifest.json` soient suivis et entièrement lisibles.
+- Exécute d'abord, sans écriture :
+  `python tools/starter-kit-manifest.py --dry-run prepare --release-ref <tag>`.
+- Si le plan est valide, exécute exactement :
+  `python tools/starter-kit-manifest.py prepare --release-ref <tag>`.
+- Exige que seul `starter-kit-manifest.json` ait été créé ou modifié par cette
+  commande. Le manifeste doit identifier le tag exact dans `current`, conserver
+  une URL `/releases/tag/<tag>` et inventorier le core avec ses empreintes et
+  stratégies.
+- Valide le résultat avec :
+  `python tools/starter-kit-manifest.py check --expected-ref <tag> --treeish HEAD`.
+- Crée un commit distinct de préparation du manifeste en répétant intégralement
+  les contrôles et le contrat de commit des points 18 à 28. Ne mélange aucun
+  autre changement à ce commit.
+- Après le commit, répète le contrôle `check` contre `HEAD`. Tout échec ou toute
+  modification supplémentaire bloque la prévalidation distante, le tag et la
+  release.
 
 PRÉCONDITION DU WORKFLOW DE RELEASE
 
@@ -18,6 +41,8 @@ PRÉCONDITION DU WORKFLOW DE RELEASE
     un job de packaging ;
   - contient un job de promotion dépendant du packaging, exécuté
     uniquement pour une prerelease issue de l'événement `release`.
+  - limite les jobs de package et de promotion au repository exact
+    `asphyx0r/git-starter-kit`.
 - Si le workflow est absent, illisible ou non conforme, applique les mêmes
   règles d'arrêt que lorsqu'aucun template de release n'est accessible.
 
@@ -81,6 +106,10 @@ CONTRÔLE CI OBLIGATOIRE
   - son manifeste contient le tag et le commit exacts du starter kit,
     `requestedRef=latest`, ainsi qu'un tag SemVer et un commit résolus pour
     `agent-coding-rules` ;
+  - `starter-kit-manifest.json` conserve `source`, identifie le tag exact dans
+    `current` et utilise l'URL exacte de la release ;
+  - `_starter-kit-files.json` utilise le schéma 3 et classe
+    `starter-kit-manifest.json` avec la stratégie `starter-kit-state` ;
   - il ne contient aucun fichier réservé au repository source, tel que le
     workflow, les builders, leurs tests ou leur documentation opérateur.
 - Vérifie que l'upgrade toolkit contient exactement `README.md`,

@@ -244,13 +244,13 @@ function extractWorkflowPattern() {
   return parts.join("");
 }
 
-function extractPythonPattern() {
-  const content = readFile("tools/backup-target-directory.py");
+function extractPythonPattern(path, label) {
+  const content = readFile(path);
   const block = content.match(
     /^SEMVER_TAG_PATTERN = re\.compile\(\n([\s\S]*?)^\)$/m
   );
   if (!block) {
-    throw new Error("Unable to extract Python backup SemVer pattern.");
+    throw new Error("Unable to extract " + label + " SemVer pattern.");
   }
 
   const parts = [];
@@ -262,7 +262,7 @@ function extractPythonPattern() {
   }
 
   if (parts.length === 0) {
-    throw new Error("Unable to extract Python backup SemVer fragments.");
+    throw new Error("Unable to extract " + label + " SemVer fragments.");
   }
 
   return parts.join("");
@@ -285,8 +285,19 @@ const patterns = new Map([
       "PowerShell init SemVer pattern"
     ),
   ],
-  ["tools/backup-target-directory.py", extractPythonPattern()],
+  [
+    "tools/backup-target-directory.py",
+    extractPythonPattern("tools/backup-target-directory.py", "Python backup"),
+  ],
 ]);
+
+patterns.set(
+  "tools/starter-kit-manifest.py",
+  extractPythonPattern(
+    "tools/starter-kit-manifest.py",
+    "starter manifest"
+  )
+);
 
 if (fs.existsSync("tools/build-release-package.ps1")) {
   patterns.set(
@@ -326,6 +337,12 @@ check_release_package_portability() {
     'repository_name="${GITHUB_REPOSITORY##*/}"' \
     .github/workflows/release-package.yml >/dev/null; then
     echo "Release workflow does not derive the packaged repository name." >&2
+    exit 1
+  fi
+
+  if [ "$(grep -Fc "github.repository == 'asphyx0r/git-starter-kit'" \
+    .github/workflows/release-package.yml)" -lt 4 ]; then
+    echo "Release workflow does not guard canonical jobs and uploads." >&2
     exit 1
   fi
 }
@@ -511,6 +528,18 @@ check_release_guard_contract() {
   if ! grep -F "n'exige aucun token GitHub App" \
     "$release_reference_path" >/dev/null; then
     printf '%s\n' "Release guard does not require public source access." >&2
+    exit 1
+  fi
+
+  if ! grep -F 'starter-kit-manifest.py --dry-run prepare' \
+    "$release_reference_path" >/dev/null ||
+    ! grep -F 'starter-kit-manifest.py prepare' \
+      "$release_reference_path" >/dev/null ||
+    ! grep -F 'starter-kit-manifest.py check' \
+      "$release_reference_path" >/dev/null ||
+    ! grep -F 'starter-kit-state' \
+      "$release_reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not prepare and verify the starter manifest." >&2
     exit 1
   fi
 
@@ -780,6 +809,10 @@ COMMITLINT
   "$python_cmd" -B -m unittest discover \
     -s tests \
     -p "test_*.py"
+
+  "$python_cmd" tools/starter-kit-manifest.py --help
+  "$python_cmd" tools/starter-kit-manifest.py --version
+  "$python_cmd" tools/starter-kit-manifest.py check
 
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1
@@ -1115,8 +1148,10 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         ".github/workflows/release-package.yml",
         "docs/release-package.md",
         "docs/upgrade-toolkit.md",
+        "tests/test_starter_kit_manifest.py",
         "tests/test_starter_kit_upgrade.py",
         "tools/build-release-package.ps1",
+        "tools/starter-kit-manifest.py",
         "tools/starter-kit-upgrade.py",
     }
     present_forbidden = sorted(names & forbidden)
@@ -1130,8 +1165,20 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         raise SystemExit("Unexpected release provenance schema.")
     if source["repository"]["name"] != "git-starter-kit":
         raise SystemExit("Unexpected packaged repository name.")
-    if files["schemaVersion"] != 2:
+    if files["schemaVersion"] != 3:
         raise SystemExit("Unexpected managed-file schema.")
+    starter = json.load(archive.open("starter-kit-manifest.json"))
+    if starter["schemaVersion"] != 1:
+        raise SystemExit("Unexpected starter-kit manifest schema.")
+    for release_name in ("source", "current"):
+        release = starter[release_name]
+        expected_url = (
+            release["repository"].rstrip("/")
+            + "/releases/tag/"
+            + release["ref"]
+        )
+        if release["releaseUrl"] != expected_url:
+            raise SystemExit(f"Unexpected {release_name} release URL.")
     listed = set()
     strategies = {}
     for entry in files["files"]:
@@ -1147,7 +1194,11 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         if kind != entry["contentKind"] or canonical != entry["canonicalSha256"]:
             raise SystemExit(f"Managed file canonical digest mismatch: {path}")
         if entry["strategy"] not in {
-            "agent-rules", "initialize-only", "merge", "replace"
+            "agent-rules",
+            "initialize-only",
+            "merge",
+            "replace",
+            "starter-kit-state",
         }:
             raise SystemExit(f"Unexpected upgrade strategy: {path}")
     names.remove("_starter-kit-files.json")
@@ -1173,6 +1224,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "docs/repository-migration.md": "initialize-only",
         "tools/README.md": "initialize-only",
         "tools/repository-audit.sh": "initialize-only",
+        "starter-kit-manifest.json": "starter-kit-state",
     }
     for path, strategy in expected_strategies.items():
         if strategies.get(path) != strategy:

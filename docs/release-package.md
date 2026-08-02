@@ -43,12 +43,17 @@ The ZIP includes the normal starter kit files plus these files from
 - `LANGUAGE_RULES.md`
 - `RELEASE_RULES.md`
 
-The ZIP also includes two provenance files:
+The ZIP also includes three provenance files:
+
+- `starter-kit-manifest.json` records the initial and current starter-kit
+  releases plus the current core inventory. In a release package, `source`
+  and `current` initially identify the same exact tag.
 
 - `_agent-rules-source.json` records the packaged repository, upstream starter
   kit, and agent-rules references and commits.
 - `_starter-kit-files.json` records each managed path, raw and canonical
-  SHA-256 digests, content kind, Git mode, and upgrade strategy.
+  SHA-256 digests, content kind, Git mode, and upgrade strategy. Schema 3 uses
+  `starter-kit-state` for the tracked core manifest.
 
 The upgrade toolkit contains the guarded updater and the complete enriched
 package. It can build a cumulative upgrade from the exact earlier package used
@@ -85,19 +90,25 @@ when provenance schema 3 contains its matching `preservedFiles` record.
 No source-repository GitHub App token is required. The built-in workflow token
 is used only to upload assets to the current repository release.
 
+Package and promotion jobs run only when `github.repository` is exactly
+`asphyx0r/git-starter-kit`. The package builder also rejects a different slug
+or `origin` as a second identity check.
+
 ## Automatic Release Mode
 
 Use this mode for the normal release process.
 
-1. Prepare the release commit in `git-starter-kit`.
-2. From a clean repository, run `bash tools/repository-audit.sh` locally.
-3. Stop if the local audit fails; do not create a release tag or release.
-4. Create and push the release tag, for example `v1.3.0`.
-5. On GitHub, open the repository page.
-6. Open **Releases**.
-7. Create a new release from the tag.
-8. Mark it as a prerelease and do not mark it as latest.
-9. Publish the prerelease.
+1. Prepare the release commits and changelog in `git-starter-kit`.
+2. Prepare `starter-kit-manifest.json` for the exact selected tag with
+   `tools/starter-kit-manifest.py`, then commit only that release metadata.
+3. From a clean repository, run `bash tools/repository-audit.sh` locally.
+4. Stop if the local audit fails; do not create a release tag or release.
+5. Create and push the release tag, for example `v1.3.0`.
+6. On GitHub, open the repository page.
+7. Open **Releases**.
+8. Create a new release from the tag.
+9. Mark it as a prerelease and do not mark it as latest.
+10. Publish the prerelease.
 
 After the prerelease is published, GitHub starts the `Release package`
 workflow automatically. Automatic releases intentionally use `latest` so the
@@ -108,11 +119,12 @@ The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag.
 2. Resolves `latest` to the latest published full `agent-coding-rules` release.
-3. Verifies that tracked provenance and rule hashes match the resolved tag.
-4. Copies tracked starter-kit files, except source-repository-only packaging
-   files, into a temporary package folder.
+3. Verifies that the tracked core manifest, provenance, and rule hashes match
+   the resolved tag.
+4. Copies the core paths declared by the tracked manifest, except
+   source-repository-only packaging files, into a temporary package folder.
 5. Retains the six tracked rule files in that package folder.
-6. Writes validated provenance and the managed-file manifest.
+6. Writes validated provenance and the schema 3 managed-file manifest.
 7. Creates the ZIP file.
 8. Verifies that the required files and managed-file hashes are present.
 9. Extracts the composed package and runs its Markdown and Codespell audits.

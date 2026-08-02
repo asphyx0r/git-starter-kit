@@ -255,9 +255,11 @@ deferred, or explicitly excluded from the template.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
 - Notes: Uses a pinned runner and actions pinned by SHA, disables checkout
-  credential persistence, uses `latest` automatically for release packages,
-  and validates manual release tags and agent-rules references against tracked
-  provenance. The public source lookup requires no GitHub App token. The
+  credential persistence, limits package and promotion jobs to the exact
+  canonical repository, uses `latest` automatically for release packages, and
+  validates manual release tags, the tracked core manifest, and agent-rules
+  references against tracked provenance. The public source lookup requires no
+  GitHub App token. The
   composed ZIP must pass Markdown and Codespell before the full package and
   upgrade toolkit are uploaded with the built-in workflow token. A dependent
   job promotes automatic prereleases only after successful packaging; manual
@@ -372,9 +374,23 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Records the managed files in an enriched release package.
 - Usage: Generated inside the ZIP and used by cumulative upgrade tooling.
-- Notes: Stores raw and canonical SHA-256 digests, content kinds, Git modes,
-  and `agent-rules`, `replace`, `merge`, or `initialize-only` strategies. The
-  manifest does not include its own digest.
+- Notes: Schema 3 stores raw and canonical SHA-256 digests, content kinds, Git
+  modes, and `agent-rules`, `replace`, `merge`, `initialize-only`, or
+  `starter-kit-state` strategies. The manifest does not include its own
+  digest.
+
+### `starter-kit-manifest.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the original and current published starter-kit core baselines.
+- Usage: Inspect `source` for the release used to derive the repository and
+  `current` for the most recent cumulative core upgrade.
+- Notes: Generated only in the canonical repository before a release tag and
+  distributed to direct clones, forks, and release packages. Its sorted core
+  inventory stores raw and canonical SHA-256 digests, content kinds, Git
+  modes, and upgrade strategies. Cumulative upgrades preserve `source` and
+  replace `current` plus the core inventory.
 
 ### `AGENTS.md`
 
@@ -522,18 +538,21 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
-- Notes: Copies tracked repository files, resolves `latest` through the public
-  GitHub release API by default, and verifies tracked rule hashes and
+- Notes: Copies core paths from the tracked release manifest for SemVer
+  packages, resolves `latest` through the public GitHub release API by default,
+  and verifies tracked rule hashes and
   provenance against that release. It writes repository provenance plus
   per-file raw and canonical SHA-256 hashes, content kinds, modes, and upgrade
-  strategies for every tracked file, including dotfiles, validates package
+  strategies for every distributed file, including dotfiles, validates package
   file names before writing ZIP files, keeps SemVer validation aligned with CI
   smoke cases, and verifies exhaustive manifest coverage and repository-owned
   documentation strategies in the archive. Agent-rule paths use an independent
-  strategy so cumulative starter upgrades cannot overwrite them. A previously
-  tracked managed-file manifest is excluded before its replacement is
-  generated, so aligned downstream repositories remain packageable. Helper
+  strategy so cumulative starter upgrades cannot overwrite them, while the
+  tracked core manifest uses `starter-kit-state`. A previously tracked managed
+  file manifest is excluded before its replacement is generated. Helper
   functions use ScriptAnalyzer-compatible names and explicit parameters. The
+  SemVer path requires the selected tag to resolve to `HEAD` and rejects a
+  packaged path whose Git-filtered content differs from `HEAD`. The
   command rejects every repository slug or `origin` except the canonical
   `asphyx0r/git-starter-kit` repository and is excluded from packages
   distributed to derived repositories.
@@ -606,10 +625,23 @@ deferred, or explicitly excluded from the template.
   per-file SHA-256 hashes, tracked worktree cleanliness, and conflicts. It
   delegates agent-rule paths, three-way merges designated text files,
   flags changed initialization-only files for local review, preserves locally
-  owned and unrelated untracked files, performs no deletion or Git
+  owned and unrelated untracked files, preserves the original starter-kit
+  source while updating the current core manifest, performs no deletion or Git
   publication, and restores writes after a failed application attempt. The
   source copy is excluded from the full package and supplied separately inside
   the upgrade toolkit.
+
+### `tools/starter-kit-manifest.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Prepares and validates the tracked starter-kit core manifest.
+- Usage: Run `prepare` with an exact selected release tag after all other
+  release content is committed, then run `check` before tagging.
+- Notes: Uses only the Python standard library, hashes Git blobs, requires the
+  canonical HTTPS `origin` for preparation, supports a real dry-run, and
+  validates existing manifests without mutation. The source tool is excluded
+  from distributed packages; its generated root manifest is included.
 
 ### `tools/git-init.ps1`
 
@@ -705,6 +737,18 @@ deferred, or explicitly excluded from the template.
   `python -B -m unittest discover -s tests -p "test_starter_kit_upgrade.py"`.
 - Notes: Uses temporary Git repositories and ZIP files without changing the
   working repository. This starter-only test is excluded from the full package.
+
+### `tests/test_starter_kit_manifest.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies manifest generation, validation, identity gates, dry-run,
+  idempotence, and release-tag inventory checks.
+- Usage: Run
+  `python -B -m unittest discover -s tests -p "test_starter_kit_manifest.py"`.
+- Notes: Uses temporary Git repositories, only the Python standard library,
+  and no network access. This starter-only test is excluded from the full
+  package.
 
 ### `docs/`
 

@@ -26,14 +26,17 @@ $RequiredRuleFiles = @(
     "LANGUAGE_RULES.md",
     "RELEASE_RULES.md"
 )
+$StarterKitManifestPath = "starter-kit-manifest.json"
 
 $StarterOnlyPaths = @(
     ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
     ".github/workflows/release-package.yml",
     "docs/release-package.md",
     "docs/upgrade-toolkit.md",
+    "tests/test_starter_kit_manifest.py",
     "tests/test_starter_kit_upgrade.py",
     "tools/build-release-package.ps1",
+    "tools/starter-kit-manifest.py",
     "tools/starter-kit-upgrade.py"
 )
 $CanonicalRepositorySlug = "asphyx0r/git-starter-kit"
@@ -138,10 +141,62 @@ function Resolve-AgentRulesRelease {
 function Copy-TrackedRepositoryFile {
     param(
         [Parameter(Mandatory = $true)][string]$SourceRoot,
-        [Parameter(Mandatory = $true)][string]$TargetRoot
+        [Parameter(Mandatory = $true)][string]$TargetRoot,
+        [Parameter(Mandatory = $true)][string]$RepositoryReference
     )
 
-    $trackedFiles = Invoke-GitLine -Arguments @("-C", $SourceRoot, "ls-files")
+    if ($RepositoryReference -match $SemVerTagPattern) {
+        $tagCommit = ((Invoke-GitLine -Arguments @(
+            "-C",
+            $SourceRoot,
+            "rev-parse",
+            "--verify",
+            "refs/tags/$RepositoryReference^{commit}"
+        )) -join "").Trim()
+        $headCommit = ((Invoke-GitLine -Arguments @(
+            "-C",
+            $SourceRoot,
+            "rev-parse",
+            "HEAD"
+        )) -join "").Trim()
+        if ($tagCommit -cne $headCommit) {
+            throw "RepositoryRef tag must resolve to HEAD for SemVer packaging."
+        }
+
+        $manifestTool = Join-Path $SourceRoot "tools/starter-kit-manifest.py"
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $manifestCheck = & python $manifestTool check `
+                --repository-root $SourceRoot `
+                --expected-ref $RepositoryReference `
+                --treeish HEAD 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $message = @($manifestCheck | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+                throw "Starter-kit manifest validation failed: $message"
+            }
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+
+        $releaseManifest = Get-Content `
+            -LiteralPath (Join-Path $SourceRoot $StarterKitManifestPath) `
+            -Raw |
+            ConvertFrom-Json
+        $trackedFiles = @(
+            @($releaseManifest.files | ForEach-Object { [string]$_.path }) +
+                $RequiredRuleFiles +
+                @("_agent-rules-source.json", $StarterKitManifestPath)
+        )
+    }
+    else {
+        $trackedFiles = @(
+            Invoke-GitLine -Arguments @("-C", $SourceRoot, "ls-files")
+            $StarterKitManifestPath
+        ) | Sort-Object -Unique
+    }
+
     foreach ($relativePath in $trackedFiles) {
         if ([string]::IsNullOrWhiteSpace($relativePath)) {
             continue
@@ -152,6 +207,25 @@ function Copy-TrackedRepositoryFile {
 
         $nativePath = $relativePath -replace "/", [System.IO.Path]::DirectorySeparatorChar
         $sourcePath = Join-Path $SourceRoot $nativePath
+        if ($RepositoryReference -match $SemVerTagPattern) {
+            $headObject = ((Invoke-GitLine -Arguments @(
+                "-C",
+                $SourceRoot,
+                "rev-parse",
+                ("HEAD:{0}" -f $relativePath)
+            )) -join "").Trim()
+            $worktreeObject = ((Invoke-GitLine -Arguments @(
+                "-C",
+                $SourceRoot,
+                "hash-object",
+                ("--path={0}" -f $relativePath),
+                $sourcePath
+            )) -join "").Trim()
+            if ($headObject -cne $worktreeObject) {
+                throw "Packaged file differs from HEAD: $relativePath"
+            }
+        }
+
         $targetPath = Join-Path $TargetRoot $nativePath
         $targetDirectory = Split-Path -Parent $targetPath
 
@@ -243,6 +317,10 @@ function Get-ContentMetadata {
 
 function Get-UpgradeStrategy {
     param([Parameter(Mandatory = $true)][string]$Path)
+
+    if ($Path -ceq $StarterKitManifestPath) {
+        return "starter-kit-state"
+    }
 
     $agentRules = $RequiredRuleFiles + @("_agent-rules-source.json")
     if ($agentRules -contains $Path) {
@@ -512,7 +590,10 @@ try {
 
     Write-Output "Validating tracked agent rules ref $resolvedAgentRulesRef."
 
-    Copy-TrackedRepositoryFile -SourceRoot $repoRoot -TargetRoot $stagingRoot
+    Copy-TrackedRepositoryFile `
+        -SourceRoot $repoRoot `
+        -TargetRoot $stagingRoot `
+        -RepositoryReference $RepositoryRef
     $fileModes = Get-GitFileModes -Repository $repoRoot
 
     foreach ($ruleFile in $RequiredRuleFiles) {
@@ -603,7 +684,7 @@ try {
             Sort-Object -Property path
     )
     $fileManifest = [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         generatedAt   = $manifest.generatedAt
         repository    = $manifest.repository
         starterKit    = $manifest.starterKit
@@ -621,7 +702,8 @@ try {
     $requiredFiles = $RequiredRuleFiles + @(
         ".github/workflows/agent-rules-update.yml",
         "_agent-rules-source.json",
-        "_starter-kit-files.json"
+        "_starter-kit-files.json",
+        $StarterKitManifestPath
     )
     foreach ($requiredFile in $requiredFiles) {
         $stagedPath = Join-Path $stagingRoot $requiredFile

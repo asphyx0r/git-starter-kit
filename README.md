@@ -16,6 +16,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Repository file inventory in `docs/repository-files.md`.
 - Tool reference documentation in `tools/README.md`.
 - Staged ZIP backup utility with exact Git `HEAD` and SemVer tag provenance.
+- Tracked starter-kit release manifest with original and current core baselines.
 - Reusable templates for README, tool-directory README, changelog,
   contributing, code of conduct, security, support, environment, Git, Codex,
   skill documentation, and release notes files.
@@ -39,6 +40,12 @@ Use this repository as a starting point for a new project.
 git clone <repository-url> <new-project-name>
 cd <new-project-name>
 ```
+
+`starter-kit-manifest.json` records the published starter-kit release used as
+the repository's initial baseline and the most recent cumulative core upgrade.
+For a default-branch clone containing unreleased commits, it identifies the
+latest published baseline; clone an exact tag or use its release package when
+byte-identical release contents are required.
 
 ## Usage
 
@@ -127,11 +134,11 @@ the copy when a consistent point-in-time backup is required. See
 [Tools](tools/README.md) for archive contents, provenance rules, limitations,
 and restoration caveats.
 
-`git-starter-kit` releases attach generated ZIP packages containing the tracked
-rule files and their `_agent-rules-source.json` provenance. The package build
-asserts that the recorded source matches the requested `agent-coding-rules`
-release. Package-production tooling is source-repository-only and is excluded
-from derived repository packages. See
+`git-starter-kit` releases attach generated ZIP packages containing the
+tracked core manifest, rule files, and provenance. The package build asserts
+that the recorded sources match the release tag and requested
+`agent-coding-rules` release. Package-production tooling is
+source-repository-only and is excluded from derived repository packages. See
 [Release Package](docs/release-package.md) for automatic and manual usage.
 
 Automatic release packages use the latest published full `agent-coding-rules`
@@ -190,6 +197,11 @@ repository. A GitHub Release is created from the release-notes template only
 when `CREATE_GITHUB_RELEASE=true` is explicitly provided. It starts as a
 prerelease and is complete only after the automatic `Release package` workflow
 uploads both verified assets and promotes it to a stable release.
+
+For this canonical repository, the guarded workflow prepares and validates
+`starter-kit-manifest.json` in a distinct release-preparation commit before
+the remote preflight and tag. A GitHub release event validates the committed
+manifest; it never attempts to rewrite tag contents after publication.
 
 Before creating a tag, the guarded workflow pushes the candidate SHA to a
 unique `codex/release-preflight-*` branch and requires the aggregate

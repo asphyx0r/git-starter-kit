@@ -4,29 +4,176 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import stat
 import subprocess
 import sys
 import tempfile
+import time
+import traceback
 from typing import Any
 import zipfile
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 MAX_ARCHIVE_SIZE = 256 * 1024 * 1024
 PROVENANCE_PATH = "_agent-rules-source.json"
 FILES_MANIFEST_PATH = "_starter-kit-files.json"
 ADOPTION_PATH = ".starter-kit-adoption.json"
+STARTER_MANIFEST_PATH = "starter-kit-manifest.json"
 UPGRADE_MANIFEST_PATH = "upgrade-manifest.json"
 PAYLOAD_PREFIX = "payload/"
 BASE_PAYLOAD_PREFIX = "base/"
+LOG_DIRECTORY = "logs"
+LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+LOG_FILENAME_TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S"
+SEMVER_TAG_PATTERN = re.compile(
+    r"^v(0|[1-9][0-9]*)\."
+    r"(0|[1-9][0-9]*)\."
+    r"(0|[1-9][0-9]*)$"
+)
 
 
 class UpgradeError(RuntimeError):
     """Raised when an upgrade cannot be built, planned, or applied safely."""
+
+
+def local_now() -> datetime:
+    """Return the local wall-clock time used by human-readable diagnostics."""
+    return datetime.now().astimezone()
+
+
+class RunJournal:
+    """Write one timestamped, release-specific execution journal."""
+
+    def __init__(self, command: str, arguments: list[str]) -> None:
+        self.command = command
+        self.arguments = list(arguments)
+        self.path: Path | None = None
+        self.target_release: str | None = None
+        self.update_status = "FAILED"
+        self.operational_compliance = "NON_COMPLIANT"
+        self.exact_release_alignment = "UNKNOWN"
+        self._stream: Any = None
+        self._events: list[tuple[datetime, str, str, str]] = []
+        self.write("INFO", "run", f"RUN_START command={command}")
+        self.write("INFO", "run", f"PROGRAM_VERSION={VERSION}")
+        self.write("INFO", "run", f"PID={os.getpid()}")
+        self.write("INFO", "run", f"WORKING_DIRECTORY={Path.cwd().resolve()}")
+        self.write("INFO", "run", f"ARGUMENTS={json.dumps(arguments)}")
+
+    def write(self, level: str, phase: str, message: str) -> None:
+        timestamp = local_now()
+        lines = str(message).splitlines() or [""]
+        for line in lines:
+            event = (timestamp, level, phase, line)
+            if self._stream is None:
+                self._events.append(event)
+            else:
+                self._write_event(event)
+
+    def phase(self, name: str, state: str) -> None:
+        self.write("INFO", name, f"PHASE_{state}")
+
+    def bind_target_release(self, release: str) -> Path:
+        if self.path is not None:
+            if release != self.target_release:
+                raise UpgradeError("Target release changed during execution.")
+            return self.path
+        if not SEMVER_TAG_PATTERN.fullmatch(release):
+            raise UpgradeError(
+                "Target release must be a stable SemVer tag prefixed with v."
+            )
+
+        log_root = Path.cwd().resolve() / LOG_DIRECTORY
+        log_root.mkdir(parents=True, exist_ok=True)
+        while True:
+            filename_timestamp = local_now().strftime(
+                LOG_FILENAME_TIMESTAMP_FORMAT
+            )
+            candidate = log_root / (
+                f"starter-kit-upgrade-{release}-{filename_timestamp}.log"
+            )
+            try:
+                stream = candidate.open(
+                    "x", encoding="utf-8", errors="strict", newline="\n"
+                )
+            except FileExistsError:
+                time.sleep(0.05)
+                continue
+            self.path = candidate
+            self.target_release = release
+            self._stream = stream
+            break
+
+        buffered = self._events
+        self._events = []
+        for event in buffered:
+            self._write_event(event)
+        self.write("INFO", "run", f"TARGET_RELEASE={release}")
+        self.write("INFO", "run", f"LOG_FILE={self.path}")
+        return self.path
+
+    def set_outcome(
+        self,
+        update_status: str,
+        operational_compliance: str,
+        exact_release_alignment: str,
+    ) -> None:
+        self.update_status = update_status
+        self.operational_compliance = operational_compliance
+        self.exact_release_alignment = exact_release_alignment
+
+    def record_exception(self, error: BaseException) -> None:
+        self.write(
+            "ERROR",
+            "failure",
+            f"EXCEPTION_TYPE={type(error).__name__}",
+        )
+        self.write("ERROR", "failure", f"EXCEPTION_MESSAGE={error}")
+        formatted = traceback.format_exc()
+        if formatted and formatted.strip() != "NoneType: None":
+            self.write("ERROR", "failure", "TRACEBACK_BEGIN")
+            self.write("ERROR", "failure", formatted.rstrip())
+            self.write("ERROR", "failure", "TRACEBACK_END")
+        if self.update_status != "BLOCKED":
+            self.set_outcome("FAILED", "NON_COMPLIANT", "UNKNOWN")
+
+    def finalize(self, exit_code: int) -> None:
+        if self._stream is None:
+            return
+        self.phase("summary", "START")
+        self.write("INFO", "summary", f"UPDATE_STATUS={self.update_status}")
+        self.write(
+            "INFO",
+            "summary",
+            f"OPERATIONAL_COMPLIANCE={self.operational_compliance}",
+        )
+        self.write(
+            "INFO",
+            "summary",
+            f"EXACT_RELEASE_ALIGNMENT={self.exact_release_alignment}",
+        )
+        self.write("INFO", "summary", f"EXIT_CODE={exit_code}")
+        self.phase("summary", "END")
+        self.write("INFO", "run", "RUN_END")
+        self._stream.flush()
+        os.fsync(self._stream.fileno())
+        self._stream.close()
+        self._stream = None
+        timestamp = local_now().strftime(LOG_TIMESTAMP_FORMAT)
+        print(f"{timestamp} Log file: {self.path}", file=sys.stderr)
+
+    def _write_event(self, event: tuple[datetime, str, str, str]) -> None:
+        timestamp, level, phase, message = event
+        formatted_timestamp = timestamp.strftime(LOG_TIMESTAMP_FORMAT)
+        self._stream.write(
+            f"{formatted_timestamp} [{level}] [{phase}] {message}\n"
+        )
 
 
 def sha256_bytes(content: bytes) -> str:
@@ -131,7 +278,9 @@ def validate_new_package(
         files[FILES_MANIFEST_PATH], f"new package/{FILES_MANIFEST_PATH}"
     )
     schema_version = manifest.get("schemaVersion")
-    if schema_version not in {1, 2} or not isinstance(manifest.get("files"), list):
+    if schema_version not in {1, 2, 3} or not isinstance(
+        manifest.get("files"), list
+    ):
         raise UpgradeError("Unsupported managed-file manifest schema.")
 
     managed: list[dict[str, Any]] = []
@@ -147,13 +296,23 @@ def validate_new_package(
         if digest != sha256_bytes(files[path]):
             raise UpgradeError(f"Managed-file digest mismatch: {path}")
         strategy = str(raw_entry.get("strategy", ""))
-        if strategy not in {"agent-rules", "initialize-only", "merge", "replace"}:
+        allowed_strategies = {
+            "agent-rules",
+            "initialize-only",
+            "merge",
+            "replace",
+        }
+        if schema_version == 3:
+            allowed_strategies.add("starter-kit-state")
+        if strategy not in allowed_strategies:
             raise UpgradeError(f"Invalid upgrade strategy for {path}: {strategy}")
+        if strategy == "starter-kit-state" and path != STARTER_MANIFEST_PATH:
+            raise UpgradeError(f"Invalid starter-kit state path: {path}")
         mode = str(raw_entry.get("mode", "100644"))
         if mode not in {"100644", "100755"}:
             raise UpgradeError(f"Unsupported Git mode for {path}: {mode}")
         content_kind, canonical_digest = content_metadata(files[path])
-        if schema_version == 2:
+        if schema_version >= 2:
             if raw_entry.get("contentKind") != content_kind:
                 raise UpgradeError(f"Managed-file content kind mismatch: {path}")
             if raw_entry.get("canonicalSha256") != canonical_digest:
@@ -175,19 +334,115 @@ def write_json(value: dict[str, Any]) -> bytes:
     return (json.dumps(value, indent=2, sort_keys=False) + "\n").encode("utf-8")
 
 
-def build_upgrade(args: argparse.Namespace) -> int:
+def starter_release_tag(provenance: dict[str, Any], label: str) -> str:
+    starter = provenance.get("starterKit")
+    release = starter.get("ref") if isinstance(starter, dict) else None
+    if not isinstance(release, str) or not SEMVER_TAG_PATTERN.fullmatch(release):
+        raise UpgradeError(
+            f"{label} must identify a stable SemVer starter-kit release."
+        )
+    return release
+
+
+def log_archive_contents(
+    journal: RunJournal | None,
+    label: str,
+    path: Path,
+    files: dict[str, bytes],
+) -> None:
+    if journal is None:
+        return
+    journal.write(
+        "INFO",
+        "archive-validation",
+        (
+            f"ARCHIVE label={label} path={path} members={len(files)} "
+            f"sha256={sha256_file(path)}"
+        ),
+    )
+    for relative, content in sorted(files.items()):
+        journal.write(
+            "INFO",
+            "file",
+            (
+                f"path={relative} action=READ_ARCHIVE_MEMBER "
+                f"archive={label} size={len(content)} "
+                f"sha256={sha256_bytes(content)}"
+            ),
+        )
+
+
+def log_managed_entries(
+    journal: RunJournal | None, managed: list[dict[str, Any]]
+) -> None:
+    if journal is None:
+        return
+    for entry in sorted(managed, key=lambda item: item["path"]):
+        journal.write(
+            "INFO",
+            "file",
+            (
+                f"path={entry['path']} action=VALIDATE_MANAGED_FILE "
+                f"strategy={entry['strategy']} mode={entry['mode']} "
+                f"contentKind={entry['contentKind']} "
+                f"sha256={entry['sha256']} "
+                f"canonicalSha256={entry['canonicalSha256']}"
+            ),
+        )
+
+
+def build_upgrade(
+    args: argparse.Namespace, journal: RunJournal | None = None
+) -> int:
+    if journal is not None:
+        journal.phase("preflight", "START")
     base_path = args.base_package.resolve()
     new_path = args.new_package.resolve()
     output_path = args.output.resolve()
+    if journal is not None:
+        journal.write("INFO", "preflight", f"BASE_PACKAGE={base_path}")
+        journal.write("INFO", "preflight", f"NEW_PACKAGE={new_path}")
+        journal.write("INFO", "preflight", f"OUTPUT={output_path}")
+
+    if journal is not None:
+        journal.phase("archive-validation", "START")
+    base_files = read_archive(base_path)
+    new_files = read_archive(new_path)
+    log_archive_contents(journal, "base-package", base_path, base_files)
+    log_archive_contents(journal, "new-package", new_path, new_files)
+    base_provenance = require_package_provenance(base_files, "base package")
+    new_provenance, managed = validate_new_package(new_files)
+    target_release = starter_release_tag(new_provenance, "New package")
+    if journal is not None:
+        journal.bind_target_release(target_release)
+        journal.write(
+            "INFO",
+            "provenance",
+            (
+                "BASE_RELEASE="
+                + starter_release_tag(base_provenance, "Base package")
+            ),
+        )
+        journal.write(
+            "INFO",
+            "provenance",
+            f"BASE_STARTER_COMMIT={starter_commit(base_provenance)}",
+        )
+        journal.write(
+            "INFO",
+            "provenance",
+            f"TARGET_STARTER_COMMIT={starter_commit(new_provenance)}",
+        )
+        log_managed_entries(journal, managed)
+        journal.phase("archive-validation", "END")
+
     if output_path.exists():
         raise UpgradeError(f"Output already exists: {output_path}")
     if output_path.parent == output_path or not output_path.parent.is_dir():
         raise UpgradeError("Upgrade output directory must already exist.")
-
-    base_files = read_archive(base_path)
-    new_files = read_archive(new_path)
-    base_provenance = require_package_provenance(base_files, "base package")
-    new_provenance, managed = validate_new_package(new_files)
+    if journal is not None:
+        journal.phase("preflight", "END")
+        journal.phase("manifest-construction", "START")
 
     entries: list[dict[str, Any]] = []
     payload: dict[str, bytes] = {}
@@ -210,7 +465,10 @@ def build_upgrade(args: argparse.Namespace) -> int:
         payload[payload_path] = new_files[path]
         base_content = base_files.get(path)
         base_payload_path = None
-        if entry["strategy"] == "merge" and base_content is not None:
+        if (
+            entry["strategy"] in {"merge", "starter-kit-state"}
+            and base_content is not None
+        ):
             base_payload_path = BASE_PAYLOAD_PREFIX + path
             payload[base_payload_path] = base_content
         base_canonical_digest = (
@@ -234,14 +492,33 @@ def build_upgrade(args: argparse.Namespace) -> int:
                 "basePayload": base_payload_path,
             }
         )
+        if journal is not None:
+            journal.write(
+                "INFO",
+                "file",
+                (
+                    f"path={path} action=INCLUDE_UPGRADE_PAYLOAD "
+                    f"strategy={entry['strategy']} mode={entry['mode']} "
+                    f"basePresent={base_content is not None} "
+                    f"baseCanonicalSha256={base_canonical_digest} "
+                    f"targetCanonicalSha256={entry['canonicalSha256']}"
+                ),
+            )
 
     obsolete = sorted(
         path
         for path in base_files
         if path not in managed_paths and path != FILES_MANIFEST_PATH
     )
+    if journal is not None:
+        for path in obsolete:
+            journal.write(
+                "INFO",
+                "file",
+                f"path={path} action=PRESERVE_OBSOLETE_FILE",
+            )
     manifest = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "base": {
             "archiveSha256": sha256_file(base_path),
             "provenanceSha256": sha256_bytes(base_files[PROVENANCE_PATH]),
@@ -255,6 +532,18 @@ def build_upgrade(args: argparse.Namespace) -> int:
         "entries": entries,
         "obsoletePaths": obsolete,
     }
+    if journal is not None:
+        journal.write(
+            "INFO",
+            "manifest-construction",
+            f"UPGRADE_ENTRIES={len(entries)}",
+        )
+        journal.write(
+            "INFO",
+            "manifest-construction",
+            f"OBSOLETE_PATHS={len(obsolete)}",
+        )
+        journal.phase("manifest-construction", "END")
 
     if args.dry_run:
         print(
@@ -271,6 +560,8 @@ def build_upgrade(args: argparse.Namespace) -> int:
         )
         return 0
 
+    if journal is not None:
+        journal.phase("artifact-write", "START")
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -291,19 +582,57 @@ def build_upgrade(args: argparse.Namespace) -> int:
         if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()
 
+    if journal is not None:
+        journal.write(
+            "INFO",
+            "artifact-write",
+            f"path={output_path} action=CREATE_UPGRADE_ARCHIVE",
+        )
+        journal.phase("artifact-write", "END")
+        journal.phase("post-verification", "START")
+    verified_manifest, verified_files = load_upgrade(output_path)
+    if verified_manifest["target"]["provenance"] != new_provenance:
+        raise UpgradeError("Created upgrade target provenance is inconsistent.")
+    log_archive_contents(journal, "created-upgrade", output_path, verified_files)
+    if journal is not None:
+        journal.phase("post-verification", "END")
+        journal.set_outcome(
+            "ARTIFACT_CREATED", "ARTIFACT_COMPLIANT", "NOT_APPLICABLE"
+        )
     print(f"Created cumulative upgrade package: {output_path}")
     return 0
 
 
-def build_toolkit(args: argparse.Namespace) -> int:
+def build_toolkit(
+    args: argparse.Namespace, journal: RunJournal | None = None
+) -> int:
+    if journal is not None:
+        journal.phase("preflight", "START")
     package_path = args.new_package.resolve()
     output_path = args.output.resolve()
+    if journal is not None:
+        journal.write("INFO", "preflight", f"NEW_PACKAGE={package_path}")
+        journal.write("INFO", "preflight", f"OUTPUT={output_path}")
+        journal.phase("archive-validation", "START")
+    package_files = read_archive(package_path)
+    log_archive_contents(journal, "new-package", package_path, package_files)
+    new_provenance, managed = validate_new_package(package_files)
+    target_release = starter_release_tag(new_provenance, "New package")
+    if journal is not None:
+        journal.bind_target_release(target_release)
+        journal.write(
+            "INFO",
+            "provenance",
+            f"TARGET_STARTER_COMMIT={starter_commit(new_provenance)}",
+        )
+        log_managed_entries(journal, managed)
+        journal.phase("archive-validation", "END")
     if output_path.exists():
         raise UpgradeError(f"Output already exists: {output_path}")
     if not output_path.parent.is_dir():
         raise UpgradeError("Toolkit output directory must already exist.")
-    package_files = read_archive(package_path)
-    validate_new_package(package_files)
+    if journal is not None:
+        journal.phase("preflight", "END")
     script_path = Path(__file__).resolve()
     readme = f"""# Starter Kit Upgrade Toolkit
 
@@ -327,6 +656,10 @@ python starter-kit-upgrade.py plan --upgrade-package UPGRADE.zip --target REPOSI
 
 Application additionally requires a clean repository, valid provenance, no
 conflicts, and an existing backup directory outside the target.
+
+Every non-dry-run command writes a detailed execution journal below `logs/` in
+the current directory. The log filename identifies the target release and run
+timestamp. Dry-run, help, version, and argument-parser exits do not write logs.
 """
     if args.dry_run:
         print(
@@ -342,6 +675,26 @@ conflicts, and an existing backup directory outside the target.
         )
         return 0
 
+    if journal is not None:
+        journal.phase("artifact-write", "START")
+        journal.write(
+            "INFO",
+            "file",
+            f"path={script_path.name} action=ADD_TOOLKIT_MEMBER source={script_path}",
+        )
+        journal.write(
+            "INFO",
+            "file",
+            (
+                f"path=packages/{package_path.name} "
+                f"action=ADD_TOOLKIT_MEMBER source={package_path}"
+            ),
+        )
+        journal.write(
+            "INFO",
+            "file",
+            "path=README.md action=ADD_TOOLKIT_MEMBER source=generated",
+        )
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -361,6 +714,32 @@ conflicts, and an existing backup directory outside the target.
     finally:
         if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()
+    if journal is not None:
+        journal.write(
+            "INFO",
+            "artifact-write",
+            f"path={output_path} action=CREATE_TOOLKIT_ARCHIVE",
+        )
+        journal.phase("artifact-write", "END")
+        journal.phase("post-verification", "START")
+    verified_files = read_archive(output_path)
+    expected_members = {
+        script_path.name,
+        f"packages/{package_path.name}",
+        "README.md",
+    }
+    if set(verified_files) != expected_members:
+        raise UpgradeError("Created toolkit contains unexpected members.")
+    if verified_files[script_path.name] != script_path.read_bytes():
+        raise UpgradeError("Created toolkit contains an invalid updater.")
+    if verified_files[f"packages/{package_path.name}"] != package_path.read_bytes():
+        raise UpgradeError("Created toolkit contains an invalid full package.")
+    log_archive_contents(journal, "created-toolkit", output_path, verified_files)
+    if journal is not None:
+        journal.phase("post-verification", "END")
+        journal.set_outcome(
+            "ARTIFACT_CREATED", "ARTIFACT_COMPLIANT", "NOT_APPLICABLE"
+        )
     print(f"Created upgrade toolkit: {output_path}")
     return 0
 
@@ -371,7 +750,7 @@ def load_upgrade(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
         raise UpgradeError(f"Upgrade package is missing {UPGRADE_MANIFEST_PATH}.")
     manifest = load_json_bytes(files[UPGRADE_MANIFEST_PATH], UPGRADE_MANIFEST_PATH)
     schema_version = manifest.get("schemaVersion")
-    if schema_version not in {1, 2} or not isinstance(
+    if schema_version not in {1, 2, 3} or not isinstance(
         manifest.get("entries"), list
     ):
         raise UpgradeError("Unsupported upgrade package schema.")
@@ -385,7 +764,7 @@ def load_upgrade(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
             raise UpgradeError(f"Missing upgrade payload for {path}.")
         if sha256_bytes(files[payload_path]) != entry.get("newSha256"):
             raise UpgradeError(f"Upgrade payload digest mismatch: {path}")
-        if schema_version == 2:
+        if schema_version >= 2:
             content_kind = str(entry.get("contentKind", ""))
             if canonical_sha256(files[payload_path], content_kind) != entry.get(
                 "newCanonicalSha256"
@@ -487,9 +866,126 @@ def merge_text_payload(local: bytes, base: bytes, new: bytes) -> bytes | None:
     raise UpgradeError("Unable to perform the three-way file merge.")
 
 
+def parse_starter_manifest(content: bytes, label: str) -> dict[str, Any]:
+    value = load_json_bytes(content, label)
+    if value.get("schemaVersion") != 1:
+        raise UpgradeError(f"Unsupported starter-kit manifest schema in {label}.")
+    if set(value) != {"schemaVersion", "source", "current", "files"}:
+        raise UpgradeError(f"Invalid starter-kit manifest fields in {label}.")
+    for release_name in ("source", "current"):
+        release = value.get(release_name)
+        if not isinstance(release, dict):
+            raise UpgradeError(f"Invalid {release_name} release in {label}.")
+        for field in ("repository", "ref", "releaseUrl", "generatedAt"):
+            if not isinstance(release.get(field), str) or not release[field]:
+                raise UpgradeError(
+                    f"Invalid {release_name}.{field} in {label}."
+                )
+        expected_url = (
+            release["repository"].rstrip("/")
+            + "/releases/tag/"
+            + release["ref"]
+        )
+        if release["releaseUrl"] != expected_url:
+            raise UpgradeError(f"Invalid {release_name} release URL in {label}.")
+    if not isinstance(value.get("files"), list):
+        raise UpgradeError(f"Invalid core file inventory in {label}.")
+    return value
+
+
+def starter_release_from_provenance(provenance: dict[str, Any]) -> dict[str, str]:
+    starter = provenance.get("starterKit")
+    generated_at = provenance.get("generatedAt")
+    if not isinstance(starter, dict) or not isinstance(generated_at, str):
+        raise UpgradeError("Base package has incomplete starter-kit provenance.")
+    repository = starter.get("repository")
+    ref = starter.get("ref")
+    if not isinstance(repository, str) or not isinstance(ref, str):
+        raise UpgradeError("Base package has incomplete starter-kit provenance.")
+    return {
+        "repository": repository,
+        "ref": ref,
+        "releaseUrl": repository.rstrip("/") + "/releases/tag/" + ref,
+        "generatedAt": generated_at,
+    }
+
+
+def normalized_starter_manifest(
+    value: dict[str, Any], source: dict[str, Any]
+) -> bytes:
+    normalized = dict(value)
+    normalized["source"] = source
+    return write_json(normalized)
+
+
+def starter_manifest_action(
+    local_content: bytes | None,
+    base_content: bytes | None,
+    new_content: bytes,
+    adopted_source: dict[str, Any] | None,
+) -> str:
+    new_value = parse_starter_manifest(new_content, "new starter-kit manifest")
+    if local_content is None:
+        return "add" if base_content is None else "conflict-missing"
+    try:
+        local_value = parse_starter_manifest(
+            local_content, "target starter-kit manifest"
+        )
+    except UpgradeError:
+        return "conflict-modified"
+    if local_value["source"]["repository"] != new_value["source"]["repository"]:
+        return "conflict-modified"
+    base_value = None
+    if base_content is not None:
+        try:
+            base_value = parse_starter_manifest(
+                base_content, "base starter-kit manifest"
+            )
+        except UpgradeError:
+            return "conflict-modified"
+    expected_source = (
+        adopted_source
+        if adopted_source is not None
+        else base_value["source"]
+        if base_value is not None
+        else None
+    )
+    if expected_source is not None and local_value["source"] != expected_source:
+        return "conflict-modified"
+    if normalized_starter_manifest(local_value, new_value["source"]) == new_content:
+        return "aligned"
+    if base_value is None:
+        return "conflict-modified"
+    if normalized_starter_manifest(local_value, base_value["source"]) == base_content:
+        return "update"
+    return "conflict-modified"
+
+
+def updated_starter_manifest(
+    local_content: bytes | None,
+    base_provenance: dict[str, Any],
+    new_content: bytes,
+) -> bytes:
+    new_value = parse_starter_manifest(new_content, "new starter-kit manifest")
+    if local_content is None:
+        source = starter_release_from_provenance(base_provenance)
+    else:
+        local_value = parse_starter_manifest(
+            local_content, "target starter-kit manifest"
+        )
+        source = local_value["source"]
+    return normalized_starter_manifest(new_value, source)
+
+
 def evaluate_target(
-    manifest: dict[str, Any], files: dict[str, bytes], root: Path
+    manifest: dict[str, Any],
+    files: dict[str, bytes],
+    root: Path,
+    journal: RunJournal | None = None,
 ) -> dict[str, Any]:
+    if journal is not None:
+        journal.phase("target-analysis", "START")
+        journal.write("INFO", "target-analysis", f"TARGET={root}")
     if not root.is_dir():
         raise UpgradeError(f"Target directory does not exist: {root}")
     if run_git(root, "rev-parse", "--show-toplevel").returncode != 0:
@@ -516,6 +1012,12 @@ def evaluate_target(
     adoption = validate_adoption(root, manifest, root / ADOPTION_PATH)
     if provenance_status == "invalid" and adoption is not None:
         provenance_status = "adopted"
+    if journal is not None:
+        journal.write(
+            "INFO",
+            "target-analysis",
+            f"PROVENANCE_STATUS={provenance_status}",
+        )
 
     actions: list[dict[str, Any]] = []
     for entry in manifest["entries"]:
@@ -526,24 +1028,38 @@ def evaluate_target(
         schema_version = manifest.get("schemaVersion")
         local_digest = (
             canonical_sha256(local_content, content_kind)
-            if local_content is not None and schema_version == 2
+            if local_content is not None and schema_version >= 2
             else sha256_bytes(local_content)
             if local_content is not None
             else None
         )
         base_digest = (
             entry.get("baseCanonicalSha256")
-            if schema_version == 2
+            if schema_version >= 2
             else entry.get("baseSha256")
         )
         new_digest = (
             entry.get("newCanonicalSha256")
-            if schema_version == 2
+            if schema_version >= 2
             else entry["newSha256"]
         )
         strategy = entry["strategy"]
         if strategy == "agent-rules":
             action = "delegate-agent-rules"
+        elif strategy == "starter-kit-state":
+            base_payload = entry.get("basePayload")
+            base_content = (
+                files[base_payload] if isinstance(base_payload, str) else None
+            )
+            action = starter_manifest_action(
+                local_content,
+                base_content,
+                files[entry["payload"]],
+                adoption.get("starterKitSource")
+                if adoption is not None
+                and isinstance(adoption.get("starterKitSource"), dict)
+                else None,
+            )
         elif strategy == "initialize-only":
             if local_digest == new_digest:
                 action = "aligned"
@@ -587,6 +1103,17 @@ def evaluate_target(
                 "newCanonicalSha256": new_digest,
             }
         )
+        if journal is not None:
+            journal.write(
+                "INFO",
+                "file",
+                (
+                    f"path={relative} action={action} strategy={strategy} "
+                    f"localCanonicalSha256={local_digest} "
+                    f"baseCanonicalSha256={base_digest} "
+                    f"targetCanonicalSha256={new_digest}"
+                ),
+            )
 
     conflicts = [
         action for action in actions if action["action"].startswith("conflict-")
@@ -614,7 +1141,26 @@ def evaluate_target(
                 preserved_untracked.append(untracked_path)
         else:
             blocking_status.append(status_entry)
-    return {
+    if journal is not None:
+        for path in sorted(manifest.get("obsoletePaths", [])):
+            journal.write(
+                "INFO",
+                "file",
+                f"path={path} action=PRESERVE_OBSOLETE_FILE",
+            )
+        for path in sorted(preserved_untracked):
+            journal.write(
+                "INFO",
+                "file",
+                f"path={path} action=PRESERVE_UNTRACKED_FILE",
+            )
+        for entry in blocking_status:
+            journal.write(
+                "WARNING",
+                "target-analysis",
+                f"BLOCKING_GIT_STATUS={entry}",
+            )
+    plan = {
         "schemaVersion": 2,
         "target": str(root),
         "provenance": provenance_status,
@@ -641,6 +1187,124 @@ def evaluate_target(
         and not conflicts
         and not blocking_status,
     }
+    if journal is not None:
+        journal.write(
+            "INFO",
+            "target-analysis",
+            f"PLAN_SUMMARY={json.dumps(plan['summary'], sort_keys=True)}",
+        )
+        journal.write(
+            "INFO",
+            "target-analysis",
+            f"PLAN_APPLICABLE={plan['applicable']}",
+        )
+        journal.write(
+            "INFO", "target-analysis", f"TARGET_CLEAN={plan['clean']}"
+        )
+        journal.phase("target-analysis", "END")
+    return plan
+
+
+def exact_release_alignment(plan: dict[str, Any]) -> str:
+    return (
+        "ALIGNED"
+        if all(
+            action["localCanonicalSha256"]
+            == action["newCanonicalSha256"]
+            for action in plan["actions"]
+        )
+        else "NOT_ALIGNED"
+    )
+
+
+def operational_compliance(
+    plan: dict[str, Any], target_state_current: bool = False
+) -> str:
+    actions = {action["action"] for action in plan["actions"]}
+    if (
+        not target_state_current
+        and plan["provenance"] != "target"
+    ) or any(
+        action.startswith("conflict-") for action in actions
+    ):
+        return "NON_COMPLIANT"
+    if actions.intersection({"add", "merge", "update"}):
+        return "NON_COMPLIANT"
+    if actions.intersection(
+        {"delegate-agent-rules", "review-initialize-only"}
+    ):
+        return "COMPLIANT_WITH_FOLLOW_UP"
+    return "COMPLIANT"
+
+
+def target_adoption_is_current(
+    manifest: dict[str, Any], root: Path, journal: RunJournal | None = None
+) -> bool:
+    adoption_path = target_path(root, ADOPTION_PATH)
+    if not adoption_path.is_file():
+        if journal is not None:
+            journal.write(
+                "ERROR", "post-verification", "ADOPTION_STATUS=MISSING"
+            )
+        return False
+    try:
+        adoption = load_json_bytes(adoption_path.read_bytes(), str(adoption_path))
+    except UpgradeError:
+        if journal is not None:
+            journal.write(
+                "ERROR", "post-verification", "ADOPTION_STATUS=INVALID"
+            )
+        return False
+    starter = adoption.get("starterKit")
+    target_starter = manifest["target"]["provenance"].get("starterKit")
+    head = run_git(root, "rev-parse", "HEAD")
+    current = (
+        adoption.get("schemaVersion") == 2
+        and adoption.get("baseArchiveSha256")
+        == manifest["target"]["archiveSha256"]
+        and isinstance(starter, dict)
+        and isinstance(target_starter, dict)
+        and starter == target_starter
+        and head.returncode == 0
+        and adoption.get("repositoryCommit") == head.stdout.strip()
+        and isinstance(adoption.get("acceptedFiles"), dict)
+    )
+    expected_accepted_files: dict[str, str] = {}
+    if current:
+        for entry in manifest["entries"]:
+            if entry["strategy"] != "merge":
+                continue
+            destination = target_path(root, entry["path"])
+            if not destination.is_file():
+                current = False
+                break
+            current_digest = canonical_sha256(
+                destination.read_bytes(), entry.get("contentKind", "binary")
+            )
+            if current_digest != entry.get("newCanonicalSha256"):
+                expected_accepted_files[entry["path"]] = current_digest
+        if current:
+            current = adoption["acceptedFiles"] == expected_accepted_files
+    starter_manifest_path = target_path(root, STARTER_MANIFEST_PATH)
+    if current and starter_manifest_path.is_file():
+        try:
+            starter_manifest = parse_starter_manifest(
+                starter_manifest_path.read_bytes(), str(starter_manifest_path)
+            )
+        except UpgradeError:
+            current = False
+        else:
+            current = (
+                adoption.get("starterKitSource")
+                == starter_manifest.get("source")
+            )
+    if journal is not None:
+        journal.write(
+            "INFO" if current else "ERROR",
+            "post-verification",
+            f"ADOPTION_STATUS={'CURRENT' if current else 'INVALID'}",
+        )
+    return current
 
 
 def print_plan(plan: dict[str, Any]) -> None:
@@ -651,7 +1315,10 @@ def create_rollback_archive(
     root: Path,
     backup_directory: Path,
     actions: list[dict[str, Any]],
+    journal: RunJournal | None = None,
 ) -> Path:
+    if journal is not None:
+        journal.phase("rollback", "START")
     backup_root = backup_directory.resolve()
     target_root = root.resolve()
     if not backup_root.is_dir():
@@ -676,8 +1343,26 @@ def create_rollback_archive(
             if action["action"] in {"merge", "update"} and existing.is_file():
                 archive.write(existing, "files/" + relative)
                 saved.append(relative)
+                if journal is not None:
+                    journal.write(
+                        "INFO",
+                        "file",
+                        (
+                            f"path={relative} action=SAVE_ROLLBACK_COPY "
+                            f"rollback={backup_path}"
+                        ),
+                    )
             elif action["action"] == "add":
                 created.append(relative)
+                if journal is not None:
+                    journal.write(
+                        "INFO",
+                        "file",
+                        (
+                            f"path={relative} action=RECORD_ROLLBACK_DELETE "
+                            f"rollback={backup_path}"
+                        ),
+                    )
         archive.writestr(
             "rollback-manifest.json",
             write_json(
@@ -688,6 +1373,16 @@ def create_rollback_archive(
                 }
             ),
         )
+    if journal is not None:
+        journal.write(
+            "INFO",
+            "rollback",
+            (
+                f"ROLLBACK_ARCHIVE={backup_path} saved={len(saved)} "
+                f"created={len(created)} sha256={sha256_file(backup_path)}"
+            ),
+        )
+        journal.phase("rollback", "END")
     return backup_path
 
 
@@ -722,6 +1417,7 @@ def apply_upgrade(
     root: Path,
     plan: dict[str, Any],
     backup_directory: Path,
+    journal: RunJournal | None = None,
 ) -> Path:
     if not plan["applicable"]:
         raise UpgradeError("Upgrade is not applicable; inspect the plan.")
@@ -736,10 +1432,15 @@ def apply_upgrade(
         "action": "update" if adoption_path.is_file() else "add",
     }
     backup_path = create_rollback_archive(
-        root, backup_directory, changes + [adoption_action]
+        root,
+        backup_directory,
+        changes + [adoption_action],
+        journal,
     )
     originals: dict[str, bytes | None] = {}
     try:
+        if journal is not None:
+            journal.phase("target-write", "START")
         entries = {entry["path"]: entry for entry in manifest["entries"]}
         for action in changes:
             relative = action["path"]
@@ -760,7 +1461,26 @@ def apply_upgrade(
                 )
                 if content is None:
                     raise UpgradeError(f"Merge became conflicted for {relative}.")
+            elif entry["strategy"] == "starter-kit-state":
+                content = updated_starter_manifest(
+                    originals[relative],
+                    manifest["base"]["provenance"],
+                    content,
+                )
             write_payload(destination, content, entry["mode"])
+            if journal is not None:
+                written_kind, written_canonical_digest = content_metadata(content)
+                journal.write(
+                    "INFO",
+                    "file",
+                    (
+                        f"path={relative} action={action['action'].upper()} "
+                        f"result=WRITTEN mode={entry['mode']} "
+                        f"contentKind={written_kind} size={len(content)} "
+                        f"sha256={sha256_bytes(content)} "
+                        f"canonicalSha256={written_canonical_digest}"
+                    ),
+                )
 
         originals[ADOPTION_PATH] = (
             adoption_path.read_bytes() if adoption_path.is_file() else None
@@ -780,43 +1500,155 @@ def apply_upgrade(
             )
             if current_digest != entry.get("newCanonicalSha256"):
                 accepted_files[entry["path"]] = current_digest
-        adoption = {
+        next_adoption = {
             "schemaVersion": 2,
             "baseArchiveSha256": manifest["target"]["archiveSha256"],
             "starterKit": manifest["target"]["provenance"]["starterKit"],
             "repositoryCommit": head.stdout.strip(),
             "acceptedFiles": accepted_files,
         }
-        write_payload(adoption_path, write_json(adoption), "100644")
+        starter_manifest_path = target_path(root, STARTER_MANIFEST_PATH)
+        if starter_manifest_path.is_file():
+            starter_manifest = parse_starter_manifest(
+                starter_manifest_path.read_bytes(),
+                str(starter_manifest_path),
+            )
+            next_adoption["starterKitSource"] = starter_manifest["source"]
+        write_payload(adoption_path, write_json(next_adoption), "100644")
+        if journal is not None:
+            adoption_content = adoption_path.read_bytes()
+            journal.write(
+                "INFO",
+                "file",
+                (
+                    f"path={ADOPTION_PATH} action={adoption_action['action'].upper()} "
+                    f"result=WRITTEN size={len(adoption_content)} "
+                    f"sha256={sha256_bytes(adoption_content)}"
+                ),
+            )
+            journal.phase("target-write", "END")
     except Exception:
+        if journal is not None:
+            journal.write(
+                "ERROR",
+                "rollback",
+                "WRITE_FAILURE detected; restoring in-memory originals",
+            )
         for relative, content in reversed(list(originals.items())):
             destination = target_path(root, relative)
             if content is None:
                 if destination.exists():
                     destination.unlink()
+                if journal is not None:
+                    journal.write(
+                        "WARNING",
+                        "file",
+                        f"path={relative} action=ROLLBACK_DELETE result=RESTORED",
+                    )
             else:
                 write_payload(destination, content, "100644")
+                if journal is not None:
+                    journal.write(
+                        "WARNING",
+                        "file",
+                        (
+                            f"path={relative} action=ROLLBACK_RESTORE "
+                            f"result=RESTORED sha256={sha256_bytes(content)}"
+                        ),
+                    )
         raise
     return backup_path
 
 
-def plan_or_apply(args: argparse.Namespace) -> int:
-    manifest, files = load_upgrade(args.upgrade_package.resolve())
+def plan_or_apply(
+    args: argparse.Namespace, journal: RunJournal | None = None
+) -> int:
+    upgrade_path = args.upgrade_package.resolve()
     root = args.target.resolve()
-    plan = evaluate_target(manifest, files, root)
+    if journal is not None:
+        journal.phase("preflight", "START")
+        journal.write("INFO", "preflight", f"UPGRADE_PACKAGE={upgrade_path}")
+        journal.write("INFO", "preflight", f"TARGET={root}")
+        if args.command == "apply":
+            journal.write(
+                "INFO",
+                "preflight",
+                f"BACKUP_DIRECTORY={args.backup_directory.resolve()}",
+            )
+        journal.phase("archive-validation", "START")
+    manifest, files = load_upgrade(upgrade_path)
+    target_provenance = manifest["target"]["provenance"]
+    base_provenance = manifest["base"]["provenance"]
+    target_release = starter_release_tag(target_provenance, "Upgrade target")
+    if journal is not None:
+        journal.bind_target_release(target_release)
+        log_archive_contents(journal, "upgrade-package", upgrade_path, files)
+        journal.write(
+            "INFO",
+            "provenance",
+            "BASE_RELEASE=" + starter_release_tag(
+                base_provenance, "Upgrade base"
+            ),
+        )
+        journal.write(
+            "INFO",
+            "provenance",
+            f"BASE_STARTER_COMMIT={starter_commit(base_provenance)}",
+        )
+        journal.write(
+            "INFO",
+            "provenance",
+            f"TARGET_STARTER_COMMIT={starter_commit(target_provenance)}",
+        )
+        journal.phase("archive-validation", "END")
+        journal.phase("preflight", "END")
+    plan = evaluate_target(manifest, files, root, journal)
+    alignment = exact_release_alignment(plan)
     if args.command == "plan" or args.dry_run:
+        if journal is not None:
+            if plan["applicable"]:
+                plan_status = "READY"
+                compliance = "READY"
+            elif plan["provenance"] == "target":
+                compliance = operational_compliance(plan)
+                plan_status = (
+                    "ALREADY_CURRENT"
+                    if compliance != "NON_COMPLIANT"
+                    else "BLOCKED"
+                )
+            else:
+                plan_status = "BLOCKED"
+                compliance = "NON_COMPLIANT"
+            journal.write(
+                "INFO", "summary", f"PLAN_STATUS={plan_status}"
+            )
+            journal.set_outcome("NOT_APPLIED", compliance, alignment)
         print_plan(plan)
         return 0 if plan["applicable"] else 1
 
+    if not plan["applicable"] and journal is not None:
+        journal.set_outcome("BLOCKED", "NON_COMPLIANT", alignment)
     backup_path = apply_upgrade(
         manifest,
         files,
         root,
         plan,
         args.backup_directory,
+        journal,
     )
-    result = evaluate_target(manifest, files, root)
+    if journal is not None:
+        journal.phase("post-verification", "START")
+    result = evaluate_target(manifest, files, root, journal)
     result["backup"] = str(backup_path)
+    adoption_is_current = target_adoption_is_current(manifest, root, journal)
+    compliance = operational_compliance(result, adoption_is_current)
+    alignment = exact_release_alignment(result)
+    if journal is not None:
+        journal.write(
+            "INFO", "post-verification", f"BACKUP={backup_path}"
+        )
+        journal.phase("post-verification", "END")
+        journal.set_outcome("SUCCEEDED", compliance, alignment)
     print_plan(result)
     return 0
 
@@ -861,18 +1693,34 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(arguments)
+    journal = (
+        None if args.dry_run else RunJournal(args.command, arguments)
+    )
+    exit_code = 1
     try:
         if args.command == "build":
-            return build_upgrade(args)
-        if args.command == "toolkit":
-            return build_toolkit(args)
-        return plan_or_apply(args)
+            exit_code = build_upgrade(args, journal)
+        elif args.command == "toolkit":
+            exit_code = build_toolkit(args, journal)
+        else:
+            exit_code = plan_or_apply(args, journal)
     except (OSError, UpgradeError, subprocess.SubprocessError) as error:
+        if journal is not None:
+            journal.record_exception(error)
         if getattr(args, "verbose", False):
             raise
         print(f"Error: {error}", file=sys.stderr)
-        return 1
+        exit_code = 1
+    except BaseException as error:
+        if journal is not None:
+            journal.record_exception(error)
+        raise
+    finally:
+        if journal is not None:
+            journal.finalize(exit_code)
+    return exit_code
 
 
 if __name__ == "__main__":

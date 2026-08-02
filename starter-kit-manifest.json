@@ -1,0 +1,401 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/asphyx0r/git-starter-kit",
+    "ref": "v2.3.3",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.3.3",
+    "generatedAt": "2026-08-02T18:41:29Z"
+  },
+  "current": {
+    "repository": "https://github.com/asphyx0r/git-starter-kit",
+    "ref": "v2.3.3",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.3.3",
+    "generatedAt": "2026-08-02T18:41:29Z"
+  },
+  "files": [
+    {
+      "path": ".agents/skills/git-commit-push-tag/SKILL.md",
+      "sha256": "3c15baacbcb287a72e4fb61efa2199fc01f501ba9de14581f588047d131d4e22",
+      "canonicalSha256": "3c15baacbcb287a72e4fb61efa2199fc01f501ba9de14581f588047d131d4e22",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".agents/skills/git-commit-push-tag/agents/openai.yaml",
+      "sha256": "c8aca1c33d094de2fd6a76b24fbe7ba6b8ea7ccebb35395ba2c665e9873c552c",
+      "canonicalSha256": "c8aca1c33d094de2fd6a76b24fbe7ba6b8ea7ccebb35395ba2c665e9873c552c",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt",
+      "sha256": "177ee7e49bc0fc626c91866803d110fff99fdbc418c542ddd68ba767b79b5335",
+      "canonicalSha256": "177ee7e49bc0fc626c91866803d110fff99fdbc418c542ddd68ba767b79b5335",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".codespellrc",
+      "sha256": "4ee81226707315324d09837db2952d733cdfcac7718175f8c7bc62262eab8404",
+      "canonicalSha256": "4ee81226707315324d09837db2952d733cdfcac7718175f8c7bc62262eab8404",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "merge"
+    },
+    {
+      "path": ".editorconfig",
+      "sha256": "17d3ecc0cbc5f752781788daa80235499065bbcafe0aee97a7ad038d79d3e6ec",
+      "canonicalSha256": "17d3ecc0cbc5f752781788daa80235499065bbcafe0aee97a7ad038d79d3e6ec",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "merge"
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "a6db6fba78135ad496b08e550aefd118acc634120b6102fe2693cae9c78249b7",
+      "canonicalSha256": "a6db6fba78135ad496b08e550aefd118acc634120b6102fe2693cae9c78249b7",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "merge"
+    },
+    {
+      "path": ".githooks/commit-msg",
+      "sha256": "69a68b98736cea9e34de77717736b418443ee7987911a73b49a5247eb11469ef",
+      "canonicalSha256": "69a68b98736cea9e34de77717736b418443ee7987911a73b49a5247eb11469ef",
+      "contentKind": "text",
+      "mode": "100755",
+      "strategy": "replace"
+    },
+    {
+      "path": ".githooks/pre-commit",
+      "sha256": "f0f12d2fcef7b96cb8f6657e209896f2df605961acec2ff2032bc82cb3f9522a",
+      "canonicalSha256": "f0f12d2fcef7b96cb8f6657e209896f2df605961acec2ff2032bc82cb3f9522a",
+      "contentKind": "text",
+      "mode": "100755",
+      "strategy": "replace"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "sha256": "f89f3165612429686fee540e4cc54ad9c4c4c92fe3d58e188a7e98346fc81463",
+      "canonicalSha256": "f89f3165612429686fee540e4cc54ad9c4c4c92fe3d58e188a7e98346fc81463",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/documentation.md",
+      "sha256": "f3559f686496e842214f121124d8bf320b21b2b2684fe3f320a172dfefce81de",
+      "canonicalSha256": "f3559f686496e842214f121124d8bf320b21b2b2684fe3f320a172dfefce81de",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "sha256": "cd2dd144527ba02ff11028b993c272d6104b11851567d8a406e0bb3d6e70fc13",
+      "canonicalSha256": "cd2dd144527ba02ff11028b993c272d6104b11851567d8a406e0bb3d6e70fc13",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "sha256": "6c87299bc7c124ee7c085b24c86fd4d8822675f21c36018d69bd0e3ca1fbc3a3",
+      "canonicalSha256": "6c87299bc7c124ee7c085b24c86fd4d8822675f21c36018d69bd0e3ca1fbc3a3",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".github/workflows/agent-rules-update.yml",
+      "sha256": "f46214edb655b1602057cf19d7c43cdd78181a87c083af694b80a05e0e82b283",
+      "canonicalSha256": "f46214edb655b1602057cf19d7c43cdd78181a87c083af694b80a05e0e82b283",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".github/workflows/repository-audit.yml",
+      "sha256": "57cdac8564bbab74348d48cfbd451fc9678b9f29421226318f2ebc445bcb655e",
+      "canonicalSha256": "57cdac8564bbab74348d48cfbd451fc9678b9f29421226318f2ebc445bcb655e",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "merge"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "54445ddec60ba4540e681fba82522dfb89b2e5aad9bb203cc5e2f95530c0acf4",
+      "canonicalSha256": "54445ddec60ba4540e681fba82522dfb89b2e5aad9bb203cc5e2f95530c0acf4",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "merge"
+    },
+    {
+      "path": ".gitmessage",
+      "sha256": "b8598ede8ae51957f746de50ba27c48f4ce3516a18119310877da42063c9cfda",
+      "canonicalSha256": "b8598ede8ae51957f746de50ba27c48f4ce3516a18119310877da42063c9cfda",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".markdownlint-cli2.yaml",
+      "sha256": "0e1ac110636833d43d75ebff7b336b0089aab9006b2c1e515e375c4ade14586c",
+      "canonicalSha256": "0e1ac110636833d43d75ebff7b336b0089aab9006b2c1e515e375c4ade14586c",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".vscode/extensions.json",
+      "sha256": "d2df7b45b5f2b926608800228351ad312be5e2460a6384e04f9971def9b8eac5",
+      "canonicalSha256": "d2df7b45b5f2b926608800228351ad312be5e2460a6384e04f9971def9b8eac5",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": ".vscode/settings.json",
+      "sha256": "0902a3d9b22dad23bd1281b1d086306c44f40ec9d847d0d3de56644b891914c5",
+      "canonicalSha256": "0902a3d9b22dad23bd1281b1d086306c44f40ec9d847d0d3de56644b891914c5",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "1ae62d70212fa6ab50f939663aedc57db290fb815c1c6c44d65030f7056afe81",
+      "canonicalSha256": "1ae62d70212fa6ab50f939663aedc57db290fb815c1c6c44d65030f7056afe81",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "CODE_OF_CONDUCT.md",
+      "sha256": "be98234ac8abb2e2443e06b471eb074f06594fee770698d14b82540cafa3419e",
+      "canonicalSha256": "be98234ac8abb2e2443e06b471eb074f06594fee770698d14b82540cafa3419e",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "sha256": "ed1844291acb804c9bad9e58772c55b0adc87e183817c94a263492c2f817f50e",
+      "canonicalSha256": "ed1844291acb804c9bad9e58772c55b0adc87e183817c94a263492c2f817f50e",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "aefc2c745aef7877196f1615ac6b0e0c89069d53ad4a5daaeb2aafe943af928d",
+      "canonicalSha256": "aefc2c745aef7877196f1615ac6b0e0c89069d53ad4a5daaeb2aafe943af928d",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "README.md",
+      "sha256": "7daf5264dafd251063ba287cd5d84fc08d15676cd7960e1ab7d99b99f529eea6",
+      "canonicalSha256": "7daf5264dafd251063ba287cd5d84fc08d15676cd7960e1ab7d99b99f529eea6",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "fd3e7d76666f3d46f5cd587852758b678939e7d38913a3711e0803e9f2bd0a2d",
+      "canonicalSha256": "fd3e7d76666f3d46f5cd587852758b678939e7d38913a3711e0803e9f2bd0a2d",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "SUPPORT.md",
+      "sha256": "81401588b2e07a085269cf6bd9279f1dc033727d0e461d31da7253b3d27d563f",
+      "canonicalSha256": "81401588b2e07a085269cf6bd9279f1dc033727d0e461d31da7253b3d27d563f",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "commitlint.config.cjs",
+      "sha256": "d03eb3b1c71e66da721e24e68f22f96db3184cb91f7d862dc7f0d17855c81c38",
+      "canonicalSha256": "d03eb3b1c71e66da721e24e68f22f96db3184cb91f7d862dc7f0d17855c81c38",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "docs/SKILLS.md",
+      "sha256": "372d0c9bf13ca20c809735e51e7b33811665edf82ffd3f150b796074bfd767a3",
+      "canonicalSha256": "372d0c9bf13ca20c809735e51e7b33811665edf82ffd3f150b796074bfd767a3",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "docs/repository-files.md",
+      "sha256": "ac8e194dd933326b5f0a242af5a67492f499ed53c7f815277e2a48f524b4847e",
+      "canonicalSha256": "ac8e194dd933326b5f0a242af5a67492f499ed53c7f815277e2a48f524b4847e",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "docs/repository-migration.md",
+      "sha256": "6259e2039667c840794f62c97e71c9d6f8e481fe3db5e93bea24e60ef0a3daca",
+      "canonicalSha256": "6259e2039667c840794f62c97e71c9d6f8e481fe3db5e93bea24e60ef0a3daca",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "templates/.codex/config.toml",
+      "sha256": "262e5845ed11b2f8a22836b682ac7ffb0ba4a1cb686748e8ae07dae620d25858",
+      "canonicalSha256": "262e5845ed11b2f8a22836b682ac7ffb0ba4a1cb686748e8ae07dae620d25858",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/.env.template",
+      "sha256": "330ef9aa4c4a13c73d88db624e7c2919174ddb36f33c621f50d6924acca5e9fc",
+      "canonicalSha256": "330ef9aa4c4a13c73d88db624e7c2919174ddb36f33c621f50d6924acca5e9fc",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/.gitconfig",
+      "sha256": "ad1899ff45c202d1bee09d547adf3ae9c5c408dc510ec1af49edbbbe4ffb783e",
+      "canonicalSha256": "ad1899ff45c202d1bee09d547adf3ae9c5c408dc510ec1af49edbbbe4ffb783e",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/CHANGELOG.md",
+      "sha256": "388607f7c11e862aa542adc697fb7d43e22c369580e3b95aab8eaa1dceb9c256",
+      "canonicalSha256": "388607f7c11e862aa542adc697fb7d43e22c369580e3b95aab8eaa1dceb9c256",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/CODE_OF_CONDUCT.md",
+      "sha256": "e224828bb370d8b59f7f342af56285e8277853596079ead98d6b85e06c1bd992",
+      "canonicalSha256": "e224828bb370d8b59f7f342af56285e8277853596079ead98d6b85e06c1bd992",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/CONTRIBUTING.md",
+      "sha256": "6b677441ccf95c796f65c87ce54270dfab32949c66d461cde3b5c5bd8f63ff99",
+      "canonicalSha256": "6b677441ccf95c796f65c87ce54270dfab32949c66d461cde3b5c5bd8f63ff99",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/GITHUB_RELEASE_NOTES.md",
+      "sha256": "047e102436777ee0cb68f8e7ab95a312ab58327f16494ec1632da0951ff69ed0",
+      "canonicalSha256": "047e102436777ee0cb68f8e7ab95a312ab58327f16494ec1632da0951ff69ed0",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/README.md",
+      "sha256": "2e89738a20b0a53c84b49ace73a2246c7f68239d0ca6c5b208282b3089e23f90",
+      "canonicalSha256": "2e89738a20b0a53c84b49ace73a2246c7f68239d0ca6c5b208282b3089e23f90",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/README_TOOLS.md",
+      "sha256": "d51e8c9bd0fa66cf0f8458d915cfac4751386ff3d35faf89ba7edd35429e3b1c",
+      "canonicalSha256": "d51e8c9bd0fa66cf0f8458d915cfac4751386ff3d35faf89ba7edd35429e3b1c",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/SECURITY.md",
+      "sha256": "1c7044826e643cf1f794aa46e511a37f05163e43a76b4ca09e71885309a3d88c",
+      "canonicalSha256": "1c7044826e643cf1f794aa46e511a37f05163e43a76b4ca09e71885309a3d88c",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/SKILLS.md",
+      "sha256": "bd7175a4b35f1adf0d53962202047fbbe87ee535bee11ffc1b255545ab041702",
+      "canonicalSha256": "bd7175a4b35f1adf0d53962202047fbbe87ee535bee11ffc1b255545ab041702",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "templates/SUPPORT.md",
+      "sha256": "2941a7cd513684a1456369ab64effe02ae1ee7d77424a8d02059640a18e20006",
+      "canonicalSha256": "2941a7cd513684a1456369ab64effe02ae1ee7d77424a8d02059640a18e20006",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_backup_target_directory.py",
+      "sha256": "a26cf92a90b98cff12562e97d475b861faa4716ff1aba2e7fb543fccaf0e01e7",
+      "canonicalSha256": "a26cf92a90b98cff12562e97d475b861faa4716ff1aba2e7fb543fccaf0e01e7",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/README.md",
+      "sha256": "d5c294e275fafab5d41149fc5301e691fc604b8b32650425863d04cb3d7fa65e",
+      "canonicalSha256": "d5c294e275fafab5d41149fc5301e691fc604b8b32650425863d04cb3d7fa65e",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "initialize-only"
+    },
+    {
+      "path": "tools/backup-target-directory.py",
+      "sha256": "8ad8cfd79b6590069b2a1035fe138d961576fc9df13df0bcd3d29f6c2ade7898",
+      "canonicalSha256": "8ad8cfd79b6590069b2a1035fe138d961576fc9df13df0bcd3d29f6c2ade7898",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/git-init.ps1",
+      "sha256": "85157a90e52dd1ea727b3a723a1bb19755cb93cfcac433615cf6b40e6fe575fa",
+      "canonicalSha256": "85157a90e52dd1ea727b3a723a1bb19755cb93cfcac433615cf6b40e6fe575fa",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/git-init.sh",
+      "sha256": "fa67684cfac61a187994d4312fcaae359ed53a41bada7ada90c11eaa4599f444",
+      "canonicalSha256": "fa67684cfac61a187994d4312fcaae359ed53a41bada7ada90c11eaa4599f444",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit.sh",
+      "sha256": "6415125177ad1f8f48552ed19b1253ce80a9724b11a06ed3ff61e2bf769c46a3",
+      "canonicalSha256": "6415125177ad1f8f48552ed19b1253ce80a9724b11a06ed3ff61e2bf769c46a3",
+      "contentKind": "text",
+      "mode": "100755",
+      "strategy": "initialize-only"
+    }
+  ]
+}

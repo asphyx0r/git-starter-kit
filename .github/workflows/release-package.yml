@@ -22,6 +22,7 @@ permissions:
 jobs:
   package:
     name: Build release package
+    if: github.repository == 'asphyx0r/git-starter-kit'
     runs-on: ubuntu-24.04
 
     steps:
@@ -147,7 +148,10 @@ jobs:
   promote:
     name: Promote validated release
     needs: package
-    if: github.event_name == 'release' && github.event.release.prerelease
+    if: >-
+      github.repository == 'asphyx0r/git-starter-kit' &&
+      github.event_name == 'release' &&
+      github.event.release.prerelease
     runs-on: ubuntu-24.04
 
     steps:

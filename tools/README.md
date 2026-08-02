@@ -136,6 +136,82 @@ tool does not preserve NTFS ACLs, alternate data streams, creation/access
 times, or a cryptographic manifest. The `v0.0.0` placeholder is also
 indistinguishable in the filename from a real tag with that exact name.
 
+## starter-kit-manifest.py
+
+This is a `git-starter-kit` source-repository tool. It prepares and validates
+the tracked core release manifest. The tool is excluded from packages, while
+the generated `starter-kit-manifest.json` is distributed to derived
+repositories.
+
+### Features
+
+- Records separate immutable `source` and updatable `current` releases.
+- Inventories core paths with raw and canonical SHA-256 digests, Git modes,
+  content kinds, and upgrade strategies.
+- Reads committed or staged Git blobs so the inventory is independent of
+  checkout line endings.
+- Preserves an existing generation timestamp when the selected ref and core
+  inventory are unchanged.
+- Allows read-only validation in forks but permits preparation only with the
+  exact canonical `asphyx0r/git-starter-kit` `origin`.
+- Uses only the Python standard library.
+
+### Synopsis
+
+```text
+usage: python tools/starter-kit-manifest.py [options] COMMAND
+
+options:
+  -h, --help    show help and exit
+  --version     show version and exit
+  --dry-run     validate and print the execution plan without writing
+  -v, --verbose show additional diagnostics
+
+commands:
+  prepare prepare the tracked manifest
+  check   validate the tracked manifest
+```
+
+### Usage/Examples
+
+Preview preparation for an exact release tag:
+
+```bash
+python tools/starter-kit-manifest.py --dry-run prepare \
+  --release-ref v2.4.0
+```
+
+Prepare and validate the manifest after all other release content is
+committed:
+
+```bash
+python tools/starter-kit-manifest.py prepare --release-ref v2.4.0
+python tools/starter-kit-manifest.py check \
+  --expected-ref v2.4.0 \
+  --treeish HEAD
+```
+
+By default, `check` validates the core against the tag recorded in `current`
+when that tag exists locally. This keeps the last published baseline valid on
+a development branch containing later unreleased changes.
+
+### Options
+
+- `--release-ref TAG`: exact SemVer release tag for `prepare`, including the
+  leading `v`.
+- `--expected-ref TAG`: optional exact `current` ref required by `check`.
+- `--repository-root PATH`: Git repository root. Defaults to the current
+  directory.
+- `--treeish REF`: Git tree whose committed blobs define the core. `prepare`
+  otherwise reads staged index blobs; `check` otherwise resolves the recorded
+  release tag or uses the index when that tag does not exist.
+
+### Exit Status
+
+- `0`: the manifest was prepared or validated successfully.
+- Non-zero: repository identity, schema, release metadata, Git inventory, or
+  digest validation failed.
+
 ## build-release-package.ps1
 
 This is a `git-starter-kit` source-repository tool. It is intentionally absent
@@ -144,12 +220,13 @@ from packages distributed to derived repositories.
 ### Features
 
 - Builds an enriched repository ZIP package.
-- Copies tracked repository files into a temporary staging directory.
+- Copies manifest-declared core files into a temporary staging directory for
+  SemVer releases and tracked files for local smoke packages.
 - Validates tracked coding-agent rule files against their source provenance.
 - Writes `_agent-rules-source.json` with repository, starter-kit, resolved
   rule provenance, and any preserved customization records.
-- Writes `_starter-kit-files.json` with managed-file hashes, modes, and upgrade
-  strategies.
+- Writes schema 3 `_starter-kit-files.json` with managed-file hashes, modes,
+  upgrade strategies, and `starter-kit-state` handling.
 - Verifies required files before and after ZIP creation.
 - Emits GitHub Actions outputs when `GITHUB_OUTPUT` is set.
 - Rejects every repository slug and `origin` except the canonical
@@ -179,15 +256,19 @@ options:
 
 `build-release-package.ps1` creates the release asset used by the
 `Release package` GitHub Actions workflow. It packages files reported by
-`git ls-files`, including the required coding-agent rule files already tracked
-by the repository, except for the explicit starter-only exclusion list. It
-resolves an `agent-coding-rules` release only to assert
+`starter-kit-manifest.json` for SemVer releases, plus the required coding-agent
+rule files already tracked by the repository. Non-SemVer local smoke packages
+continue to use `git ls-files` minus the explicit starter-only exclusion list.
+It resolves an `agent-coding-rules` release only to assert
 that provenance and canonical rule hashes are current. The generated ZIP
 includes the normal repository content, the required rule files,
-`_agent-rules-source.json`, and the per-file `_starter-kit-files.json` upgrade
-manifest. The builder accepts only the exact canonical starter repository slug
-and HTTPS `origin`; derived repositories cannot use it to create their own
-release package.
+`starter-kit-manifest.json`, `_agent-rules-source.json`, and the per-file
+`_starter-kit-files.json` upgrade manifest. For a SemVer package, the tracked
+core manifest must identify the exact packaged ref and match `HEAD`; the tag
+must resolve to `HEAD`, and every packaged path must match its filtered `HEAD`
+blob. The builder accepts only the exact canonical starter repository slug and
+HTTPS `origin`; derived repositories cannot use it to create their own release
+package.
 
 The script resolves `-AgentRulesRef latest` through the GitHub releases API.
 An explicit `-AgentRulesRef` must be a SemVer tag prefixed with `v`.
@@ -294,11 +375,15 @@ repositories do not track the toolkit builder or applier.
 - Updates unchanged files and three-way merges explicitly merge-managed files.
 - Delegates the six root rule files and `_agent-rules-source.json` to the
   target repository's autonomous rule synchronization workflow.
+- Preserves `starter-kit-manifest.json.source` while replacing `current` and
+  the core inventory from the new release.
 - Preserves initialization-only, deleted, additional, unrelated untracked, and
   conflicting locally modified files.
 - Requires no tracked worktree changes, an external rollback directory, and
   zero conflicts before application.
 - Bundles the updater and a complete new package as a release toolkit.
+- Writes a detailed, release-specific execution log for every non-dry-run
+  command.
 
 ### Synopsis
 
@@ -347,6 +432,34 @@ python tools/starter-kit-upgrade.py apply \
   --backup-directory ../upgrade-backups
 ```
 
+### Execution Log
+
+Every non-dry-run `build`, `toolkit`, `plan`, and `apply` command creates a
+UTF-8 log below `logs/` in the current directory. Its name uses the validated
+target release and local start time:
+
+```text
+starter-kit-upgrade-vX.Y.Z-YYYYMMDD-HHMMSS.log
+```
+
+Every displayed log timestamp uses `YYYY-MM-DD HH:MM:SS`; the compact form is
+used only in the required filename. The tool reports the absolute log path on
+standard error so JSON and other normal standard output remain unchanged.
+
+The log records command context, release provenance, archive hashes, processing
+phases, and one action with relevant hashes for every inspected, preserved,
+delegated, backed-up, or written file. Its final summary distinguishes the
+operation status, strategy-aware operational compliance, and exact file
+alignment with the target release. A successful operational result can still
+require agent-rule synchronization or an explicit `initialize-only` review,
+and exact alignment reports those intentional differences independently.
+
+`--dry-run` remains side-effect free and creates no log. Help, version,
+argument-parser exits, and failures that occur before a valid target release
+can be resolved also create no log. A failure after release resolution is
+recorded with its exception and traceback. If the log cannot be created, the
+tool stops before writing an artifact or target file.
+
 ### Safety Model
 
 The starter-kit commit recorded inside target `_agent-rules-source.json` must
@@ -356,6 +469,13 @@ a reviewed `.starter-kit-adoption.json` that records the base archive hash,
 starter-kit commit, and an ancestor commit containing the audited baseline.
 Successful application writes the next adoption baseline, including hashes for
 preserved merge-managed customizations.
+
+The `starter-kit-state` strategy handles `starter-kit-manifest.json`
+separately from ordinary file replacement. A legacy package without that file
+receives `source` from the exact base-package provenance. Later upgrades
+preserve `source`, replace `current` and `files`, and reject changes outside
+the expected source-only difference. The adoption manifest anchors the
+preserved source descriptor so a later local alteration is a conflict.
 
 Repository-specific inventories and operator documentation use the
 `initialize-only` strategy. The updater preserves `docs/SKILLS.md`,
