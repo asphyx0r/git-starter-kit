@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.3.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 878557d | fix(agents): align release workflow guard | asphyx |
+| f1fbe50 | fix(tools): normalize initializer paths | asphyx |
+| 712d7e6 | docs(tools): document upgrade toolkit | asphyx |
+
 ## v2.3.0 - 2026-07-31
 
 ### Added in v2.3.0
