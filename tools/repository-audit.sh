@@ -17,15 +17,15 @@ audit_temp_parent_created="false"
 cleanup() {
   if [ -n "$audit_temp" ] && [ -n "$audit_temp_parent" ]; then
     case "$audit_temp" in
-      "$audit_temp_parent"/repository-audit.*)
-        if [ -d "$audit_temp" ]; then
-          rm -rf -- "$audit_temp"
-        fi
-        ;;
-      *)
-        echo "Refusing to remove unexpected audit path: $audit_temp" >&2
-        return 1
-        ;;
+    "$audit_temp_parent"/repository-audit.*)
+      if [ -d "$audit_temp" ]; then
+        rm -rf -- "$audit_temp"
+      fi
+      ;;
+    *)
+      echo "Refusing to remove unexpected audit path: $audit_temp" >&2
+      return 1
+      ;;
     esac
   fi
 
@@ -72,10 +72,10 @@ resolve_powershell_command() {
   fi
 
   case "$(uname -s 2>/dev/null || true)" in
-    CYGWIN*|MINGW*|MSYS*)
-      resolve_command powershell.exe pwsh.exe pwsh
-      return
-      ;;
+  CYGWIN* | MINGW* | MSYS*)
+    resolve_command powershell.exe pwsh.exe pwsh
+    return
+    ;;
   esac
 
   resolve_command pwsh pwsh.exe powershell.exe
@@ -107,18 +107,18 @@ ensure_audit_temp() {
 
 to_pwsh_path() {
   case "$(uname -s 2>/dev/null || true)" in
-    CYGWIN*|MINGW*|MSYS*)
-      cygpath -w "$1"
-      ;;
-    *)
-      if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
-        command -v wslpath >/dev/null 2>&1; then
-        wslpath -w "$1"
-        return
-      fi
+  CYGWIN* | MINGW* | MSYS*)
+    cygpath -w "$1"
+    ;;
+  *)
+    if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
+      command -v wslpath >/dev/null 2>&1; then
+      wslpath -w "$1"
+      return
+    fi
 
-      printf '%s\n' "$1"
-      ;;
+    printf '%s\n' "$1"
+    ;;
   esac
 }
 
@@ -273,6 +273,67 @@ check_release_guard_contract() {
     exit 1
   fi
 
+  if ! grep -F "identifie le plus grand tag SemVer stable" \
+    "$reference_path" >/dev/null ||
+    ! grep -F "présents localement ou sur \`origin\`" \
+      "$reference_path" >/dev/null ||
+    grep -F "Identifie le dernier tag stable au format SemVer" \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not use the highest local or remote SemVer tag." >&2
+    exit 1
+  fi
+
+  if ! grep -F "Il peut y avoir zéro, un ou plusieurs commits." \
+    "$reference_path" >/dev/null ||
+    ! grep -F "aucun nouveau commit n'est nécessaire" \
+      "$reference_path" >/dev/null ||
+    grep -F "aucun changement attendu n'est staged" \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard still requires exactly one new commit." >&2
+    exit 1
+  fi
+
+  if ! grep -F "crée un commit distinct de" \
+    "$reference_path" >/dev/null ||
+    ! grep -F "préparation du changelog en répétant" \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not isolate changelog preparation." >&2
+    exit 1
+  fi
+
+  if ! grep -F 'git fsck --full' "$reference_path" >/dev/null ||
+    ! grep -F 'betterleaks git --staged --redact --no-banner' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'gitleaks protect --staged --redact --no-banner' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'commitlint --print-config json' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'commitlint --edit <fichier-temporaire>' \
+      "$reference_path" >/dev/null ||
+    grep -F 'git fsck --connectivity-only' \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard omits required commit or repository checks." >&2
+    exit 1
+  fi
+
+  if ! grep -F "autant de fois que nécessaire" \
+    "$reference_path" >/dev/null ||
+    ! grep -F "immédiatement avant chaque commit" \
+      "$reference_path" >/dev/null ||
+    grep -F "Examine une seule fois l'état du working tree" \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not recheck repository status." >&2
+    exit 1
+  fi
+
+  if ! grep -F "Supprime chaque \`.gitkeep\` inutile" \
+    "$reference_path" >/dev/null ||
+    ! grep -F "inclus explicitement sa" \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' "Release guard does not remove useless .gitkeep files." >&2
+    exit 1
+  fi
+
   if ! grep -F "n'exige aucun token GitHub App" \
     "$reference_path" >/dev/null; then
     printf '%s\n' "Release guard does not require public source access." >&2
@@ -368,7 +429,7 @@ run_powershell_parse() {
   ensure_audit_temp
 
   local parse_script="$audit_temp/powershell-parse.ps1"
-  cat > "$parse_script" <<'PS'
+  cat >"$parse_script" <<'PS'
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Paths)
 
 $ErrorActionPreference = "Stop"
@@ -513,7 +574,7 @@ run_script_smoke() {
   local bash_invalid_git_target="$audit_temp/git-init-bash-invalid-git"
   local bash_invalid_git_output="$audit_temp/git-init-bash-invalid-git.out"
   mkdir -p "$bash_invalid_git_target/.git"
-  printf 'hello\n' > "$bash_invalid_git_target/README.md"
+  printf 'hello\n' >"$bash_invalid_git_target/README.md"
   if printf 'y\n' | bash tools/git-init.sh \
     --path "$bash_invalid_git_target" \
     --tag v1.0.0 >"$bash_invalid_git_output" 2>&1; then
@@ -527,7 +588,7 @@ run_script_smoke() {
 
   local bash_cancel_target="$audit_temp/git-init-bash-cancel"
   mkdir -p "$bash_cancel_target"
-  printf 'hello\n' > "$bash_cancel_target/README.md"
+  printf 'hello\n' >"$bash_cancel_target/README.md"
   printf 'y\nn\n' | bash tools/git-init.sh \
     --path "$bash_cancel_target" \
     --tag v1.0.0
@@ -541,8 +602,8 @@ run_script_smoke() {
   local bash_verbose_output="$audit_temp/git-init-bash-smoke.out"
   local bash_verbose_error="$audit_temp/git-init-bash-smoke.err"
   mkdir -p "$bash_target"
-  printf 'hello\n' > "$bash_target/README.md"
-  printf 'hello spaces\n' > "$bash_target/notes with spaces.txt"
+  printf 'hello\n' >"$bash_target/README.md"
+  printf 'hello spaces\n' >"$bash_target/notes with spaces.txt"
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_target_argument" \
     --tag v1.0.0 \
@@ -573,7 +634,7 @@ run_script_smoke() {
   local bash_semver_output="$audit_temp/git-init-bash-semver-smoke.out"
   local bash_semver_error="$audit_temp/git-init-bash-semver-smoke.err"
   mkdir -p "$bash_semver_target"
-  printf 'hello\n' > "$bash_semver_target/README.md"
+  printf 'hello\n' >"$bash_semver_target/README.md"
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_semver_target" \
     --tag "$complex_semver_tag" \
@@ -598,7 +659,7 @@ run_script_smoke() {
   local pwsh_invalid_git_target="$audit_temp/git-init-pwsh-invalid-git"
   local pwsh_invalid_git_output="$audit_temp/git-init-pwsh-invalid-git.out"
   mkdir -p "$pwsh_invalid_git_target/.git"
-  printf 'hello\n' > "$pwsh_invalid_git_target/README.md"
+  printf 'hello\n' >"$pwsh_invalid_git_target/README.md"
   if printf 'y\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$(to_pwsh_path "$pwsh_invalid_git_target")" \
     --tag v1.0.0 >"$pwsh_invalid_git_output" 2>&1; then
@@ -612,7 +673,7 @@ run_script_smoke() {
 
   local pwsh_cancel_target="$audit_temp/git-init-pwsh-cancel"
   mkdir -p "$pwsh_cancel_target"
-  printf 'hello\n' > "$pwsh_cancel_target/README.md"
+  printf 'hello\n' >"$pwsh_cancel_target/README.md"
   printf 'y\nn\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$(to_pwsh_path "$pwsh_cancel_target")" \
     --tag v1.0.0
@@ -627,30 +688,30 @@ run_script_smoke() {
   local pwsh_verbose_output="$audit_temp/git-init-pwsh-smoke.out"
   local pwsh_verbose_error="$audit_temp/git-init-pwsh-smoke.err"
   mkdir -p "$pwsh_target"
-  printf 'hello\n' > "$pwsh_target/README.md"
-  printf 'hello spaces\n' > "$pwsh_target/notes with spaces.txt"
+  printf 'hello\n' >"$pwsh_target/README.md"
+  printf 'hello spaces\n' >"$pwsh_target/notes with spaces.txt"
   pwsh_expected_target_path="$(to_pwsh_path "$pwsh_target")"
   pwsh_target_path="$(to_pwsh_path "$pwsh_target/")"
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$pwsh_target_path" \
     --tag v1.0.0 \
     --verbose >"$pwsh_verbose_output" 2>"$pwsh_verbose_error"
-  if ! tr -d '\r' < "$pwsh_verbose_output" |
+  if ! tr -d '\r' <"$pwsh_verbose_output" |
     grep -E \
       '^git --git-dir=.* --work-tree=.* status --porcelain=v1 -z --untracked-files=all$' \
       >/dev/null; then
     echo "PowerShell verbose init did not expose a standalone status trace." >&2
     exit 1
   fi
-  if ! tr -d '\r' < "$pwsh_verbose_output" |
+  if ! tr -d '\r' <"$pwsh_verbose_output" |
     grep -Fx "Path: $pwsh_expected_target_path" >/dev/null; then
     echo "PowerShell init did not normalize the target path." >&2
     exit 1
   fi
-  if ! tr -d '\r' < "$pwsh_verbose_output" |
+  if ! tr -d '\r' <"$pwsh_verbose_output" |
     grep -Fx "  README.md" >/dev/null ||
-    ! tr -d '\r' < "$pwsh_verbose_output" |
-      grep -Fx "  notes with spaces.txt" >/dev/null; then
+    ! tr -d '\r' <"$pwsh_verbose_output" |
+    grep -Fx "  notes with spaces.txt" >/dev/null; then
     echo "PowerShell verbose init corrupted the committable file preview." >&2
     exit 1
   fi
@@ -663,15 +724,15 @@ run_script_smoke() {
   local pwsh_semver_output="$audit_temp/git-init-pwsh-semver-smoke.out"
   local pwsh_semver_error="$audit_temp/git-init-pwsh-semver-smoke.err"
   mkdir -p "$pwsh_semver_target"
-  printf 'hello\n' > "$pwsh_semver_target/README.md"
+  printf 'hello\n' >"$pwsh_semver_target/README.md"
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$(to_pwsh_path "$pwsh_semver_target")" \
     --tag "$complex_semver_tag" \
     >"$pwsh_semver_output" 2>"$pwsh_semver_error"
-  if tr -d '\r' < "$pwsh_semver_output" |
+  if tr -d '\r' <"$pwsh_semver_output" |
     grep -E '^git ' >/dev/null ||
-    tr -d '\r' < "$pwsh_semver_error" |
-      grep -E '^git ' >/dev/null; then
+    tr -d '\r' <"$pwsh_semver_error" |
+    grep -E '^git ' >/dev/null; then
     echo "PowerShell init wrote Git traces without --verbose." >&2
     exit 1
   fi
@@ -957,28 +1018,28 @@ run_readonly() {
 }
 
 case "$mode" in
-  readonly)
-    run_readonly
-    ;;
-  full|all)
-    run_markdown
-    run_spelling
-    run_static
-    ;;
-  markdown)
-    run_markdown
-    ;;
-  spelling)
-    run_spelling
-    ;;
-  static)
-    run_static
-    ;;
-  -h|--help|help)
-    usage
-    ;;
-  *)
-    usage >&2
-    exit 1
-    ;;
+readonly)
+  run_readonly
+  ;;
+full | all)
+  run_markdown
+  run_spelling
+  run_static
+  ;;
+markdown)
+  run_markdown
+  ;;
+spelling)
+  run_spelling
+  ;;
+static)
+  run_static
+  ;;
+-h | --help | help)
+  usage
+  ;;
+*)
+  usage >&2
+  exit 1
+  ;;
 esac

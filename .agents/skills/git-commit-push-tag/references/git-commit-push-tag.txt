@@ -1,8 +1,9 @@
 Objectif : analyser puis, uniquement après validation explicite du bump,
-créer un commit, un tag SemVer, effectuer un push atomique et, si cela
-est explicitement demandé, créer une GitHub Release à partir du template
-`GITHUB_RELEASE_NOTES.md`, puis exiger le succès de son workflow CI
-automatique avant de la considérer comme terminée.
+créer les commits strictement nécessaires, s'il y en a, créer un tag
+SemVer, effectuer un push atomique et, si cela est explicitement demandé,
+créer une GitHub Release à partir du template `GITHUB_RELEASE_NOTES.md`,
+puis exiger le succès de son workflow CI automatique avant de la
+considérer comme terminée.
 
 PARAMÈTRES EXPLICITES DE LA DEMANDE COURANTE
 
@@ -21,6 +22,10 @@ RÈGLES GÉNÉRALES
 - Travaille uniquement depuis la racine retournée par :
   `git rev-parse --show-toplevel`.
 - Vérifie que cette racine correspond au repository actuellement ouvert.
+- Lis et applique les instructions du repository qui gouvernent les
+  opérations prévues, notamment `COMMIT_RULES.md` avant chaque commit,
+  `RELEASE_RULES.md` avant le tag et les règles de documentation
+  applicables avant toute mise à jour documentaire.
 - Exécute toutes les commandes Git séquentiellement, une seule à la fois.
 - N'exécute aucune commande Git en parallèle ou en arrière-plan.
 - Ne relance automatiquement aucune commande ayant échoué et ne relance
@@ -57,10 +62,13 @@ PHASE 1 — ANALYSE DU BUMP
 3. Vérifie que la branche locale n'est pas en retard ou divergente :
    `origin/<branche>` doit être un ancêtre de `HEAD`.
 
-4. Identifie le dernier tag stable au format SemVer qui :
-   - correspond exactement à `vMAJOR.MINOR.PATCH` ;
-   - est accessible depuis `HEAD` ;
-   - appartient à l'historique de la branche courante.
+4. Recense tous les tags stables qui correspondent exactement à
+   `vMAJOR.MINOR.PATCH`, présents localement ou sur `origin`, puis
+   identifie le plus grand tag SemVer stable par comparaison numérique de
+   MAJOR, MINOR et PATCH. Ne te base ni sur l'ordre chronologique, ni sur
+   la date de création, ni sur les seuls tags accessibles depuis `HEAD`.
+   Le commit déréférencé de ce plus grand tag doit être un ancêtre de
+   `HEAD`. Sinon, arrête-toi sans choisir un tag inférieur comme base.
 
 5. Applique la convention de tag suivante :
    - le préfixe `v` est obligatoire ;
@@ -69,16 +77,16 @@ PHASE 1 — ANALYSE DU BUMP
    - considère les tags historiques d'un autre type comme des exceptions
      immuables qui ne rendent pas la politique courante ambiguë ;
    - en l'absence de politique explicite, déduis le type uniquement si
-     tous les tags SemVer stables accessibles utilisent le même type.
-   Si des tags SemVer stables sans préfixe `v` sont accessibles depuis
-   `HEAD`, ou si aucune politique explicite ne permet de résoudre un type
-   de tag mélangé ou ambigu, arrête-toi.
+     tous les tags SemVer stables recensés utilisent le même type.
+   Si des tags SemVer stables sans préfixe `v` sont présents localement ou
+   sur `origin`, ou si aucune politique explicite ne permet de résoudre un
+   type de tag mélangé ou ambigu, arrête-toi.
 
 6. Si aucun tag SemVer de base ne peut être identifié avec certitude,
    arrête-toi. Ne propose pas arbitrairement `v0.1.0` ou `v1.0.0`.
 
 7. Détermine le contenu complet de la prochaine release :
-   - tous les commits du range `<dernier-tag>..HEAD` ;
+   - tous les commits du range `<plus-grand-tag>..HEAD` ;
    - les modifications locales suivies ;
    - les fichiers non suivis qui semblent destinés au commit.
 
@@ -138,7 +146,7 @@ PRÉCONDITION CONDITIONNELLE DU TEMPLATE DE RELEASE
   - arrête le workflow avant la phase 2.
 
 11. Produis un rapport contenant :
-    - le dernier tag SemVer ;
+    - le plus grand tag SemVer stable local ou distant ;
     - le range de commits analysé ;
     - les commits et modifications significatifs ;
     - la classification de chaque changement ;
@@ -182,51 +190,81 @@ PHASE 2 — PRÉPARATION DU COMMIT
 
 16. Un `.gitkeep` est inutile uniquement si son répertoire contient
     déjà un autre fichier destiné à être suivi.
-    En cas d'ambiguïté, conserve-le.
+    Supprime chaque `.gitkeep` inutile lorsque cet autre fichier appartient
+    au périmètre attendu de la release, puis inclus explicitement sa
+    suppression dans le commit concerné. En cas d'ambiguïté, conserve-le.
 
 17. Mets à jour, uniquement si nécessaire et à partir du contenu de la
     release analysée :
     - `README.md` ;
-    - `CHANGELOG.md` ;
     - `TODO.md`, s'il existe.
+    Ne mets pas encore à jour `CHANGELOG.md` : prépare-le uniquement après
+    la finalisation des commits publiables.
 
-18. Examine une seule fois l'état du working tree avec :
-    `git --no-optional-locks status --porcelain=v1`
+18. Examine l'état du working tree autant de fois que nécessaire avec
+    `git --no-optional-locks status --porcelain=v1`, notamment
+    immédiatement avant chaque commit, immédiatement avant le tag et après
+    le push. Utilise aussi `git status --short --branch` lorsqu'il faut
+    contrôler la branche et son upstream.
 
-19. Vérifie les fichiers modifiés et non suivis.
-    Exclue les secrets, identifiants, fichiers locaux, données privées,
-    artefacts temporaires et fichiers non désirés.
+19. Vérifie les fichiers staged, modifiés et non suivis. Exclus les secrets,
+    identifiants, fichiers locaux, données privées, artefacts temporaires et
+    fichiers non désirés. Répartis les changements publiables en commits
+    distincts par intention lorsqu'un seul message exact ne peut pas les
+    représenter. Ne mélange jamais une préparation pure de `CHANGELOG.md`
+    avec un changement fonctionnel, comportemental ou documentaire.
 
-20. Stage uniquement une liste explicite de fichiers attendus.
-    N'utilise pas `git add .` ni `git add -A`.
+20. Il peut y avoir zéro, un ou plusieurs commits. Ne crée jamais de commit
+    vide. Stage un seul commit candidat à la fois, uniquement à partir d'une
+    liste explicite de fichiers attendus. N'utilise pas `git add .` ni
+    `git add -A`. Si l'historique contient déjà les changements publiables,
+    que le working tree ne nécessite aucun commit et que le changelog est
+    valide, aucun nouveau commit n'est nécessaire.
 
-21. Vérifie le contenu staged avec :
+21. Pour chaque commit candidat, vérifie le contenu staged avec :
     - `git diff --cached --name-status`
     - `git diff --cached --check`
     - `git ls-files -u`
 
-22. Vérifie exactement une fois l'intégrité et la connectivité du
-    repository avec :
-    `git fsck --connectivity-only --no-dangling`
+22. Immédiatement avant chaque commit candidat, vérifie l'état du
+    repository, exécute `git fsck --full` et lance les plus petits contrôles
+    de projet applicables aux fichiers staged. Répète `git fsck --full`
+    immédiatement avant le tag, même si aucun nouveau commit n'est
+    nécessaire.
 
-23. Vérifie que chaque commit du range de release est lisible et
-    accessible depuis `HEAD`.
+23. Avant chaque commit, analyse le contenu staged avec
+    `betterleaks git --staged --redact --no-banner`. Si Betterleaks est
+    indisponible ou ne peut pas valider le contenu, avertis l'utilisateur et
+    utilise `gitleaks protect --staged --redact --no-banner`. Si aucun des
+    deux outils ne peut effectuer la validation, avertis l'utilisateur,
+    inspecte intégralement chaque fichier concerné et effectue une recherche
+    conservatrice de secrets. Un secret confirmé ou une incertitude non
+    résolue bloque le commit.
 
-24. Arrête-toi si :
+24. Vérifie que chaque commit du range de release est lisible et accessible
+    depuis `HEAD`. Arrête-toi si :
     - un secret ou fichier non désiré est staged ;
     - un conflit existe ;
     - le diff contient une erreur ;
     - le contrôle d'intégrité échoue ;
+    - un contrôle de projet applicable échoue sans dérogation explicite ;
     - `origin/<branche>` n'est plus un ancêtre de `HEAD` ;
-    - aucun changement attendu n'est staged.
+    - ni le range actuel ni les changements attendus ne contiennent de
+      changement publiable.
+    L'absence de contenu staged n'est pas un motif d'arrêt à elle seule si
+    aucun nouveau commit n'est nécessaire selon le point 20.
 
 PHASE 3 — COMMIT ET TAG
 
-25. Crée un commit sans ouvrir d'éditeur.
+25. Pour chaque commit candidat, inspecte `.gitmessage` s'il existe et la
+    configuration résolue avec `commitlint --print-config json` lorsque
+    commitlint est disponible. Déduis le message exact du diff staged et des
+    règles du repository.
 
 26. Le titre du commit doit :
     - être rédigé en anglais ;
     - contenir au maximum 50 caractères ;
+    - respecter le format Conventional Commits et les règles résolues ;
     - décrire succinctement le changement principal.
 
 27. Le corps du commit doit :
@@ -235,16 +273,27 @@ PHASE 3 — COMMIT ET TAG
     - décrire les modifications apportées ;
     - expliquer succinctement leur raison.
 
-28. N'utilise pas `--no-verify`.
-    Si un hook échoue, arrête immédiatement le workflow.
+28. Valide le message exact avec
+    `commitlint --edit <fichier-temporaire>` lorsque commitlint est
+    disponible ou requis, puis crée le commit sans ouvrir d'éditeur.
+    N'utilise pas `--no-verify`. Si commitlint, un hook ou la création du
+    commit échoue, arrête immédiatement le workflow. Répète les points 18 à
+    28 pour chaque autre commit publiable nécessaire.
 
-29. Après le commit, vérifie que :
+29. Une fois les commits publiables finalisés, vérifie ou mets à jour la
+    section exacte du prochain tag dans `CHANGELOG.md` à partir de
+    l'historique Git. Si le fichier doit changer, crée un commit distinct de
+    préparation du changelog en répétant tous les contrôles applicables des
+    points 18 à 28. Si la section est déjà exacte, ne crée aucun commit de
+    changelog. Vérifie ensuite que :
     - le working tree est propre ;
     - aucun fichier attendu n'a été omis ;
-    - `origin/<branche>` est toujours un ancêtre de `HEAD`.
+    - `origin/<branche>` est toujours un ancêtre de `HEAD` ;
+    - le range contient au moins un commit publiable autre qu'un éventuel
+      commit de préparation du changelog.
 
 30. Calcule le tag exact, toujours préfixé par `v`, à partir du
-    dernier tag et de BUMP :
+    plus grand tag SemVer stable et de BUMP :
     - patch : incrémente PATCH ;
     - minor : incrémente MINOR et remet PATCH à zéro ;
     - major : incrémente MAJOR et remet MINOR et PATCH à zéro.
@@ -253,15 +302,17 @@ PHASE 3 — COMMIT ET TAG
     explicite l'impose, ne reproduis pas le type d'un tag historique
     exceptionnel.
 
-32. Vérifie que le tag calculé n'existe ni localement ni sur origin.
-    En cas de collision, arrête-toi.
-    N'incrémente pas automatiquement une seconde fois.
+32. Relis les tags présents sur `origin`, recalcule le plus grand tag
+    SemVer stable et vérifie que le tag calculé n'existe ni localement ni
+    sur `origin`. En cas d'évolution distante incompatible ou de collision,
+    arrête-toi. N'incrémente pas automatiquement une seconde fois.
 
 PRÉPARATION CONDITIONNELLE DES RELEASE NOTES
 
 - N'applique cette section que si `CREATE_GITHUB_RELEASE=true`.
-- Après la création du commit et avant la création du tag, génère les
-  Release Notes dans un fichier temporaire situé hors du working tree.
+- Après la création des éventuels commits et avant la création du tag,
+  génère les Release Notes dans un fichier temporaire situé hors du
+  working tree.
 - Utilise exclusivement le template retenu pendant la phase 1 et ne
   modifie jamais le fichier source.
 - Préserve la structure, l'ordre, les titres, les colonnes et les
@@ -286,7 +337,11 @@ PRÉPARATION CONDITIONNELLE DES RELEASE NOTES
   N'utilise aucune structure de remplacement ni aucune génération
   automatique de notes.
 
-33. Crée le tag uniquement après la réussite de toutes les vérifications.
+33. Immédiatement avant de créer le tag, exécute
+    `git status --short --branch`, vérifie que le working tree est propre,
+    qu'aucune opération Git n'est en cours, que `CHANGELOG.md` est exact et
+    que le SHA cible est celui attendu, puis exécute `git fsck --full`.
+    Crée le tag uniquement après la réussite de toutes ces vérifications.
 
 PHASE 4 — PUSH ET VALIDATION
 
@@ -397,7 +452,8 @@ CONTRÔLE CI OBLIGATOIRE DE LA GITHUB RELEASE
   contrôles. Aucun asset valide ni run manuel ne suffit séparément.
 
 41. Termine par un compte rendu contenant :
-    - le commit créé ;
+    - la liste des commits créés, ou la confirmation qu'aucun nouveau
+      commit n'était nécessaire ;
     - le bump appliqué ;
     - le tag créé ;
     - le résultat du push atomique ;
