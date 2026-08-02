@@ -8,6 +8,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## v2.3.3
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 6282236 | fix(release): keep packaging starter-only | asphyx |
+
 ## v2.3.2
 
 | References | Description | Author(s) |
