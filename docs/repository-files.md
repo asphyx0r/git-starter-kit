@@ -47,8 +47,8 @@ deferred, or explicitly excluded from the template.
   workflow.
 - Usage: Use through `$git-commit-push-tag` only when explicitly requested.
 - Notes: Repository mutation requires an explicit bump. GitHub Release
-  publication requires a separate explicit parameter and successful automatic
-  package CI before completion.
+  publication requires a separate explicit parameter. Package CI applies only
+  when the exact `asphyx0r/git-starter-kit` remote is active.
 
 ### `.agents/skills/git-commit-push-tag/SKILL.md`
 
@@ -56,8 +56,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Loads the canonical guarded Git workflow instructions.
 - Usage: Codex loads this file after explicit skill invocation.
-- Notes: The canonical reference is the sole behavioral source of truth,
-  including the mandatory release CI completion gate.
+- Notes: The canonical reference is the generic behavioral source of truth and
+  loads a separate starter-only release extension when applicable.
 
 ### `.agents/skills/git-commit-push-tag/agents/`
 
@@ -74,7 +74,7 @@ deferred, or explicitly excluded from the template.
 - Goal: Configures display metadata and explicit-invocation policy for the
   `git-commit-push-tag` skill.
 - Usage: Codex uses this metadata in skill UI and invocation policy handling.
-- Notes: Advertises the CI-gated release flow while
+- Notes: Advertises the guarded release flow while
   `allow_implicit_invocation` remains `false`.
 
 ### `.agents/skills/git-commit-push-tag/references/`
@@ -90,9 +90,20 @@ deferred, or explicitly excluded from the template.
 - Type: `file`
 - Status: `optional`
 - Goal: Defines canonical bump analysis, commit, tag, atomic push,
-  synchronization, and CI-gated GitHub Release behavior.
+  synchronization, and generic GitHub Release behavior.
 - Usage: Read completely before the skill takes any action or runs Git.
-- Notes: Preserve this file as the skill's sole behavioral source of truth.
+- Notes: Preserve this file as the generic behavioral source of truth. The
+  starter-only extension adds its package release contract.
+
+### `.agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Adds the package CI and two-asset completion gate used only by
+  `asphyx0r/git-starter-kit`.
+- Usage: Load only through the generic skill when its exact remote matches.
+- Notes: This source-repository extension is excluded from packages distributed
+  to derived repositories.
 
 ### `.betterleaks.toml`
 
@@ -245,9 +256,10 @@ deferred, or explicitly excluded from the template.
   upgrade toolkit are uploaded with the built-in workflow token. A dependent
   job promotes automatic prereleases only after successful packaging; manual
   runs never promote releases. Package and toolkit names are derived from the
-  repository being packaged. The checkout-free promotion command receives
-  explicit repository context. Shell validation messages are wrapped for YAML
-  lint readability.
+  canonical repository and release tag. The checkout-free promotion command
+  receives explicit repository context. Shell validation messages are wrapped
+  for YAML lint readability. This workflow is excluded from packages
+  distributed to derived repositories.
 
 ### `.githooks/`
 
@@ -510,7 +522,10 @@ deferred, or explicitly excluded from the template.
   strategy so cumulative starter upgrades cannot overwrite them. A previously
   tracked managed-file manifest is excluded before its replacement is
   generated, so aligned downstream repositories remain packageable. Helper
-  functions use ScriptAnalyzer-compatible names and explicit parameters.
+  functions use ScriptAnalyzer-compatible names and explicit parameters. The
+  command rejects every repository slug or `origin` except the canonical
+  `asphyx0r/git-starter-kit` repository and is excluded from packages
+  distributed to derived repositories.
 
 ### `tools/README.md`
 
@@ -568,7 +583,9 @@ deferred, or explicitly excluded from the template.
   delegates agent-rule paths, three-way merges designated text files,
   flags changed initialization-only files for local review, preserves locally
   owned and unrelated untracked files, performs no deletion or Git
-  publication, and restores writes after a failed application attempt.
+  publication, and restores writes after a failed application attempt. The
+  source copy is excluded from the full package and supplied separately inside
+  the upgrade toolkit.
 
 ### `tools/git-init.ps1`
 
@@ -638,7 +655,7 @@ deferred, or explicitly excluded from the template.
 - Usage: Run
   `python -B -m unittest discover -s tests -p "test_starter_kit_upgrade.py"`.
 - Notes: Uses temporary Git repositories and ZIP files without changing the
-  working repository.
+  working repository. This starter-only test is excluded from the full package.
 
 ### `docs/`
 
@@ -678,7 +695,8 @@ deferred, or explicitly excluded from the template.
 - Notes: Covers the rule-freshness gate, prerelease promotion, the mandatory
   automatic CI gate, generated ZIP contents, local testing, and
   troubleshooting. Cumulative upgrades preserve this repository-specific
-  guide as initialization-only.
+  guide as initialization-only. This operator guide is excluded from the full
+  package.
 
 ### `docs/upgrade-toolkit.md`
 
@@ -688,9 +706,8 @@ deferred, or explicitly excluded from the template.
   upgrade.
 - Usage: Follow the documented `build`, `plan`, and `apply` sequence when
   aligning a repository derived from an earlier starter-kit release.
-- Notes: This universal guide is managed by cumulative upgrades. An unchanged
-  local copy can be updated, while a customized copy is preserved as a
-  conflict instead of being overwritten.
+- Notes: This source-repository guide is excluded from the full package because
+  the toolkit embeds its own usage README.
 
 ### `docs/repository-migration.md`
 

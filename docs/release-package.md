@@ -52,10 +52,10 @@ The ZIP also includes two provenance files:
 
 The upgrade toolkit contains the guarded updater and the complete enriched
 package. It can build a cumulative upgrade from the exact earlier package used
-to initialize a target repository. Only `git-starter-kit` publishes this
-toolkit. When the release workflow is inherited by a downstream repository,
-the repository publishes its own enriched package but skips the starter
-upgrade toolkit.
+to initialize a target repository. Only `git-starter-kit` publishes the
+enriched package and upgrade toolkit. The release workflow, package builder,
+updater, related tests, and package-specific documentation are excluded from
+derived repository packages.
 
 For a concise usage procedure in French, see
 [Upgrade toolkit](upgrade-toolkit.md).
@@ -67,10 +67,9 @@ those files through its own pull-request workflow.
 
 Repository-specific inventories and operator documentation are
 initialization-only. Cumulative upgrades preserve `docs/SKILLS.md`,
-`docs/release-package.md`, `docs/repository-files.md`, and `tools/README.md`
-instead of attempting an unsafe generic merge. They also preserve
-`tools/repository-audit.sh`, whose test and tool inventory belongs to the
-target repository.
+`docs/repository-files.md`, and `tools/README.md` instead of attempting an
+unsafe generic merge. They also preserve `tools/repository-audit.sh`, whose
+test and tool inventory belongs to the target repository.
 
 When an initialization-only file changed upstream, the plan reports
 `review-initialize-only`. The signal does not block or write the target; it
@@ -110,7 +109,8 @@ The workflow then:
 1. Checks out `git-starter-kit` at the published release tag.
 2. Resolves `latest` to the latest published full `agent-coding-rules` release.
 3. Verifies that tracked provenance and rule hashes match the resolved tag.
-4. Copies the tracked starter-kit files into a temporary package folder.
+4. Copies tracked starter-kit files, except source-repository-only packaging
+   files, into a temporary package folder.
 5. Retains the six tracked rule files in that package folder.
 6. Writes validated provenance and the managed-file manifest.
 7. Creates the ZIP file.
@@ -187,6 +187,7 @@ From the repository root, run:
 
 ```powershell
 powershell -NoProfile -File tools\build-release-package.ps1 `
+  -RepositorySlug asphyx0r/git-starter-kit `
   -RepositoryRef local-test `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip
@@ -203,11 +204,13 @@ tar -xOf .tmp\release-package-test\test-release-package.zip _starter-kit-files.j
 The local test creates a ZIP only. It does not upload anything to GitHub.
 `AgentRulesRef` defaults to `latest`; pass a SemVer tag only when you need to
 assert a known agent-rules release. The argument validates tracked content; it
-does not overlay files from the source repository.
+does not overlay files from the source repository. The repository root must use
+the canonical `git-starter-kit` HTTPS `origin`.
 
-The script copies files reported by `git ls-files`. Local untracked files are
-not included in the package. This is intentional, because release packages
-should be built from committed repository content.
+The script copies files reported by `git ls-files`, except the explicit
+source-repository-only packaging files. Local untracked files are not included
+in the package. This is intentional, because release packages should be built
+from committed repository content.
 
 ## Troubleshooting
 

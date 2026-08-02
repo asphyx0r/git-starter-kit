@@ -9,17 +9,16 @@ is the authoritative source for its behavior and instructions.
 | Skill | Purpose | Path |
 | --- | --- | --- |
 <!-- markdownlint-disable-next-line MD013 -->
-| **Git Commit, Push, Tag, and CI-Gated GitHub Release** | Runs the canonical guarded SemVer analysis, validated commit, tag, atomic push, synchronization checks, and optional template-based, CI-gated GitHub Release workflow. | `.agents/skills/git-commit-push-tag` |
+| **Git Commit, Push, Tag, and GitHub Release** | Runs guarded SemVer analysis, commit, tag, atomic push, synchronization checks, and an optional template-based GitHub Release. | `.agents/skills/git-commit-push-tag` |
 
-## Git Commit, Push, Tag, and CI-Gated GitHub Release
+## Git Commit, Push, Tag, and GitHub Release
 
 - **Slug:** `git-commit-push-tag`
 - **Path:** `.agents/skills/git-commit-push-tag`
 - **Invocation:** `$git-commit-push-tag`
 
 Runs the canonical guarded SemVer analysis, validated commit, tag, atomic push,
-synchronization checks, and optional template-based, CI-gated GitHub Release
-workflow.
+synchronization checks, and optional template-based GitHub Release workflow.
 
 ### When to use
 
@@ -38,15 +37,15 @@ workflow.
 - Analyze the next SemVer bump before mutation.
 - Perform an explicitly validated commit, tag, atomic push, and synchronization
   checks.
-- Complete a requested, template-based GitHub Release only after its automatic
-  Release package CI succeeds.
+- Complete a requested, template-based GitHub Release after every applicable
+  repository-specific check succeeds.
 
 ### Usage examples
 
 ```text
 Use $git-commit-push-tag to analyze the next SemVer bump.
 Mutate only with an explicit BUMP, and complete a requested GitHub Release
-only after its automatic Release package CI succeeds.
+only after every applicable repository-specific check succeeds.
 ```
 
 ### Contents
@@ -57,7 +56,8 @@ only after its automatic Release package CI succeeds.
 │   └── openai.yaml
 ├── assets/
 ├── references/
-│   └── git-commit-push-tag.txt
+│   ├── git-commit-push-tag.txt
+│   └── git-starter-kit-release-package.txt
 ├── scripts/
 └── SKILL.md
 ```
@@ -67,10 +67,13 @@ only after its automatic Release package CI succeeds.
 - `.agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt` must
   be readable in full before the skill takes any action or runs any Git
   command.
+- The starter-only release extension must be readable when the exact
+  `asphyx0r/git-starter-kit` remote is active. It is intentionally omitted
+  from packages distributed to derived repositories.
 
 ### Limitations
 
-- The canonical reference is the sole behavioral source of truth and must be
-  followed exactly.
+- The generic reference and any applicable repository-specific extension are
+  the complete behavioral source of truth and must be followed exactly.
 - If the canonical reference cannot be read completely, the skill stops
   without modifying the repository.

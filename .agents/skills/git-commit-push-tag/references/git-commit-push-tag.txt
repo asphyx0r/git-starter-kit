@@ -2,8 +2,7 @@ Objectif : analyser puis, uniquement après validation explicite du bump,
 créer les commits strictement nécessaires, s'il y en a, créer un tag
 SemVer, effectuer un push atomique et, si cela est explicitement demandé,
 créer une GitHub Release à partir du template `GITHUB_RELEASE_NOTES.md`,
-puis exiger le succès de son workflow CI automatique avant de la
-considérer comme terminée.
+puis appliquer les éventuels contrôles de release propres au repository.
 
 PARAMÈTRES EXPLICITES DE LA DEMANDE COURANTE
 
@@ -42,6 +41,17 @@ RÈGLES GÉNÉRALES
 - N'ouvre aucun éditeur interactif.
 - Avant toute création de commit ou de tag, exécute exactement une fois :
   `git fetch origin --prune --tags`.
+
+EXTENSION CONDITIONNELLE DU STARTER KIT
+
+- Si le remote `origin` correspond exactement à
+  `https://github.com/asphyx0r/git-starter-kit.git`, lis entièrement
+  `references/git-starter-kit-release-package.txt` et applique cette
+  extension aux points qu'elle remplace.
+- Pour tout autre remote, n'exige aucun workflow de package, aucun asset
+  de release et aucun contrôle propre à `git-starter-kit`.
+- Si le remote correspond à `git-starter-kit` mais que l'extension est
+  absente ou illisible, arrête-toi avant toute mutation.
 
 PHASE 1 — ANALYSE DU BUMP
 
@@ -120,21 +130,8 @@ PRÉCONDITION CONDITIONNELLE DU TEMPLATE DE RELEASE
   être lu et s'il n'est pas vide.
 - Enregistre la source exacte du template retenu pour le reste du
   workflow.
-- Vérifie également que `.github/workflows/release-package.yml` :
-  - est suivi par Git et entièrement lisible ;
-  - porte exactement le nom `Release package` ;
-  - écoute l'événement `release` avec le type `published` ;
-  - délègue à l'outil suivi du repository la validation de la provenance
-    publique enregistrée dans `_agent-rules-source.json` ;
-  - n'exige aucun token GitHub App pour accéder au repository source
-    public `agent-coding-rules` ;
-  - construit et téléverse le package complet et l'upgrade toolkit dans
-    un job de packaging ;
-  - contient un job de promotion dépendant du packaging, exécuté
-    uniquement pour une prerelease issue de l'événement `release`.
-- Si ce workflow CI est absent, illisible ou non conforme, applique les
-  mêmes règles d'arrêt que lorsqu'aucun template n'est accessible et
-  indique précisément les contrôles qui ont échoué.
+- Si l'extension conditionnelle du starter kit s'applique, exécute aussi
+  ses préconditions de workflow avant de poursuivre.
 - Si aucun template n'est accessible :
   - produis et affiche le rapport de bump défini au point 11 ;
   - si BUMP est absent, affiche aussi `BUMP_RECOMMANDÉ=<valeur>` et
@@ -378,78 +375,26 @@ PHASE 4 — PUSH ET VALIDATION
     - les Release Notes ont été générées et validées à partir du
       template retenu.
     Lorsque ces conditions sont remplies :
-    - crée la GitHub Release pour le tag exact comme prerelease avec
-      `--verify-tag --prerelease --latest=false` ;
+    - si l'extension conditionnelle du starter kit s'applique, utilise
+      sa procédure de création et de validation ;
+    - sinon, crée la GitHub Release stable pour le tag exact avec
+      `--verify-tag --latest` et sans asset ;
     - fournis explicitement comme corps le contenu rendu du template ;
     - n'utilise jamais de notes générées automatiquement ni de
       structure de remplacement ;
-    - enregistre immédiatement son horodatage `publishedAt` ;
-    - vérifie qu'elle cible le tag exact, qu'elle n'est pas un draft,
-      qu'elle est encore une prerelease et que son corps correspond aux
-      Release Notes rendues.
+    - si l'extension s'applique, exécute ses vérifications immédiates ;
+    - sinon, vérifie qu'elle cible le tag exact, qu'elle n'est ni un draft
+      ni une prerelease, qu'elle est marquée comme dernière release, que
+      son corps correspond aux Release Notes rendues et qu'elle ne
+      contient aucun asset.
     Sinon, ne crée et ne publie aucune GitHub Release.
 
-CONTRÔLE CI OBLIGATOIRE DE LA GITHUB RELEASE
+CONTRÔLE CONDITIONNEL DE LA GITHUB RELEASE
 
-- N'applique cette section que si `CREATE_GITHUB_RELEASE=true` et après
-  la création et la vérification de la prerelease au point 40.
-- Résous l'identifiant du workflow actif
-  `.github/workflows/release-package.yml` et le commit déréférencé du tag.
-- Recherche toutes les cinq secondes, pendant dix minutes au maximum, le
-  run unique qui respecte simultanément ces conditions :
-  - le workflow est exactement `Release package` et son identifiant
-    correspond au workflow résolu ;
-  - `event` vaut exactement `release` ;
-  - `headBranch` vaut exactement le tag publié ;
-  - `headSha` vaut exactement le commit déréférencé du tag ;
-  - `createdAt` est supérieur ou égal au `publishedAt` enregistré.
-- Si aucun run unique ne satisfait ces conditions dans le délai imparti,
-  conserve la prerelease, fixe `RELEASE_STATUS=incomplete`, rapporte les
-  critères non satisfaits et arrête le workflow.
-- Attends le run identifié jusqu'à son état terminal avec
-  `gh run watch <run-id> --exit-status`. Ne déclenche aucun autre run et ne
-  relance pas automatiquement le run identifié.
-- Si le run échoue, est annulé, expire ou ne termine pas normalement :
-  - collecte son état et les logs des étapes en échec avec des commandes
-    en lecture seule ;
-  - conserve la prerelease et ses éventuels assets ;
-  - fixe `RELEASE_STATUS=incomplete` ;
-  - rapporte l'URL et la conclusion exactes ;
-  - arrête le workflow sans déclarer la release terminée.
-- Seule une demande utilisateur explicite peut autoriser
-  `gh run rerun <run-id> --failed`. Après cette relance, contrôle le même
-  run `event=release` et son nouvel attempt. Un run `workflow_dispatch`
-  ne peut jamais remplacer ou valider le run automatique obligatoire.
-- Après le succès du run, relis ses métadonnées et exige :
-  - `status=completed` ;
-  - `conclusion=success` ;
-  - l'identité exacte du workflow, de l'événement, du tag et du commit.
-- Vérifie ensuite que la GitHub Release :
-  - cible toujours le tag exact et conserve les Release Notes rendues ;
-  - n'est ni un draft ni une prerelease ;
-  - est marquée comme dernière release ;
-  - contient exactement deux assets nommés
-    `git-starter-kit-<tag>-with-agent-rules.zip` et
-    `git-starter-kit-<tag>-upgrade-toolkit.zip`.
-- Télécharge ces deux assets dans un répertoire temporaire hors du working
-  tree et vérifie que le SHA-256 de chacun correspond au digest publié par
-  GitHub.
-- Vérifie le package complet :
-  - il contient `AGENTS.md`, `CODING_RULES.md`, `COMMIT_RULES.md`,
-    `DOCUMENTATION_RULES.md`, `LANGUAGE_RULES.md`, `RELEASE_RULES.md` et
-    `_agent-rules-source.json` ;
-  - son manifeste contient le tag et le commit exacts du starter kit,
-    `requestedRef=latest`, ainsi qu'un tag SemVer et un commit résolus pour
-    `agent-coding-rules`.
-- Vérifie que l'upgrade toolkit contient exactement `README.md`,
-  `starter-kit-upgrade.py` et
-  `packages/git-starter-kit-<tag>-with-agent-rules.zip`, puis que le
-  SHA-256 du package imbriqué est identique à celui du package complet
-  publié séparément.
-- Supprime uniquement le répertoire temporaire de vérification après avoir
-  confirmé qu'il reste dans la racine temporaire attendue.
-- Fixe `RELEASE_STATUS=complete` uniquement après la réussite de tous ces
-  contrôles. Aucun asset valide ni run manuel ne suffit séparément.
+- Si l'extension conditionnelle du starter kit s'applique, exécute son
+  contrôle CI obligatoire et fixe `RELEASE_STATUS` selon son résultat.
+- Sinon, fixe `RELEASE_STATUS=complete` uniquement après avoir vérifié la
+  release stable, son corps exact, son statut latest et l'absence d'asset.
 
 41. Termine par un compte rendu contenant :
     - la liste des commits créés, ou la confirmation qu'aucun nouveau

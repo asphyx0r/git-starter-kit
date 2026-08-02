@@ -25,8 +25,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 - Per-repository scheduled workflow that proposes canonical agent-rule updates
   through a repository-local pull request.
 - Shared local and CI repository audit script for release readiness checks.
-- CI-gated release package automation for exports enriched with coding-agent
-  rules.
+- Starter-only, CI-gated release package automation for exports enriched with
+  coding-agent rules.
 - Interactive Git initialization scripts for PowerShell and Bash.
 - Repository-scoped Codex skill for canonical SemVer bump analysis, explicitly
   gated commits and tags, atomic pushes, and CI-gated GitHub Releases.
@@ -119,11 +119,12 @@ the copy when a consistent point-in-time backup is required. See
 [Tools](tools/README.md) for archive contents, provenance rules, limitations,
 and restoration caveats.
 
-Published releases can attach a generated ZIP package containing the tracked
+`git-starter-kit` releases attach generated ZIP packages containing the tracked
 rule files and their `_agent-rules-source.json` provenance. The package build
 asserts that the recorded source matches the requested `agent-coding-rules`
-release. See [Release Package](docs/release-package.md) for automatic and
-manual usage.
+release. Package-production tooling is source-repository-only and is excluded
+from derived repository packages. See
+[Release Package](docs/release-package.md) for automatic and manual usage.
 
 Automatic release packages use the latest published full `agent-coding-rules`
 release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
@@ -174,7 +175,7 @@ the skill reports the recommended bump and tag without modifying the
 repository. A GitHub Release is created from the release-notes template only
 when `CREATE_GITHUB_RELEASE=true` is explicitly provided. It starts as a
 prerelease and is complete only after the automatic `Release package` workflow
-uploads the verified asset and promotes it to a stable release.
+uploads both verified assets and promotes it to a stable release.
 
 ## Maintainer operations
 

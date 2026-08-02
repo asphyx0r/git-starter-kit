@@ -216,17 +216,22 @@ const patterns = new Map([
       "PowerShell init SemVer pattern"
     ),
   ],
-  [
+  ["tools/backup-target-directory.py", extractPythonPattern()],
+]);
+
+if (fs.existsSync("tools/build-release-package.ps1")) {
+  patterns.set(
     "tools/build-release-package.ps1",
     extractSingle(
       "tools/build-release-package.ps1",
       /^\$SemVerTagPattern = "([^"]+)"$/m,
       "release package SemVer pattern"
-    ),
-  ],
-  ["tools/backup-target-directory.py", extractPythonPattern()],
-  [".github/workflows/release-package.yml", extractWorkflowPattern()],
-]);
+    )
+  );
+}
+if (fs.existsSync(".github/workflows/release-package.yml")) {
+  patterns.set(".github/workflows/release-package.yml", extractWorkflowPattern());
+}
 
 const expected = patterns.values().next().value;
 for (const [source, pattern] of patterns) {
@@ -258,7 +263,13 @@ check_release_package_portability() {
 
 check_release_guard_contract() {
   local reference_path=".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
+  local release_reference_path=".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt"
   local workflow_path=".github/workflows/release-package.yml"
+
+  if [ ! -f "$release_reference_path" ]; then
+    printf '%s\n' "Starter release guard extension is missing." >&2
+    exit 1
+  fi
 
   if grep -F "token d'installation de la GitHub App" \
     "$reference_path" >/dev/null; then
@@ -335,17 +346,17 @@ check_release_guard_contract() {
   fi
 
   if ! grep -F "n'exige aucun token GitHub App" \
-    "$reference_path" >/dev/null; then
+    "$release_reference_path" >/dev/null; then
     printf '%s\n' "Release guard does not require public source access." >&2
     exit 1
   fi
 
   if ! grep -F "contient exactement deux assets nommés" \
-    "$reference_path" >/dev/null ||
+    "$release_reference_path" >/dev/null ||
     ! grep -F 'git-starter-kit-<tag>-with-agent-rules.zip' \
-      "$reference_path" >/dev/null ||
+      "$release_reference_path" >/dev/null ||
     ! grep -F 'git-starter-kit-<tag>-upgrade-toolkit.zip' \
-      "$reference_path" >/dev/null; then
+      "$release_reference_path" >/dev/null; then
     printf '%s\n' "Release guard does not require both release assets." >&2
     exit 1
   fi
@@ -456,21 +467,29 @@ if ($errors.Count -gt 0) {
 }
 PS
 
+  local parse_paths=("$(to_pwsh_path "$repository_root/tools/git-init.ps1")")
+  if [ -f "$repository_root/tools/build-release-package.ps1" ]; then
+    parse_paths+=(
+      "$(to_pwsh_path "$repository_root/tools/build-release-package.ps1")"
+    )
+  fi
+
   "$pwsh_cmd" -NoProfile -ExecutionPolicy Bypass -File \
     "$(to_pwsh_path "$parse_script")" \
-    "$(to_pwsh_path "$repository_root/tools/build-release-package.ps1")" \
-    "$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
+    "${parse_paths[@]}"
 }
 
 run_powershell_parse_readonly() {
   local pwsh_cmd
-  local build_release_package_path
   local git_init_path
   pwsh_cmd="$(resolve_powershell_command)"
-  build_release_package_path="$(
-    to_pwsh_path "$repository_root/tools/build-release-package.ps1"
-  )"
   git_init_path="$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
+  local build_release_package_path=""
+  if [ -f "$repository_root/tools/build-release-package.ps1" ]; then
+    build_release_package_path="$(
+      to_pwsh_path "$repository_root/tools/build-release-package.ps1"
+    )"
+  fi
 
   if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ]; then
     WSLENV="${WSLENV:+$WSLENV:}AUDIT_PS_PATH_1:AUDIT_PS_PATH_2"
@@ -485,6 +504,9 @@ run_powershell_parse_readonly() {
 $ErrorActionPreference = "Stop"
 $errors = @()
 foreach ($path in @($env:AUDIT_PS_PATH_1, $env:AUDIT_PS_PATH_2)) {
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        continue
+    }
     $tokens = $null
     $parseErrors = $null
     $source = Get-Content -LiteralPath $path -Raw
@@ -561,9 +583,13 @@ run_script_smoke() {
 
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1
-  local build_release_package_ps1
   git_init_ps1="$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
-  build_release_package_ps1="$(to_pwsh_path "$repository_root/tools/build-release-package.ps1")"
+  local build_release_package_ps1=""
+  if [ -f "$repository_root/tools/build-release-package.ps1" ]; then
+    build_release_package_ps1="$(
+      to_pwsh_path "$repository_root/tools/build-release-package.ps1"
+    )"
+  fi
 
   bash tools/git-init.sh --help
   if bash tools/git-init.sh --path "$audit_temp" --tag invalid; then
@@ -741,10 +767,15 @@ run_script_smoke() {
     exit 1
   fi
 
+  if [ -z "$build_release_package_ps1" ]; then
+    return 0
+  fi
+
   local release_output="$audit_temp/release-package-smoke"
   local latest_package="$release_output/latest-release-package.zip"
   "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
     -RepositoryRef local-test \
+    -RepositorySlug asphyx0r/git-starter-kit \
     -AgentRulesRef latest \
     -OutputDirectory "$(to_pwsh_path "$release_output")" \
     -PackageName latest-release-package.zip
@@ -805,6 +836,20 @@ def canonical_digest(content):
 
 with zipfile.ZipFile(sys.argv[1]) as archive:
     names = {name for name in archive.namelist() if not name.endswith("/")}
+    forbidden = {
+        ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
+        ".github/workflows/release-package.yml",
+        "docs/release-package.md",
+        "docs/upgrade-toolkit.md",
+        "tests/test_starter_kit_upgrade.py",
+        "tools/build-release-package.ps1",
+        "tools/starter-kit-upgrade.py",
+    }
+    present_forbidden = sorted(names & forbidden)
+    if present_forbidden:
+        raise SystemExit(
+            "Starter-only files leaked into package: " + ", ".join(present_forbidden)
+        )
     source = json.load(archive.open("_agent-rules-source.json"))
     files = json.load(archive.open("_starter-kit-files.json"))
     if source["schemaVersion"] != 3:
@@ -850,7 +895,6 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "RELEASE_RULES.md": "agent-rules",
         "_agent-rules-source.json": "agent-rules",
         "docs/SKILLS.md": "initialize-only",
-        "docs/release-package.md": "initialize-only",
         "docs/repository-files.md": "initialize-only",
         "docs/repository-migration.md": "initialize-only",
         "tools/README.md": "initialize-only",
@@ -861,83 +905,35 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             raise SystemExit(f"Unexpected upgrade strategy for {path}.")
 PY
 
-  local downstream_root="$audit_temp/downstream-package-repository"
-  local downstream_package="$release_output/downstream-release-package.zip"
-  local starter_commit
-  starter_commit="$(git rev-parse HEAD)"
-  mkdir -p "$downstream_root"
-  mkdir -p "$downstream_root/.github/workflows"
-  cp \
-    "$repository_root/.github/workflows/agent-rules-update.yml" \
-    "$downstream_root/.github/workflows/agent-rules-update.yml"
-  cp \
-    "$repository_root/AGENTS.md" \
-    "$repository_root/CODING_RULES.md" \
-    "$repository_root/COMMIT_RULES.md" \
-    "$repository_root/DOCUMENTATION_RULES.md" \
-    "$repository_root/LANGUAGE_RULES.md" \
-    "$repository_root/RELEASE_RULES.md" \
-    "$repository_root/_agent-rules-source.json" \
-    "$downstream_root/"
-  printf '# Downstream repository\n' >"$downstream_root/README.md"
-  "$python_cmd" - "$downstream_root" "$starter_commit" <<'PY'
-import json
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-starter_commit = sys.argv[2]
-provenance_path = root / "_agent-rules-source.json"
-provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-provenance["starterKit"] = {
-    "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v0.0.0",
-    "commit": starter_commit,
-}
-(root / "_agent-rules-source.json").write_text(
-    json.dumps(provenance, indent=2) + "\n",
-    encoding="utf-8",
-)
-(root / "_starter-kit-files.json").write_text(
-    '{"stale": true}\n',
-    encoding="utf-8",
-)
-PY
-  git init -q "$downstream_root"
-  git -C "$downstream_root" config user.name "Repository Audit"
-  git -C "$downstream_root" config user.email "audit@example.com"
-  git -C "$downstream_root" add --all
-  git -C "$downstream_root" commit -q -m "chore: initialize fixture"
-
-  "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
-    -RepositoryRoot "$(to_pwsh_path "$downstream_root")" \
-    -RepositoryRef v1.0.0 \
+  if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
+    -RepositoryRef local-test \
     -RepositorySlug example/downstream \
     -AgentRulesRef "$manifest_ref" \
     -OutputDirectory "$(to_pwsh_path "$release_output")" \
-    -PackageName downstream-release-package.zip
+    -PackageName rejected-downstream-package.zip; then
+    echo "Release package accepted a downstream repository slug." >&2
+    exit 1
+  fi
 
-  "$python_cmd" - "$downstream_package" <<'PY'
-import json
-import sys
-import zipfile
-
-with zipfile.ZipFile(sys.argv[1]) as archive:
-    names = {name for name in archive.namelist() if not name.endswith("/")}
-    source = json.load(archive.open("_agent-rules-source.json"))
-    files = json.load(archive.open("_starter-kit-files.json"))
-    listed = {entry["path"] for entry in files["files"]}
-    if source["repository"]["name"] != "downstream":
-        raise SystemExit("Unexpected downstream repository name.")
-    if "_starter-kit-files.json" in listed:
-        raise SystemExit("Generated manifest listed its previous source copy.")
-    names.remove("_starter-kit-files.json")
-    if names != listed:
-        raise SystemExit("Downstream managed-file coverage mismatch.")
-PY
+  local downstream_root="$audit_temp/downstream-package-repository"
+  mkdir -p "$downstream_root"
+  git init -q "$downstream_root"
+  git -C "$downstream_root" remote add origin \
+    https://github.com/example/downstream.git
+  if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
+    -RepositoryRoot "$(to_pwsh_path "$downstream_root")" \
+    -RepositoryRef local-test \
+    -RepositorySlug asphyx0r/git-starter-kit \
+    -AgentRulesRef "$manifest_ref" \
+    -OutputDirectory "$(to_pwsh_path "$release_output")" \
+    -PackageName rejected-downstream-origin-package.zip; then
+    echo "Release package accepted a downstream repository origin." >&2
+    exit 1
+  fi
 
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
     -RepositoryRef local-test \
+    -RepositorySlug asphyx0r/git-starter-kit \
     -AgentRulesRef invalid \
     -OutputDirectory "$(to_pwsh_path "$release_output")"; then
     echo "Release package accepted an invalid agent rules ref." >&2
@@ -962,8 +958,10 @@ run_static() {
   shellcheck tools/git-init.sh
   shfmt -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
-  check_release_package_portability
-  check_release_guard_contract
+  if [ -f .github/workflows/release-package.yml ]; then
+    check_release_package_portability
+    check_release_guard_contract
+  fi
   run_powershell_parse
   run_script_smoke
   "$node_cmd" --check commitlint.config.cjs
@@ -1009,8 +1007,10 @@ run_readonly() {
   "$shellcheck_cmd" tools/git-init.sh
   "$shfmt_cmd" -d -i 2 tools/git-init.sh
   check_semver_pattern_drift "$node_cmd"
-  check_release_package_portability
-  check_release_guard_contract
+  if [ -f .github/workflows/release-package.yml ]; then
+    check_release_package_portability
+    check_release_guard_contract
+  fi
   run_powershell_parse_readonly
   "$node_cmd" --check commitlint.config.cjs
   run_commitlint_readonly "$commitlint_cmd"

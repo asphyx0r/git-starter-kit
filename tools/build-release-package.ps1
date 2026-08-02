@@ -27,6 +27,21 @@ $RequiredRuleFiles = @(
     "RELEASE_RULES.md"
 )
 
+$StarterOnlyPaths = @(
+    ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
+    ".github/workflows/release-package.yml",
+    "docs/release-package.md",
+    "docs/upgrade-toolkit.md",
+    "tests/test_starter_kit_upgrade.py",
+    "tools/build-release-package.ps1",
+    "tools/starter-kit-upgrade.py"
+)
+$CanonicalRepositorySlug = "asphyx0r/git-starter-kit"
+$CanonicalRepositoryUrls = @(
+    "https://github.com/asphyx0r/git-starter-kit",
+    "https://github.com/asphyx0r/git-starter-kit.git"
+)
+
 function Get-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -129,6 +144,9 @@ function Copy-TrackedRepositoryFile {
     $trackedFiles = Invoke-GitLine -Arguments @("-C", $SourceRoot, "ls-files")
     foreach ($relativePath in $trackedFiles) {
         if ([string]::IsNullOrWhiteSpace($relativePath)) {
+            continue
+        }
+        if ($StarterOnlyPaths -ccontains $relativePath) {
             continue
         }
 
@@ -240,7 +258,6 @@ function Get-UpgradeStrategy {
         "SECURITY.md",
         "SUPPORT.md",
         "docs/SKILLS.md",
-        "docs/release-package.md",
         "docs/repository-files.md",
         "docs/repository-migration.md",
         "tools/README.md",
@@ -255,9 +272,7 @@ function Get-UpgradeStrategy {
         ".editorconfig",
         ".gitattributes",
         ".gitignore",
-        ".github/workflows/release-package.yml",
-        ".github/workflows/repository-audit.yml",
-        "tools/build-release-package.ps1"
+        ".github/workflows/repository-audit.yml"
     )
     if ($mergeManaged -contains $Path) {
         return "merge"
@@ -271,7 +286,6 @@ function Get-RepositoryName {
         [string]$Slug,
         [Parameter(Mandatory = $true)][string]$Root
     )
-
     if (-not [string]::IsNullOrWhiteSpace($Slug)) {
         $parts = $Slug.Trim().Split("/")
         if ($parts.Count -eq 2 -and
@@ -403,6 +417,25 @@ $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
 $stagingRoot = Join-Path $tempRoot "package"
 
+if ($RepositorySlug -cne $CanonicalRepositorySlug) {
+    throw "RepositorySlug must be exactly $CanonicalRepositorySlug."
+}
+
+try {
+    $originUrl = ((Invoke-GitLine -Arguments @(
+                "-C",
+                $repoRoot,
+                "remote",
+                "get-url",
+                "origin"
+            )) -join "").Trim()
+}
+catch {
+    throw "RepositoryRoot must have the canonical git-starter-kit origin."
+}
+if ($CanonicalRepositoryUrls -cnotcontains $originUrl) {
+    throw "RepositoryRoot origin must identify the canonical git-starter-kit repository."
+}
 
 try {
     $repositoryCommit = ((Invoke-GitLine -Arguments @("-C", $repoRoot, "rev-parse", "HEAD")) -join "").Trim()

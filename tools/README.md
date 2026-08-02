@@ -138,6 +138,9 @@ indistinguishable in the filename from a real tag with that exact name.
 
 ## build-release-package.ps1
 
+This is a `git-starter-kit` source-repository tool. It is intentionally absent
+from packages distributed to derived repositories.
+
 ### Features
 
 - Builds an enriched repository ZIP package.
@@ -149,6 +152,10 @@ indistinguishable in the filename from a real tag with that exact name.
   strategies.
 - Verifies required files before and after ZIP creation.
 - Emits GitHub Actions outputs when `GITHUB_OUTPUT` is set.
+- Rejects every repository slug and `origin` except the canonical
+  `asphyx0r/git-starter-kit` repository.
+- Excludes source-only workflow, builder, upgrade, test, and operator
+  documentation paths from the distributed package and its manifest.
 
 ### Synopsis
 
@@ -173,14 +180,14 @@ options:
 `build-release-package.ps1` creates the release asset used by the
 `Release package` GitHub Actions workflow. It packages files reported by
 `git ls-files`, including the required coding-agent rule files already tracked
-by the repository. It resolves an `agent-coding-rules` release only to assert
+by the repository, except for the explicit starter-only exclusion list. It
+resolves an `agent-coding-rules` release only to assert
 that provenance and canonical rule hashes are current. The generated ZIP
 includes the normal repository content, the required rule files,
 `_agent-rules-source.json`, and the per-file `_starter-kit-files.json` upgrade
-manifest.
-When a downstream repository already tracks an earlier managed-file manifest,
-the builder excludes that stale copy before generating the new exhaustive
-manifest.
+manifest. The builder accepts only the exact canonical starter repository slug
+and HTTPS `origin`; derived repositories cannot use it to create their own
+release package.
 
 The script resolves `-AgentRulesRef latest` through the GitHub releases API.
 An explicit `-AgentRulesRef` must be a SemVer tag prefixed with `v`.
@@ -193,6 +200,7 @@ Create a local test package in the ignored `.tmp/` directory:
 ```powershell
 powershell -NoProfile -File tools\build-release-package.ps1 `
   -RepositoryRef local-test `
+  -RepositorySlug asphyx0r/git-starter-kit `
   -OutputDirectory .tmp\release-package-test `
   -PackageName test-release-package.zip
 ```
@@ -202,6 +210,7 @@ Create a package with a specific agent-rules release:
 ```powershell
 powershell -NoProfile -File tools\build-release-package.ps1 `
   -RepositoryRef v1.5.0 `
+  -RepositorySlug asphyx0r/git-starter-kit `
   -AgentRulesRef v1.36.1 `
   -OutputDirectory dist
 ```
@@ -228,9 +237,10 @@ tar -xOf .tmp\release-package-test\test-release-package.zip `
   used in the default package name. `-StarterRef` remains an alias for
   compatibility. Defaults to `GITHUB_REF_NAME`; if that is empty, the script
   uses the short current commit SHA.
-- `-RepositorySlug OWNER/NAME`: packaged GitHub repository. Defaults to
-  `GITHUB_REPOSITORY`; outside Actions, the repository directory name supplies
-  the package name.
+- `-RepositorySlug OWNER/NAME`: packaged GitHub repository. It must resolve
+  exactly to `asphyx0r/git-starter-kit`. In Actions it defaults to
+  `GITHUB_REPOSITORY`; local invocations must pass the canonical slug. The
+  repository root must also use the canonical HTTPS `origin`.
 - `-StarterKitRepository OWNER/NAME`: upstream starter-kit repository recorded
   in the provenance. Defaults to `asphyx0r/git-starter-kit`.
 - `-StarterKitRef REF`: upstream starter-kit ref. Defaults to the packaged
@@ -270,6 +280,10 @@ agent-rules tag, tracked rule hashes, preserved customization records, and the
 generated archive so that a broken package is not uploaded silently.
 
 ## starter-kit-upgrade.py
+
+This is a `git-starter-kit` source-repository tool. It is excluded from the
+full package and supplied separately inside the upgrade toolkit so derived
+repositories do not track the toolkit builder or applier.
 
 ### Features
 
@@ -345,7 +359,7 @@ preserved merge-managed customizations.
 
 Repository-specific inventories and operator documentation use the
 `initialize-only` strategy. The updater preserves `docs/SKILLS.md`,
-`docs/release-package.md`, `docs/repository-files.md`, and `tools/README.md`
+`docs/repository-files.md`, and `tools/README.md`
 because their contents legitimately diverge in downstream repositories. It
 also preserves `tools/repository-audit.sh`, whose checks must remain aligned
 with the target repository's own languages, tools, and tests.

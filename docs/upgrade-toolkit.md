@@ -82,4 +82,4 @@ restaurés. Un ZIP de rollback contient les anciennes versions.
 L'outil ne réalise aucun commit, tag, push ou accès réseau.
 
 Avec le workflow actuel, ce toolkit est produit pour chaque release réussie de `git-starter-kit`. Les dépôts dérivés
-publient seulement leur package enrichi, pas un toolkit.
+ne reçoivent ni le producteur du package enrichi ni le toolkit, et ne publient aucun de ces deux assets.
