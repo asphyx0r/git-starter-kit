@@ -488,14 +488,15 @@ run_script_smoke() {
     exit 1
   fi
 
-  local bash_target="$audit_temp/git-init-bash-smoke"
+  local bash_target="$audit_temp/git-init bash smoke"
+  local bash_target_argument="$bash_target/"
   local bash_verbose_output="$audit_temp/git-init-bash-smoke.out"
   local bash_verbose_error="$audit_temp/git-init-bash-smoke.err"
   mkdir -p "$bash_target"
   printf 'hello\n' > "$bash_target/README.md"
   printf 'hello spaces\n' > "$bash_target/notes with spaces.txt"
   printf 'y\ny\n' | bash tools/git-init.sh \
-    --path "$bash_target" \
+    --path "$bash_target_argument" \
     --tag v1.0.0 \
     --verbose >"$bash_verbose_output" 2>"$bash_verbose_error"
   if grep -F "git " "$bash_verbose_output" >/dev/null; then
@@ -507,10 +508,10 @@ run_script_smoke() {
     echo "Bash verbose init corrupted the committable file preview." >&2
     exit 1
   fi
-  if ! grep -Fx "git init $bash_target" "$bash_verbose_error" >/dev/null ||
-    ! grep -Fx "git -C $bash_target add --all" "$bash_verbose_error" >/dev/null ||
+  if ! grep -Fx "git init $bash_target_argument" "$bash_verbose_error" >/dev/null ||
+    ! grep -Fx "git -C $bash_target_argument add --all" "$bash_verbose_error" >/dev/null ||
     ! grep -Fx \
-      "git -C $bash_target commit -m chore: initialize repository" \
+      "git -C $bash_target_argument commit -m chore: initialize repository" \
       "$bash_verbose_error" >/dev/null; then
     echo "Bash verbose init did not expose init, add, and commit traces." >&2
     exit 1
@@ -572,14 +573,16 @@ run_script_smoke() {
     exit 1
   fi
 
-  local pwsh_target="$audit_temp/git-init-pwsh-smoke"
+  local pwsh_target="$audit_temp/git-init pwsh smoke"
+  local pwsh_expected_target_path
   local pwsh_target_path
   local pwsh_verbose_output="$audit_temp/git-init-pwsh-smoke.out"
   local pwsh_verbose_error="$audit_temp/git-init-pwsh-smoke.err"
   mkdir -p "$pwsh_target"
   printf 'hello\n' > "$pwsh_target/README.md"
   printf 'hello spaces\n' > "$pwsh_target/notes with spaces.txt"
-  pwsh_target_path="$(to_pwsh_path "$pwsh_target")"
+  pwsh_expected_target_path="$(to_pwsh_path "$pwsh_target")"
+  pwsh_target_path="$(to_pwsh_path "$pwsh_target/")"
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$pwsh_target_path" \
     --tag v1.0.0 \
@@ -589,6 +592,11 @@ run_script_smoke() {
       '^git --git-dir=.* --work-tree=.* status --porcelain=v1 -z --untracked-files=all$' \
       >/dev/null; then
     echo "PowerShell verbose init did not expose a standalone status trace." >&2
+    exit 1
+  fi
+  if ! tr -d '\r' < "$pwsh_verbose_output" |
+    grep -Fx "Path: $pwsh_expected_target_path" >/dev/null; then
+    echo "PowerShell init did not normalize the target path." >&2
     exit 1
   fi
   if ! tr -d '\r' < "$pwsh_verbose_output" |

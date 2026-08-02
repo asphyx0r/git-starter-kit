@@ -48,10 +48,22 @@ function Get-FullPath {
     param([Parameter(Mandatory = $true)][string]$InputPath)
 
     if ([System.IO.Path]::IsPathRooted($InputPath)) {
-        return [System.IO.Path]::GetFullPath($InputPath)
+        $fullPath = [System.IO.Path]::GetFullPath($InputPath)
+    }
+    else {
+        $fullPath = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $InputPath))
     }
 
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $InputPath))
+    $rootPath = [System.IO.Path]::GetPathRoot($fullPath)
+    if ($fullPath.Length -eq $rootPath.Length) {
+        return $fullPath
+    }
+
+    $trimCharacters = @(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    return $fullPath.TrimEnd($trimCharacters)
 }
 
 function Write-Trace {
