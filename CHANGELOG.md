@@ -2,6 +2,18 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.4.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 284a555 | docs(readme): document strict secret scanning | asphyx |
+| 30f655a | fix(audit): use native npx on Windows | asphyx |
+| 13e48f5 | feat(security): add strict secret scanning | asphyx |
+| 54ca964 | fix(audit): enforce release integrity gates | asphyx |
+| 928017b | fix(tools): harden upgrade file safety | asphyx |
+| 205ee0a | feat(release): track and audit starter upgrades | asphyx |
+| 2fd7d8b | fix(git): enforce commit and release gates | asphyx |
+
 ## v2.3.3
 
 | References | Description | Author(s) |
