@@ -835,6 +835,8 @@ reruns or cancels a workflow. Treat every nonzero exit as a release blocker.
 - Bootstraps pinned tools and exercises mutating smoke cases only in full
   profiles.
 - Uses WSL-aware temporary paths when Windows PowerShell is invoked from WSL.
+- Uses the native `npx.cmd` launcher under Git Bash on Windows so Node-based
+  checks never fall through to the WSL Bash launcher.
 
 ### Synopsis
 
@@ -937,6 +939,10 @@ PowerShell command, `python`, `node`, and `npx`. It also needs network access
 to npm for Markdown lint bootstrapping, PyPI for Codespell bootstrapping, and
 GitHub for the latest `agent-coding-rules` release used in release package
 smoke checks.
+
+On Windows, run the audit with Git Bash. The script resolves Node package
+execution through `npx.cmd`; if that native launcher is unavailable, it stops
+with a missing-command error instead of invoking a WSL-backed `npx` shim.
 
 Use focused modes while diagnosing failures. For example, `markdown` and
 `spelling` isolate documentation issues, while `static` isolates script,

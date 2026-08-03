@@ -80,7 +80,22 @@ write_valid_message() {
 }
 
 require_test_command git
-require_test_command npx
+npx_command="$(resolve_npx_command)"
+
+resolver_bin="$test_temp/resolver-bin"
+mkdir -p "$resolver_bin"
+printf '#!/usr/bin/env bash\n' >"$resolver_bin/npx"
+printf '#!/usr/bin/env bash\n' >"$resolver_bin/npx.cmd"
+chmod +x "$resolver_bin/npx" "$resolver_bin/npx.cmd"
+original_path="$PATH"
+PATH="$resolver_bin:$PATH"
+if [ "$(resolve_npx_command Linux)" != "$resolver_bin/npx" ]; then
+  fail "POSIX npx resolution did not select npx"
+fi
+if [ "$(resolve_npx_command MSYS_NT-10.0)" != "$resolver_bin/npx.cmd" ]; then
+  fail "MSYS npx resolution did not select npx.cmd"
+fi
+PATH="$original_path"
 
 test_bin="$test_temp/bin"
 mkdir -p "$test_bin"
@@ -88,9 +103,11 @@ export NPM_CONFIG_CACHE="$test_temp/npm-cache"
 cat >"$test_bin/commitlint" <<'COMMITLINT'
 #!/usr/bin/env bash
 set -euo pipefail
-NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes @commitlint/cli@21.0.2 "$@"
+NPM_CONFIG_IGNORE_SCRIPTS=true \
+  "$AUDIT_NPX_COMMAND" --yes @commitlint/cli@21.0.2 "$@"
 COMMITLINT
 chmod +x "$test_bin/commitlint"
+export AUDIT_NPX_COMMAND="$npx_command"
 export PATH="$test_bin:$PATH"
 commitlint_command="$test_bin/commitlint"
 

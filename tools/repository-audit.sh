@@ -77,6 +77,22 @@ resolve_powershell_command() {
   resolve_command pwsh pwsh.exe powershell.exe
 }
 
+resolve_npx_command() {
+  local platform="${1:-}"
+  if [ -z "$platform" ]; then
+    platform="$(uname -s 2>/dev/null || true)"
+  fi
+
+  case "$platform" in
+  CYGWIN* | MINGW* | MSYS*)
+    resolve_command npx.cmd
+    ;;
+  *)
+    resolve_command npx
+    ;;
+  esac
+}
+
 ensure_audit_temp() {
   if [ -n "$audit_temp" ]; then
     return
@@ -649,11 +665,11 @@ check_release_guard_contract() {
 }
 
 run_commitlint() {
-  require_command npx
-
   local from_ref=""
   local root_commit=""
   local commit_count
+  local npx_cmd
+  npx_cmd="$(resolve_npx_command)"
 
   if ! from_ref="$(resolve_audit_from_ref)"; then
     from_ref=""
@@ -662,7 +678,7 @@ run_commitlint() {
   if [ "$from_ref" = "$audit_all_commits_marker" ]; then
     root_commit="$(git rev-list --max-parents=0 --reverse HEAD | tail -n 1)"
     git log -1 --format=%B "$root_commit" | NPM_CONFIG_IGNORE_SCRIPTS=true \
-      npx --yes @commitlint/cli@21.0.2 --config commitlint.config.cjs
+      "$npx_cmd" --yes @commitlint/cli@21.0.2 --config commitlint.config.cjs
     from_ref="$root_commit"
   fi
 
@@ -672,19 +688,21 @@ run_commitlint() {
       return
     fi
 
-    NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes @commitlint/cli@21.0.2 \
+    NPM_CONFIG_IGNORE_SCRIPTS=true "$npx_cmd" --yes @commitlint/cli@21.0.2 \
       --config commitlint.config.cjs \
       --from "$from_ref" \
       --to HEAD
   else
     git log -1 --format=%B HEAD | NPM_CONFIG_IGNORE_SCRIPTS=true \
-      npx --yes @commitlint/cli@21.0.2 --config commitlint.config.cjs
+      "$npx_cmd" --yes @commitlint/cli@21.0.2 --config commitlint.config.cjs
   fi
 }
 
 run_markdown() {
-  require_command npx
-  NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes markdownlint-cli2@0.22.1 "**/*.md"
+  local npx_cmd
+  npx_cmd="$(resolve_npx_command)"
+  NPM_CONFIG_IGNORE_SCRIPTS=true \
+    "$npx_cmd" --yes markdownlint-cli2@0.22.1 "**/*.md"
 }
 
 run_spelling() {
@@ -862,9 +880,10 @@ COMMITLINT
 run_script_smoke() {
   require_command bash
   require_command git
-  require_command npx
+  local npx_cmd
   local python_cmd
   local pwsh_cmd
+  npx_cmd="$(resolve_npx_command)"
   python_cmd="$(resolve_command python python3 python.exe)"
   pwsh_cmd="$(resolve_powershell_command)"
 
@@ -875,9 +894,11 @@ run_script_smoke() {
   cat >"$initializer_bin/commitlint" <<'COMMITLINT'
 #!/usr/bin/env bash
 set -euo pipefail
-NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes @commitlint/cli@21.0.2 "$@"
+NPM_CONFIG_IGNORE_SCRIPTS=true \
+  "$AUDIT_NPX_COMMAND" --yes @commitlint/cli@21.0.2 "$@"
 COMMITLINT
   chmod +x "$initializer_bin/commitlint"
+  export AUDIT_NPX_COMMAND="$npx_cmd"
   export NPM_CONFIG_CACHE="$audit_temp/npm-cache"
   export PATH="$initializer_bin:$PATH"
 
