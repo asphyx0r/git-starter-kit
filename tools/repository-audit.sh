@@ -145,6 +145,30 @@ check_git_whitespace() {
   fi
 }
 
+check_powershell_line_endings() {
+  local node_cmd="$1"
+  local powershell_path
+
+  while IFS= read -r powershell_path; do
+    POWERSHELL_PATH="$powershell_path" "$node_cmd" <<'JS'
+const fs = require("fs");
+
+const filePath = process.env.POWERSHELL_PATH;
+const content = fs.readFileSync(filePath);
+for (let index = 0; index < content.length; index += 1) {
+  const byte = content[index];
+  const previous = index > 0 ? content[index - 1] : -1;
+  const next = index + 1 < content.length ? content[index + 1] : -1;
+  if ((byte === 0x0a && previous !== 0x0d) ||
+      (byte === 0x0d && next !== 0x0a)) {
+    console.error(`PowerShell file does not use uniform CRLF: ${filePath}`);
+    process.exit(1);
+  }
+}
+JS
+  done < <(git ls-files '*.ps1')
+}
+
 find_highest_reachable_stable_tag() {
   local excluded_tag="${1:-}"
   local tag
@@ -345,10 +369,53 @@ check_release_package_portability() {
     echo "Release workflow does not guard canonical jobs and uploads." >&2
     exit 1
   fi
+
+  if [ "$(grep -Fc '    timeout-minutes:' \
+    .github/workflows/release-package.yml)" -lt 2 ]; then
+    echo "Release workflow does not set a timeout on every job." >&2
+    exit 1
+  fi
+}
+
+check_agent_rules_update_workflow_contract() {
+  local workflow_path=".github/workflows/agent-rules-update.yml"
+
+  if ! grep -F "  release:" "$workflow_path" >/dev/null ||
+    ! grep -F "    types: [published]" "$workflow_path" >/dev/null ||
+    ! grep -F "github.event_name == 'release' ||" \
+      "$workflow_path" >/dev/null ||
+    ! grep -F "vars.AGENT_RULES_SYNC_ENABLED != 'false'" \
+      "$workflow_path" >/dev/null; then
+    printf '%s\n' \
+      "Agent rules workflow does not require synchronization on release." >&2
+    exit 1
+  fi
+
+  if [ "$(grep -Fc '    timeout-minutes:' "$workflow_path")" -lt 1 ]; then
+    printf '%s\n' "Agent rules workflow does not set a job timeout." >&2
+    exit 1
+  fi
 }
 
 check_repository_audit_workflow_contract() {
   local workflow_path=".github/workflows/repository-audit.yml"
+
+  if ! grep -F "  release:" "$workflow_path" >/dev/null ||
+    ! grep -F "    types: [published]" "$workflow_path" >/dev/null ||
+    ! grep -F "github.event_name == 'release' &&" \
+      "$workflow_path" >/dev/null ||
+    ! grep -F "'0000000000000000000000000000000000000000' ||" \
+      "$workflow_path" >/dev/null; then
+    printf '%s\n' \
+      "Repository audit workflow does not audit every published release." >&2
+    exit 1
+  fi
+
+  if [ "$(grep -Fc '    timeout-minutes:' "$workflow_path")" -lt 4 ]; then
+    printf '%s\n' \
+      "Repository audit workflow does not set a timeout on every job." >&2
+    exit 1
+  fi
 
   # shellcheck disable=SC2016
   if ! grep -F "  repository-audit:" "$workflow_path" >/dev/null ||
@@ -550,6 +617,19 @@ check_release_guard_contract() {
     ! grep -F 'git-starter-kit-<tag>-upgrade-toolkit.zip' \
       "$release_reference_path" >/dev/null; then
     printf '%s\n' "Release guard does not require both release assets." >&2
+    exit 1
+  fi
+
+  if ! grep -F '.github/workflows/agent-rules-update.yml' \
+    "$release_reference_path" >/dev/null ||
+    ! grep -F '.github/workflows/repository-audit.yml' \
+      "$release_reference_path" >/dev/null ||
+    ! grep -F 'Après le succès des trois runs' \
+      "$release_reference_path" >/dev/null ||
+    ! grep -F 'du job agrégateur' \
+      "$release_reference_path" >/dev/null; then
+    printf '%s\n' \
+      "Starter release guard does not require every release workflow." >&2
     exit 1
   fi
 
@@ -1313,6 +1393,7 @@ run_static() {
   node_cmd="$(resolve_command node node.exe)"
 
   check_git_whitespace
+  check_powershell_line_endings "$node_cmd"
   bash -n .githooks/pre-commit
   bash -n .githooks/commit-msg
   bash -n tests/test_commit_message_validation.sh
@@ -1327,6 +1408,9 @@ run_static() {
   check_semver_pattern_drift "$node_cmd"
   check_initializer_commit_contract
   check_commit_documentation_contract
+  if [ -f .github/workflows/agent-rules-update.yml ]; then
+    check_agent_rules_update_workflow_contract
+  fi
   if [ -f .github/workflows/repository-audit.yml ]; then
     check_repository_audit_workflow_contract
   fi
@@ -1371,6 +1455,7 @@ run_readonly() {
   "$yamllint_cmd" .
   "$actionlint_cmd"
   check_git_whitespace
+  check_powershell_line_endings "$node_cmd"
   bash -n .githooks/pre-commit
   bash -n .githooks/commit-msg
   bash -n tests/test_commit_message_validation.sh
@@ -1385,6 +1470,9 @@ run_readonly() {
   check_semver_pattern_drift "$node_cmd"
   check_initializer_commit_contract
   check_commit_documentation_contract
+  if [ -f .github/workflows/agent-rules-update.yml ]; then
+    check_agent_rules_update_workflow_contract
+  fi
   if [ -f .github/workflows/repository-audit.yml ]; then
     check_repository_audit_workflow_contract
   fi

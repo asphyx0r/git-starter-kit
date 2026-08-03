@@ -928,9 +928,9 @@ or GitHub release. Treat any failure as a blocker until the underlying
 validation issue is understood and fixed.
 
 The GitHub Actions workflow publishes an aggregate `Repository audit` check
-for push and pull request runs. Its manual counterpart has the distinct name
-`Repository audit (manual)` so a manual success cannot replace a failed push
-run for branch protection or release validation.
+for push, pull request, and published-release runs. Its manual counterpart has
+the distinct name `Repository audit (manual)` so a manual success cannot
+replace a failed automatic run for branch protection or release validation.
 
 The full audit needs local tools such as `git`, `bash`, `shellcheck`, a
 PowerShell command, `python`, `node`, and `npx`. It also needs network access

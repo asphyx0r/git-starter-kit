@@ -37,7 +37,7 @@ A minimal, reusable starter repository for Git and GitHub projects.
 Use this repository as a starting point for a new project.
 
 ```bash
-git clone <repository-url> <new-project-name>
+git clone https://github.com/asphyx0r/git-starter-kit.git <new-project-name>
 cd <new-project-name>
 ```
 
@@ -154,9 +154,10 @@ a pull request only in the repository that executed the workflow. Configure
 `AGENT_RULES_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App
 on the target repository with **Contents** and **Pull requests** write access.
 Set `AGENT_RULES_SYNC_ENABLED=false` as a repository Actions variable to
-suspend synchronization and intentionally break the automatic dependency.
-The workflow also runs in `git-starter-kit`, so its tracked rule files remain
-current instead of being injected only during package generation.
+suspend scheduled and manual synchronization. A published release always runs
+the synchronization job so release validation cannot be disabled. The workflow
+also runs in `git-starter-kit`, so its tracked rule files remain current instead
+of being injected only during package generation.
 
 Initialize a target repository with an explicit confirmation prompt:
 
@@ -210,6 +211,11 @@ push, every expected branch and tag audit run must succeed; a manual or
 scheduled green run cannot replace a failed push run. Protect the default
 branch with this GitHub Actions check and apply the rule to administrators when
 the repository supports required checks.
+
+Publishing the prerelease directly triggers `Agent rules update`, `Repository
+audit`, and `Release package`. Each run must match the published tag, its exact
+commit, the `release` event, and the publication time; a manual, scheduled, or
+tag-push run cannot replace any of these release runs.
 
 ## Maintainer operations
 

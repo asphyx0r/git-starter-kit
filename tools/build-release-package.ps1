@@ -237,7 +237,7 @@ function Copy-TrackedRepositoryFile {
     }
 }
 
-function Get-GitFileModes {
+function Get-GitFileModeMap {
     param([Parameter(Mandatory = $true)][string]$Repository)
 
     $modes = @{}
@@ -275,7 +275,7 @@ function Get-Sha256 {
     return (($digest | ForEach-Object { $_.ToString("x2") }) -join "")
 }
 
-function Get-Sha256Bytes {
+function Get-Sha256ByteArray {
     param([Parameter(Mandatory = $true)][byte[]]$Content)
 
     $sha256 = [System.Security.Cryptography.SHA256]::Create()
@@ -289,7 +289,7 @@ function Get-Sha256Bytes {
     return (($digest | ForEach-Object { $_.ToString("x2") }) -join "")
 }
 
-function Get-ContentMetadata {
+function Get-ContentMetadataRecord {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $content = [System.IO.File]::ReadAllBytes($Path)
@@ -304,13 +304,13 @@ function Get-ContentMetadata {
         $canonicalContent = $canonicalEncoding.GetBytes($canonicalText)
         return [ordered]@{
             contentKind     = "text"
-            canonicalSha256 = Get-Sha256Bytes -Content $canonicalContent
+            canonicalSha256 = Get-Sha256ByteArray -Content $canonicalContent
         }
     }
     catch [System.Text.DecoderFallbackException] {
         return [ordered]@{
             contentKind     = "binary"
-            canonicalSha256 = Get-Sha256Bytes -Content $content
+            canonicalSha256 = Get-Sha256ByteArray -Content $content
         }
     }
 }
@@ -594,7 +594,7 @@ try {
         -SourceRoot $repoRoot `
         -TargetRoot $stagingRoot `
         -RepositoryReference $RepositoryRef
-    $fileModes = Get-GitFileModes -Repository $repoRoot
+    $fileModes = Get-GitFileModeMap -Repository $repoRoot
 
     foreach ($ruleFile in $RequiredRuleFiles) {
         $rulePath = Join-Path $repoRoot $ruleFile
@@ -610,7 +610,7 @@ try {
             [string]::IsNullOrWhiteSpace([string]$hashProperty.Value)) {
             throw "Tracked provenance has no canonical hash for $ruleFile."
         }
-        $actualHash = (Get-ContentMetadata -Path $rulePath).canonicalSha256
+        $actualHash = (Get-ContentMetadataRecord -Path $rulePath).canonicalSha256
         $expectedHash = [string]$hashProperty.Value
         if ($actualHash -cne $expectedHash) {
             $preservedMatch = @(
@@ -670,7 +670,7 @@ try {
                 if ($fileModes.ContainsKey($relativePath)) {
                     $mode = $fileModes[$relativePath]
                 }
-                $contentMetadata = Get-ContentMetadata -Path $_.FullName
+                $contentMetadata = Get-ContentMetadataRecord -Path $_.FullName
 
                 [ordered]@{
                     path            = $relativePath

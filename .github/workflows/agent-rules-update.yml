@@ -2,6 +2,8 @@
 name: Agent rules update
 
 "on":
+  release:
+    types: [published]
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
@@ -19,7 +21,9 @@ env:
 
 jobs:
   update:
-    if: vars.AGENT_RULES_SYNC_ENABLED != 'false'
+    if: >-
+      github.event_name == 'release' ||
+      vars.AGENT_RULES_SYNC_ENABLED != 'false'
     name: Prepare agent rules pull request
     runs-on: ubuntu-24.04
     timeout-minutes: 15

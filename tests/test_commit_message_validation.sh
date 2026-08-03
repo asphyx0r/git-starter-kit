@@ -145,11 +145,12 @@ if ! grep -F 'body-max-line-length' "$range_failure_output" >/dev/null; then
 fi
 
 git tag -a v1.1.0 -m 'Release v1.1.0'
+export GITHUB_EVENT_NAME=release
 export GITHUB_REF_TYPE=tag
 export GITHUB_REF_NAME=v1.1.0
 resolved_base="$(resolve_audit_from_ref)"
 if [ "$resolved_base" != "v1.0.0" ]; then
-  fail "tag range did not exclude the tag being audited"
+  fail "release range did not exclude the tag being audited"
 fi
 
 printf 'future\n' >>tracked.txt

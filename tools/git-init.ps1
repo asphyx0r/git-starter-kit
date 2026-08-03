@@ -165,7 +165,7 @@ function Test-GitSuccess {
     }
 }
 
-function Assert-ReadableGitMetadata {
+function Assert-ReadableGitMetadataPath {
     param(
         [Parameter(Mandatory = $true)][string]$RepositoryPath,
         [Parameter(Mandatory = $true)][string]$GitMetadataPath
@@ -199,7 +199,7 @@ function Get-CommittableFile {
     try {
         $gitMetadataPath = Join-Path $RepositoryPath ".git"
         if (Test-Path -LiteralPath $gitMetadataPath) {
-            Assert-ReadableGitMetadata -RepositoryPath $RepositoryPath -GitMetadataPath $gitMetadataPath
+            Assert-ReadableGitMetadataPath -RepositoryPath $RepositoryPath -GitMetadataPath $gitMetadataPath
 
             $statusArguments = @(
                 "-C", $RepositoryPath, "status", "--porcelain=v1", "-z",
@@ -382,7 +382,7 @@ if ($targetEntries.Count -eq 0) {
 }
 
 if (Test-Path -LiteralPath $gitMetadataPath) {
-    Assert-ReadableGitMetadata -RepositoryPath $targetPath -GitMetadataPath $gitMetadataPath
+    Assert-ReadableGitMetadataPath -RepositoryPath $targetPath -GitMetadataPath $gitMetadataPath
 
     if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "HEAD")) {
         throw "Target repository already has commits: $targetPath"

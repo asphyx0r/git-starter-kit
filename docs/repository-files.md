@@ -216,16 +216,18 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Runs the shared repository audit and publishes one aggregate required
   check on GitHub Actions.
-- Usage: Executes on pushes, pull requests, and manual dispatch.
+- Usage: Executes on pushes, pull requests, published releases, and manual
+  dispatch.
 - Notes: The workflow uses a pinned runner and a checkout action pinned by
   SHA for `actions/checkout@v7.0.0`. It delegates Markdown, spelling,
   static, smoke, and configuration rules to `tools/repository-audit.sh` so
   local and CI audits share the same source of truth. New refs and release tags
   validate the complete commit range since the highest reachable stable tag.
-  The aggregate job uses `Repository audit` for push and pull request runs and
-  `Repository audit (manual)` for manual runs, preventing a manual result from
-  satisfying the protected-branch check. Tool downloads are version-pinned but
-  not hash-verified;
+  Published releases audit the complete range from the previous stable tag to
+  the released tag. The aggregate job uses `Repository audit` for push, pull
+  request, and release runs and `Repository audit (manual)` for manual runs,
+  preventing a manual result from satisfying the protected-branch or release
+  check. Tool downloads are version-pinned but not hash-verified;
   this is an accepted lightweight CI tradeoff for a generic starter kit with
   read-only repository audit permissions, disabled checkout credential
   persistence, and without forwarding the workflow token to checked-out audit
@@ -237,14 +239,15 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Keeps each initialized repository aligned with the latest canonical
   agent-rule release without a central repository registry.
-- Usage: Runs daily or by manual dispatch and opens a repository-local pull
-  request when the six rule files change.
+- Usage: Runs daily, on every published release, or by manual dispatch and
+  opens a repository-local pull request when the six rule files change.
 - Notes: Uses the synchronization tool from the resolved
   `agent-coding-rules` release and one target-repository GitHub App token. It
   restricts changes to the six rules and provenance, preserves customized rule
   files, and runs in the starter kit as well as downstream repositories. Set
-  `AGENT_RULES_SYNC_ENABLED=false` to suspend the job. Cumulative upgrades
-  replace this universal workflow.
+  `AGENT_RULES_SYNC_ENABLED=false` to suspend scheduled and manual jobs;
+  published releases always run the job. Cumulative upgrades replace this
+  universal workflow.
 
 ### `.github/workflows/release-package.yml`
 
