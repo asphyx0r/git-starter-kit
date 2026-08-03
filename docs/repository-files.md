@@ -109,11 +109,13 @@ deferred, or explicitly excluded from the template.
 ### `.betterleaks.toml`
 
 - Type: `file`
-- Status: `duplicate`
-- Goal: Would define Betterleaks-specific secret scanning rules.
-- Usage: Not included; Betterleaks can read the shared `.gitleaks.toml` path
-  if secret scanning later needs configuration.
-- Notes: Keep one scanner configuration owner to avoid drift.
+- Status: `required`
+- Goal: Defines strict Betterleaks secret scanning rules while retaining all
+  rules built into the installed scanner.
+- Usage: Betterleaks loads it automatically from the target repository root.
+- Notes: Keep it byte-for-byte identical to `.gitleaks.toml`. Local rules catch
+  credential assignments, authorization headers, and credentials in service
+  URIs while allowing only explicit placeholders and variable references.
 
 ### `.codespellrc`
 
@@ -145,13 +147,12 @@ deferred, or explicitly excluded from the template.
 ### `.gitleaks.toml`
 
 - Type: `file`
-- Status: `deferred`
-- Goal: Would define shared secret scanning rules for Gitleaks-compatible
-  tools.
-- Usage: Not included; default Gitleaks and Betterleaks scans currently pass
-  without repository-specific configuration.
-- Notes: Add only with an approved secret scanning audit gate and only if
-  default rules need stable generic overrides or allowlists.
+- Status: `required`
+- Goal: Defines strict Gitleaks secret scanning rules while retaining all rules
+  built into the installed scanner.
+- Usage: Gitleaks loads it automatically from the target repository root.
+- Notes: Keep it byte-for-byte identical to `.betterleaks.toml`. The starter-kit
+  upgrade strategy merges downstream customizations instead of replacing them.
 
 ### `.github/`
 

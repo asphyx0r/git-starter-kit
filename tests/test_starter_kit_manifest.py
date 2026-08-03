@@ -155,9 +155,11 @@ class StarterKitManifestTests(unittest.TestCase):
             MANIFEST.MERGE_PATHS,
             frozenset(
                 {
+                    ".betterleaks.toml",
                     ".codespellrc",
                     ".editorconfig",
                     ".gitattributes",
+                    ".gitleaks.toml",
                     ".gitignore",
                     ".github/workflows/repository-audit.yml",
                 }

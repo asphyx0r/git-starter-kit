@@ -346,9 +346,11 @@ function Get-UpgradeStrategy {
     }
 
     $mergeManaged = @(
+        ".betterleaks.toml",
         ".codespellrc",
         ".editorconfig",
         ".gitattributes",
+        ".gitleaks.toml",
         ".gitignore",
         ".github/workflows/repository-audit.yml"
     )

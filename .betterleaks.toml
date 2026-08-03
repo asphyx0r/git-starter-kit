@@ -1,0 +1,65 @@
+# Keep .betterleaks.toml and .gitleaks.toml byte-for-byte identical.
+title = "Strict secret scanning configuration"
+minVersion = "v8.25.0"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "strict-generic-credential-assignment"
+description = "Detected a credential assigned directly in source content."
+regex = '''(?i)(?:^|[\s{[(,])['"]?[A-Za-z0-9_.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|credential)[A-Za-z0-9_.-]*['"]?[ \t]*(?:=|:|=>)[ \t]*[\x60'"]?([^\s'"\x60;,]{8,150})(?:[\x60'"\s;]|\\[nr]|$)'''
+secretGroup = 1
+keywords = [
+  "password",
+  "passwd",
+  "pwd",
+  "secret",
+  "token",
+  "api_key",
+  "apikey",
+  "access_key",
+  "private_key",
+  "client_secret",
+  "credential",
+]
+
+[[rules.allowlists]]
+description = "Explicit placeholder and variable-reference values."
+regexTarget = "secret"
+regexes = [
+  '''(?i)^(?:__(?:CHANGE|FILL)_ME__|CHANGE_ME|CHANGEME|FILL_ME|REPLACE_ME|YOUR_[A-Z0-9_]+_HERE)$''',
+  '''^\$\{[A-Za-z_][A-Za-z0-9_]*\}$''',
+  '''^\$env:[A-Za-z_][A-Za-z0-9_]*$''',
+  '''^<[^>\r\n]+>$''',
+]
+
+[[rules]]
+id = "strict-authorization-header"
+description = "Detected a literal credential in an authorization header."
+regex = '''(?i)\b(?:authorization|proxy-authorization)\b[\s'"]{0,5}(?:=|:|=>)[\s'"]{0,5}(?:bearer|basic)[ \t]+([A-Za-z0-9._~+/=-]{8,})'''
+secretGroup = 1
+keywords = ["authorization", "proxy-authorization"]
+
+[[rules.allowlists]]
+description = "Explicit variable-reference authorization values."
+regexTarget = "secret"
+regexes = [
+  '''^\$\{[A-Za-z_][A-Za-z0-9_]*\}$''',
+  '''^\$env:[A-Za-z_][A-Za-z0-9_]*$''',
+  '''^<[^>\r\n]+>$''',
+]
+
+[[rules]]
+id = "strict-uri-credentials"
+description = "Detected a literal password embedded in a service URI."
+regex = '''(?i)\b(?:amqp|amqps|ftp|ftps|http|https|mongodb(?:\+srv)?|mysql|postgres(?:ql)?|redis|rediss|smtp|smtps):\/\/[^:\s/@]*:([^@\s/]{4,})@[^\s/]+'''
+secretGroup = 1
+keywords = ["://"]
+
+[[rules.allowlists]]
+description = "Explicit local example URI placeholders."
+regexTarget = "match"
+regexes = [
+  '''(?i)://(?:user|username)?:?(?:pass|password|__CHANGE_ME__)@(?:host|localhost)(?::[0-9]+)?(?:/|$)''',
+]
