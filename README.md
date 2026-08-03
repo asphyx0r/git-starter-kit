@@ -11,6 +11,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
   Commitlint rules, and blocking validation for guarded commits.
 - Versioned staged Markdown and YAML pre-commit hook.
 - Lightweight spelling configuration for documentation and repository files.
+- Strict, byte-identical Betterleaks and Gitleaks rules for credential
+  assignments, authorization headers, and service URI passwords.
 - Coding-agent instructions for cautious, verifiable repository changes.
 - VS Code workspace recommendations for consistent local editing.
 - Repository file inventory in `docs/repository-files.md`.
