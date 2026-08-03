@@ -16,7 +16,7 @@ import sys
 import tempfile
 import time
 import traceback
-from typing import Any
+from typing import Any, NamedTuple
 import zipfile
 
 VERSION = "0.3.0"
@@ -40,6 +40,13 @@ SEMVER_TAG_PATTERN = re.compile(
 
 class UpgradeError(RuntimeError):
     """Raised when an upgrade cannot be built, planned, or applied safely."""
+
+
+class FileSnapshot(NamedTuple):
+    """Store the content and filesystem mode needed for safe restoration."""
+
+    content: bytes
+    mode: int
 
 
 def local_now() -> datetime:
@@ -1411,6 +1418,45 @@ def write_payload(path: Path, content: bytes, mode: str) -> None:
             temporary.unlink()
 
 
+def snapshot_file(path: Path) -> FileSnapshot | None:
+    if path.is_symlink():
+        raise UpgradeError(f"Target file is a symbolic link: {path}")
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise UpgradeError(f"Target path is not a regular file: {path}")
+    with path.open("rb") as stream:
+        content = stream.read()
+        mode = stat.S_IMODE(os.fstat(stream.fileno()).st_mode)
+    return FileSnapshot(content=content, mode=mode)
+
+
+def require_planned_file_state(
+    path: Path,
+    action: dict[str, Any],
+    entry: dict[str, Any],
+    schema_version: int,
+) -> FileSnapshot | None:
+    snapshot = snapshot_file(path)
+    actual_digest = None
+    if snapshot is not None:
+        actual_digest = (
+            canonical_sha256(snapshot.content, entry.get("contentKind", "binary"))
+            if schema_version >= 2
+            else sha256_bytes(snapshot.content)
+        )
+    if actual_digest != action.get("localCanonicalSha256"):
+        raise UpgradeError(f"Target changed after planning: {action['path']}")
+    return snapshot
+
+
+def restore_snapshot(path: Path, snapshot: FileSnapshot) -> None:
+    git_mode = "100755" if snapshot.mode & 0o111 else "100644"
+    write_payload(path, snapshot.content, git_mode)
+    if os.name != "nt":
+        path.chmod(snapshot.mode)
+
+
 def apply_upgrade(
     manifest: dict[str, Any],
     files: dict[str, bytes],
@@ -1427,9 +1473,10 @@ def apply_upgrade(
         if action["action"] in {"add", "merge", "update"}
     ]
     adoption_path = target_path(root, ADOPTION_PATH)
+    adoption_snapshot = snapshot_file(adoption_path)
     adoption_action = {
         "path": ADOPTION_PATH,
-        "action": "update" if adoption_path.is_file() else "add",
+        "action": "update" if adoption_snapshot is not None else "add",
     }
     backup_path = create_rollback_archive(
         root,
@@ -1437,7 +1484,9 @@ def apply_upgrade(
         changes + [adoption_action],
         journal,
     )
-    originals: dict[str, bytes | None] = {}
+    if snapshot_file(adoption_path) != adoption_snapshot:
+        raise UpgradeError(f"Target changed after planning: {ADOPTION_PATH}")
+    originals: dict[str, FileSnapshot | None] = {}
     try:
         if journal is not None:
             journal.phase("target-write", "START")
@@ -1445,17 +1494,21 @@ def apply_upgrade(
         for action in changes:
             relative = action["path"]
             destination = target_path(root, relative)
-            originals[relative] = (
-                destination.read_bytes() if destination.is_file() else None
-            )
             entry = entries[relative]
+            original = require_planned_file_state(
+                destination,
+                action,
+                entry,
+                int(manifest.get("schemaVersion", 1)),
+            )
+            local_content = original.content if original is not None else None
             content = files[entry["payload"]]
             if action["action"] == "merge":
                 base_payload = entry.get("basePayload")
-                if not isinstance(base_payload, str):
+                if not isinstance(base_payload, str) or local_content is None:
                     raise UpgradeError(f"Missing merge baseline for {relative}.")
                 content = merge_text_payload(
-                    originals[relative],
+                    local_content,
                     files[base_payload],
                     content,
                 )
@@ -1463,11 +1516,12 @@ def apply_upgrade(
                     raise UpgradeError(f"Merge became conflicted for {relative}.")
             elif entry["strategy"] == "starter-kit-state":
                 content = updated_starter_manifest(
-                    originals[relative],
+                    local_content,
                     manifest["base"]["provenance"],
                     content,
                 )
             write_payload(destination, content, entry["mode"])
+            originals[relative] = original
             if journal is not None:
                 written_kind, written_canonical_digest = content_metadata(content)
                 journal.write(
@@ -1482,9 +1536,6 @@ def apply_upgrade(
                     ),
                 )
 
-        originals[ADOPTION_PATH] = (
-            adoption_path.read_bytes() if adoption_path.is_file() else None
-        )
         head = run_git(root, "rev-parse", "HEAD")
         if head.returncode != 0:
             raise UpgradeError("Unable to resolve the target Git commit.")
@@ -1514,7 +1565,10 @@ def apply_upgrade(
                 str(starter_manifest_path),
             )
             next_adoption["starterKitSource"] = starter_manifest["source"]
+        if snapshot_file(adoption_path) != adoption_snapshot:
+            raise UpgradeError(f"Target changed after planning: {ADOPTION_PATH}")
         write_payload(adoption_path, write_json(next_adoption), "100644")
+        originals[ADOPTION_PATH] = adoption_snapshot
         if journal is not None:
             adoption_content = adoption_path.read_bytes()
             journal.write(
@@ -1534,9 +1588,9 @@ def apply_upgrade(
                 "rollback",
                 "WRITE_FAILURE detected; restoring in-memory originals",
             )
-        for relative, content in reversed(list(originals.items())):
+        for relative, snapshot in reversed(list(originals.items())):
             destination = target_path(root, relative)
-            if content is None:
+            if snapshot is None:
                 if destination.exists():
                     destination.unlink()
                 if journal is not None:
@@ -1546,14 +1600,15 @@ def apply_upgrade(
                         f"path={relative} action=ROLLBACK_DELETE result=RESTORED",
                     )
             else:
-                write_payload(destination, content, "100644")
+                restore_snapshot(destination, snapshot)
                 if journal is not None:
                     journal.write(
                         "WARNING",
                         "file",
                         (
                             f"path={relative} action=ROLLBACK_RESTORE "
-                            f"result=RESTORED sha256={sha256_bytes(content)}"
+                            f"result=RESTORED mode={snapshot.mode:04o} "
+                            f"sha256={sha256_bytes(snapshot.content)}"
                         ),
                     )
         raise

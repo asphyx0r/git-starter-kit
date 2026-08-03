@@ -613,6 +613,113 @@ class StarterKitUpgradeTests(unittest.TestCase):
             self.assertEqual((target / path).read_bytes(), content)
         self.assertFalse((target / "new.txt").exists())
 
+    def test_apply_rejects_a_file_changed_after_planning(self):
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        changed = b"changed after planning\n"
+        (target / "a.txt").write_bytes(changed)
+
+        with self.assertRaisesRegex(
+            UPGRADE.UpgradeError, "Target changed after planning: a.txt"
+        ):
+            UPGRADE.apply_upgrade(
+                manifest, files, target, plan, self.backup_directory
+            )
+
+        self.assertEqual((target / "a.txt").read_bytes(), changed)
+        self.assertFalse((target / "_starter-kit-files.json").exists())
+
+    def test_apply_preserves_an_add_path_occupied_after_planning(self):
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        concurrent = b"concurrent local file\n"
+        (target / "new.txt").write_bytes(concurrent)
+
+        with self.assertRaisesRegex(
+            UPGRADE.UpgradeError, "Target changed after planning: new.txt"
+        ):
+            UPGRADE.apply_upgrade(
+                manifest, files, target, plan, self.backup_directory
+            )
+
+        self.assertEqual((target / "new.txt").read_bytes(), concurrent)
+        self.assertEqual((target / "a.txt").read_bytes(), self.base_files["a.txt"])
+        self.assertEqual(
+            (target / "merge.txt").read_bytes(), self.base_files["merge.txt"]
+        )
+
+    def test_apply_preserves_a_concurrently_modified_adoption_manifest(self):
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        adoption_path = target / ".starter-kit-adoption.json"
+        adoption_path.write_bytes(b'{"initial": true}\n')
+        concurrent = b'{"concurrent": true}\n'
+        real_write = UPGRADE.write_payload
+        modified = False
+
+        def modify_adoption_after_first_write(path, content, mode):
+            nonlocal modified
+            real_write(path, content, mode)
+            if not modified and path != adoption_path:
+                adoption_path.write_bytes(concurrent)
+                modified = True
+
+        with mock.patch.object(
+            UPGRADE,
+            "write_payload",
+            side_effect=modify_adoption_after_first_write,
+        ):
+            with self.assertRaisesRegex(
+                UPGRADE.UpgradeError,
+                r"Target changed after planning: \.starter-kit-adoption\.json",
+            ):
+                UPGRADE.apply_upgrade(
+                    manifest, files, target, plan, self.backup_directory
+                )
+
+        self.assertEqual(adoption_path.read_bytes(), concurrent)
+        self.assertEqual((target / "a.txt").read_bytes(), self.base_files["a.txt"])
+        self.assertFalse((target / "new.txt").exists())
+
+    def test_restore_snapshot_reapplies_executable_mode(self):
+        path = self.root / "restored.sh"
+        snapshot = UPGRADE.FileSnapshot(b"#!/bin/sh\n", 0o751)
+
+        with mock.patch.object(UPGRADE, "write_payload") as write_mock, mock.patch.object(
+            UPGRADE.os, "name", "posix"
+        ), mock.patch.object(Path, "chmod") as chmod_mock:
+            UPGRADE.restore_snapshot(path, snapshot)
+
+        write_mock.assert_called_once_with(path, snapshot.content, "100755")
+        chmod_mock.assert_called_once_with(snapshot.mode)
+
+    @unittest.skipIf(os.name == "nt", "POSIX file modes are unavailable on Windows")
+    def test_failed_write_restores_exact_posix_mode(self):
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        path = target / "a.txt"
+        path.chmod(0o751)
+        real_write = UPGRADE.write_payload
+        calls = 0
+
+        def fail_third_write(destination, content, mode):
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                raise OSError("synthetic write failure after executable update")
+            real_write(destination, content, mode)
+
+        with mock.patch.object(
+            UPGRADE, "write_payload", side_effect=fail_third_write
+        ):
+            with self.assertRaises(OSError):
+                UPGRADE.apply_upgrade(
+                    manifest, files, target, plan, self.backup_directory
+                )
+
+        self.assertEqual(path.read_bytes(), self.base_files["a.txt"])
+        self.assertEqual(path.stat().st_mode & 0o777, 0o751)
+
     def test_main_build_writes_a_detailed_release_log(self):
         output = self.root / "main-upgrade.zip"
 
@@ -757,15 +864,15 @@ class StarterKitUpgradeTests(unittest.TestCase):
         real_write = UPGRADE.write_payload
         calls = 0
 
-        def fail_second_write(path, content, mode):
+        def fail_third_write(path, content, mode):
             nonlocal calls
             calls += 1
-            if calls == 2:
+            if calls == 3:
                 raise OSError("synthetic journaled write failure")
             real_write(path, content, mode)
 
         with mock.patch.object(
-            UPGRADE, "write_payload", side_effect=fail_second_write
+            UPGRADE, "write_payload", side_effect=fail_third_write
         ):
             exit_code, _, _ = self.run_main(
                 [

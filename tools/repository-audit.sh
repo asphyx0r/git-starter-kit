@@ -1142,7 +1142,12 @@ def canonical_digest(content):
     return "text", hashlib.sha256(canonical).hexdigest()
 
 with zipfile.ZipFile(sys.argv[1]) as archive:
-    names = {name for name in archive.namelist() if not name.endswith("/")}
+    archive_names = {
+        name.replace("\\", "/"): name
+        for name in archive.namelist()
+        if not name.endswith(("/", "\\"))
+    }
+    names = set(archive_names)
     forbidden = {
         ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
         ".github/workflows/release-package.yml",
@@ -1170,6 +1175,9 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     starter = json.load(archive.open("starter-kit-manifest.json"))
     if starter["schemaVersion"] != 1:
         raise SystemExit("Unexpected starter-kit manifest schema.")
+    starter_strategies = {
+        entry["path"]: entry["strategy"] for entry in starter["files"]
+    }
     for release_name in ("source", "current"):
         release = starter[release_name]
         expected_url = (
@@ -1187,10 +1195,11 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         strategies[path] = entry["strategy"]
         if path not in names:
             raise SystemExit(f"Managed file missing from ZIP: {path}")
-        digest = hashlib.sha256(archive.read(path)).hexdigest()
+        content = archive.read(archive_names[path])
+        digest = hashlib.sha256(content).hexdigest()
         if digest != entry["sha256"]:
             raise SystemExit(f"Managed file digest mismatch: {path}")
-        kind, canonical = canonical_digest(archive.read(path))
+        kind, canonical = canonical_digest(content)
         if kind != entry["contentKind"] or canonical != entry["canonicalSha256"]:
             raise SystemExit(f"Managed file canonical digest mismatch: {path}")
         if entry["strategy"] not in {
@@ -1210,25 +1219,54 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             f"Missing: {missing or '(none)'}. "
             f"Unexpected: {unexpected or '(none)'}."
         )
-    expected_strategies = {
-        ".github/workflows/agent-rules-update.yml": "replace",
-        "AGENTS.md": "agent-rules",
-        "CODING_RULES.md": "agent-rules",
-        "COMMIT_RULES.md": "agent-rules",
-        "DOCUMENTATION_RULES.md": "agent-rules",
-        "LANGUAGE_RULES.md": "agent-rules",
-        "RELEASE_RULES.md": "agent-rules",
-        "_agent-rules-source.json": "agent-rules",
-        "docs/SKILLS.md": "initialize-only",
-        "docs/repository-files.md": "initialize-only",
-        "docs/repository-migration.md": "initialize-only",
-        "tools/README.md": "initialize-only",
-        "tools/repository-audit.sh": "initialize-only",
-        "starter-kit-manifest.json": "starter-kit-state",
-    }
-    for path, strategy in expected_strategies.items():
+    missing_core = sorted(set(starter_strategies) - listed)
+    if missing_core:
+        raise SystemExit(
+            "Starter core missing from package: " + ", ".join(missing_core)
+        )
+    for path, strategy in starter_strategies.items():
         if strategies.get(path) != strategy:
-            raise SystemExit(f"Unexpected upgrade strategy for {path}.")
+            raise SystemExit(f"Starter strategy mismatch for {path}.")
+    expected_strategy_paths = {
+        "agent-rules": {
+            "AGENTS.md",
+            "CODING_RULES.md",
+            "COMMIT_RULES.md",
+            "DOCUMENTATION_RULES.md",
+            "LANGUAGE_RULES.md",
+            "RELEASE_RULES.md",
+            "_agent-rules-source.json",
+        },
+        "merge": {
+            ".codespellrc",
+            ".editorconfig",
+            ".gitattributes",
+            ".gitignore",
+            ".github/workflows/repository-audit.yml",
+        },
+        "initialize-only": {
+            "CHANGELOG.md",
+            "CODE_OF_CONDUCT.md",
+            "CONTRIBUTING.md",
+            "LICENSE",
+            "README.md",
+            "SECURITY.md",
+            "SUPPORT.md",
+            "docs/SKILLS.md",
+            "docs/repository-files.md",
+            "docs/repository-migration.md",
+            "tools/README.md",
+            "tools/repository-audit.sh",
+        },
+        "starter-kit-state": {"starter-kit-manifest.json"},
+    }
+    for strategy, expected_paths in expected_strategy_paths.items():
+        actual_paths = {
+            path for path, actual_strategy in strategies.items()
+            if actual_strategy == strategy
+        }
+        if actual_paths != expected_paths:
+            raise SystemExit(f"Unexpected {strategy} perimeter.")
 PY
 
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
