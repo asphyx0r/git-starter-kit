@@ -66,9 +66,12 @@ For a concise usage procedure in French, see
 [Upgrade toolkit](upgrade-toolkit.md).
 
 The cumulative updater classifies the six rule files and
-`_agent-rules-source.json` as `agent-rules`. It reports those paths but never
-writes them. Each target repository remains responsible for synchronizing
-those files through its own pull-request workflow.
+`_agent-rules-source.json` as `agent-rules`. It never writes the six rule
+files. For `_agent-rules-source.json`, it refreshes only the `repository` and
+`starterKit` sections from the new package while preserving `agentRules`,
+`preservedFiles`, and other target-owned fields. Each target repository remains
+responsible for synchronizing its rule files through its own pull-request
+workflow.
 
 Repository-specific inventories and operator documentation are
 initialization-only. Cumulative upgrades preserve `docs/SKILLS.md`,

@@ -19,7 +19,7 @@ import traceback
 from typing import Any, NamedTuple
 import zipfile
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 MAX_ARCHIVE_SIZE = 256 * 1024 * 1024
 PROVENANCE_PATH = "_agent-rules-source.json"
 FILES_MANIFEST_PATH = "_starter-kit-files.json"
@@ -339,6 +339,25 @@ def validate_new_package(
 
 def write_json(value: dict[str, Any]) -> bytes:
     return (json.dumps(value, indent=2, sort_keys=False) + "\n").encode("utf-8")
+
+
+def updated_agent_rules_provenance(
+    local_content: bytes | None, new_content: bytes
+) -> bytes:
+    if local_content is None:
+        raise UpgradeError(f"Target is missing {PROVENANCE_PATH}.")
+    local_value = load_json_bytes(local_content, f"target {PROVENANCE_PATH}")
+    if not isinstance(local_value.get("agentRules"), dict):
+        raise UpgradeError(
+            f"Target {PROVENANCE_PATH} has no agentRules object."
+        )
+    new_value = load_json_bytes(new_content, f"new {PROVENANCE_PATH}")
+    for field in ("repository", "starterKit"):
+        value = new_value.get(field)
+        if not isinstance(value, dict):
+            raise UpgradeError(f"New {PROVENANCE_PATH} has no {field} object.")
+        local_value[field] = value
+    return write_json(local_value)
 
 
 def starter_release_tag(provenance: dict[str, Any], label: str) -> str:
@@ -1060,7 +1079,26 @@ def evaluate_target(
         )
         strategy = entry["strategy"]
         if strategy == "agent-rules":
-            action = "delegate-agent-rules"
+            if relative != PROVENANCE_PATH:
+                action = "delegate-agent-rules"
+            else:
+                try:
+                    updated_provenance = updated_agent_rules_provenance(
+                        local_content, files[entry["payload"]]
+                    )
+                except UpgradeError:
+                    action = (
+                        "conflict-missing"
+                        if local_content is None
+                        else "conflict-modified"
+                    )
+                else:
+                    action = (
+                        "delegate-agent-rules"
+                        if canonical_sha256(updated_provenance, content_kind)
+                        == local_digest
+                        else "update"
+                    )
         elif strategy == "starter-kit-state":
             base_payload = entry.get("basePayload")
             base_content = (
@@ -1307,6 +1345,23 @@ def target_adoption_is_current(
                 expected_accepted_files[entry["path"]] = current_digest
         if current:
             current = adoption["acceptedFiles"] == expected_accepted_files
+    provenance_path = target_path(root, PROVENANCE_PATH)
+    if current:
+        if not provenance_path.is_file():
+            current = False
+        else:
+            try:
+                provenance = load_json_bytes(
+                    provenance_path.read_bytes(), str(provenance_path)
+                )
+            except UpgradeError:
+                current = False
+            else:
+                target_provenance = manifest["target"]["provenance"]
+                current = all(
+                    provenance.get(field) == target_provenance.get(field)
+                    for field in ("repository", "starterKit")
+                )
     starter_manifest_path = target_path(root, STARTER_MANIFEST_PATH)
     if current and starter_manifest_path.is_file():
         try:
@@ -1535,6 +1590,11 @@ def apply_upgrade(
                     manifest["base"]["provenance"],
                     content,
                 )
+            elif (
+                entry["strategy"] == "agent-rules"
+                and relative == PROVENANCE_PATH
+            ):
+                content = updated_agent_rules_provenance(local_content, content)
             write_payload(destination, content, entry["mode"])
             originals[relative] = original
             if journal is not None:

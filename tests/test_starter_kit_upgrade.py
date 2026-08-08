@@ -29,7 +29,14 @@ def json_bytes(value):
 
 def provenance(starter_commit, agent_commit, starter_ref="v1.0.0"):
     return {
+        "schemaVersion": 3,
         "generatedAt": "2026-07-30T00:00:00Z",
+        "repository": {
+            "name": "git-starter-kit",
+            "slug": "example/git-starter-kit",
+            "ref": starter_ref,
+            "commit": starter_commit,
+        },
         "starterKit": {
             "repository": "https://github.com/example/git-starter-kit",
             "ref": starter_ref,
@@ -204,11 +211,22 @@ class StarterKitUpgradeTests(unittest.TestCase):
             )
         return "\n".join(lines)
 
-    def test_tool_version_is_0_3_0(self):
-        self.assertEqual(UPGRADE.VERSION, "0.3.0")
+    def test_tool_version_is_0_3_1(self):
+        self.assertEqual(UPGRADE.VERSION, "0.3.1")
 
     def test_build_plan_and_apply_preserve_local_repository_files(self):
-        target = self.create_target()
+        local_provenance = json.loads(self.base_provenance)
+        local_provenance["agentRules"]["ref"] = "v1.0.1-local"
+        local_provenance["preservedFiles"] = [
+            {"path": "AGENTS.md", "canonicalSha256": "f" * 64}
+        ]
+        local_provenance["localMetadata"] = {"owner": "repository"}
+        original_provenance = self.base_files["_agent-rules-source.json"]
+        self.base_files["_agent-rules-source.json"] = json_bytes(local_provenance)
+        try:
+            target = self.create_target()
+        finally:
+            self.base_files["_agent-rules-source.json"] = original_provenance
         manifest, files, plan = self.load_plan(target)
 
         self.assertTrue(plan["applicable"])
@@ -219,9 +237,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(actions["new.txt"], "add")
         self.assertEqual(actions["README.md"], "review-initialize-only")
         self.assertEqual(plan["summary"]["review-initialize-only"], 1)
-        self.assertEqual(
-            actions["_agent-rules-source.json"], "delegate-agent-rules"
-        )
+        self.assertEqual(actions["_agent-rules-source.json"], "update")
         self.assertIn("removed.txt", plan["obsoletePaths"])
 
         backup = UPGRADE.apply_upgrade(
@@ -239,9 +255,28 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(
             (target / "removed.txt").read_bytes(), b"preserve removed\n"
         )
+        updated_provenance = json.loads(
+            (target / "_agent-rules-source.json").read_text(encoding="utf-8")
+        )
+        new_provenance = json.loads(self.new_provenance)
         self.assertEqual(
-            (target / "_agent-rules-source.json").read_bytes(),
-            self.base_provenance,
+            updated_provenance["repository"], new_provenance["repository"]
+        )
+        self.assertEqual(
+            updated_provenance["starterKit"], new_provenance["starterKit"]
+        )
+        self.assertEqual(
+            updated_provenance["agentRules"], local_provenance["agentRules"]
+        )
+        self.assertEqual(
+            updated_provenance["generatedAt"], local_provenance["generatedAt"]
+        )
+        self.assertEqual(
+            updated_provenance["preservedFiles"],
+            local_provenance["preservedFiles"],
+        )
+        self.assertEqual(
+            updated_provenance["localMetadata"], local_provenance["localMetadata"]
         )
         self.assertTrue((target / "_starter-kit-files.json").is_file())
         self.assertTrue((target / ".starter-kit-adoption.json").is_file())
@@ -581,7 +616,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertFalse(plan["clean"])
         self.assertFalse(plan["applicable"])
 
-    def test_adoption_manifest_accepts_a_proven_baseline_commit(self):
+    def test_adoption_manifest_cannot_replace_invalid_agent_rules_provenance(self):
         target = self.create_target()
         baseline_commit = subprocess.run(
             ["git", "-C", str(target), "rev-parse", "HEAD"],
@@ -610,8 +645,8 @@ class StarterKitUpgradeTests(unittest.TestCase):
             for item in plan["actions"]
             if item["path"] == "_agent-rules-source.json"
         )
-        self.assertEqual(provenance_action["action"], "delegate-agent-rules")
-        self.assertTrue(plan["applicable"])
+        self.assertEqual(provenance_action["action"], "conflict-modified")
+        self.assertFalse(plan["applicable"])
 
     def test_text_line_endings_do_not_create_false_drift(self):
         target = self.create_target()

@@ -367,8 +367,9 @@ deferred, or explicitly excluded from the template.
 - Type: `file`
 - Status: `required`
 - Goal: Records repository, upstream starter-kit, and agent-rules provenance.
-- Usage: Updated by the autonomous synchronization workflow and validated by
-  release packaging.
+- Usage: The autonomous synchronization workflow updates agent-rules data. A
+  cumulative starter-kit upgrade updates only `repository` and `starterKit`.
+  Release packaging validates the combined provenance.
 - Notes: Schema 3 retains repository and starter-kit provenance, records source
   file hashes, and lists customized rule files under `preservedFiles`.
 
