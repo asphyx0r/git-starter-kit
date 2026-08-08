@@ -110,6 +110,7 @@ chmod +x "$test_bin/commitlint"
 export AUDIT_NPX_COMMAND="$npx_command"
 export PATH="$test_bin:$PATH"
 commitlint_command="$test_bin/commitlint"
+unset AUDIT_COMMIT_SHA
 
 range_fixture="$test_temp/range-fixture"
 initialize_fixture "$range_fixture"
