@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.4.1",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.4.1",
-    "generatedAt": "2026-08-08T10:10:39Z"
+    "ref": "v2.4.2",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.4.2",
+    "generatedAt": "2026-08-08T18:57:08Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.4.1",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.4.1",
-    "generatedAt": "2026-08-08T10:10:39Z"
+    "ref": "v2.4.2",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.4.2",
+    "generatedAt": "2026-08-08T18:57:08Z"
   },
   "files": [
     {
@@ -127,8 +127,8 @@
     },
     {
       "path": ".github/workflows/repository-audit.yml",
-      "sha256": "e56b5ce341843cecc65a2b8a0e6ec2a5b2361ad2f81f1566fd72cc24727af5f0",
-      "canonicalSha256": "e56b5ce341843cecc65a2b8a0e6ec2a5b2361ad2f81f1566fd72cc24727af5f0",
+      "sha256": "4d17aea1c215ae00b150c61ccd5e61cfef221ede0b7b22dce9bc289561dd6ca9",
+      "canonicalSha256": "4d17aea1c215ae00b150c61ccd5e61cfef221ede0b7b22dce9bc289561dd6ca9",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "merge"
@@ -183,8 +183,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "10d5b02c7df5c2d5221acf3586de1d2235bf4d7b2870cc50b5039501b62b4672",
-      "canonicalSha256": "10d5b02c7df5c2d5221acf3586de1d2235bf4d7b2870cc50b5039501b62b4672",
+      "sha256": "b4694da2d5503d084c9486e1ceda85deb9f9e06be7ee0ead31eefb94fbb0789b",
+      "canonicalSha256": "b4694da2d5503d084c9486e1ceda85deb9f9e06be7ee0ead31eefb94fbb0789b",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -255,8 +255,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "d921d10263ce054dac290236f3b005f9cccb943d31dd96d33c03a598b9a91fdd",
-      "canonicalSha256": "d921d10263ce054dac290236f3b005f9cccb943d31dd96d33c03a598b9a91fdd",
+      "sha256": "6c29aadd84c658f9a3fdb76609e18f2d91c1f19f5a2971f9004a9117c152f0be",
+      "canonicalSha256": "6c29aadd84c658f9a3fdb76609e18f2d91c1f19f5a2971f9004a9117c152f0be",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -375,8 +375,8 @@
     },
     {
       "path": "tests/test_commit_message_validation.sh",
-      "sha256": "e802299cab4df49888e4b4e824a230061b6ebfb11fc491b4eb7964e35d3e2c2c",
-      "canonicalSha256": "e802299cab4df49888e4b4e824a230061b6ebfb11fc491b4eb7964e35d3e2c2c",
+      "sha256": "63f8a0fdab62f68520171fd00768c23ad79a7fe5db7c8ce0043f3016e91948a8",
+      "canonicalSha256": "63f8a0fdab62f68520171fd00768c23ad79a7fe5db7c8ce0043f3016e91948a8",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -391,8 +391,8 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "483ba6f9dc48a87e0a3906d0749f50256f57aa64a2c2928f1e884b624daaa6a8",
-      "canonicalSha256": "483ba6f9dc48a87e0a3906d0749f50256f57aa64a2c2928f1e884b624daaa6a8",
+      "sha256": "cb859e312db2ef9869bc038228649f03b6f3e04acda554c484fe6f2c65e3970a",
+      "canonicalSha256": "cb859e312db2ef9869bc038228649f03b6f3e04acda554c484fe6f2c65e3970a",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -423,8 +423,8 @@
     },
     {
       "path": "tools/repository-audit.sh",
-      "sha256": "1982500696ebe56ae35d53aeabcb8466234d418fe611ba8a2d4aab2073b1dae4",
-      "canonicalSha256": "1982500696ebe56ae35d53aeabcb8466234d418fe611ba8a2d4aab2073b1dae4",
+      "sha256": "6c5bc7187c4b2109ec3db8e62dc6dd9aee70e7e07543f1a58e993469d43051d5",
+      "canonicalSha256": "6c5bc7187c4b2109ec3db8e62dc6dd9aee70e7e07543f1a58e993469d43051d5",
       "contentKind": "text",
       "mode": "100755",
       "strategy": "initialize-only"
