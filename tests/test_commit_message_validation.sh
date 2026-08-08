@@ -180,6 +180,43 @@ if [ "$resolved_base" != "v1.1.0" ]; then
 fi
 run_commitlint_readonly "$commitlint_command" >/dev/null
 
+pull_request_fixture="$test_temp/pull-request-fixture"
+initialize_fixture "$pull_request_fixture"
+printf 'base\n' >"$pull_request_fixture/tracked.txt"
+git -C "$pull_request_fixture" add tracked.txt
+commit_without_repository_hooks "$pull_request_fixture" "$initial_message"
+git -C "$pull_request_fixture" checkout -q -b feature
+printf 'feature\n' >>"$pull_request_fixture/tracked.txt"
+git -C "$pull_request_fixture" add tracked.txt
+commit_without_repository_hooks "$pull_request_fixture" "$valid_message"
+pull_request_head="$(git -C "$pull_request_fixture" rev-parse HEAD)"
+git -C "$pull_request_fixture" checkout -q main
+printf 'base change\n' >"$pull_request_fixture/base.txt"
+git -C "$pull_request_fixture" add base.txt
+commit_without_repository_hooks "$pull_request_fixture" "$valid_message"
+pull_request_base="$(git -C "$pull_request_fixture" rev-parse HEAD)"
+git -C "$pull_request_fixture" update-ref \
+  refs/remotes/origin/main "$pull_request_base"
+git -c core.hooksPath="$pull_request_fixture/.disabled-hooks" \
+  -C "$pull_request_fixture" merge --no-ff feature \
+  -m 'Merge feature into main' --quiet
+pull_request_merge="$(git -C "$pull_request_fixture" rev-parse HEAD)"
+
+cd "$pull_request_fixture"
+export GITHUB_EVENT_NAME=pull_request
+export GITHUB_BASE_REF=main
+export AUDIT_COMMIT_SHA="$pull_request_head"
+if [ "$pull_request_merge" = "$AUDIT_COMMIT_SHA" ]; then
+  fail "pull request fixture did not retain the synthetic merge checkout"
+fi
+run_commitlint_readonly "$commitlint_command" >/dev/null
+
+unset AUDIT_COMMIT_SHA
+if run_commitlint_readonly "$commitlint_command" >/dev/null 2>&1; then
+  fail "pull request merge message was unexpectedly accepted"
+fi
+unset GITHUB_BASE_REF
+
 first_release_fixture="$test_temp/first-release-fixture"
 initialize_fixture "$first_release_fixture"
 printf 'first\n' >"$first_release_fixture/tracked.txt"
