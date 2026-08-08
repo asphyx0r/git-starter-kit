@@ -819,13 +819,21 @@ def validate_adoption(
     adoption = load_json_bytes(adoption_path.read_bytes(), str(adoption_path))
     if adoption.get("schemaVersion") not in {1, 2}:
         return None
-    if adoption.get("baseArchiveSha256") != manifest["base"]["archiveSha256"]:
-        return None
     starter = adoption.get("starterKit")
-    base_starter = manifest["base"]["provenance"].get("starterKit")
-    if not isinstance(starter, dict) or not isinstance(base_starter, dict):
+    if not isinstance(starter, dict):
         return None
-    if starter.get("commit") != base_starter.get("commit"):
+    matches_known_release = False
+    for release_name in ("base", "target"):
+        release = manifest[release_name]
+        release_starter = release["provenance"].get("starterKit")
+        if (
+            adoption.get("baseArchiveSha256") == release["archiveSha256"]
+            and isinstance(release_starter, dict)
+            and starter.get("commit") == release_starter.get("commit")
+        ):
+            matches_known_release = True
+            break
+    if not matches_known_release:
         return None
     evidence_commit = adoption.get("repositoryCommit")
     if not isinstance(evidence_commit, str) or not evidence_commit:
