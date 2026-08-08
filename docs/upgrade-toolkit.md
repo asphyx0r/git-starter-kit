@@ -89,7 +89,9 @@ Chaque fichier est associé à une stratégie :
 - `replace` : remplacé uniquement si sa version locale correspond à la base connue.
 - `merge` : fusion à trois sources entre ancienne version, version locale et nouvelle version.
 - `initialize-only` : conservé dans le dépôt cible ; le plan demande seulement une revue manuelle.
-- `agent-rules` : jamais écrit par le patch ; confié au workflow autonome des règles.
+- `agent-rules` : les six fichiers de règles restent confiés au workflow autonome ;
+  dans `_agent-rules-source.json`, seules les sections `repository` et `starterKit`
+  sont actualisées, sans modifier les données locales liées aux règles.
 - `starter-kit-state` : conserve la release `source`, puis met à jour `current` et l'inventaire du core.
 - Fichier supprimé du starter : conservé, jamais supprimé automatiquement.
 - Fichier non suivi sans rapport : conservé.
