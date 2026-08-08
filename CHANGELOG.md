@@ -2,6 +2,14 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.4.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 9f5a5c7 | fix(ci): audit pull request head commits | asphyx |
+| 88ee6c8 | fix(audit): harden Windows and agent checks | asphyx |
+| da41aab | chore(agents): sync rules to v1.41.2 | asphyx |
+
 ## v2.4.0
 
 | References | Description | Author(s) |
