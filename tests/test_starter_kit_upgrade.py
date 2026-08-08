@@ -482,6 +482,8 @@ class StarterKitUpgradeTests(unittest.TestCase):
             (target / ".starter-kit-adoption.json").read_text(encoding="utf-8")
         )
         self.assertEqual(adoption["starterKitSource"]["ref"], "v1.0.0")
+        self.run_git(target, "add", "--all")
+        self.run_git(target, "commit", "-m", "test: commit third release")
 
         post_plan = UPGRADE.evaluate_target(
             second_manifest, second_files, target
@@ -499,6 +501,35 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(
             UPGRADE.operational_compliance(post_plan, adoption_is_current),
             "COMPLIANT_WITH_FOLLOW_UP",
+        )
+
+    def test_current_adoption_rejects_unrelated_evidence_commit(self):
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        UPGRADE.apply_upgrade(
+            manifest, files, target, plan, self.backup_directory
+        )
+        unrelated_commit = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(target),
+                "commit-tree",
+                "HEAD^{tree}",
+                "-m",
+                "unrelated evidence",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        adoption_path = target / ".starter-kit-adoption.json"
+        adoption = json.loads(adoption_path.read_text(encoding="utf-8"))
+        adoption["repositoryCommit"] = unrelated_commit
+        adoption_path.write_bytes(json_bytes(adoption))
+
+        self.assertFalse(
+            UPGRADE.target_adoption_is_current(manifest, target)
         )
 
     def test_invalid_provenance_blocks_application(self):
