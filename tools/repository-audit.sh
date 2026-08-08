@@ -395,6 +395,7 @@ check_release_package_portability() {
 
 check_agent_rules_update_workflow_contract() {
   local workflow_path=".github/workflows/agent-rules-update.yml"
+  local sync_message="chore(agents): sync agent rules to \${RULES_REF}"
 
   if ! grep -F "  release:" "$workflow_path" >/dev/null ||
     ! grep -F "    types: [published]" "$workflow_path" >/dev/null ||
@@ -409,6 +410,12 @@ check_agent_rules_update_workflow_contract() {
 
   if [ "$(grep -Fc '    timeout-minutes:' "$workflow_path")" -lt 1 ]; then
     printf '%s\n' "Agent rules workflow does not set a job timeout." >&2
+    exit 1
+  fi
+
+  if [ "$(grep -Fc "${sync_message}" "$workflow_path")" -ne 2 ]; then
+    printf '%s\n' \
+      "Agent rules workflow does not use the accepted agents scope." >&2
     exit 1
   fi
 }
@@ -894,6 +901,20 @@ run_script_smoke() {
   cat >"$initializer_bin/commitlint" <<'COMMITLINT'
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ "$AUDIT_NPX_COMMAND" == *.cmd ]]; then
+  npx_directory="$(dirname "$AUDIT_NPX_COMMAND")"
+  node_executable="$npx_directory/node.exe"
+  npx_cli="$npx_directory/node_modules/npm/bin/npx-cli.js"
+
+  if [[ -x "$node_executable" && -f "$npx_cli" ]]; then
+    NPM_CONFIG_IGNORE_SCRIPTS=true \
+      "$node_executable" "$npx_cli" \
+      --yes @commitlint/cli@21.0.2 "$@"
+    exit
+  fi
+fi
+
 NPM_CONFIG_IGNORE_SCRIPTS=true \
   "$AUDIT_NPX_COMMAND" --yes @commitlint/cli@21.0.2 "$@"
 COMMITLINT

@@ -171,7 +171,7 @@ jobs:
             AGENTS.md CODING_RULES.md COMMIT_RULES.md \
             DOCUMENTATION_RULES.md LANGUAGE_RULES.md RELEASE_RULES.md \
             _agent-rules-source.json
-          git commit -m "chore(rules): sync agent rules to ${RULES_REF}"
+          git commit -m "chore(agents): sync agent rules to ${RULES_REF}"
           git push --force-with-lease origin \
             "HEAD:refs/heads/${SYNC_BRANCH}"
 
@@ -205,7 +205,7 @@ jobs:
               "The repository validation workflow must pass before merge." \
               "Automatic merge is intentionally disabled."
           )"
-          title="chore(rules): sync agent rules to ${RULES_REF}"
+          title="chore(agents): sync agent rules to ${RULES_REF}"
           if gh pr view "${SYNC_BRANCH}" --json url >/dev/null 2>&1; then
             gh pr edit "${SYNC_BRANCH}" --title "${title}" --body "${body}"
           else
