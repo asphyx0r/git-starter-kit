@@ -483,6 +483,24 @@ class StarterKitUpgradeTests(unittest.TestCase):
         )
         self.assertEqual(adoption["starterKitSource"]["ref"], "v1.0.0")
 
+        post_plan = UPGRADE.evaluate_target(
+            second_manifest, second_files, target
+        )
+        state_action = next(
+            item
+            for item in post_plan["actions"]
+            if item["path"] == "starter-kit-manifest.json"
+        )
+        self.assertEqual(state_action["action"], "aligned")
+        adoption_is_current = UPGRADE.target_adoption_is_current(
+            second_manifest, target
+        )
+        self.assertTrue(adoption_is_current)
+        self.assertEqual(
+            UPGRADE.operational_compliance(post_plan, adoption_is_current),
+            "COMPLIANT_WITH_FOLLOW_UP",
+        )
+
     def test_invalid_provenance_blocks_application(self):
         target = self.create_target()
         (target / "_agent-rules-source.json").write_text(
