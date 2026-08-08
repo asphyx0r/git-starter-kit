@@ -1272,7 +1272,15 @@ def target_adoption_is_current(
         return False
     starter = adoption.get("starterKit")
     target_starter = manifest["target"]["provenance"].get("starterKit")
-    head = run_git(root, "rev-parse", "HEAD")
+    evidence_commit = adoption.get("repositoryCommit")
+    evidence_is_ancestor = (
+        isinstance(evidence_commit, str)
+        and bool(evidence_commit)
+        and run_git(
+            root, "merge-base", "--is-ancestor", evidence_commit, "HEAD"
+        ).returncode
+        == 0
+    )
     current = (
         adoption.get("schemaVersion") == 2
         and adoption.get("baseArchiveSha256")
@@ -1280,8 +1288,7 @@ def target_adoption_is_current(
         and isinstance(starter, dict)
         and isinstance(target_starter, dict)
         and starter == target_starter
-        and head.returncode == 0
-        and adoption.get("repositoryCommit") == head.stdout.strip()
+        and evidence_is_ancestor
         and isinstance(adoption.get("acceptedFiles"), dict)
     )
     expected_accepted_files: dict[str, str] = {}
