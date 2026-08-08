@@ -441,6 +441,15 @@ check_repository_audit_workflow_contract() {
   fi
 
   # shellcheck disable=SC2016
+  if [ "$(grep -Fc \
+    'ref: ${{ github.event.pull_request.head.sha || github.sha }}' \
+    "$workflow_path")" -ne 1 ]; then
+    printf '%s\n' \
+      "Repository audit workflow does not check the pull request head." >&2
+    exit 1
+  fi
+
+  # shellcheck disable=SC2016
   if ! grep -F "  repository-audit:" "$workflow_path" >/dev/null ||
     ! grep -F "'Repository audit (manual)' || 'Repository audit'" \
       "$workflow_path" >/dev/null ||
