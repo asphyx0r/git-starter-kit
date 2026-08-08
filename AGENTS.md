@@ -107,6 +107,18 @@ When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
+When your work creates temporary artifacts:
+
+- Track every temporary file, directory, cache, virtual environment, dependency
+  target, and other artifact created for the task.
+- Before finishing, remove every temporary artifact created for the task,
+  whether the task succeeds or fails, and verify that each path no longer
+  exists.
+- If cleanup fails, report the exact path and error. Do not claim that cleanup
+  or the worktree is complete.
+- Do not delete pre-existing temporary artifacts unless the user authorized
+  their removal or their ownership and disposability have been established.
+
 The test: Every changed line should trace directly to the user's request.
 
 ## 4. Goal-Driven Execution
