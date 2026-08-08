@@ -2,6 +2,16 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.4.2
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 75a93e9 | test(ci): isolate audit commit fixtures | asphyx |
+| 49935eb | fix(tools): refresh starter provenance | asphyx |
+| f67de65 | fix(ci): audit pull-request merge results | asphyx |
+| 1b55c36 | fix(tools): verify committed adoption state | asphyx |
+| b9b6197 | fix(tools): validate target adoption state | asphyx |
+
 ## v2.4.1
 
 | References | Description | Author(s) |
