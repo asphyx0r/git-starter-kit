@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.5.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| bafba67 | feat(release): generate release artifacts | asphyx |
+
 ## v2.4.2
 
 | References | Description | Author(s) |
