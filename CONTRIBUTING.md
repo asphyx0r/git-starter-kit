@@ -44,17 +44,24 @@ Enable the repository hook path for ordinary local Git commands:
 git config core.hooksPath .githooks
 ```
 
-The pre-commit hook requires `markdownlint-cli2` for staged `*.md` files and
-`yamllint` for staged `*.yml` or `*.yaml` files. The commit-msg hook requires
-`commitlint` and rejects messages that do not match the repository-specific
-scoped Conventional Commit rules. Guarded repository tools force this hook path
-independently of local Git configuration.
+The pre-commit hook requires `markdownlint-cli2` for staged `*.md` files,
+`yamllint` for staged `*.yml` or `*.yaml` files, and Python plus the pinned
+release-artifact requirements when release identification is staged. The
+commit-msg hook requires `commitlint` and rejects messages that do not match the
+repository-specific scoped Conventional Commit rules. The pre-push hook blocks
+SemVer tags whose `VERSION`, `SHA256SUMS`, or `manifest.json` is inconsistent.
+Guarded repository tools force this hook path independently of local Git
+configuration.
 
 ## Release tags
 
 Create all new SemVer release tags as annotated tags. The published `v1.2.1`,
 `v1.2.2`, and `v1.3.0` tags are historical lightweight exceptions and must not
 be rewritten.
+
+Before creating a new release tag, collect every unknown manifest value from
+the user and commit the generated `VERSION`, `SHA256SUMS`, and `manifest.json`
+together. Never infer missing release metadata.
 
 ## Pull requests
 

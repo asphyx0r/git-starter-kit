@@ -2,10 +2,11 @@
 interface:
   display_name: "Git Commit Push Tag"
   short_description: >-
-    Guarded commit, audit preflight, tag, push, and release flow.
+    Guarded commit, release artifacts, tag, push, and release flow.
   default_prompt: >-
     Use $git-commit-push-tag to analyze the next SemVer bump; mutate only with
-    an explicit BUMP and create a requested GitHub Release only after every
-    repository-specific release check succeeds.
+    an explicit BUMP, generate release identification without inferred values,
+    and create a requested GitHub Release only after every repository-specific
+    release check succeeds.
 policy:
   allow_implicit_invocation: false

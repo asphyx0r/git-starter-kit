@@ -62,6 +62,12 @@ enriched package and upgrade toolkit. The release workflow, package builder,
 updater, related tests, and package-specific documentation are excluded from
 derived repository packages.
 
+The package does include the release artifact generator, its manifest template
+and schema, the repository-owned hooks, and the tag validation workflow. It
+does not include the canonical repository's generated `VERSION`, `SHA256SUMS`,
+or `manifest.json`: those three files identify one source release and each
+derived repository must generate its own values before its own tag.
+
 For a concise usage procedure in French, see
 [Upgrade toolkit](upgrade-toolkit.md).
 
@@ -104,14 +110,18 @@ Use this mode for the normal release process.
 1. Prepare the release commits and changelog in `git-starter-kit`.
 2. Prepare `starter-kit-manifest.json` for the exact selected tag with
    `tools/starter-kit-manifest.py`, then commit only that release metadata.
-3. From a clean repository, run `bash tools/repository-audit.sh` locally.
-4. Stop if the local audit fails; do not create a release tag or release.
-5. Create and push the release tag, for example `v1.3.0`.
-6. On GitHub, open the repository page.
-7. Open **Releases**.
-8. Create a new release from the tag.
-9. Mark it as a prerelease and do not mark it as latest.
-10. Publish the prerelease.
+3. Collect every release-manifest value explicitly, generate `VERSION`,
+   `SHA256SUMS`, and `manifest.json`, validate them, then commit exactly those
+   three files.
+4. From a clean repository, run `bash tools/repository-audit.sh` locally.
+5. Stop if the local audit fails; do not create a release tag or release.
+6. Create and push the release tag, for example `v1.3.0`.
+7. Require the tag-only `Release artifacts` workflow to succeed.
+8. On GitHub, open the repository page.
+9. Open **Releases**.
+10. Create a new release from the tag.
+11. Mark it as a prerelease and do not mark it as latest.
+12. Publish the prerelease.
 
 After the prerelease is published, GitHub starts the `Release package`
 workflow automatically. Automatic releases intentionally use `latest` so the
@@ -193,8 +203,8 @@ The full audit intentionally resolves the latest published full
 `agent-coding-rules` release during package smoke checks. Treat a failure to
 resolve or validate that latest release as an audit failure before publishing.
 It also needs network access to npm for Markdown lint bootstrapping and PyPI
-for Codespell bootstrapping. Use `markdown`, `spelling`, or `static` when you
-need to isolate one audit family.
+for Codespell and JSON Schema validator bootstrapping. Use `markdown`,
+`spelling`, or `static` when you need to isolate one audit family.
 
 You can also test only the package generation locally before publishing a release.
 

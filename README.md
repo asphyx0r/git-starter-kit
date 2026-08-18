@@ -58,13 +58,15 @@ git config core.hooksPath .githooks
 ```
 
 The optional pre-commit hook checks staged `*.md` files with
-`markdownlint-cli2` and staged `*.yml` or `*.yaml` files with `yamllint`.
-The optional commit-msg hook checks commit messages with `commitlint` and the
-repository-specific scoped Conventional Commit rules. Install those tools before
-enabling the hooks. Leaving `core.hooksPath` unset allows ordinary manual Git
-commands to bypass these local hooks. The guarded release skill therefore
-forces `core.hooksPath=.githooks` for every commit and commits the same message
-file that passed `commitlint --edit`.
+`markdownlint-cli2`, staged `*.yml` or `*.yaml` files with `yamllint`, and any
+staged release-identification set with Python and the pinned JSON Schema
+validator. The optional commit-msg hook checks commit messages with `commitlint`
+and the repository-specific scoped Conventional Commit rules. The pre-push hook
+validates every pushed SemVer release tag. Install those tools before enabling
+the hooks. Leaving `core.hooksPath` unset allows ordinary manual Git commands to
+bypass these local hooks. The guarded release skill therefore forces
+`core.hooksPath=.githooks` for every commit and commits the same message file
+that passed `commitlint --edit`.
 
 Copy files from `templates/` when starting a new project and replace the
 placeholder values with project-specific content.
@@ -97,9 +99,10 @@ The read-only profile uses installed tools and disables optional Git locks.
 Missing tools fail the audit instead of being installed or skipped.
 
 Do not create a release tag or GitHub release if the full audit fails. The full
-profile bootstraps `codespell` 2.4.2 in a temporary Python target and requires
-the same tools as CI, including `shellcheck`, `pwsh`, `python`, `node`, `git`,
-and `npx`. It intentionally resolves the latest published
+profile bootstraps `codespell` 2.4.2 and the pinned release-manifest validator
+in temporary Python targets and requires the same tools as CI, including
+`shellcheck`, `pwsh`, `python`, `node`, `git`, and `npx`. It intentionally
+resolves the latest published
 `agent-coding-rules` release during release package smoke checks; do not pin
 that check to an older rules release.
 
@@ -113,9 +116,10 @@ without package hash verification. This is an accepted lightweight trust
 tradeoff for the generic starter kit.
 
 The full profile needs network access to npm for Markdown lint bootstrapping,
-PyPI for Codespell bootstrapping, and GitHub for the latest agent-rules smoke
-check. Use `markdown`, `spelling`, or `static` to run one full-profile audit
-family at a time when diagnosing network or tool availability problems.
+PyPI for Codespell and JSON Schema validator bootstrapping, and GitHub for the
+latest agent-rules smoke check. Use `markdown`, `spelling`, or `static` to run
+one full-profile audit family at a time when diagnosing network or tool
+availability problems.
 
 When the audit runs from WSL with Windows PowerShell for PowerShell checks,
 it uses the ignored `.tmp/` path for temporary files that both environments
@@ -205,6 +209,16 @@ For this canonical repository, the guarded workflow prepares and validates
 `starter-kit-manifest.json` in a distinct release-preparation commit before
 the remote preflight and tag. A GitHub release event validates the committed
 manifest; it never attempts to rewrite tag contents after publication.
+
+Every repository carrying the starter-kit release automation also prepares a
+second, repository-owned release commit containing `VERSION`, `SHA256SUMS`, and
+`manifest.json`. The generator inventories the exact candidate Git tree,
+validates the dynamic manifest against the tracked JSON Schema, and asks for
+every release-specific value that cannot be established mechanically. The
+pre-commit and pre-push hooks reject incomplete or stale artifact sets, and the
+tag-only `Release artifacts` workflow independently validates the pushed tag.
+The canonical starter package excludes its own three generated root files so
+each derived repository creates release identification for itself.
 
 Before creating a tag, the guarded workflow pushes the candidate SHA to a
 unique `codex/release-preflight-*` branch and requires the aggregate

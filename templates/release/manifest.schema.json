@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Universal Release Manifest Schema",
+  "description": "Schema for validating generated manifest.json release manifests produced from manifest.template.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version",
+    "program_id",
+    "name",
+    "version",
+    "release_date",
+    "channel",
+    "critical_update",
+    "release_notes",
+    "update",
+    "artifacts",
+    "metadata"
+  ],
+  "properties": {
+    "manifest_version": {
+      "const": "2.0.0",
+      "description": "Version of the manifest format, independent from the program version."
+    },
+    "program_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "release_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "channel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "critical_update": {
+      "type": "boolean"
+    },
+    "release_notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "update": {
+      "$ref": "#/$defs/updatePolicy"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      },
+      "$comment": "Standard JSON Schema cannot enforce uniqueness of artifact.id across different artifact objects; consumers should verify it separately."
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        {
+          "not": {
+            "pattern": "^[\\\\/]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "^[A-Za-z]:[\\\\/]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)"
+          }
+        }
+      ]
+    },
+    "updatePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_source_version",
+        "strategy",
+        "preserve_paths",
+        "remove_obsolete_files",
+        "backup_required",
+        "restart_required",
+        "rollback_supported",
+        "migrations"
+      ],
+      "properties": {
+        "min_source_version": {
+          "$ref": "#/$defs/semver"
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "patch",
+            "full_reinstall"
+          ]
+        },
+        "preserve_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "remove_obsolete_files": {
+          "type": "boolean"
+        },
+        "backup_required": {
+          "type": "boolean"
+        },
+        "restart_required": {
+          "type": "boolean"
+        },
+        "rollback_supported": {
+          "type": "boolean"
+        },
+        "migrations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          },
+          "description": "Repository-relative references to declarative migration resources or migration scripts handled by the updater."
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "arch",
+        "min_os_version"
+      ],
+      "properties": {
+        "os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "min_os_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target",
+        "format",
+        "total_files",
+        "size_bytes",
+        "built_at",
+        "sha256",
+        "files"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1
+        },
+        "total_files": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "built_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fileEntry"
+          },
+          "$comment": "Standard JSON Schema cannot enforce that artifact.total_files equals the number of entries in files or that relative_path values are unique; consumers should verify these invariants separately."
+        }
+      }
+    },
+    "fileEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "size_bytes",
+        "file_type",
+        "line_ending",
+        "encoding",
+        "sha256",
+        "mode"
+      ],
+      "properties": {
+        "relative_path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file_type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "binary"
+          ]
+        },
+        "line_ending": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "LF",
+            "CRLF",
+            "CR",
+            null
+          ]
+        },
+        "encoding": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "mode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-7]{3,4}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "file_type": {
+                "const": "binary"
+              }
+            },
+            "required": [
+              "file_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "line_ending": {
+                "type": "null"
+              },
+              "encoding": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "file_type": {
+                "const": "text"
+              }
+            },
+            "required": [
+              "file_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "encoding": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "author",
+        "license",
+        "support_url"
+      ],
+      "properties": {
+        "author": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "support_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    }
+  }
+}

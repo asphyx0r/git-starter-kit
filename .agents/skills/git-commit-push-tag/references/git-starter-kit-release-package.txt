@@ -26,6 +26,9 @@ PRÉPARATION DU MANIFESTE DE RELEASE
 - Après le commit, répète le contrôle `check` contre `HEAD`. Tout échec ou toute
   modification supplémentaire bloque la prévalidation distante, le tag et la
   release.
+- Exécute ensuite la section « PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE
+  RELEASE » du workflow principal. Ainsi, `manifest.json` et `SHA256SUMS`
+  inventorieront le `starter-kit-manifest.json` final destiné au même tag.
 
 PRÉCONDITION DU WORKFLOW DE RELEASE
 

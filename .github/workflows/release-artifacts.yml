@@ -1,0 +1,40 @@
+---
+name: Release artifacts
+
+"on":
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release-artifacts:
+    name: Release artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout tagged release
+        # actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install manifest validator
+        run: >-
+          python3 -m pip install
+          --disable-pip-version-check
+          --requirement tools/release-artifacts-requirements.txt
+
+      - name: Validate release identification
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_TREEISH: ${{ github.sha }}
+        run: >-
+          python3 tools/release-artifacts.py check
+          --expected-ref "${RELEASE_REF}"
+          --treeish "${RELEASE_TREEISH}"
+          --repository-root .

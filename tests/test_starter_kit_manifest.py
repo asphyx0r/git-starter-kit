@@ -36,6 +36,13 @@ class StarterKitManifestTests(unittest.TestCase):
         source_only = self.root / "tools" / "starter-kit-manifest.py"
         source_only.parent.mkdir()
         source_only.write_text("source only\n", encoding="utf-8")
+        (self.root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+        (self.root / "SHA256SUMS").write_text("release state\n", encoding="utf-8")
+        (self.root / "manifest.json").write_text("{}\n", encoding="utf-8")
+        (self.root / "tools" / "release-artifacts.py").write_text(
+            "distributed tool\n",
+            encoding="utf-8",
+        )
         self.run_git("add", "--all")
         self.run_git("commit", "-m", "test: create fixture")
 
@@ -82,7 +89,10 @@ class StarterKitManifestTests(unittest.TestCase):
             "https://github.com/asphyx0r/git-starter-kit/releases/tag/v1.2.3",
         )
         entries = {entry["path"]: entry for entry in value["files"]}
-        self.assertEqual(set(entries), {"README.md", "a.txt"})
+        self.assertEqual(
+            set(entries),
+            {"README.md", "a.txt", "tools/release-artifacts.py"},
+        )
         self.assertEqual(entries["README.md"]["strategy"], "initialize-only")
         self.assertEqual(entries["a.txt"]["strategy"], "replace")
 
@@ -174,8 +184,11 @@ class StarterKitManifestTests(unittest.TestCase):
                         "git-starter-kit-release-package.txt"
                     ),
                     ".github/workflows/release-package.yml",
+                    "SHA256SUMS",
+                    "VERSION",
                     "docs/release-package.md",
                     "docs/upgrade-toolkit.md",
+                    "manifest.json",
                     "tests/test_starter_kit_manifest.py",
                     "tests/test_starter_kit_upgrade.py",
                     "tools/build-release-package.ps1",

@@ -1,0 +1,51 @@
+{
+    "manifest_version": "2.0.0",
+    "program_id": "{{program-id}}",
+    "name": "{{application-name}}",
+    "version": "{{application-semver-number}}",
+    "release_date": "{{release-date-YYYY-MM-DDTHH:MM:SSZ}}",
+    "channel": "{{application-deployment-channel}}",
+    "critical_update": {{critical-update-boolean}},
+    "release_notes": {{release-notes-json-array}},
+    "update": {
+        "min_source_version": "{{minimum-upgradable-source-semver-number}}",
+        "strategy": "{{update-strategy-patch-or-full-reinstall}}",
+        "preserve_paths": {{preserve-paths-json-array}},
+        "remove_obsolete_files": {{remove-obsolete-files-boolean}},
+        "backup_required": {{backup-required-boolean}},
+        "restart_required": {{restart-required-boolean}},
+        "rollback_supported": {{rollback-supported-boolean}},
+        "migrations": {{migrations-json-array}}
+    },
+    "artifacts": [
+        {
+            "id": "{{artifact-id}}",
+            "target": {
+                "os": "{{target-os}}",
+                "arch": "{{target-architecture}}",
+                "min_os_version": "{{target-minimum-os-version}}"
+            },
+            "format": "{{artifact-archive-type}}",
+            "total_files": {{artifact-total-files}},
+            "size_bytes": {{artifact-size-in-bytes}},
+            "built_at": "{{artifact-build-date-YYYY-MM-DDTHH:MM:SSZ}}",
+            "sha256": "{{artifact-sha256-hash}}",
+            "files": [
+                {
+                    "relative_path": "{{file-relative-path}}",
+                    "size_bytes": {{file-size-in-bytes}},
+                    "file_type": "{{file-type-text-or-binary}}",
+                    "line_ending": {{file-line-ending-json-value}},
+                    "encoding": {{file-encoding-json-value}},
+                    "sha256": "{{file-sha256-hash}}",
+                    "mode": {{file-mode-json-value}}
+                }
+            ]
+        }
+    ],
+    "metadata": {
+        "author": "{{program-author-name}}",
+        "license": "{{program-license}}",
+        "support_url": "{{program-support-url}}"
+    }
+}

@@ -20,6 +20,21 @@ require_command() {
   fi
 }
 
+resolve_python_command() {
+  local candidate
+
+  for candidate in python python3; do
+    if command -v "${candidate}" >/dev/null 2>&1; then
+      command -v "${candidate}"
+      return
+    fi
+  done
+
+  printf '%s\n' \
+    'pre-commit: python is required for staged release artifacts.' >&2
+  exit 1
+}
+
 run_markdownlint() {
   local staged_tree_root="$1"
   shift
@@ -52,10 +67,32 @@ run_yamllint() {
   (cd "${staged_tree_root}" && yamllint "${lint_paths[@]}")
 }
 
+run_release_artifact_check() {
+  local staged_tree_root="$1"
+  local repo_root="$2"
+  local python_cmd="$3"
+  local tool_path="${staged_tree_root}/tools/release-artifacts.py"
+
+  if [[ ! -f "${tool_path}" ]]; then
+    printf '%s\n' \
+      'pre-commit: staged release artifacts require tools/release-artifacts.py.' \
+      >&2
+    exit 1
+  fi
+
+  printf '%s\n' \
+    'pre-commit: validating staged VERSION, SHA256SUMS, and manifest.json.'
+  "${python_cmd}" "${tool_path}" check \
+    --index \
+    --repository-root "${repo_root}"
+}
+
 main() {
   local repo_root
+  local python_cmd=''
   local staged_file
   local -a staged_markdown_files=()
+  local -a staged_release_artifacts=()
   local -a staged_yaml_files=()
 
   repo_root="$(git rev-parse --show-toplevel)"
@@ -69,7 +106,24 @@ main() {
     staged_yaml_files+=("${staged_file}")
   done < <(git diff --cached --name-only -z --diff-filter=ACMR -- '*.yaml' '*.yml')
 
-  if ((${#staged_markdown_files[@]} == 0 && ${#staged_yaml_files[@]} == 0)); then
+  while IFS= read -r -d '' staged_file; do
+    staged_release_artifacts+=("${staged_file}")
+  done < <(
+    git diff --cached --name-only -z --diff-filter=ACDMR -- \
+      VERSION SHA256SUMS manifest.json
+  )
+
+  if ((${#staged_release_artifacts[@]} != 0 && \
+    ${#staged_release_artifacts[@]} != 3)); then
+    printf '%s\n' \
+      'pre-commit: VERSION, SHA256SUMS, and manifest.json must be staged together.' \
+      >&2
+    exit 1
+  fi
+
+  if ((${#staged_markdown_files[@]} == 0 && \
+    ${#staged_yaml_files[@]} == 0 && \
+    ${#staged_release_artifacts[@]} == 0)); then
     exit 0
   fi
 
@@ -79,6 +133,10 @@ main() {
 
   if ((${#staged_yaml_files[@]} > 0)); then
     require_command yamllint YAML
+  fi
+
+  if ((${#staged_release_artifacts[@]} > 0)); then
+    python_cmd="$(resolve_python_command)"
   fi
 
   staged_tree_dir="$(mktemp -d)"
@@ -92,6 +150,13 @@ main() {
 
   if ((${#staged_yaml_files[@]} > 0)); then
     run_yamllint "${staged_tree_dir}" "${staged_yaml_files[@]}"
+  fi
+
+  if ((${#staged_release_artifacts[@]} > 0)); then
+    run_release_artifact_check \
+      "${staged_tree_dir}" \
+      "${repo_root}" \
+      "${python_cmd}"
   fi
 }
 

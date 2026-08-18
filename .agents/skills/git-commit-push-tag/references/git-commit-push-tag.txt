@@ -322,6 +322,64 @@ PHASE 3 — COMMIT ET TAG
     sur `origin`. En cas d'évolution distante incompatible ou de collision,
     arrête-toi. N'incrémente pas automatiquement une seconde fois.
 
+PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE RELEASE
+
+- Applique cette section après la préparation propre au repository, notamment
+  après `starter-kit-manifest.json` lorsque l'extension conditionnelle du
+  starter kit s'applique, et avant toute prévalidation distante.
+- Exige que `tools/release-artifacts.py`,
+  `tools/release-artifacts-requirements.txt`,
+  `templates/release/manifest.template.json` et
+  `templates/release/manifest.schema.json` soient suivis et lisibles.
+- Vérifie que la dépendance exactement épinglée dans le fichier requirements
+  est disponible. Si elle manque, demande une autorisation explicite avant de
+  l'installer dans une cible temporaire hors du working tree. Transmets cette
+  cible à chaque commande du générateur et aux hooks des commits et du push,
+  conserve-la jusqu'à la validation finale du tag, puis supprime uniquement
+  cette cible et vérifie son absence.
+- Le manifeste représente un unique artefact `git-tree`. Il inventorie tous
+  les blobs du commit candidat, y compris `VERSION`, mais exclut les deux
+  sorties auto-référentielles `SHA256SUMS` et `manifest.json`. Les gitlinks,
+  fichiers non suivis, ignorés ou absents du commit candidat sont exclus.
+- Demande explicitement à l'utilisateur toutes les valeurs suivantes pour la
+  release courante, sans les déduire du repository, de son historique ou d'une
+  release précédente :
+  - `program_id`, `name`, `channel`, `critical_update` et `release_notes` ;
+  - `update.min_source_version`, `update.strategy`,
+    `update.preserve_paths`, `update.remove_obsolete_files`,
+    `update.backup_required`, `update.restart_required`,
+    `update.rollback_supported` et `update.migrations` ;
+  - `artifact.id`, `artifact.target.os`, `artifact.target.arch` et
+    `artifact.target.min_os_version` ;
+  - `metadata.author`, `metadata.license` et `metadata.support_url`.
+- Enregistre exactement ces réponses dans un fichier JSON temporaire hors du
+  working tree. N'ajoute aucune valeur par défaut et ne conserve pas ce fichier
+  après la validation finale des artefacts.
+- Enregistre une seule date UTC courante au format `YYYY-MM-DDTHH:MM:SSZ`, puis
+  utilise exactement le tag calculé, cette date et le fichier temporaire pour
+  exécuter d'abord sans écriture :
+
+  ```text
+  python tools/release-artifacts.py --dry-run prepare \
+    --release-ref <tag> \
+    --release-date <date-UTC> \
+    --metadata-file <fichier-JSON-temporaire>
+  ```
+
+- Si ce plan et la validation JSON Schema réussissent, exécute la même commande
+  sans `--dry-run` et avec `--force`. Exige que seuls `VERSION`, `SHA256SUMS` et
+  `manifest.json` soient créés ou modifiés.
+- Stage exactement ces trois fichiers. Exécute
+  `python tools/release-artifacts.py check --expected-ref <tag> --index`, puis
+  crée un commit distinct de préparation des artefacts en répétant tous les
+  contrôles et le contrat de commit des points 18 à 28.
+- Après le commit, exécute
+  `python tools/release-artifacts.py check --expected-ref <tag> --treeish HEAD`.
+  Tout échec, toute autre modification ou tout placeholder non résolu bloque la
+  prévalidation distante, le tag et le push.
+- Supprime uniquement le fichier JSON temporaire après ce dernier succès, puis
+  vérifie son absence. Ne supprime aucun autre fichier temporaire préexistant.
+
 PRÉPARATION CONDITIONNELLE DES RELEASE NOTES
 
 - N'applique cette section que si `CREATE_GITHUB_RELEASE=true`.
@@ -363,8 +421,15 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
 - Exige que `tools/verify-repository-audit-runs.py` soit suivi, lisible et que
   son aide et sa version puissent être exécutées. Utilise uniquement cet outil
   suivi pour sélectionner et attendre les runs d'audit obligatoires.
-- Résous l'identifiant exact de ce workflow avec l'API GitHub. Si le workflow,
-  son identité ou son contrat ne peut pas être vérifié, arrête-toi avant le
+- Exige que `.github/workflows/release-artifacts.yml` soit suivi, lisible,
+  nommé exactement `Release artifacts`, déclenché uniquement par un push de
+  tag `v*` et qu'il publie un job nommé exactement `Release artifacts`. Ce job
+  doit installer la dépendance épinglée, puis valider le tag et son SHA avec
+  `tools/release-artifacts.py check`.
+- Résous aussi l'identifiant exact du workflow `Release artifacts`. S'il est
+  absent, désactivé ou non conforme, arrête-toi avant le tag et avant tout push.
+- Résous l'identifiant exact du workflow `Repository audit` avec l'API GitHub.
+  Si son identité ou son contrat ne peut pas être vérifié, arrête-toi avant le
   tag et avant tout push.
 - Inspecte la protection de `origin/<branche>`. Lorsque GitHub permet les
   checks requis pour ce repository, exige le check `Repository audit` fourni
@@ -419,7 +484,7 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
 PHASE 4 — PUSH FINAL ET VALIDATION
 
 34. Pousse la branche et le tag ensemble dans un unique push final :
-    `git push --atomic origin <branche> <tag>`
+    `git -c core.hooksPath=.githooks push --atomic origin <branche> <tag>`
     Enregistre immédiatement avant ce push un nouvel horodatage UTC au format
     `YYYY-MM-DDTHH:MM:SSZ`.
 
@@ -450,6 +515,16 @@ PHASE 4 — PUSH FINAL ET VALIDATION
 CONTRÔLE CI FINAL OBLIGATOIRE
 
 - Applique cette section après le push atomique et avant toute GitHub Release.
+- Recherche avec l'identifiant résolu du workflow `Release artifacts` son run
+  unique tel que `event=push`, `headBranch=<tag>` et `headSha=<SHA exact>`, créé
+  après l'horodatage du push atomique. Attends son état terminal et exige
+  `status=completed` et `conclusion=success`.
+- Un run absent, multiple, manuel, portant un autre ref ou SHA, annulé, expiré,
+  ignoré, neutre ou en échec fixe `RELEASE_ARTIFACTS_STATUS=incomplete`,
+  conserve le ref de prévalidation et bloque toute GitHub Release.
+- Fixe `RELEASE_ARTIFACTS_STATUS=complete` uniquement après le succès exact de
+  ce run et une nouvelle validation locale du tag avec
+  `tools/release-artifacts.py check --expected-ref <tag> --treeish <tag>`.
 - Réutilise l'identifiant de workflow `Repository audit` résolu pendant la
   prévalidation et le SHA exact vérifié au point 38.
 - Le run de tag est toujours attendu. Le run de `origin/<branche>` est aussi
@@ -484,6 +559,7 @@ CONTRÔLE CI FINAL OBLIGATOIRE
     - CREATE_GITHUB_RELEASE=true a été fourni explicitement ;
     - toutes les vérifications finales ont réussi ;
     - `REPOSITORY_AUDIT_STATUS=complete` ;
+    - `RELEASE_ARTIFACTS_STATUS=complete` ;
     - les Release Notes ont été générées et validées à partir du
       template retenu.
     Lorsque ces conditions sont remplies :
@@ -523,4 +599,6 @@ CONTRÔLE CONDITIONNEL DE LA GITHUB RELEASE
     - `REPOSITORY_AUDIT_STATUS`, le ref de prévalidation, les identifiants,
       refs, événements, SHA, conclusions et URL de tous les runs d'audit
       attendus ;
+    - `RELEASE_ARTIFACTS_STATUS`, l'identifiant, le ref, l'événement, le SHA,
+      la conclusion et l'URL du run de validation des artefacts ;
     - l'état final du repository.

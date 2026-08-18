@@ -31,8 +31,11 @@ $StarterKitManifestPath = "starter-kit-manifest.json"
 $StarterOnlyPaths = @(
     ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
     ".github/workflows/release-package.yml",
+    "SHA256SUMS",
+    "VERSION",
     "docs/release-package.md",
     "docs/upgrade-toolkit.md",
+    "manifest.json",
     "tests/test_starter_kit_manifest.py",
     "tests/test_starter_kit_upgrade.py",
     "tools/build-release-package.ps1",

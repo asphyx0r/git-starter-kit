@@ -278,10 +278,10 @@ function extractSingle(path, pattern, label) {
   return match[1];
 }
 
-function extractWorkflowPattern() {
+function extractFragmentedShellPattern(path, label) {
   const parts = [];
   const expression = /^\s*semver_tag_pattern\+?='([^']+)'/gm;
-  const content = readFile(".github/workflows/release-package.yml");
+  const content = readFile(path);
   let match = expression.exec(content);
   while (match) {
     parts.push(match[1]);
@@ -289,7 +289,7 @@ function extractWorkflowPattern() {
   }
 
   if (parts.length === 0) {
-    throw new Error("Unable to extract release workflow SemVer pattern.");
+    throw new Error("Unable to extract " + label + " SemVer pattern.");
   }
 
   return parts.join("");
@@ -349,6 +349,14 @@ patterns.set(
     "starter manifest"
   )
 );
+patterns.set(
+  "tools/release-artifacts.py",
+  extractPythonPattern("tools/release-artifacts.py", "release artifacts")
+);
+patterns.set(
+  ".githooks/pre-push",
+  extractFragmentedShellPattern(".githooks/pre-push", "pre-push hook")
+);
 
 if (fs.existsSync("tools/build-release-package.ps1")) {
   patterns.set(
@@ -361,7 +369,13 @@ if (fs.existsSync("tools/build-release-package.ps1")) {
   );
 }
 if (fs.existsSync(".github/workflows/release-package.yml")) {
-  patterns.set(".github/workflows/release-package.yml", extractWorkflowPattern());
+  patterns.set(
+    ".github/workflows/release-package.yml",
+    extractFragmentedShellPattern(
+      ".github/workflows/release-package.yml",
+      "release workflow"
+    )
+  );
 }
 
 const expected = patterns.values().next().value;
@@ -492,6 +506,65 @@ check_repository_audit_workflow_contract() {
       "$workflow_path" >/dev/null; then
     printf '%s\n' \
       "Repository audit aggregate check does not require every child job." >&2
+    exit 1
+  fi
+}
+
+check_release_artifact_contract() {
+  local main_reference_path=".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
+  local release_reference_path=".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt"
+  local required_path
+  local workflow_path=".github/workflows/release-artifacts.yml"
+
+  for required_path in \
+    .githooks/pre-push \
+    .github/workflows/release-artifacts.yml \
+    templates/release/manifest.template.json \
+    templates/release/manifest.schema.json \
+    tests/test_release_artifacts.py \
+    tools/release-artifacts-requirements.txt \
+    tools/release-artifacts.py; do
+    if [ ! -f "$required_path" ]; then
+      printf 'Release artifact component is missing: %s\n' "$required_path" >&2
+      exit 1
+    fi
+  done
+
+  if git ls-files --error-unmatch .githooks/pre-push >/dev/null 2>&1 &&
+    [ "$(git ls-files --stage .githooks/pre-push | cut -d ' ' -f 1)" != \
+      "100755" ]; then
+    printf '%s\n' 'The tracked pre-push hook must use Git mode 100755.' >&2
+    exit 1
+  fi
+
+  if ! grep -F 'name: Release artifacts' "$workflow_path" >/dev/null ||
+    ! grep -F '      - "v*"' "$workflow_path" >/dev/null ||
+    ! grep -F 'tools/release-artifacts-requirements.txt' \
+      "$workflow_path" >/dev/null ||
+    ! grep -F 'tools/release-artifacts.py check' "$workflow_path" >/dev/null; then
+    printf '%s\n' \
+      'Release artifacts workflow does not validate every SemVer tag.' >&2
+    exit 1
+  fi
+
+  if ! grep -F \
+    'VERSION, SHA256SUMS, and manifest.json must be staged together.' \
+    .githooks/pre-commit >/dev/null ||
+    ! grep -F 'tools/release-artifacts.py' .githooks/pre-push >/dev/null ||
+    ! grep -F -- '--expected-ref' .githooks/pre-push >/dev/null; then
+    printf '%s\n' 'Release artifact hooks are incomplete.' >&2
+    exit 1
+  fi
+
+  if ! grep -F "PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE RELEASE" \
+    "$main_reference_path" >/dev/null ||
+    ! grep -F 'RELEASE_ARTIFACTS_STATUS=complete' \
+      "$main_reference_path" >/dev/null ||
+    ! grep -F 'git -c core.hooksPath=.githooks push --atomic' \
+      "$main_reference_path" >/dev/null ||
+    ! grep -F "inventorieront le \`starter-kit-manifest.json\` final" \
+      "$release_reference_path" >/dev/null; then
+    printf '%s\n' 'Release guard omits release artifact preparation.' >&2
     exit 1
   fi
 }
@@ -920,6 +993,81 @@ COMMITLINT
   fi
 }
 
+run_release_hook_smoke() {
+  local python_cmd="$1"
+  local release_artifacts_target="$2"
+  local fixture_root="$audit_temp/release-hook-smoke"
+  local metadata_path="$audit_temp/release-hook-metadata.json"
+  local tag_object_id
+
+  mkdir -p "$fixture_root/templates/release" "$fixture_root/tools"
+  cp tools/release-artifacts.py "$fixture_root/tools/release-artifacts.py"
+  cp templates/release/manifest.template.json \
+    "$fixture_root/templates/release/manifest.template.json"
+  cp templates/release/manifest.schema.json \
+    "$fixture_root/templates/release/manifest.schema.json"
+  printf '# Release hook smoke\n' >"$fixture_root/README.md"
+
+  git init -q "$fixture_root"
+  git -C "$fixture_root" config user.name "Release Hook Test"
+  git -C "$fixture_root" config user.email "release-hook@example.com"
+  git -C "$fixture_root" add README.md templates tools
+  git -C "$fixture_root" commit -q -m "test: create release hook fixture"
+
+  cat >"$metadata_path" <<'JSON'
+{
+  "program_id": "release-hook-smoke",
+  "name": "Release Hook Smoke",
+  "channel": "test",
+  "critical_update": false,
+  "release_notes": ["Validate the pre-push hook."],
+  "update": {
+    "min_source_version": "1.0.0",
+    "strategy": "patch",
+    "preserve_paths": [],
+    "remove_obsolete_files": false,
+    "backup_required": false,
+    "restart_required": false,
+    "rollback_supported": false,
+    "migrations": []
+  },
+  "artifact": {
+    "id": "source-tree",
+    "target": {
+      "os": "any",
+      "arch": "any",
+      "min_os_version": "not-applicable"
+    }
+  },
+  "metadata": {
+    "author": "Release Hook Test",
+    "license": "MIT",
+    "support_url": "https://example.com/support"
+  }
+}
+JSON
+
+  PYTHONPATH="$release_artifacts_target" \
+    "$python_cmd" "$fixture_root/tools/release-artifacts.py" --force prepare \
+    --release-ref v1.0.0 \
+    --release-date 2026-08-18T12:00:00Z \
+    --metadata-file "$metadata_path" \
+    --repository-root "$fixture_root" >/dev/null
+  git -C "$fixture_root" add VERSION SHA256SUMS manifest.json
+  git -C "$fixture_root" commit -q -m "chore: prepare release artifacts"
+  git -C "$fixture_root" tag -a v1.0.0 -m "Release v1.0.0"
+  tag_object_id="$(git -C "$fixture_root" rev-parse refs/tags/v1.0.0)"
+
+  printf 'refs/tags/v1.0.0 %s refs/tags/v1.0.0 %s\n' \
+    "$tag_object_id" \
+    '0000000000000000000000000000000000000000' |
+    (
+      cd "$fixture_root"
+      PYTHONPATH="$release_artifacts_target" \
+        bash "$repository_root/.githooks/pre-push" origin example
+    )
+}
+
 run_script_smoke() {
   require_command bash
   require_command git
@@ -931,6 +1079,13 @@ run_script_smoke() {
   pwsh_cmd="$(resolve_powershell_command)"
 
   ensure_audit_temp
+
+  local release_artifacts_target="$audit_temp/release-artifacts-deps"
+  "$python_cmd" -m pip install \
+    --disable-pip-version-check \
+    --no-input \
+    --target "$release_artifacts_target" \
+    --requirement tools/release-artifacts-requirements.txt
 
   local initializer_bin="$audit_temp/initializer-bin"
   mkdir -p "$initializer_bin"
@@ -964,13 +1119,19 @@ COMMITLINT
   export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-Codex}"
   export GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-codex@example.com}"
 
-  "$python_cmd" -B -m unittest discover \
+  PYTHONPATH="$release_artifacts_target" \
+    "$python_cmd" -B -m unittest discover \
     -s tests \
     -p "test_*.py"
 
   "$python_cmd" tools/starter-kit-manifest.py --help
   "$python_cmd" tools/starter-kit-manifest.py --version
   "$python_cmd" tools/starter-kit-manifest.py check
+  PYTHONPATH="$release_artifacts_target" \
+    "$python_cmd" tools/release-artifacts.py --help
+  PYTHONPATH="$release_artifacts_target" \
+    "$python_cmd" tools/release-artifacts.py --version
+  run_release_hook_smoke "$python_cmd" "$release_artifacts_target"
 
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1
@@ -1309,6 +1470,8 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     forbidden = {
         ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
         ".github/workflows/release-package.yml",
+        "SHA256SUMS",
+        "VERSION",
         "docs/release-package.md",
         "docs/upgrade-toolkit.md",
         "tests/test_starter_kit_manifest.py",
@@ -1316,6 +1479,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "tools/build-release-package.ps1",
         "tools/starter-kit-manifest.py",
         "tools/starter-kit-upgrade.py",
+        "manifest.json",
     }
     present_forbidden = sorted(names & forbidden)
     if present_forbidden:
@@ -1584,16 +1748,19 @@ run_static() {
   check_git_whitespace
   check_powershell_line_endings "$node_cmd"
   bash -n .githooks/pre-commit
+  bash -n .githooks/pre-push
   bash -n .githooks/commit-msg
   bash -n tests/test_commit_message_validation.sh
   bash -n tools/git-init.sh
   shellcheck --version
   shellcheck .githooks/pre-commit
+  shellcheck .githooks/pre-push
   shellcheck .githooks/commit-msg
   shellcheck tests/test_commit_message_validation.sh
   shellcheck tools/git-init.sh
   shfmt -d -i 2 tests/test_commit_message_validation.sh
   shfmt -d -i 2 tools/git-init.sh
+  shfmt -d -i 2 .githooks/pre-commit .githooks/pre-push
   check_semver_pattern_drift "$node_cmd"
   check_initializer_commit_contract
   check_commit_documentation_contract
@@ -1604,6 +1771,7 @@ run_static() {
   if [ -f .github/workflows/repository-audit.yml ]; then
     check_repository_audit_workflow_contract
   fi
+  check_release_artifact_contract
   if [ -f .github/workflows/release-package.yml ]; then
     check_release_package_portability
     check_release_guard_contract
@@ -1653,16 +1821,19 @@ run_readonly() {
   check_git_whitespace
   check_powershell_line_endings "$node_cmd"
   bash -n .githooks/pre-commit
+  bash -n .githooks/pre-push
   bash -n .githooks/commit-msg
   bash -n tests/test_commit_message_validation.sh
   bash -n tools/git-init.sh
   "$shellcheck_cmd" --version
   "$shellcheck_cmd" .githooks/pre-commit
+  "$shellcheck_cmd" .githooks/pre-push
   "$shellcheck_cmd" .githooks/commit-msg
   "$shellcheck_cmd" tests/test_commit_message_validation.sh
   "$shellcheck_cmd" tools/git-init.sh
   "$shfmt_cmd" -d -i 2 tests/test_commit_message_validation.sh
   "$shfmt_cmd" -d -i 2 tools/git-init.sh
+  "$shfmt_cmd" -d -i 2 .githooks/pre-commit .githooks/pre-push
   check_semver_pattern_drift "$node_cmd"
   check_initializer_commit_contract
   check_commit_documentation_contract
@@ -1673,6 +1844,7 @@ run_readonly() {
   if [ -f .github/workflows/repository-audit.yml ]; then
     check_repository_audit_workflow_contract
   fi
+  check_release_artifact_contract
   if [ -f .github/workflows/release-package.yml ]; then
     check_release_package_portability
     check_release_guard_contract

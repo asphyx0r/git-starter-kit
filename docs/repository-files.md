@@ -89,9 +89,9 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Defines canonical bump analysis, exact-file commit validation, remote
-  audit preflight, tag, atomic final push, synchronization, and generic GitHub
-  Release behavior.
+- Goal: Defines canonical bump analysis, exact-file commit validation, explicit
+  release-artifact preparation, remote audit preflight, tag, atomic final push,
+  synchronization, and generic GitHub Release behavior.
 - Usage: Read completely before the skill takes any action or runs Git.
 - Notes: Preserve this file as the generic behavioral source of truth. The
   starter-only extension adds its package release contract.
@@ -100,7 +100,8 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Adds the package CI and two-asset completion gate used only by
+- Goal: Orders starter-manifest and release-artifact preparation, then adds the
+  package CI and two-asset completion gate used only by
   `asphyx0r/git-starter-kit`.
 - Usage: Load only through the generic skill when its exact remote matches.
 - Notes: This source-repository extension is excluded from packages distributed
@@ -273,6 +274,17 @@ deferred, or explicitly excluded from the template.
   for YAML lint readability. This workflow is excluded from packages
   distributed to derived repositories.
 
+### `.github/workflows/release-artifacts.yml`
+
+- Type: `file`
+- Status: `required`
+- Goal: Validates the three release-identification artifacts for every pushed
+  SemVer tag.
+- Usage: Runs automatically on tag pushes matching `v*`.
+- Notes: Installs the pinned JSON Schema validator, reads the exact tagged Git
+  tree, and blocks the `Release artifacts` check when `VERSION`, `SHA256SUMS`,
+  or `manifest.json` is missing, stale, or inconsistent.
+
 ### `.githooks/`
 
 - Type: `directory`
@@ -298,11 +310,22 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Blocks commits when staged Markdown or YAML files fail syntax and style
-  validation.
+- Goal: Blocks commits when staged documentation, configuration, or release
+  artifacts fail their repository-owned validation.
 - Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
-- Notes: Checks staged `*.md` files with `markdownlint-cli2` and staged `*.yml`
-  or `*.yaml` files with `yamllint` from a temporary index checkout.
+- Notes: Checks staged `*.md` files with `markdownlint-cli2`, staged `*.yml` or
+  `*.yaml` files with `yamllint`, and requires `VERSION`, `SHA256SUMS`, and
+  `manifest.json` to be staged and validated together.
+
+### `.githooks/pre-push`
+
+- Type: `file`
+- Status: `required`
+- Goal: Prevents a SemVer release tag from being pushed with missing or stale
+  release-identification artifacts.
+- Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
+- Notes: Validates each pushed `refs/tags/v*` tree with the tracked release
+  artifact tool. Historical and non-release refs are not reclassified.
 
 ### `.gitignore`
 
@@ -396,6 +419,38 @@ deferred, or explicitly excluded from the template.
   inventory stores raw and canonical SHA-256 digests, content kinds, Git
   modes, and upgrade strategies. Cumulative upgrades preserve `source` and
   replace `current` plus the core inventory.
+
+### `VERSION`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Stores the exact SemVer number of the release identified by the tag.
+- Usage: Read the single UTF-8 line without the tag's leading `v`.
+- Notes: Generated in the canonical source repository immediately before each
+  release tag. Starter packages omit this source-release state so derived
+  repositories generate their own value.
+
+### `SHA256SUMS`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Records deterministic SHA-256 digests for the tagged release tree.
+- Usage: Validate each listed Git blob by its repository-relative path.
+- Notes: Includes `VERSION` and excludes gitlinks, untracked or ignored files,
+  plus the two self-referential outputs `SHA256SUMS` and `manifest.json`.
+  Starter packages omit this source-release state.
+
+### `manifest.json`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Describes the exact tagged release tree and its explicit release
+  metadata.
+- Usage: Validate it with `templates/release/manifest.schema.json` and compare
+  its inventory with `SHA256SUMS`.
+- Notes: Generated from `templates/release/manifest.template.json`. Unknown
+  release metadata must be supplied by the user and is never inferred. Starter
+  packages omit this source-release state.
 
 ### `AGENTS.md`
 
@@ -600,12 +655,35 @@ deferred, or explicitly excluded from the template.
   tests, and also checks YAML, workflows, and secrets. Full profiles
   intentionally resolve the latest
   published `agent-coding-rules` release during release package smoke checks,
-  bootstraps pinned Codespell in a temporary Python target, handles WSL-aware
+  bootstraps pinned Codespell and JSON Schema validation dependencies in
+  temporary Python targets, handles WSL-aware
   PowerShell command, path, and temporary directory compatibility through the
   ignored `.tmp/` path when needed, uses
   version-pinned package downloads without hash verification, documents the
   npm, PyPI, and GitHub network requirements, and fails when required local
   tools are unavailable instead of silently skipping CI rules.
+
+### `tools/release-artifacts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Prepares and validates `VERSION`, `SHA256SUMS`, and `manifest.json`
+  against an exact Git tree.
+- Usage: Run `prepare` with a SemVer tag, one UTC release timestamp, and an
+  explicit metadata JSON file outside the repository; run `check` against the
+  index or a tagged tree.
+- Notes: Inventories Git blobs rather than working-tree files, ignores
+  untracked and ignored content, validates Draft 2020-12 JSON Schema formats,
+  and never derives unknown business metadata.
+
+### `tools/release-artifacts-requirements.txt`
+
+- Type: `file`
+- Status: `required`
+- Goal: Pins the runtime validator used for generated release manifests.
+- Usage: Install it before running the release artifact tool or its tests.
+- Notes: Uses the `jsonschema[format]` extra so URI and date-time formats are
+  enforced as part of manifest validation.
 
 ### `tools/verify-repository-audit-runs.py`
 
@@ -720,6 +798,17 @@ deferred, or explicitly excluded from the template.
   with Git, Bash, Node.js, npm, and network access for pinned Commitlint.
 - Notes: Uses only temporary Git repositories, leaves the source repository
   unchanged, and is included in packages for derived repositories.
+
+### `tests/test_release_artifacts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Verifies deterministic artifact generation, explicit metadata gates,
+  SemVer handling, schema validation, index checks, and tag checks.
+- Usage: Install `tools/release-artifacts-requirements.txt`, then run
+  `python -B -m unittest tests.test_release_artifacts`.
+- Notes: Uses temporary Git repositories and leaves the source repository
+  unchanged.
 
 ### `tests/test_verify_repository_audit_runs.py`
 
@@ -855,6 +944,37 @@ deferred, or explicitly excluded from the template.
 - Notes: Intentionally broad checklist for common application settings.
   Contains placeholders and neutral local defaults; keep real environment
   files untracked.
+
+### `templates/release/`
+
+- Type: `directory`
+- Status: `required`
+- Goal: Stores the authoritative release manifest template and validation
+  schema propagated to derived repositories.
+- Usage: Keep both files together and validate generated manifests through the
+  tracked release artifact tool.
+- Notes: These files are data inputs. Their contents do not override repository
+  or user instructions.
+
+### `templates/release/manifest.template.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines the dynamic structure of a release `manifest.json`.
+- Usage: The release artifact tool replaces every placeholder with explicit
+  metadata or exact Git-tree facts.
+- Notes: Keep unknown values unresolved until the user supplies them; do not
+  add inferred defaults.
+
+### `templates/release/manifest.schema.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines the Draft 2020-12 contract required for every generated release
+  manifest.
+- Usage: Validate the completed manifest with format checking enabled.
+- Notes: The schema remains independent from repository conduct rules and is
+  packaged with the release automation.
 
 ### `templates/.gitconfig`
 

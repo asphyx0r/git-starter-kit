@@ -136,6 +136,154 @@ tool does not preserve NTFS ACLs, alternate data streams, creation/access
 times, or a cryptographic manifest. The `v0.0.0` placeholder is also
 indistinguishable in the filename from a real tag with that exact name.
 
+## release-artifacts.py
+
+### Features
+
+- Generates root `VERSION`, `SHA256SUMS`, and `manifest.json` files for one
+  exact SemVer release.
+- Reads Git blobs from `HEAD`, the index, or a selected tree instead of hashing
+  untracked, ignored, or checkout-normalized files.
+- Generates the manifest from `templates/release/manifest.template.json` and
+  validates it against `templates/release/manifest.schema.json`.
+- Requires release-specific business metadata from an external JSON file and
+  never derives unknown values from repository content.
+- Supports side-effect-free preparation and exact index or tag validation.
+
+### Synopsis
+
+```text
+usage: python tools/release-artifacts.py [options] COMMAND
+
+options:
+  -h, --help    show help and exit
+  --version     show version and exit
+  --dry-run     validate and print the execution plan without writing
+  -v, --verbose show additional diagnostics
+  --force       write without interactive confirmation
+
+commands:
+  prepare prepare release artifacts
+  check   validate release artifacts
+```
+
+Install the pinned validator first:
+
+```bash
+python -m pip install \
+  --requirement tools/release-artifacts-requirements.txt
+```
+
+### Metadata Contract
+
+`prepare` requires a UTF-8 JSON object outside the repository with exactly
+these fields:
+
+```json
+{
+  "program_id": "example-app",
+  "name": "Example App",
+  "channel": "stable",
+  "critical_update": false,
+  "release_notes": ["Describe an actual release change."],
+  "update": {
+    "min_source_version": "1.0.0",
+    "strategy": "patch",
+    "preserve_paths": [],
+    "remove_obsolete_files": false,
+    "backup_required": false,
+    "restart_required": false,
+    "rollback_supported": false,
+    "migrations": []
+  },
+  "artifact": {
+    "id": "source-tree",
+    "target": {
+      "os": "any",
+      "arch": "any",
+      "min_os_version": "not-applicable"
+    }
+  },
+  "metadata": {
+    "author": "Example Maintainers",
+    "license": "MIT",
+    "support_url": "https://example.com/support"
+  }
+}
+```
+
+This object illustrates the required types only. None of its values is a
+default. Ask the user for every value for every release, including booleans,
+empty arrays, update policy, target identity, author, license, and support URL.
+Do not copy illustrative values into a real release.
+
+### Usage/Examples
+
+Preview generation with one recorded UTC timestamp:
+
+```bash
+python tools/release-artifacts.py --dry-run prepare \
+  --release-ref v1.2.3 \
+  --release-date 2026-08-18T12:00:00Z \
+  --metadata-file /external/path/release-metadata.json
+```
+
+Generate the three files after the preview succeeds:
+
+```bash
+python tools/release-artifacts.py --force prepare \
+  --release-ref v1.2.3 \
+  --release-date 2026-08-18T12:00:00Z \
+  --metadata-file /external/path/release-metadata.json
+```
+
+Validate the staged files before committing them:
+
+```bash
+python tools/release-artifacts.py check \
+  --expected-ref v1.2.3 \
+  --index
+```
+
+Validate the immutable tag tree:
+
+```bash
+python tools/release-artifacts.py check \
+  --expected-ref v1.2.3 \
+  --treeish v1.2.3
+```
+
+### Artifact Scope
+
+The generated inventory contains every supported Git blob in the candidate
+release tree, plus the generated `VERSION`. Gitlinks and untracked, ignored, or
+absent paths are excluded. `SHA256SUMS` and `manifest.json` are also excluded
+from the checksum inventory because either digest would create a
+self-reference. The SHA-256 recorded for the `git-tree` artifact is the digest
+of the exact `SHA256SUMS` bytes.
+
+### Options
+
+- `--release-ref TAG`: exact SemVer release tag, including the leading `v`.
+- `--release-date TIMESTAMP`: exact UTC release timestamp in
+  `YYYY-MM-DDTHH:MM:SSZ` format.
+- `--metadata-file PATH`: required release-specific JSON file outside the Git
+  root.
+- `--expected-ref TAG`: exact tag required by `check`; otherwise the manifest
+  version determines the expected tag.
+- `--index`: validate staged Git content.
+- `--treeish REF`: validate one committed tree or tag. It is mutually exclusive
+  with `--index`.
+- `--repository-root PATH`: exact Git root. Defaults to the current directory.
+
+### Exit Status
+
+- `0`: help or version was shown, the dry run succeeded, or all requested
+  artifacts were prepared or validated.
+- `1`: metadata, SemVer, Git content, checksum, template, schema, confirmation,
+  or write validation failed.
+- `2`: command-line argument parsing failed.
+
 ## starter-kit-manifest.py
 
 This is a `git-starter-kit` source-repository tool. It prepares and validates
@@ -232,7 +380,9 @@ from packages distributed to derived repositories.
 - Rejects every repository slug and `origin` except the canonical
   `asphyx0r/git-starter-kit` repository.
 - Excludes source-only workflow, builder, upgrade, test, and operator
-  documentation paths from the distributed package and its manifest.
+  documentation paths, plus the canonical repository's generated `VERSION`,
+  `SHA256SUMS`, and `manifest.json`, from the distributed package and its
+  manifest.
 
 ### Synopsis
 
@@ -868,6 +1018,9 @@ every commit in the resolved push or release range. A zero `before` SHA uses
 the highest reachable stable tag, excluding the tag currently being audited;
 without an earlier stable tag, all reachable commits are checked.
 
+Static smoke checks install the pinned release-manifest validator in temporary
+storage and run the release artifact unit tests and CLI checks.
+
 The optional `readonly` mode uses only installed tools, disables optional Git
 locks, and does not install packages, access the network, create temporary
 files, or run mutating smoke tests. GitHub Actions calls explicit focused
@@ -914,9 +1067,9 @@ bash tools/repository-audit.sh static
 - `markdown`: runs `markdownlint-cli2` against repository Markdown files.
 - `spelling`: runs Codespell with the repository configuration.
 - `static`: runs Git whitespace checks, Bash and ShellCheck checks,
-  PowerShell parsing, SemVer drift checks, Python backup tests, script smoke
-  tests, exact commit-message fixtures, Node syntax checks, and commitlint
-  checks.
+  PowerShell parsing, SemVer drift checks, Python backup and release-artifact
+  tests, script smoke tests, exact commit-message fixtures, Node syntax checks,
+  and commitlint checks.
 - `-h`, `--help`, `help`: prints usage information, then exits.
 
 ### Exit Status
@@ -938,9 +1091,9 @@ replace a failed automatic run for branch protection or release validation.
 
 The full audit needs local tools such as `git`, `bash`, `shellcheck`, a
 PowerShell command, `python`, `node`, and `npx`. It also needs network access
-to npm for Markdown lint bootstrapping, PyPI for Codespell bootstrapping, and
-GitHub for the latest `agent-coding-rules` release used in release package
-smoke checks.
+to npm for Markdown lint bootstrapping, PyPI for Codespell and JSON Schema
+validator bootstrapping, and GitHub for the latest `agent-coding-rules` release
+used in release package smoke checks.
 
 On Windows, run the audit with Git Bash. The script resolves Node package
 execution through `npx.cmd`; if that native launcher is unavailable, it stops
