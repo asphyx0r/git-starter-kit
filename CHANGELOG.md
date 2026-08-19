@@ -6,6 +6,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| e744fe4 | fix(hooks): align pre-push formatting with CI | asphyx |
 | bafba67 | feat(release): generate release artifacts | asphyx |
 
 ## v2.4.2
