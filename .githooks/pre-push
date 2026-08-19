@@ -38,7 +38,7 @@ main() {
   repo_root="$(git rev-parse --show-toplevel)"
 
   while read -r local_ref local_object_id remote_ref _remote_object_id; do
-    if [[ "${local_object_id}" == "${zero_object_id}" || \
+    if [[ "${local_object_id}" == "${zero_object_id}" ||
       "${remote_ref}" != refs/tags/v* ]]; then
       continue
     fi
