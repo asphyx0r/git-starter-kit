@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.5.0",
-    "release_date": "2026-08-18T22:05:25Z",
+    "release_date": "2026-08-19T08:40:08Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -29,9 +29,9 @@
             },
             "format": "git-tree",
             "total_files": 78,
-            "size_bytes": 934213,
-            "built_at": "2026-08-18T22:05:25Z",
-            "sha256": "050e20b061fe4bf077677a5d32fa1ed5d62cfe6766cdcf59a2c14cd13847da74",
+            "size_bytes": 934211,
+            "built_at": "2026-08-19T08:40:08Z",
+            "sha256": "6de31dcaaf2e9620dd892d6cdd2d08dabc7c22b4addec34ef77c6959a985060e",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -125,11 +125,11 @@
                 },
                 {
                     "relative_path": ".githooks/pre-push",
-                    "size_bytes": 1776,
+                    "size_bytes": 1774,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8e0bc95a31f57ca72c1fd9c26ea3597cc70a302c959cc86a8995501594a03aec",
+                    "sha256": "6354e6e784f386bac5bc69fb0d01b8d3f3e90ddc0c6f05929b571f2c97858a9d",
                     "mode": "755"
                 },
                 {
