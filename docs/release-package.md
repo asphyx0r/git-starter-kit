@@ -98,6 +98,8 @@ when provenance schema 3 contains its matching `preservedFiles` record.
 
 No source-repository GitHub App token is required. The built-in workflow token
 is used only to upload assets to the current repository release.
+This public-source access does not replace the repository variable and secret
+required by the common `Agent rules update` release gate.
 
 Package and promotion jobs run only when `github.repository` is exactly
 `asphyx0r/git-starter-kit`. The package builder also rejects a different slug

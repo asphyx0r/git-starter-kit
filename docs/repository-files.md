@@ -47,8 +47,9 @@ deferred, or explicitly excluded from the template.
   workflow.
 - Usage: Use through `$git-commit-push-tag` only when explicitly requested.
 - Notes: Repository mutation requires an explicit bump. GitHub Release
-  publication requires a separate explicit parameter. Package CI applies only
-  when the exact `asphyx0r/git-starter-kit` remote is active.
+  publication requires a separate explicit parameter and a successful
+  preflight of common release workflows and GitHub App configuration. Package
+  CI applies only when the exact `asphyx0r/git-starter-kit` remote is active.
 
 ### `.agents/skills/git-commit-push-tag/SKILL.md`
 
@@ -93,8 +94,9 @@ deferred, or explicitly excluded from the template.
   release-artifact preparation, remote audit preflight, tag, atomic final push,
   synchronization, and generic GitHub Release behavior.
 - Usage: Read completely before the skill takes any action or runs Git.
-- Notes: Preserve this file as the generic behavioral source of truth. The
-  starter-only extension adds its package release contract.
+- Notes: Preserve this file as the generic behavioral source of truth. It
+  requires the common `Agent rules update` and `Repository audit` release runs.
+  The starter-only extension adds only its package release contract.
 
 ### `.agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt`
 
@@ -104,8 +106,10 @@ deferred, or explicitly excluded from the template.
   package CI and two-asset completion gate used only by
   `asphyx0r/git-starter-kit`.
 - Usage: Load only through the generic skill when its exact remote matches.
-- Notes: This source-repository extension is excluded from packages distributed
-  to derived repositories.
+- Notes: This source-repository extension adds `Release package`, prerelease
+  promotion, asset, digest, and provenance checks without duplicating common
+  release-run controls. It is excluded from packages distributed to derived
+  repositories.
 
 ### `.betterleaks.toml`
 
@@ -249,7 +253,9 @@ deferred, or explicitly excluded from the template.
   files, and runs in the starter kit as well as downstream repositories. Set
   `AGENT_RULES_SYNC_ENABLED=false` to suspend scheduled and manual jobs;
   published releases always run the job. Cumulative upgrades replace this
-  universal workflow.
+  universal workflow. The guarded release flow requires the repository variable
+  `AGENT_RULES_APP_CLIENT_ID` and secret `AGENT_RULES_APP_PRIVATE_KEY` before
+  publication, then requires the exact automatic release run to succeed.
 
 ### `.github/workflows/release-package.yml`
 

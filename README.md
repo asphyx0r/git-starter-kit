@@ -201,9 +201,15 @@ Invoke `$git-commit-push-tag` in Codex only when its guarded release workflow
 is explicitly requested. Without `BUMP=patch`, `BUMP=minor`, or `BUMP=major`,
 the skill reports the recommended bump and tag without modifying the
 repository. A GitHub Release is created from the release-notes template only
-when `CREATE_GITHUB_RELEASE=true` is explicitly provided. It starts as a
-prerelease and is complete only after the automatic `Release package` workflow
-uploads both verified assets and promotes it to a stable release.
+when `CREATE_GITHUB_RELEASE=true` is explicitly provided. Before mutation, the
+skill validates the required workflows, branch protection, release metadata,
+and the repository variable and secret used by `Agent rules update`.
+
+In a derived repository, the skill creates a stable latest release without
+assets. That release is complete only after the exact automatic
+`Agent rules update` and `Repository audit` release runs succeed. The canonical
+`git-starter-kit` extension instead creates a prerelease; `Release package`
+must also succeed, upload both verified assets, and promote the release.
 
 For this canonical repository, the guarded workflow prepares and validates
 `starter-kit-manifest.json` in a distinct release-preparation commit before
@@ -228,10 +234,11 @@ scheduled green run cannot replace a failed push run. Protect the default
 branch with this GitHub Actions check and apply the rule to administrators when
 the repository supports required checks.
 
-Publishing the prerelease directly triggers `Agent rules update`, `Repository
-audit`, and `Release package`. Each run must match the published tag, its exact
-commit, the `release` event, and the publication time; a manual, scheduled, or
-tag-push run cannot replace any of these release runs.
+Publishing any release directly triggers `Agent rules update` and `Repository
+audit`. The canonical starter-kit prerelease also triggers `Release package`.
+Each required run must match the published tag, its exact commit, the `release`
+event, and the publication time; a manual, scheduled, or tag-push run cannot
+replace any of these release runs.
 
 ## Maintainer operations
 

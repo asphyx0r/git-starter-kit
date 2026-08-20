@@ -48,69 +48,27 @@ PRÉCONDITION DU WORKFLOW DE RELEASE
     `asphyx0r/git-starter-kit`.
 - Si le workflow est absent, illisible ou non conforme, applique les mêmes
   règles d'arrêt que lorsqu'aucun template de release n'est accessible.
-- Vérifie aussi que `.github/workflows/agent-rules-update.yml` :
-  - est suivi par Git et entièrement lisible ;
-  - porte exactement le nom `Agent rules update` ;
-  - écoute l'événement `release` avec le type `published` ;
-  - exécute son job lors d'une release même si
-    `AGENT_RULES_SYNC_ENABLED=false`.
-- Vérifie enfin que `.github/workflows/repository-audit.yml` :
-  - est suivi par Git et entièrement lisible ;
-  - porte exactement le nom `Repository audit` ;
-  - écoute l'événement `release` avec le type `published` ;
-  - audite la plage complète depuis le tag stable précédent ;
-  - publie le job agrégateur `Repository audit`, qui réussit uniquement si
-    tous ses jobs enfants réussissent.
-- Si l'un de ces deux workflows est absent, illisible ou non conforme,
-  applique les mêmes règles d'arrêt.
+- Résous avec l'API GitHub l'identité exacte et l'état actif du workflow
+  `Release package`. Une identité absente, désactivée, illisible ou non conforme
+  arrête le workflow avant toute mutation.
+- Enregistre `Release package` comme workflow de release obligatoire en plus
+  des workflows communs définis par le workflow principal. Ne remplace et ne
+  redéfinis aucun contrôle commun.
 
 CRÉATION DE LA PRERELEASE
 
 - Au point 40 du workflow principal, crée la GitHub Release pour le tag
   exact comme prerelease avec
   `--verify-tag --prerelease --latest=false`.
-- Enregistre immédiatement son horodatage `publishedAt`.
 - Vérifie qu'elle cible le tag exact, qu'elle n'est pas un draft, qu'elle
   est encore une prerelease et que son corps correspond exactement aux
   Release Notes rendues.
 
-CONTRÔLE CI OBLIGATOIRE
+CONTRÔLES DE PACKAGE APRÈS LES RUNS OBLIGATOIRES
 
-- Résous l'identifiant de chacun des trois workflows actifs
-  `.github/workflows/agent-rules-update.yml`,
-  `.github/workflows/repository-audit.yml` et
-  `.github/workflows/release-package.yml`, puis le commit déréférencé du tag.
-- Pour chacun des trois workflows, recherche toutes les cinq secondes, pendant
-  dix minutes au maximum, le run unique qui respecte simultanément ces
-  conditions :
-  - le nom et l'identifiant correspondent exactement au workflow résolu ;
-  - `event` vaut exactement `release` ;
-  - `headBranch` vaut exactement le tag publié ;
-  - `headSha` vaut exactement le commit déréférencé du tag ;
-  - `createdAt` est supérieur ou égal au `publishedAt` enregistré.
-- Si un run unique manque dans le délai imparti, ne modifie pas l'état courant
-  de la release, fixe `RELEASE_STATUS=incomplete`, rapporte le workflow et les
-  critères non satisfaits, puis arrête le workflow.
-- Attends chacun des trois runs identifiés jusqu'à son état terminal avec
-  `gh run watch <run-id> --exit-status`. Ne déclenche aucun autre run et ne
-  relance pas automatiquement un run identifié.
-- Si un run échoue, est annulé, expire ou ne termine pas normalement :
-  - collecte son état et les logs des étapes en échec avec des commandes
-    en lecture seule ;
-  - ne modifie pas la release ni ses éventuels assets ;
-  - fixe `RELEASE_STATUS=incomplete` ;
-  - rapporte le workflow, l'URL et la conclusion exactes ;
-  - arrête le workflow sans déclarer la release terminée.
-- Seule une demande utilisateur explicite peut autoriser
-  `gh run rerun <run-id> --failed`. Après cette relance, contrôle le même
-  run `event=release` et son nouvel attempt. Un run `workflow_dispatch`
-  ne peut jamais remplacer ou valider le run automatique obligatoire.
-- Après le succès des trois runs, relis leurs métadonnées et exige pour chacun :
-  - `status=completed` ;
-  - `conclusion=success` ;
-  - l'identité exacte du workflow, de l'événement, du tag et du commit.
-- Pour `Repository audit`, exige aussi la réussite de tous les jobs enfants et
-  du job agrégateur `Repository audit`.
+- N'applique cette section qu'après la réussite de tous les workflows de
+  release obligatoires contrôlés par le workflow principal, y compris
+  `Release package`.
 - Vérifie ensuite que la GitHub Release :
   - cible toujours le tag exact et conserve les Release Notes rendues ;
   - n'est ni un draft ni une prerelease ;
@@ -141,5 +99,6 @@ CONTRÔLE CI OBLIGATOIRE
   publié séparément.
 - Supprime uniquement le répertoire temporaire de vérification après avoir
   confirmé qu'il reste dans la racine temporaire attendue.
-- Fixe `RELEASE_STATUS=complete` uniquement après la réussite de tous ces
-  contrôles. Aucun asset valide ni run manuel ne suffit séparément.
+- Retourne au workflow principal uniquement après la réussite de tous ces
+  contrôles. Aucun asset valide ni run manuel ne suffit séparément, et seul le
+  workflow principal peut fixer `RELEASE_STATUS=complete`.

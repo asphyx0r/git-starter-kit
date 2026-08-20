@@ -42,8 +42,11 @@ checks, and optional template-based GitHub Release workflow.
   inferring unknown release metadata.
 - Prevalidate the release SHA, then require every expected branch and tag audit
   run around the atomic final push.
-- Complete a requested, template-based GitHub Release after every applicable
-  repository-specific check succeeds.
+- Prevalidate release workflows and required GitHub App configuration before
+  mutation when a GitHub Release is requested.
+- Complete a requested, template-based GitHub Release only after the exact
+  `Agent rules update` and `Repository audit` release runs, plus every
+  applicable repository-specific run, succeed.
 
 ### Usage examples
 
@@ -72,6 +75,11 @@ only after every applicable repository-specific check succeeds.
 - `.agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt` must
   be readable in full before the skill takes any action or runs any Git
   command.
+- Every repository must retain active `Repository audit` and
+  `Release artifacts` workflows. A requested GitHub Release additionally
+  requires the active `Agent rules update` workflow, the repository variable
+  `AGENT_RULES_APP_CLIENT_ID`, and the repository secret
+  `AGENT_RULES_APP_PRIVATE_KEY`.
 - The starter-only release extension must be readable when the exact
   `asphyx0r/git-starter-kit` remote is active. It is intentionally omitted
   from packages distributed to derived repositories.
@@ -80,5 +88,8 @@ only after every applicable repository-specific check succeeds.
 
 - The generic reference and any applicable repository-specific extension are
   the complete behavioral source of truth and must be followed exactly.
+- The preflight can verify that the GitHub App secret exists, but only the
+  mandatory `Agent rules update` run proves that its value and installation
+  access work.
 - If the canonical reference cannot be read completely, the skill stops
   without modifying the repository.

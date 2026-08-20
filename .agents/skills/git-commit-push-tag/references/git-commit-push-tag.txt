@@ -48,7 +48,8 @@ EXTENSION CONDITIONNELLE DU STARTER KIT
 
 - Si le remote `origin` correspond exactement à
   `https://github.com/asphyx0r/git-starter-kit.git`, lis entièrement
-  `references/git-starter-kit-release-package.txt` et applique cette
+  le fichier frère `git-starter-kit-release-package.txt`, résolu depuis le
+  répertoire qui contient le présent prompt canonique, et applique cette
   extension aux points qu'elle remplace.
 - Pour tout autre remote, n'exige aucun workflow de package, aucun asset
   de release et aucun contrôle propre à `git-starter-kit`.
@@ -132,8 +133,9 @@ PRÉCONDITION CONDITIONNELLE DU TEMPLATE DE RELEASE
   être lu et s'il n'est pas vide.
 - Enregistre la source exacte du template retenu pour le reste du
   workflow.
-- Si l'extension conditionnelle du starter kit s'applique, exécute aussi
-  ses préconditions de workflow avant de poursuivre.
+- Si l'extension conditionnelle du starter kit s'applique, vérifie qu'elle est
+  lisible et enregistre qu'elle devra être appliquée. N'exécute ses
+  préconditions de workflow qu'après la validation de BUMP au point 14.
 - Si aucun template n'est accessible :
   - produis et affiche le rapport de bump défini au point 11 ;
   - si BUMP est absent, affiche aussi `BUMP_RECOMMANDÉ=<valeur>` et
@@ -179,6 +181,75 @@ PRÉCONDITION CONDITIONNELLE DU TEMPLATE DE RELEASE
     - si BUMP est supérieur, demande une validation explicite ;
     - ne continue automatiquement que s'il correspond exactement au
       bump déduit.
+
+PRÉCONDITIONS AVANT TOUTE MUTATION
+
+- N'applique cette section qu'après la validation de BUMP au point 14 et avant
+  toute modification du working tree, du staging, des commits ou des refs.
+- Exige que `.github/workflows/repository-audit.yml` soit suivi et lisible,
+  porte exactement le nom `Repository audit`, soit déclenché par `push` et
+  publie pour les pushes non manuels un job agrégateur nommé exactement
+  `Repository audit`, qui réussit uniquement si tous ses jobs enfants
+  réussissent.
+- Exige que `tools/verify-repository-audit-runs.py` soit suivi et lisible, puis
+  vérifie que son aide et sa version peuvent être exécutées. Utilise uniquement
+  cet outil suivi pour sélectionner et attendre les runs d'audit obligatoires.
+- Exige que `.github/workflows/release-artifacts.yml` soit suivi et lisible,
+  porte exactement le nom `Release artifacts`, soit déclenché uniquement par
+  un push de tag `v*` et publie un job nommé exactement `Release artifacts`.
+  Ce job doit installer la dépendance épinglée, puis valider le tag et son SHA
+  avec `tools/release-artifacts.py check`.
+- Résous avec l'API GitHub l'identité exacte et l'état actif des workflows
+  `Repository audit` et `Release artifacts`. Une identité absente, désactivée,
+  illisible ou non conforme arrête le workflow avant toute mutation.
+- Inspecte la protection de `origin/<branche>`. Lorsque GitHub permet les
+  checks requis pour ce repository, exige le check `Repository audit` fourni
+  par GitHub Actions, l'application aux administrateurs et l'absence de bypass.
+  Une protection absente, relâchée ou impossible à inspecter arrête le workflow
+  avant toute mutation. Si cette fonctionnalité GitHub n'est pas disponible
+  pour le repository, rapporte la limitation et demande une validation
+  utilisateur explicite avant de continuer sans cette couche.
+- Si `CREATE_GITHUB_RELEASE=true` :
+  - exige que `.github/workflows/repository-audit.yml` écoute aussi l'événement
+    `release` avec le type `published`, audite la plage complète depuis le tag
+    stable précédent et conserve le même job agrégateur obligatoire ;
+  - exige que `.github/workflows/agent-rules-update.yml` soit suivi et lisible,
+    porte exactement le nom `Agent rules update`, écoute l'événement `release`
+    avec le type `published` et exécute son job lors d'une release même si
+    `AGENT_RULES_SYNC_ENABLED=false` ;
+  - résous avec l'API GitHub l'identité exacte et l'état actif du workflow
+    `Agent rules update` ;
+  - vérifie en lecture seule que la variable Actions de repository
+    `AGENT_RULES_APP_CLIENT_ID` existe avec une valeur non vide et que le secret
+    Actions de repository `AGENT_RULES_APP_PRIVATE_KEY` existe. L'existence du
+    secret ne prouve ni sa valeur ni l'accès de l'installation GitHub App ; seul
+    le run obligatoire peut valider ces éléments ;
+  - arrête-toi avant toute mutation si un workflow, une variable ou un secret
+    requis est absent, désactivé, illisible ou non conforme ;
+  - si l'extension conditionnelle du starter kit s'applique, exécute maintenant
+    ses préconditions de workflow ;
+  - enregistre `Agent rules update` et `Repository audit` comme workflows de
+    release obligatoires. L'extension conditionnelle du starter kit peut
+    ajouter ses propres workflows à cette liste, sans remplacer les deux
+    workflows communs.
+- Demande explicitement à l'utilisateur toutes les valeurs suivantes pour la
+  release courante, sans les déduire du repository, de son historique ou d'une
+  release précédente :
+  - `program_id`, `name`, `channel`, `critical_update` et `release_notes` ;
+  - `update.min_source_version`, `update.strategy`,
+    `update.preserve_paths`, `update.remove_obsolete_files`,
+    `update.backup_required`, `update.restart_required`,
+    `update.rollback_supported` et `update.migrations` ;
+  - `artifact.id`, `artifact.target.os`, `artifact.target.arch` et
+    `artifact.target.min_os_version` ;
+  - `metadata.author`, `metadata.license` et `metadata.support_url`.
+- Enregistre exactement ces réponses dans un fichier JSON temporaire hors du
+  working tree. N'ajoute aucune valeur par défaut. Conserve ce fichier jusqu'à
+  la validation finale des artefacts.
+- Si une précondition échoue ou si le workflow s'arrête ensuite, supprime
+  uniquement les fichiers, répertoires et dépendances temporaires créés par
+  cette exécution après avoir vérifié leurs chemins. Ne supprime aucun
+  temporaire préexistant et ne modifie pas le repository pour masquer l'échec.
 
 PHASE 2 — PRÉPARATION DU COMMIT
 
@@ -341,20 +412,8 @@ PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE RELEASE
   les blobs du commit candidat, y compris `VERSION`, mais exclut les deux
   sorties auto-référentielles `SHA256SUMS` et `manifest.json`. Les gitlinks,
   fichiers non suivis, ignorés ou absents du commit candidat sont exclus.
-- Demande explicitement à l'utilisateur toutes les valeurs suivantes pour la
-  release courante, sans les déduire du repository, de son historique ou d'une
-  release précédente :
-  - `program_id`, `name`, `channel`, `critical_update` et `release_notes` ;
-  - `update.min_source_version`, `update.strategy`,
-    `update.preserve_paths`, `update.remove_obsolete_files`,
-    `update.backup_required`, `update.restart_required`,
-    `update.rollback_supported` et `update.migrations` ;
-  - `artifact.id`, `artifact.target.os`, `artifact.target.arch` et
-    `artifact.target.min_os_version` ;
-  - `metadata.author`, `metadata.license` et `metadata.support_url`.
-- Enregistre exactement ces réponses dans un fichier JSON temporaire hors du
-  working tree. N'ajoute aucune valeur par défaut et ne conserve pas ce fichier
-  après la validation finale des artefacts.
+- Réutilise exclusivement le fichier JSON temporaire validé avant toute
+  mutation. Ne redemande, ne déduis et ne remplace aucune de ses valeurs.
 - Enregistre une seule date UTC courante au format `YYYY-MM-DDTHH:MM:SSZ`, puis
   utilise exactement le tag calculé, cette date et le fichier temporaire pour
   exécuter d'abord sans écriture :
@@ -414,30 +473,11 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
 
 - Applique cette section avant toute création de tag, avec ou sans GitHub
   Release demandée.
-- Exige que `.github/workflows/repository-audit.yml` soit suivi, lisible,
-  nommé exactement `Repository audit`, déclenché par `push` et qu'il publie
-  un job agrégateur nommé exactement `Repository audit` pour les pushes non
-  manuels. Ce job doit réussir uniquement si tous ses jobs enfants réussissent.
-- Exige que `tools/verify-repository-audit-runs.py` soit suivi, lisible et que
-  son aide et sa version puissent être exécutées. Utilise uniquement cet outil
-  suivi pour sélectionner et attendre les runs d'audit obligatoires.
-- Exige que `.github/workflows/release-artifacts.yml` soit suivi, lisible,
-  nommé exactement `Release artifacts`, déclenché uniquement par un push de
-  tag `v*` et qu'il publie un job nommé exactement `Release artifacts`. Ce job
-  doit installer la dépendance épinglée, puis valider le tag et son SHA avec
-  `tools/release-artifacts.py check`.
-- Résous aussi l'identifiant exact du workflow `Release artifacts`. S'il est
-  absent, désactivé ou non conforme, arrête-toi avant le tag et avant tout push.
-- Résous l'identifiant exact du workflow `Repository audit` avec l'API GitHub.
-  Si son identité ou son contrat ne peut pas être vérifié, arrête-toi avant le
-  tag et avant tout push.
-- Inspecte la protection de `origin/<branche>`. Lorsque GitHub permet les
-  checks requis pour ce repository, exige le check `Repository audit` fourni
-  par GitHub Actions, l'application aux administrateurs et l'absence de bypass.
-  Une protection absente, relâchée ou impossible à inspecter arrête le workflow
-  avant le tag et avant tout push. Si cette fonctionnalité GitHub n'est pas
-  disponible pour le repository, rapporte la limitation et demande une
-  validation utilisateur explicite avant de continuer sans cette couche.
+- Réutilise les identifiants exacts des workflows `Repository audit` et
+  `Release artifacts` résolus avant toute mutation. Relis leur état et la
+  protection de branche en lecture seule et exige que les préconditions soient
+  toujours satisfaites. Toute évolution, désactivation ou ambiguïté arrête le
+  workflow avant le tag et avant tout push.
 - Enregistre le SHA distant exact de `origin/<branche>`, vérifie de nouveau que
   le tag calculé est absent localement et sur `origin`, puis construis le nom
   unique `codex/release-preflight-<tag>-<sha-court>`. Arrête-toi si ce ref
@@ -563,26 +603,65 @@ CONTRÔLE CI FINAL OBLIGATOIRE
     - les Release Notes ont été générées et validées à partir du
       template retenu.
     Lorsque ces conditions sont remplies :
-    - si l'extension conditionnelle du starter kit s'applique, utilise
-      sa procédure de création et de validation ;
+    - si l'extension conditionnelle du starter kit s'applique, utilise sa
+      procédure de création ;
     - sinon, crée la GitHub Release stable pour le tag exact avec
       `--verify-tag --latest` et sans asset ;
     - fournis explicitement comme corps le contenu rendu du template ;
     - n'utilise jamais de notes générées automatiquement ni de
       structure de remplacement ;
-    - si l'extension s'applique, exécute ses vérifications immédiates ;
-    - sinon, vérifie qu'elle cible le tag exact, qu'elle n'est ni un draft
-      ni une prerelease, qu'elle est marquée comme dernière release, que
-      son corps correspond aux Release Notes rendues et qu'elle ne
-      contient aucun asset.
+    - enregistre immédiatement l'horodatage `publishedAt` ;
+    - vérifie immédiatement qu'elle cible le tag exact, qu'elle n'est pas un
+      draft et que son corps correspond exactement aux Release Notes rendues ;
+    - si l'extension s'applique, exécute aussi ses vérifications immédiates ;
+    - sinon, vérifie qu'elle n'est pas une prerelease, qu'elle est marquée
+      comme dernière release et qu'elle ne contient aucun asset.
     Sinon, ne crée et ne publie aucune GitHub Release.
 
 CONTRÔLE CONDITIONNEL DE LA GITHUB RELEASE
 
-- Si l'extension conditionnelle du starter kit s'applique, exécute son
-  contrôle CI obligatoire et fixe `RELEASE_STATUS` selon son résultat.
-- Sinon, fixe `RELEASE_STATUS=complete` uniquement après avoir vérifié la
-  release stable, son corps exact, son statut latest et l'absence d'asset.
+- N'applique cette section que si `CREATE_GITHUB_RELEASE=true` et que la
+  GitHub Release vient d'être créée au point 40.
+- Utilise la liste des workflows de release obligatoires validée avant toute
+  mutation. Elle contient toujours `Agent rules update` et `Repository audit` ;
+  l'extension conditionnelle du starter kit y ajoute `Release package`.
+- Pour chaque workflow attendu, recherche toutes les cinq secondes, pendant
+  dix minutes au maximum, le run unique qui respecte simultanément :
+  - le nom et l'identifiant correspondent exactement au workflow résolu ;
+  - `event` vaut exactement `release` ;
+  - `headBranch` vaut exactement le tag publié ;
+  - `headSha` vaut exactement le commit déréférencé du tag ;
+  - `createdAt` est supérieur ou égal au `publishedAt` enregistré.
+- Si un run unique manque dans le délai imparti, ne modifie pas l'état courant
+  de la release, fixe `RELEASE_STATUS=incomplete`, rapporte le workflow et les
+  critères non satisfaits, puis arrête le workflow.
+- Attends chaque run identifié jusqu'à son état terminal avec
+  `gh run watch <run-id> --exit-status`. Ne déclenche aucun autre run et ne
+  relance pas automatiquement un run identifié.
+- Si un run échoue, est annulé, expire ou ne termine pas normalement :
+  - collecte son état et les logs des étapes en échec avec des commandes en
+    lecture seule ;
+  - ne modifie pas la release ni ses éventuels assets ;
+  - fixe `RELEASE_STATUS=incomplete` ;
+  - rapporte le workflow, l'URL et la conclusion exactes ;
+  - arrête le workflow sans déclarer la release terminée.
+- Seule une demande utilisateur explicite peut autoriser
+  `gh run rerun <run-id> --failed`. Après cette relance, contrôle le même run
+  `event=release` et son nouvel attempt. Un run `workflow_dispatch` ne peut
+  jamais remplacer ou valider le run automatique obligatoire.
+- Après le succès de tous les runs, relis leurs métadonnées et exige pour
+  chacun `status=completed`, `conclusion=success` et l'identité exacte du
+  workflow, de l'événement, du tag et du commit.
+- Pour `Repository audit`, exige aussi la réussite de tous les jobs enfants et
+  du job agrégateur `Repository audit`.
+- Si l'extension conditionnelle du starter kit s'applique, exécute ses
+  contrôles de package, de promotion et de provenance. Sinon, vérifie de
+  nouveau que la release est stable, latest, sans asset et que son corps est
+  exactement celui qui a été rendu.
+- Fixe `RELEASE_STATUS=complete` uniquement après la réussite de tous les runs
+  communs et de tous les contrôles spécifiques applicables.
+- Supprime ensuite uniquement les temporaires créés par cette exécution et
+  vérifie leur absence. Ne supprime aucun temporaire préexistant.
 
 41. Termine par un compte rendu contenant :
     - la liste des commits créés, ou la confirmation qu'aucun nouveau
@@ -593,9 +672,10 @@ CONTRÔLE CONDITIONNEL DE LA GITHUB RELEASE
     - les trois identifiants vérifiés ;
     - si une GitHub Release a été demandée, la source du template,
       le résultat de génération des Release Notes et le résultat de
-      création de la Release, `RELEASE_STATUS`, l'identifiant, l'attempt,
-      l'événement, le SHA, la conclusion et l'URL du run CI obligatoire,
-      ainsi que les noms, digests et provenances des assets vérifiés ;
+      création de la Release, `RELEASE_STATUS`, puis pour chaque workflow de
+      release obligatoire son identifiant, son attempt, son événement, son
+      SHA, sa conclusion et son URL, ainsi que les noms, digests et provenances
+      des assets vérifiés lorsqu'ils sont applicables ;
     - `REPOSITORY_AUDIT_STATUS`, le ref de prévalidation, les identifiants,
       refs, événements, SHA, conclusions et URL de tous les runs d'audit
       attendus ;
