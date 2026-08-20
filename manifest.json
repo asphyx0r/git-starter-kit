@@ -2,12 +2,13 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.5.0",
-    "release_date": "2026-08-19T09:57:31Z",
+    "version": "2.6.0",
+    "release_date": "2026-08-20T20:33:43Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Generate VERSION, SHA256SUMS, and schema-validated manifest.json files for tagged releases."
+        "Make the guarded release workflow portable across repositories generated from Git Starter Kit.",
+        "Require common GitHub release preflight and automatic workflow validation while keeping package checks starter-specific."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -21,7 +22,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.5.0-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.6.0-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -29,9 +30,9 @@
             },
             "format": "git-tree",
             "total_files": 78,
-            "size_bytes": 934280,
-            "built_at": "2026-08-19T09:57:31Z",
-            "sha256": "3835b7a9cab90a3af0fefbe720f12122049ce4b2fd78e224cb2335de3cf344df",
+            "size_bytes": 942290,
+            "built_at": "2026-08-20T20:33:43Z",
+            "sha256": "4a028fa71d36072050f67ac7e11fe26af90ef88bd9cae10f34c66a3699879007",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -53,20 +54,20 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt",
-                    "size_bytes": 30777,
+                    "size_bytes": 36000,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "5a3798e39a4b59c19f851650bd5a60ccced0967357367eb156d0ceafef548552",
+                    "sha256": "e572db40f19d3a3d3fcb6dbd0d990797ded53be5e2feb7702bf31f18cc39689e",
                     "mode": "644"
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 7963,
+                    "size_bytes": 5618,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "cac7d5a3ab3c8ad98fe86ad02324e9b1e278446ddd211de16e28d84f3a24bdec",
+                    "sha256": "a5b2f310bce3063694ce2061fa2796162afaf0c0b615a8e665b9ec5644a6ca35",
                     "mode": "644"
                 },
                 {
@@ -269,11 +270,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 10838,
+                    "size_bytes": 10979,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8a69cff24dc5be129b48fd013805e14d296f72ed4e96f7fa5b1094cb3bbada9d",
+                    "sha256": "2692ec8de04f5a792fba5c7fd78973f77534dd6d9970e1de4b7d166a4308118b",
                     "mode": "644"
                 },
                 {
@@ -341,11 +342,11 @@
                 },
                 {
                     "relative_path": "README.md",
-                    "size_bytes": 11713,
+                    "size_bytes": 12145,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "ec56888a5d87fa24bc244d581495fcbc64138eae9ca4dedd68f1414bd7f2f8c5",
+                    "sha256": "1d17114e008c6eadf3e9a52356994beb081156ef02439344324d0e1678852f9e",
                     "mode": "644"
                 },
                 {
@@ -381,7 +382,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "732f64d874f90788c0199b0c19bfd9b3b6436e140114e53e462832532d74c61c",
+                    "sha256": "6693435eadb673dda297a0652d241e293e361200bc40db949cf2501d18dd01ee",
                     "mode": "644"
                 },
                 {
@@ -404,29 +405,29 @@
                 },
                 {
                     "relative_path": "docs/SKILLS.md",
-                    "size_bytes": 3057,
+                    "size_bytes": 3726,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "18f420d1d0b0750e2e0074b64b9eefe8490d88e9b9cbe31e854ec5518208710f",
+                    "sha256": "18eb230237a3a788a06597df23c1f4b5b8d89cd20685a1f841d10929daa42b07",
                     "mode": "644"
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 10948,
+                    "size_bytes": 11084,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c9bcff983c5e5679ff7edf5e3f708bbb471010369d7ea7ba2df49d35a86655ec",
+                    "sha256": "017409f5607da4ad89f954dac36f4e49bab898fee39d46d07e82ca7c923daeda",
                     "mode": "644"
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 43795,
+                    "size_bytes": 44317,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "36269c1e0b6b0f32ce81ea027d932d6254e48a3bb4e4e7b8584596b17fe664c5",
+                    "sha256": "5a1c534629ddac2fe07712ce6e99e12355d01ceb53df0daca005074b9e22267b",
                     "mode": "644"
                 },
                 {
@@ -453,7 +454,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c708ed80b16e4f7a5a9ef156df778e50b945cc997c68d4e6da1fe1784a9c525c",
+                    "sha256": "3924991b5ca20c0d37e137705629b9aa23a002e2c1f64a6026c9d5455ccec0ad",
                     "mode": "644"
                 },
                 {
@@ -701,11 +702,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit.sh",
-                    "size_bytes": 60857,
+                    "size_bytes": 64089,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "2bdfa23334209f694353aad73ec3c82462ae1e0c5c48c7840f99b7263adfe21f",
+                    "sha256": "64857d2752d44f53bdbae16caa818b1ad694e961fca2c377726e5f74c56f5994",
                     "mode": "755"
                 },
                 {
