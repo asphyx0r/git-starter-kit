@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.6.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 96a241b | feat(release): universalize guarded workflow | asphyx |
+
 ## v2.5.0
 
 | References | Description | Author(s) |
