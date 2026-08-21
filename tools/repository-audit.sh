@@ -433,6 +433,13 @@ check_agent_rules_update_workflow_contract() {
     exit 1
   fi
 
+  if ! grep -F "BRANCH_RULES" "$workflow_path" >/dev/null ||
+    [ "$(grep -Fc 'BRANCH_RULES.md' "$workflow_path")" -ne 2 ]; then
+    printf '%s\n' \
+      "Agent rules workflow does not manage BRANCH_RULES.md end to end." >&2
+    exit 1
+  fi
+
   if [ "$(grep -Fc '    timeout-minutes:' "$workflow_path")" -lt 1 ]; then
     printf '%s\n' "Agent rules workflow does not set a job timeout." >&2
     exit 1
@@ -1607,8 +1614,21 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         )
     source = json.load(archive.open("_agent-rules-source.json"))
     files = json.load(archive.open("_starter-kit-files.json"))
+    expected_agent_rule_files = {
+        "AGENTS.md",
+        "BRANCH_RULES.md",
+        "CODING_RULES.md",
+        "COMMIT_RULES.md",
+        "DOCUMENTATION_RULES.md",
+        "LANGUAGE_RULES.md",
+        "RELEASE_RULES.md",
+    }
     if source["schemaVersion"] != 3:
         raise SystemExit("Unexpected release provenance schema.")
+    if set(source["agentRules"]["files"]) != expected_agent_rule_files:
+        raise SystemExit("Unexpected packaged agent-rule file list.")
+    if set(source["agentRules"]["fileHashes"]) != expected_agent_rule_files:
+        raise SystemExit("Unexpected packaged agent-rule hash perimeter.")
     if source["repository"]["name"] != "git-starter-kit":
         raise SystemExit("Unexpected packaged repository name.")
     if files["schemaVersion"] != 3:
@@ -1681,15 +1701,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         if path in names
     )
     expected_strategy_paths = {
-        "agent-rules": {
-            "AGENTS.md",
-            "CODING_RULES.md",
-            "COMMIT_RULES.md",
-            "DOCUMENTATION_RULES.md",
-            "LANGUAGE_RULES.md",
-            "RELEASE_RULES.md",
-            "_agent-rules-source.json",
-        },
+        "agent-rules": expected_agent_rule_files | {"_agent-rules-source.json"},
         "merge": expected_merge_paths,
         "initialize-only": {
             "CHANGELOG.md",

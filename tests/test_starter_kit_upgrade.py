@@ -83,6 +83,12 @@ class StarterKitUpgradeTests(unittest.TestCase):
         )
         self.base_files = {
             "_agent-rules-source.json": self.base_provenance,
+            "AGENTS.md": b"base agents\n",
+            "CODING_RULES.md": b"base coding rules\n",
+            "COMMIT_RULES.md": b"base commit rules\n",
+            "DOCUMENTATION_RULES.md": b"base documentation rules\n",
+            "LANGUAGE_RULES.md": b"base language rules\n",
+            "RELEASE_RULES.md": b"base release rules\n",
             "a.txt": b"base a\n",
             "merge.txt": (
                 b"first base\nstable one\nstable two\nlast base\n"
@@ -93,6 +99,13 @@ class StarterKitUpgradeTests(unittest.TestCase):
         }
         self.new_files = {
             "_agent-rules-source.json": self.new_provenance,
+            "AGENTS.md": b"new agents\n",
+            "BRANCH_RULES.md": b"new branch rules\n",
+            "CODING_RULES.md": b"new coding rules\n",
+            "COMMIT_RULES.md": b"new commit rules\n",
+            "DOCUMENTATION_RULES.md": b"new documentation rules\n",
+            "LANGUAGE_RULES.md": b"new language rules\n",
+            "RELEASE_RULES.md": b"new release rules\n",
             "a.txt": b"new a\n",
             "merge.txt": (
                 b"first new\nstable one\nstable two\nlast base\n"
@@ -104,6 +117,13 @@ class StarterKitUpgradeTests(unittest.TestCase):
         managed = []
         strategies = {
             "_agent-rules-source.json": "agent-rules",
+            "AGENTS.md": "agent-rules",
+            "BRANCH_RULES.md": "agent-rules",
+            "CODING_RULES.md": "agent-rules",
+            "COMMIT_RULES.md": "agent-rules",
+            "DOCUMENTATION_RULES.md": "agent-rules",
+            "LANGUAGE_RULES.md": "agent-rules",
+            "RELEASE_RULES.md": "agent-rules",
             "a.txt": "replace",
             "merge.txt": "merge",
             "new.txt": "replace",
@@ -237,6 +257,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(actions["new.txt"], "add")
         self.assertEqual(actions["README.md"], "review-initialize-only")
         self.assertEqual(plan["summary"]["review-initialize-only"], 1)
+        self.assertEqual(actions["BRANCH_RULES.md"], "delegate-agent-rules")
         self.assertEqual(actions["_agent-rules-source.json"], "update")
         self.assertIn("removed.txt", plan["obsoletePaths"])
 
@@ -252,6 +273,18 @@ class StarterKitUpgradeTests(unittest.TestCase):
         )
         self.assertEqual((target / "new.txt").read_bytes(), b"new file\n")
         self.assertEqual((target / "README.md").read_bytes(), b"base readme\n")
+        self.assertFalse((target / "BRANCH_RULES.md").exists())
+        for rule_path in (
+            "AGENTS.md",
+            "CODING_RULES.md",
+            "COMMIT_RULES.md",
+            "DOCUMENTATION_RULES.md",
+            "LANGUAGE_RULES.md",
+            "RELEASE_RULES.md",
+        ):
+            self.assertEqual(
+                (target / rule_path).read_bytes(), self.base_files[rule_path]
+            )
         self.assertEqual(
             (target / "removed.txt").read_bytes(), b"preserve removed\n"
         )

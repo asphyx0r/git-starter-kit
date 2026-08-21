@@ -246,10 +246,10 @@ deferred, or explicitly excluded from the template.
 - Goal: Keeps each initialized repository aligned with the latest canonical
   agent-rule release without a central repository registry.
 - Usage: Runs daily, on every published release, or by manual dispatch and
-  opens a repository-local pull request when the six rule files change.
+  opens a repository-local pull request when the seven rule files change.
 - Notes: Uses the synchronization tool from the resolved
   `agent-coding-rules` release and one target-repository GitHub App token. It
-  restricts changes to the six rules and provenance, preserves customized rule
+  restricts changes to the seven rules and provenance, preserves customized rule
   files, and runs in the starter kit as well as downstream repositories. Set
   `AGENT_RULES_SYNC_ENABLED=false` to suspend scheduled and manual jobs;
   published releases always run the job. Cumulative upgrades replace this
@@ -467,6 +467,13 @@ deferred, or explicitly excluded from the template.
 - Goal: Provides repository-level instructions for coding agents.
 - Usage: Read before making changes in this repository.
 - Notes: Avoid duplicating agent instructions in GitHub-specific files.
+
+### `BRANCH_RULES.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines universal branch lifecycle and naming rules.
+- Usage: Read before the first repository write or any branch operation.
 
 ### `CODING_RULES.md`
 

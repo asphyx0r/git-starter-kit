@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 MANIFEST_PATH = "starter-kit-manifest.json"
 CANONICAL_REPOSITORY = "https://github.com/asphyx0r/git-starter-kit"
 CANONICAL_ORIGINS = frozenset(
@@ -31,6 +31,7 @@ SEMVER_TAG_PATTERN = re.compile(
 AGENT_RULE_PATHS = frozenset(
     {
         "AGENTS.md",
+        "BRANCH_RULES.md",
         "CODING_RULES.md",
         "COMMIT_RULES.md",
         "DOCUMENTATION_RULES.md",

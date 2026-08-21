@@ -20,6 +20,9 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 - If an existing `README.md` contains structural anomalies that conflict with
   `DOCUMENTATION_RULES.md`, warn the user and do not silently normalize
   unrelated content unless requested.
+- Before the first write intended to change repository content, or before
+  creating, renaming, publishing, integrating, rebasing, or deleting a Git
+  branch, read and follow `BRANCH_RULES.md`.
 - Before creating any commit, read and follow `COMMIT_RULES.md`.
 - Before creating any Git tag, read and follow `RELEASE_RULES.md`.
 - `README.md` is human-facing repository documentation, not an agent
@@ -28,8 +31,8 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 When rules conflict, apply them in this order:
 
 1. Project-specific instructions.
-2. Commit and release rules from `COMMIT_RULES.md` and `RELEASE_RULES.md`
-   when creating commits or Git tags.
+2. Branch, commit, and release rules from `BRANCH_RULES.md`, `COMMIT_RULES.md`,
+   and `RELEASE_RULES.md` when performing their corresponding Git operations.
 3. Documentation-specific rules from `DOCUMENTATION_RULES.md` when creating,
    editing, reviewing, or refactoring documentation.
 4. Language-, dialect-, and framework-specific rules from `LANGUAGE_RULES.md`.
@@ -39,9 +42,9 @@ When rules conflict, apply them in this order:
 ## Observable Instruction Protocol
 
 Before creating, editing, reviewing, refactoring, or otherwise modifying code or
-project documentation, creating commits, or creating Git tags, the agent must
-read the applicable instruction files, then state an instruction audit before
-taking the requested action.
+project documentation, managing Git branches, creating commits, or creating Git
+tags, the agent must read the applicable instruction files, then state an
+instruction audit before taking the requested action.
 
 The instruction audit must include:
 

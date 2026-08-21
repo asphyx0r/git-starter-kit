@@ -20,6 +20,7 @@ $SemVerTagPattern = "^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1
 
 $RequiredRuleFiles = @(
     "AGENTS.md",
+    "BRANCH_RULES.md",
     "CODING_RULES.md",
     "COMMIT_RULES.md",
     "DOCUMENTATION_RULES.md",

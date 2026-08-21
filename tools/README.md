@@ -525,7 +525,7 @@ repositories do not track the toolkit builder or applier.
 - Produces a per-file plan without modifying the target.
 - Compares text through canonical UTF-8, LF, and final-newline hashes.
 - Updates unchanged files and three-way merges explicitly merge-managed files.
-- Delegates the six root rule files to the target repository's autonomous rule
+- Delegates the seven root rule files to the target repository's autonomous rule
   synchronization workflow.
 - Refreshes only the starter-owned `repository` and `starterKit` sections in
   `_agent-rules-source.json` while preserving agent-rule and target-owned data.
