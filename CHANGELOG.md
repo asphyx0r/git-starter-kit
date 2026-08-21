@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.6.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 9d17088 | fix(release): resolve manifest metadata | asphyx |
+
 ## v2.6.0
 
 | References | Description | Author(s) |
