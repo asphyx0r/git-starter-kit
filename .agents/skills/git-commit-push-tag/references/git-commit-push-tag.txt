@@ -232,9 +232,8 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
     release obligatoires. L'extension conditionnelle du starter kit peut
     ajouter ses propres workflows à cette liste, sans remplacer les deux
     workflows communs.
-- Demande explicitement à l'utilisateur toutes les valeurs suivantes pour la
-  release courante, sans les déduire du repository, de son historique ou d'une
-  release précédente :
+- Résous toutes les valeurs suivantes pour la release courante avant toute
+  mutation :
   - `program_id`, `name`, `channel`, `critical_update` et `release_notes` ;
   - `update.min_source_version`, `update.strategy`,
     `update.preserve_paths`, `update.remove_obsolete_files`,
@@ -243,9 +242,39 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
   - `artifact.id`, `artifact.target.os`, `artifact.target.arch` et
     `artifact.target.min_os_version` ;
   - `metadata.author`, `metadata.license` et `metadata.support_url`.
-- Enregistre exactement ces réponses dans un fichier JSON temporaire hors du
-  working tree. N'ajoute aucune valeur par défaut. Conserve ce fichier jusqu'à
-  la validation finale des artefacts.
+- Pour chaque valeur, utilise exclusivement, dans cet ordre, la première source
+  non ambiguë et vérifiable :
+  - une valeur explicitement fournie pour la release courante ;
+  - une source d'autorité actuelle du repository, notamment ses instructions,
+    politiques de release, métadonnées de projet, configuration de build ou
+    documentation d'installation, de mise à jour, de migration et de support ;
+  - les faits déterministes établis par l'analyse de la release courante,
+    notamment le range Git, les diffs, le tag calculé et l'artefact réellement
+    déclaré ou préparé ;
+  - le `manifest.json` du plus grand tag SemVer stable, uniquement s'il est
+    lisible, valide selon le schéma, cohérent avec ce tag, sans contradiction
+    avec l'état courant et si le domaine décrit par la valeur est resté
+    inchangé.
+- Ne traite jamais un exemple, une valeur illustrative, l'absence d'information
+  ou une simple convention supposée comme une source d'autorité. Ne reconduis
+  une valeur précédente que si le domaine qu'elle décrit est resté inchangé.
+- Dérive `release_notes` des changements publiables établis aux points 7 à 10.
+  Résous `artifact.id` depuis l'identifiant ou le nom exact de l'artefact prévu.
+  Pour les politiques d'update, vérifie explicitement les changements de
+  compatibilité, d'installation, de suppression, de sauvegarde, de redémarrage,
+  de rollback et de migration avant de reconduire les valeurs précédentes.
+- Si une valeur reste absente, contradictoire ou incertaine, demande uniquement
+  cette valeur à l'utilisateur et explique les sources contrôlées.
+  N'utilise jamais `null`, un placeholder ou une valeur par défaut pour la
+  remplacer.
+- Lorsque toutes les valeurs sont résolues, affiche le JSON complet et une
+  provenance concise par valeur, puis exige une validation utilisateur
+  explicite. Avant cette validation, ne modifie aucun fichier, ne stage rien et
+  ne crée aucun commit, tag, push ou release.
+- Après validation, enregistre exactement le JSON validé dans un fichier
+  temporaire hors du working tree. Ne redemande, ne déduis et ne remplace aucune
+  de ses valeurs. Conserve ce fichier jusqu'à la validation finale des
+  artefacts.
 - Si une précondition échoue ou si le workflow s'arrête ensuite, supprime
   uniquement les fichiers, répertoires et dépendances temporaires créés par
   cette exécution après avoir vérifié leurs chemins. Ne supprime aucun

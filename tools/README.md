@@ -213,9 +213,11 @@ these fields:
 ```
 
 This object illustrates the required types only. None of its values is a
-default. Ask the user for every value for every release, including booleans,
-empty arrays, update policy, target identity, author, license, and support URL.
-Do not copy illustrative values into a real release.
+default. The caller must provide every exact value. The canonical release
+workflow resolves provable values from explicit current input, authoritative
+project sources, exact release facts, or a non-conflicting previous manifest.
+It asks the user only for unresolved or contradictory values and requires
+explicit validation. Do not copy illustrative values into a real release.
 
 ### Usage/Examples
 

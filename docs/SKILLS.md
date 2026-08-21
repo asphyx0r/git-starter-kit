@@ -18,9 +18,9 @@ is the authoritative source for its behavior and instructions.
 - **Invocation:** `$git-commit-push-tag`
 
 Runs the canonical guarded SemVer analysis, exact-file commit validation,
-explicit release-metadata collection, deterministic release-artifact
-preparation, remote SHA preflight, tag, atomic final push, synchronization
-checks, and optional template-based GitHub Release workflow.
+evidence-backed release-metadata resolution and validation, deterministic
+release-artifact preparation, remote SHA preflight, tag, atomic final push,
+synchronization checks, and optional template-based GitHub Release workflow.
 
 ### When to use
 
@@ -38,8 +38,11 @@ checks, and optional template-based GitHub Release workflow.
 
 - Analyze the next SemVer bump before mutation.
 - Commit the exact file accepted by Commitlint through the repository hooks.
+- Resolve release metadata from authoritative project and release evidence,
+  request only unresolved or contradictory values, then require explicit user
+  validation.
 - Generate and validate `VERSION`, `SHA256SUMS`, and `manifest.json` without
-  inferring unknown release metadata.
+  inventing release metadata.
 - Prevalidate the release SHA, then require every expected branch and tag audit
   run around the atomic final push.
 - Prevalidate release workflows and required GitHub App configuration before

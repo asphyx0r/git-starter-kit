@@ -59,9 +59,11 @@ Create all new SemVer release tags as annotated tags. The published `v1.2.1`,
 `v1.2.2`, and `v1.3.0` tags are historical lightweight exceptions and must not
 be rewritten.
 
-Before creating a new release tag, collect every unknown manifest value from
-the user and commit the generated `VERSION`, `SHA256SUMS`, and `manifest.json`
-together. Never infer missing release metadata.
+Before creating a new release tag, resolve manifest values from authoritative
+project sources, exact release facts, or a non-conflicting previous manifest.
+Ask the user only for unresolved or contradictory values, require explicit
+validation, and commit the generated `VERSION`, `SHA256SUMS`, and
+`manifest.json` together. Never invent missing release metadata.
 
 ## Pull requests
 

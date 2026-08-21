@@ -112,9 +112,10 @@ Use this mode for the normal release process.
 1. Prepare the release commits and changelog in `git-starter-kit`.
 2. Prepare `starter-kit-manifest.json` for the exact selected tag with
    `tools/starter-kit-manifest.py`, then commit only that release metadata.
-3. Collect every release-manifest value explicitly, generate `VERSION`,
-   `SHA256SUMS`, and `manifest.json`, validate them, then commit exactly those
-   three files.
+3. Resolve every release-manifest value from verified evidence, ask the user
+   only for unresolved or contradictory values, obtain explicit validation,
+   then generate and commit exactly `VERSION`, `SHA256SUMS`, and
+   `manifest.json`.
 4. From a clean repository, run `bash tools/repository-audit.sh` locally.
 5. Stop if the local audit fails; do not create a release tag or release.
 6. Create and push the release tag, for example `v1.3.0`.

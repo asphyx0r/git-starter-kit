@@ -580,6 +580,8 @@ check_release_skill_contract() {
   local metadata_path=".agents/skills/git-commit-push-tag/agents/openai.yaml"
   local reference_path=".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
   local expected_steps
+  local metadata_resolution_line
+  local metadata_validation_line
   local phase_two_line
   local preconditions_line
   local release_metadata_line
@@ -630,12 +632,40 @@ check_release_skill_contract() {
     grep -n -m 1 -F 'program_id`, `name`, `channel`' \
       "$reference_path" | cut -d: -f1
   )"
+  metadata_resolution_line="$(
+    grep -n -m 1 -F 'Pour chaque valeur, utilise exclusivement' \
+      "$reference_path" | cut -d: -f1
+  )"
+  metadata_validation_line="$(
+    grep -n -m 1 -F 'Lorsque toutes les valeurs sont résolues' \
+      "$reference_path" | cut -d: -f1
+  )"
   if [ -z "$preconditions_line" ] || [ -z "$phase_two_line" ] ||
     [ -z "$release_metadata_line" ] ||
+    [ -z "$metadata_resolution_line" ] ||
+    [ -z "$metadata_validation_line" ] ||
     [ "$preconditions_line" -ge "$phase_two_line" ] ||
-    [ "$release_metadata_line" -ge "$phase_two_line" ]; then
+    [ "$release_metadata_line" -ge "$metadata_resolution_line" ] ||
+    [ "$metadata_resolution_line" -ge "$metadata_validation_line" ] ||
+    [ "$metadata_validation_line" -ge "$phase_two_line" ]; then
     printf '%s\n' \
       'Release prerequisites and metadata are not validated before mutation.' >&2
+    exit 1
+  fi
+
+  if grep -F 'sans les déduire du repository' "$reference_path" >/dev/null ||
+    ! grep -F "une source d'autorité actuelle du repository" \
+      "$reference_path" >/dev/null ||
+    ! grep -F "le \`manifest.json\` du plus grand tag SemVer stable" \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'demande uniquement' "$reference_path" >/dev/null ||
+    ! grep -F "N'utilise jamais \`null\`" "$reference_path" >/dev/null ||
+    ! grep -F 'provenance concise par valeur' "$reference_path" >/dev/null ||
+    ! grep -F 'Après validation, enregistre exactement le JSON validé' \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' \
+      'Release metadata is not resolved from evidence before user validation.' \
+      >&2
     exit 1
   fi
 
