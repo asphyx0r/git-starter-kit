@@ -2,13 +2,15 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.6.1",
-    "release_date": "2026-08-21T10:44:07Z",
+    "version": "2.7.0",
+    "release_date": "2026-08-22T07:43:12Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Resolve release manifest metadata from authoritative project and release evidence.",
-        "Ask only for unresolved or contradictory values and require explicit validation before mutation."
+        "Clarify that a requested GitHub Release is created after prepublication checks and completed only after release-triggered checks.",
+        "Synchronize the seven canonical agent rule files from agent-coding-rules v1.42.0.",
+        "Add BRANCH_RULES.md to automated updates, provenance, release packaging, cumulative upgrades, and repository validation.",
+        "Require post-release package verification to include BRANCH_RULES.md."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -22,17 +24,17 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.6.1-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.7.0-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
                 "min_os_version": "not-applicable"
             },
             "format": "git-tree",
-            "total_files": 78,
-            "size_bytes": 946454,
-            "built_at": "2026-08-21T10:44:07Z",
-            "sha256": "5af3ba04162d0de61ff12b33c15a091b7de75ceccf6683b10d34cce5734f710c",
+            "total_files": 79,
+            "size_bytes": 957801,
+            "built_at": "2026-08-22T07:43:12Z",
+            "sha256": "8fdbf9f807ab01e0e0841bfa499de8c2357342fc73e9a6890d52272d08d60aa3",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -45,11 +47,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/agents/openai.yaml",
-                    "size_bytes": 474,
+                    "size_bytes": 537,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6791ffb0285a2415c0247d09c343bc39dba20198c09ee3dc3d6a9a68f0deef70",
+                    "sha256": "1c51541397e82cd927e54096b10140f1451bb5791d499fd3bac5922bf184e1f0",
                     "mode": "644"
                 },
                 {
@@ -63,11 +65,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 5618,
+                    "size_bytes": 5637,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a5b2f310bce3063694ce2061fa2796162afaf0c0b615a8e665b9ec5644a6ca35",
+                    "sha256": "5ef9891087c702444c531cf622e8e174c813f991ff66767e4b3f95da38137f71",
                     "mode": "644"
                 },
                 {
@@ -171,11 +173,11 @@
                 },
                 {
                     "relative_path": ".github/workflows/agent-rules-update.yml",
-                    "size_bytes": 7532,
+                    "size_bytes": 7577,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "be907021e12b148de8a635951390623d970dddba7a91881cc2476cd417cb29b0",
+                    "sha256": "e7903e977fc94989664c0fcb514523633d878731b5cbd68a40258dc25fa096b7",
                     "mode": "644"
                 },
                 {
@@ -261,20 +263,29 @@
                 },
                 {
                     "relative_path": "AGENTS.md",
-                    "size_bytes": 5995,
+                    "size_bytes": 6258,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a333747abdd14a7c8783f8d13b5ed49409b68e5c2dcb3cdffb965041d0b6250a",
+                    "sha256": "b72ceedbe6b83ac41aff63fe45716b5b99f418bcf26020c65dea0cb8c3b7c9e6",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "BRANCH_RULES.md",
+                    "size_bytes": 8077,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "e74fb9ff6ad9e5aa5aa4f2d3a63399932874aaa8378a29c521753eab088b5b80",
                     "mode": "644"
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 11115,
+                    "size_bytes": 11325,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1d3b8d0e12598611a80c273e33c7c5f5dfd9b9683b7989dca0d2335d1515d1aa",
+                    "sha256": "e5d03a129edf90195dac124c01e6cdbc307af49ea806f82454537fe35d35c0de",
                     "mode": "644"
                 },
                 {
@@ -382,16 +393,16 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a3fbebb0fe4c012038eceff3148b1602c7da8942fcfe1d563c1de6d377558ae5",
+                    "sha256": "362148d7721ad4a1bb64981ff8d604ef7f4d22267ea8845042f54f90940f24fd",
                     "mode": "644"
                 },
                 {
                     "relative_path": "_agent-rules-source.json",
-                    "size_bytes": 989,
+                    "size_bytes": 1107,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e5505cb16b542fc4e52811a882c33ffaa6909e81263313944bc8995d679d7819",
+                    "sha256": "9d3b7e09345aa14ca634f633108d275958f4e3467b05481835a9558362196885",
                     "mode": "644"
                 },
                 {
@@ -414,20 +425,20 @@
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 11155,
+                    "size_bytes": 11181,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "086331477411755a950adad2fa7f0a16d9b567ee44acc808d7fc01b6ac90cc1c",
+                    "sha256": "a9ec3879d80f6df303d5cf81a93983d38ca552a37a1a5825859a9a26a1762655",
                     "mode": "644"
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 44492,
+                    "size_bytes": 44690,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "960b3956eedda4fa430c6435e6584f7501ed22277f5779dbe64104292aa817b5",
+                    "sha256": "cbf69b8aef8cd96bb68269b2764479b0090329980301e0a25534c3ce6ca5e99f",
                     "mode": "644"
                 },
                 {
@@ -441,11 +452,11 @@
                 },
                 {
                     "relative_path": "docs/upgrade-toolkit.md",
-                    "size_bytes": 5030,
+                    "size_bytes": 5031,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e4e2850ec66f7f69d3fcc6ab0be6508aa001680eae1b25e84c884417f97b8480",
+                    "sha256": "614fdbb4c6badf59c23eab6e7cbf25590c3823d79f6d0d55321caf45231db781",
                     "mode": "644"
                 },
                 {
@@ -454,7 +465,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "ebc5f664880fab5ddc6a669d1a226a97d3dcaaadbc90005d17fede5ada92d892",
+                    "sha256": "e0548a044f147d736d6bf9af3e685f1db7e0ac5dc15802beed08c51b2ad94a94",
                     "mode": "644"
                 },
                 {
@@ -612,20 +623,20 @@
                 },
                 {
                     "relative_path": "tests/test_starter_kit_manifest.py",
-                    "size_bytes": 8655,
+                    "size_bytes": 8803,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e05d72aae43e0012d6d184f2cb4883c3a240fb2a25c82a5bf139196d02a3eb10",
+                    "sha256": "9a23d961b0f27ac50d3a9e722b5a0aec03da7d80c237ac774d820b905e39ab9c",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tests/test_starter_kit_upgrade.py",
-                    "size_bytes": 41680,
+                    "size_bytes": 43221,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e3472ecf93e6b73c02366838d734744705ea30a9289f2cb3674b1e431cbc9c2d",
+                    "sha256": "50be7989c488f56383a579806eda06bafa1b5a29424699be7997ebcbd75e6fb0",
                     "mode": "644"
                 },
                 {
@@ -639,11 +650,11 @@
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 42599,
+                    "size_bytes": 42601,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4fe9c49e65d95f3e10b7a020d28eb107388057f157494c322687f78892f46d2c",
+                    "sha256": "82c2290eafffda59ea55eb8d350e856eb9697d3cc4e9e2846cda3f020614fec0",
                     "mode": "644"
                 },
                 {
@@ -657,11 +668,11 @@
                 },
                 {
                     "relative_path": "tools/build-release-package.ps1",
-                    "size_bytes": 27477,
+                    "size_bytes": 27500,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "63e29df69ad7efae228fe660ab4b5ccca6f831bd53221df19e197fbe719447b2",
+                    "sha256": "736c13eb66e3dff9a4f64a16ed98991f1863cc1311d491d7a68308c752f09495",
                     "mode": "644"
                 },
                 {
@@ -702,20 +713,20 @@
                 },
                 {
                     "relative_path": "tools/repository-audit.sh",
-                    "size_bytes": 65414,
+                    "size_bytes": 66000,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a80142f349b455304457df58a8d3752714c3adcf96c6dc0c281844c63315dca5",
+                    "sha256": "70076a7794761f4e8e947e7cda1c29695e6cb1d022318fc9d33ab29a84accc5c",
                     "mode": "755"
                 },
                 {
                     "relative_path": "tools/starter-kit-manifest.py",
-                    "size_bytes": 17527,
+                    "size_bytes": 17554,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7041fd1acfe6411fc3dd5ed21c53fb50e0aaa3e5fd4b39c2397de45d34916631",
+                    "sha256": "e18765059cff4a0a61dcaebdb5745a5bd18e83dab3b735db90bc83f93b330d9c",
                     "mode": "644"
                 },
                 {
