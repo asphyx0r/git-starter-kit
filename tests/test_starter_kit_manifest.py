@@ -33,6 +33,9 @@ class StarterKitManifestTests(unittest.TestCase):
         (self.root / "a.txt").write_text("alpha\n", encoding="utf-8")
         (self.root / "README.md").write_text("# Example\n", encoding="utf-8")
         (self.root / "AGENTS.md").write_text("rules\n", encoding="utf-8")
+        (self.root / "BRANCH_RULES.md").write_text(
+            "branch rules\n", encoding="utf-8"
+        )
         source_only = self.root / "tools" / "starter-kit-manifest.py"
         source_only.parent.mkdir()
         source_only.write_text("source only\n", encoding="utf-8")
@@ -202,6 +205,7 @@ class StarterKitManifestTests(unittest.TestCase):
             frozenset(
                 {
                     "AGENTS.md",
+                    "BRANCH_RULES.md",
                     "CODING_RULES.md",
                     "COMMIT_RULES.md",
                     "DOCUMENTATION_RULES.md",
@@ -238,7 +242,7 @@ class StarterKitManifestTests(unittest.TestCase):
             MANIFEST.build_parser().parse_args(["--version"])
 
         self.assertEqual(raised.exception.code, 0)
-        self.assertEqual(output.getvalue(), "v1.0.0\n")
+        self.assertEqual(output.getvalue(), "v1.1.0\n")
 
 
 if __name__ == "__main__":

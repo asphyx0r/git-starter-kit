@@ -80,9 +80,9 @@ CONTRÔLES DE PACKAGE APRÈS LES RUNS OBLIGATOIRES
   tree et vérifie que le SHA-256 de chacun correspond au digest publié par
   GitHub.
 - Vérifie le package complet :
-  - il contient `AGENTS.md`, `CODING_RULES.md`, `COMMIT_RULES.md`,
-    `DOCUMENTATION_RULES.md`, `LANGUAGE_RULES.md`, `RELEASE_RULES.md` et
-    `_agent-rules-source.json` ;
+  - il contient `AGENTS.md`, `BRANCH_RULES.md`, `CODING_RULES.md`,
+    `COMMIT_RULES.md`, `DOCUMENTATION_RULES.md`, `LANGUAGE_RULES.md`,
+    `RELEASE_RULES.md` et `_agent-rules-source.json` ;
   - son manifeste contient le tag et le commit exacts du starter kit,
     `requestedRef=latest`, ainsi qu'un tag SemVer et un commit résolus pour
     `agent-coding-rules` ;

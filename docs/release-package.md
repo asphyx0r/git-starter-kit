@@ -37,6 +37,7 @@ The ZIP includes the normal starter kit files plus these files from
 `agent-coding-rules`:
 
 - `AGENTS.md`
+- `BRANCH_RULES.md`
 - `CODING_RULES.md`
 - `COMMIT_RULES.md`
 - `DOCUMENTATION_RULES.md`
@@ -71,8 +72,8 @@ derived repository must generate its own values before its own tag.
 For a concise usage procedure in French, see
 [Upgrade toolkit](upgrade-toolkit.md).
 
-The cumulative updater classifies the six rule files and
-`_agent-rules-source.json` as `agent-rules`. It never writes the six rule
+The cumulative updater classifies the seven rule files and
+`_agent-rules-source.json` as `agent-rules`. It never writes the seven rule
 files. For `_agent-rules-source.json`, it refreshes only the `repository` and
 `starterKit` sections from the new package while preserving `agentRules`,
 `preservedFiles`, and other target-owned fields. Each target repository remains
@@ -139,7 +140,7 @@ The workflow then:
    the resolved tag.
 4. Copies the core paths declared by the tracked manifest, except
    source-repository-only packaging files, into a temporary package folder.
-5. Retains the six tracked rule files in that package folder.
+5. Retains the seven tracked rule files in that package folder.
 6. Writes validated provenance and the schema 3 managed-file manifest.
 7. Creates the ZIP file.
 8. Verifies that the required files and managed-file hashes are present.

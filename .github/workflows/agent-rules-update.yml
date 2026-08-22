@@ -122,7 +122,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          allowed_pattern='^(AGENTS|CODING_RULES|COMMIT_RULES|DOCUMENTATION_RULES|LANGUAGE_RULES|RELEASE_RULES)\.md$'
+          allowed_pattern='^(AGENTS|BRANCH_RULES|CODING_RULES|COMMIT_RULES|DOCUMENTATION_RULES|LANGUAGE_RULES|RELEASE_RULES)\.md$'
           allowed_pattern+='|^_agent-rules-source\.json$'
           changed=false
           while IFS= read -r path; do
@@ -147,7 +147,7 @@ jobs:
             git fetch origin \
               "${SYNC_BRANCH}:refs/remotes/origin/${SYNC_BRANCH}"
             if git diff --quiet "origin/${SYNC_BRANCH}" -- \
-              AGENTS.md CODING_RULES.md COMMIT_RULES.md \
+              AGENTS.md BRANCH_RULES.md CODING_RULES.md COMMIT_RULES.md \
               DOCUMENTATION_RULES.md LANGUAGE_RULES.md RELEASE_RULES.md \
               _agent-rules-source.json; then
               same=true
@@ -168,7 +168,7 @@ jobs:
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- \
-            AGENTS.md CODING_RULES.md COMMIT_RULES.md \
+            AGENTS.md BRANCH_RULES.md CODING_RULES.md COMMIT_RULES.md \
             DOCUMENTATION_RULES.md LANGUAGE_RULES.md RELEASE_RULES.md \
             _agent-rules-source.json
           git commit -m "chore(agents): sync agent rules to ${RULES_REF}"
