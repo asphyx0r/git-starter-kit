@@ -2,6 +2,13 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.7.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| a8f6035 | feat(agents): support canonical branch rules | asphyx |
+| 894ccae | fix(agents): clarify release completion order | asphyx |
+
 ## v2.6.1
 
 | References | Description | Author(s) |
