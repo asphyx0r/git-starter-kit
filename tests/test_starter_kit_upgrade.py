@@ -1,6 +1,7 @@
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
+import importlib
 import importlib.util
 import io
 import json
@@ -13,9 +14,7 @@ from unittest import mock
 import zipfile
 
 
-SCRIPT_PATH = (
-    Path(__file__).resolve().parents[1] / "tools" / "starter-kit-upgrade.py"
-)
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "tools" / "starter-kit-upgrade.py"
 SPEC = importlib.util.spec_from_file_location("starter_kit_upgrade", SCRIPT_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
@@ -78,9 +77,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.backup_directory.mkdir()
 
         self.base_provenance = json_bytes(provenance("a" * 40, "b" * 40))
-        self.new_provenance = json_bytes(
-            provenance("c" * 40, "d" * 40, "v2.0.0")
-        )
+        self.new_provenance = json_bytes(provenance("c" * 40, "d" * 40, "v2.0.0"))
         self.base_files = {
             "_agent-rules-source.json": self.base_provenance,
             "AGENTS.md": b"base agents\n",
@@ -90,9 +87,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
             "LANGUAGE_RULES.md": b"base language rules\n",
             "RELEASE_RULES.md": b"base release rules\n",
             "a.txt": b"base a\n",
-            "merge.txt": (
-                b"first base\nstable one\nstable two\nlast base\n"
-            ),
+            "merge.txt": (b"first base\nstable one\nstable two\nlast base\n"),
             "README.md": b"base readme\n",
             "removed.txt": b"preserve removed\n",
             "starter-kit-manifest.json": json_bytes(starter_manifest("v1.0.0")),
@@ -107,9 +102,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
             "LANGUAGE_RULES.md": b"new language rules\n",
             "RELEASE_RULES.md": b"new release rules\n",
             "a.txt": b"new a\n",
-            "merge.txt": (
-                b"first new\nstable one\nstable two\nlast base\n"
-            ),
+            "merge.txt": (b"first new\nstable one\nstable two\nlast base\n"),
             "new.txt": b"new file\n",
             "README.md": b"new readme\n",
             "starter-kit-manifest.json": json_bytes(starter_manifest("v2.0.0")),
@@ -144,12 +137,8 @@ class StarterKitUpgradeTests(unittest.TestCase):
             )
         files_manifest = {
             "schemaVersion": 3,
-            "starterKit": provenance("c" * 40, "d" * 40, "v2.0.0")[
-                "starterKit"
-            ],
-            "agentRules": provenance("c" * 40, "d" * 40, "v2.0.0")[
-                "agentRules"
-            ],
+            "starterKit": provenance("c" * 40, "d" * 40, "v2.0.0")["starterKit"],
+            "agentRules": provenance("c" * 40, "d" * 40, "v2.0.0")["agentRules"],
             "files": managed,
         }
         self.new_files["_starter-kit-files.json"] = json_bytes(files_manifest)
@@ -234,6 +223,139 @@ class StarterKitUpgradeTests(unittest.TestCase):
     def test_tool_version_is_0_3_1(self):
         self.assertEqual(UPGRADE.VERSION, "0.3.1")
 
+    def test_facade_re_exports_the_exact_supported_public_surface(self):
+        expected_names = [
+            "ADOPTION_PATH",
+            "BASE_PAYLOAD_PREFIX",
+            "FILES_MANIFEST_PATH",
+            "FileSnapshot",
+            "LOG_DIRECTORY",
+            "LOG_FILENAME_TIMESTAMP_FORMAT",
+            "LOG_TIMESTAMP_FORMAT",
+            "MAX_ARCHIVE_SIZE",
+            "PAYLOAD_PREFIX",
+            "PROVENANCE_PATH",
+            "RunJournal",
+            "SEMVER_TAG_PATTERN",
+            "STARTER_MANIFEST_PATH",
+            "TOOLKIT_MODULE_NAMES",
+            "UPGRADE_MANIFEST_PATH",
+            "UpgradeError",
+            "VERSION",
+            "apply_upgrade",
+            "build_parser",
+            "build_toolkit",
+            "build_upgrade",
+            "canonical_sha256",
+            "canonicalize_text",
+            "content_metadata",
+            "create_rollback_archive",
+            "evaluate_target",
+            "exact_release_alignment",
+            "load_json_bytes",
+            "load_upgrade",
+            "local_now",
+            "log_archive_contents",
+            "log_managed_entries",
+            "main",
+            "merge_text_payload",
+            "normalized_starter_manifest",
+            "operational_compliance",
+            "os",
+            "parse_starter_manifest",
+            "plan_or_apply",
+            "print_plan",
+            "read_archive",
+            "require_package_provenance",
+            "require_planned_file_state",
+            "restore_snapshot",
+            "run_git",
+            "sha256_bytes",
+            "sha256_file",
+            "snapshot_file",
+            "starter_commit",
+            "starter_manifest_action",
+            "starter_release_from_provenance",
+            "starter_release_tag",
+            "target_adoption_is_current",
+            "target_path",
+            "time",
+            "updated_agent_rules_provenance",
+            "updated_starter_manifest",
+            "validate_adoption",
+            "validate_new_package",
+            "validate_relative_path",
+            "write_json",
+            "write_payload",
+        ]
+
+        self.assertEqual(UPGRADE.__all__, expected_names)
+
+    def test_facade_imports_from_an_unrelated_isolated_working_directory(self):
+        program = f"""
+import importlib.util
+from pathlib import Path
+
+script_path = Path({str(SCRIPT_PATH)!r})
+spec = importlib.util.spec_from_file_location("isolated_upgrade", script_path)
+assert spec is not None
+assert spec.loader is not None
+upgrade = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(upgrade)
+print(upgrade.VERSION)
+"""
+
+        result = subprocess.run(
+            ["python", "-I", "-c", program],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "0.3.1\n")
+
+    def test_facade_patches_do_not_mutate_implementation_dependencies(self):
+        application_module = importlib.import_module(UPGRADE.write_payload.__module__)
+        common_module = importlib.import_module(UPGRADE.local_now.__module__)
+        implementation_writer = application_module.write_payload
+        implementation_clock = common_module.local_now
+        restored = self.root / "restored.txt"
+        snapshot = UPGRADE.FileSnapshot(b"restored\n", 0o644)
+
+        def facade_writer(path, content, mode):
+            self.assertIs(application_module.write_payload, implementation_writer)
+            implementation_writer(path, content, mode)
+
+        fixed_time = datetime(2026, 8, 2, 12, 34, 56).astimezone()
+
+        def facade_clock():
+            self.assertIs(common_module.local_now, implementation_clock)
+            return fixed_time
+
+        with mock.patch.object(UPGRADE, "write_payload", side_effect=facade_writer):
+            UPGRADE.restore_snapshot(restored, snapshot)
+        with mock.patch.object(UPGRADE, "local_now", side_effect=facade_clock):
+            journal = UPGRADE.RunJournal("plan", ["plan"])
+            journal.write("INFO", "test", "clock")
+
+        self.assertEqual(restored.read_bytes(), snapshot.content)
+
+    def test_upgrade_package_exposes_responsibility_modules(self):
+        module_contracts = {
+            "common": ("RunJournal", "UpgradeError"),
+            "archive": ("build_toolkit", "build_upgrade", "load_upgrade"),
+            "planning": ("evaluate_target", "operational_compliance"),
+            "application": ("apply_upgrade", "write_payload"),
+            "cli": ("build_parser", "main"),
+        }
+
+        for module_name, public_names in module_contracts.items():
+            module = importlib.import_module(f"tools.starter_kit_upgrade.{module_name}")
+            for public_name in public_names:
+                self.assertIn(public_name, module.__all__)
+
     def test_build_plan_and_apply_preserve_local_repository_files(self):
         local_provenance = json.loads(self.base_provenance)
         local_provenance["agentRules"]["ref"] = "v1.0.1-local"
@@ -285,19 +407,13 @@ class StarterKitUpgradeTests(unittest.TestCase):
             self.assertEqual(
                 (target / rule_path).read_bytes(), self.base_files[rule_path]
             )
-        self.assertEqual(
-            (target / "removed.txt").read_bytes(), b"preserve removed\n"
-        )
+        self.assertEqual((target / "removed.txt").read_bytes(), b"preserve removed\n")
         updated_provenance = json.loads(
             (target / "_agent-rules-source.json").read_text(encoding="utf-8")
         )
         new_provenance = json.loads(self.new_provenance)
-        self.assertEqual(
-            updated_provenance["repository"], new_provenance["repository"]
-        )
-        self.assertEqual(
-            updated_provenance["starterKit"], new_provenance["starterKit"]
-        )
+        self.assertEqual(updated_provenance["repository"], new_provenance["repository"])
+        self.assertEqual(updated_provenance["starterKit"], new_provenance["starterKit"])
         self.assertEqual(
             updated_provenance["agentRules"], local_provenance["agentRules"]
         )
@@ -334,10 +450,38 @@ class StarterKitUpgradeTests(unittest.TestCase):
             self.assertIn("starter-kit-upgrade.py", archive.namelist())
             self.assertIn("packages/new.zip", archive.namelist())
             self.assertIn("README.md", archive.namelist())
+            self.assertEqual(
+                {
+                    name
+                    for name in archive.namelist()
+                    if name.startswith("starter_kit_upgrade/")
+                },
+                {
+                    "starter_kit_upgrade/__init__.py",
+                    "starter_kit_upgrade/application.py",
+                    "starter_kit_upgrade/archive.py",
+                    "starter_kit_upgrade/cli.py",
+                    "starter_kit_upgrade/common.py",
+                    "starter_kit_upgrade/planning.py",
+                },
+            )
             self.assertIn(
                 "Every non-dry-run command writes a detailed execution journal",
                 archive.read("README.md").decode("utf-8"),
             )
+
+        extracted = self.root / "toolkit"
+        with zipfile.ZipFile(toolkit) as archive:
+            archive.extractall(extracted)
+        result = subprocess.run(
+            ["python", str(extracted / "starter-kit-upgrade.py"), "--version"],
+            cwd=extracted,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "starter-kit-upgrade.py 0.3.1\n")
 
     def test_modified_managed_file_is_a_conflict(self):
         target = self.create_target()
@@ -347,9 +491,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
 
         _, _, plan = self.load_plan(target)
 
-        action = next(
-            item for item in plan["actions"] if item["path"] == "merge.txt"
-        )
+        action = next(item for item in plan["actions"] if item["path"] == "merge.txt")
         self.assertEqual(action["action"], "conflict-merge")
         self.assertFalse(plan["applicable"])
 
@@ -363,15 +505,11 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.run_git(target, "commit", "-m", "test: customize merge file")
         manifest, files, plan = self.load_plan(target)
 
-        action = next(
-            item for item in plan["actions"] if item["path"] == "merge.txt"
-        )
+        action = next(item for item in plan["actions"] if item["path"] == "merge.txt")
         self.assertEqual(action["action"], "merge")
         self.assertTrue(plan["applicable"])
 
-        UPGRADE.apply_upgrade(
-            manifest, files, target, plan, self.backup_directory
-        )
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
 
         self.assertEqual(
             (target / "merge.txt").read_text(encoding="utf-8"),
@@ -464,9 +602,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertEqual(state_action["action"], "add")
         self.assertTrue(plan["applicable"])
 
-        UPGRADE.apply_upgrade(
-            manifest, files, target, plan, self.backup_directory
-        )
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
 
         state = json.loads(
             (target / "starter-kit-manifest.json").read_text(encoding="utf-8")
@@ -477,9 +613,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
     def test_successive_upgrades_preserve_source_and_advance_current(self):
         target = self.create_target()
         manifest, files, plan = self.load_plan(target)
-        UPGRADE.apply_upgrade(
-            manifest, files, target, plan, self.backup_directory
-        )
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
         self.run_git(target, "add", "--all")
         self.run_git(target, "commit", "-m", "test: apply second release")
 
@@ -496,12 +630,12 @@ class StarterKitUpgradeTests(unittest.TestCase):
         managed_manifest = json.loads(
             third_files["_starter-kit-files.json"].decode("utf-8")
         )
-        managed_manifest["starterKit"] = provenance(
-            "e" * 40, "f" * 40, "v3.0.0"
-        )["starterKit"]
-        managed_manifest["agentRules"] = provenance(
-            "e" * 40, "f" * 40, "v3.0.0"
-        )["agentRules"]
+        managed_manifest["starterKit"] = provenance("e" * 40, "f" * 40, "v3.0.0")[
+            "starterKit"
+        ]
+        managed_manifest["agentRules"] = provenance("e" * 40, "f" * 40, "v3.0.0")[
+            "agentRules"
+        ]
         for entry in managed_manifest["files"]:
             content = third_files[entry["path"]]
             content_kind, canonical_digest = UPGRADE.content_metadata(content)
@@ -520,9 +654,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(UPGRADE.build_upgrade(arguments), 0)
         second_manifest, second_files = UPGRADE.load_upgrade(second_upgrade)
-        second_plan = UPGRADE.evaluate_target(
-            second_manifest, second_files, target
-        )
+        second_plan = UPGRADE.evaluate_target(second_manifest, second_files, target)
 
         state_action = next(
             item
@@ -553,9 +685,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.run_git(target, "add", "--all")
         self.run_git(target, "commit", "-m", "test: commit third release")
 
-        post_plan = UPGRADE.evaluate_target(
-            second_manifest, second_files, target
-        )
+        post_plan = UPGRADE.evaluate_target(second_manifest, second_files, target)
         state_action = next(
             item
             for item in post_plan["actions"]
@@ -574,9 +704,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
     def test_current_adoption_rejects_unrelated_evidence_commit(self):
         target = self.create_target()
         manifest, files, plan = self.load_plan(target)
-        UPGRADE.apply_upgrade(
-            manifest, files, target, plan, self.backup_directory
-        )
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
         unrelated_commit = subprocess.run(
             [
                 "git",
@@ -596,15 +724,11 @@ class StarterKitUpgradeTests(unittest.TestCase):
         adoption["repositoryCommit"] = unrelated_commit
         adoption_path.write_bytes(json_bytes(adoption))
 
-        self.assertFalse(
-            UPGRADE.target_adoption_is_current(manifest, target)
-        )
+        self.assertFalse(UPGRADE.target_adoption_is_current(manifest, target))
 
     def test_invalid_provenance_blocks_application(self):
         target = self.create_target()
-        (target / "_agent-rules-source.json").write_text(
-            "{}\n", encoding="utf-8"
-        )
+        (target / "_agent-rules-source.json").write_text("{}\n", encoding="utf-8")
         self.run_git(target, "add", "_agent-rules-source.json")
         self.run_git(target, "commit", "-m", "test: replace provenance")
 
@@ -657,9 +781,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
             capture_output=True,
             text=True,
         ).stdout.strip()
-        (target / "_agent-rules-source.json").write_text(
-            "{}\n", encoding="utf-8"
-        )
+        (target / "_agent-rules-source.json").write_text("{}\n", encoding="utf-8")
         adoption = {
             "schemaVersion": 1,
             "baseArchiveSha256": UPGRADE.sha256_file(self.base_package),
@@ -718,9 +840,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
                 raise OSError("synthetic write failure")
             real_write(path, content, mode)
 
-        with mock.patch.object(
-            UPGRADE, "write_payload", side_effect=fail_second_write
-        ):
+        with mock.patch.object(UPGRADE, "write_payload", side_effect=fail_second_write):
             with self.assertRaises(OSError):
                 UPGRADE.apply_upgrade(
                     manifest, files, target, plan, self.backup_directory
@@ -739,9 +859,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         with self.assertRaisesRegex(
             UPGRADE.UpgradeError, "Target changed after planning: a.txt"
         ):
-            UPGRADE.apply_upgrade(
-                manifest, files, target, plan, self.backup_directory
-            )
+            UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
 
         self.assertEqual((target / "a.txt").read_bytes(), changed)
         self.assertFalse((target / "_starter-kit-files.json").exists())
@@ -755,9 +873,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         with self.assertRaisesRegex(
             UPGRADE.UpgradeError, "Target changed after planning: new.txt"
         ):
-            UPGRADE.apply_upgrade(
-                manifest, files, target, plan, self.backup_directory
-            )
+            UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
 
         self.assertEqual((target / "new.txt").read_bytes(), concurrent)
         self.assertEqual((target / "a.txt").read_bytes(), self.base_files["a.txt"])
@@ -802,9 +918,11 @@ class StarterKitUpgradeTests(unittest.TestCase):
         path = self.root / "restored.sh"
         snapshot = UPGRADE.FileSnapshot(b"#!/bin/sh\n", 0o751)
 
-        with mock.patch.object(UPGRADE, "write_payload") as write_mock, mock.patch.object(
-            UPGRADE.os, "name", "posix"
-        ), mock.patch.object(Path, "chmod") as chmod_mock:
+        with (
+            mock.patch.object(UPGRADE, "write_payload") as write_mock,
+            mock.patch.object(UPGRADE.os, "name", "posix"),
+            mock.patch.object(Path, "chmod") as chmod_mock,
+        ):
             UPGRADE.restore_snapshot(path, snapshot)
 
         write_mock.assert_called_once_with(path, snapshot.content, "100755")
@@ -826,9 +944,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
                 raise OSError("synthetic write failure after executable update")
             real_write(destination, content, mode)
 
-        with mock.patch.object(
-            UPGRADE, "write_payload", side_effect=fail_third_write
-        ):
+        with mock.patch.object(UPGRADE, "write_payload", side_effect=fail_third_write):
             with self.assertRaises(OSError):
                 UPGRADE.apply_upgrade(
                     manifest, files, target, plan, self.backup_directory
@@ -889,9 +1005,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         content = self.assert_timestamped_log(self.single_log())
-        self.assertIn(
-            "path=starter-kit-upgrade.py action=ADD_TOOLKIT_MEMBER", content
-        )
+        self.assertIn("path=starter-kit-upgrade.py action=ADD_TOOLKIT_MEMBER", content)
         self.assertIn("path=packages/new.zip action=ADD_TOOLKIT_MEMBER", content)
         self.assertIn("path=README.md action=ADD_TOOLKIT_MEMBER", content)
         self.assertIn("archive=created-toolkit", content)
@@ -945,9 +1059,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.assertIn("path=.starter-kit-adoption.json", content)
         self.assertIn("ADOPTION_STATUS=CURRENT", content)
         self.assertIn("UPDATE_STATUS=SUCCEEDED", content)
-        self.assertIn(
-            "OPERATIONAL_COMPLIANCE=COMPLIANT_WITH_FOLLOW_UP", content
-        )
+        self.assertIn("OPERATIONAL_COMPLIANCE=COMPLIANT_WITH_FOLLOW_UP", content)
         self.assertIn("EXACT_RELEASE_ALIGNMENT=NOT_ALIGNED", content)
 
     def test_main_plan_logs_a_blocked_non_compliant_target(self):
@@ -988,9 +1100,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
                 raise OSError("synthetic journaled write failure")
             real_write(path, content, mode)
 
-        with mock.patch.object(
-            UPGRADE, "write_payload", side_effect=fail_third_write
-        ):
+        with mock.patch.object(UPGRADE, "write_payload", side_effect=fail_third_write):
             exit_code, _, _ = self.run_main(
                 [
                     "apply",
@@ -1065,9 +1175,7 @@ class StarterKitUpgradeTests(unittest.TestCase):
             os.chdir(self.root)
             for arguments in (["--help"], ["--version"], ["build"]):
                 with self.subTest(arguments=arguments):
-                    with redirect_stdout(io.StringIO()), redirect_stderr(
-                        io.StringIO()
-                    ):
+                    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                         with self.assertRaises(SystemExit):
                             UPGRADE.main(arguments)
         finally:
@@ -1097,11 +1205,14 @@ class StarterKitUpgradeTests(unittest.TestCase):
         stderr = io.StringIO()
         try:
             os.chdir(self.root)
-            with mock.patch.object(
-                UPGRADE,
-                "local_now",
-                side_effect=[first] * 6 + [second] * 20,
-            ), mock.patch.object(UPGRADE.time, "sleep") as sleep_mock:
+            with (
+                mock.patch.object(
+                    UPGRADE,
+                    "local_now",
+                    side_effect=[first] * 6 + [second] * 20,
+                ),
+                mock.patch.object(UPGRADE.time, "sleep") as sleep_mock,
+            ):
                 journal = UPGRADE.RunJournal("plan", ["plan"])
                 created = journal.bind_target_release("v2.0.0")
                 journal.set_outcome("NOT_APPLIED", "READY", "NOT_ALIGNED")

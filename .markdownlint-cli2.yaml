@@ -1,4 +1,6 @@
 ---
+gitignore: true
+
 config:
   default: true
   MD013:

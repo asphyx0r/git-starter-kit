@@ -17,16 +17,53 @@ name: Release package
         type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-package-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
-  package:
+  build:
     name: Build release package
     if: github.repository == 'asphyx0r/git-starter-kit'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      release_tag: ${{ steps.refs.outputs.starter_ref }}
+      package_name: ${{ steps.seal.outputs.package_name }}
+      toolkit_name: ${{ steps.seal.outputs.toolkit_name }}
+      package_sha256: ${{ steps.seal.outputs.package_sha256 }}
+      toolkit_sha256: ${{ steps.seal.outputs.toolkit_sha256 }}
 
     steps:
+      - name: Checkout release tag
+        # actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+
+      - name: Set up Python
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        # actions/setup-node@v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.20.0"
+
+      - name: Install locked quality dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes -r tools/quality/requirements.lock
+          npm ci --ignore-scripts --prefix tools/quality
+
       - name: Resolve release inputs
         id: refs
         shell: bash
@@ -64,22 +101,15 @@ jobs:
           fi
 
           if [ "$agent_rules_ref" != "latest" ] &&
-             ! [[ "$agent_rules_ref" =~ $semver_tag_pattern ]]; then
+            ! [[ "$agent_rules_ref" =~ $semver_tag_pattern ]]; then
             message="agent_rules_ref must be latest or a SemVer tag"
             message+=" prefixed with v."
             echo "$message" >&2
             exit 1
           fi
 
-          echo "starter_ref=$starter_ref" >> "$GITHUB_OUTPUT"
-          echo "agent_rules_ref=$agent_rules_ref" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout release tag
-        # actions/checkout@v7.0.0
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
-          ref: ${{ steps.refs.outputs.starter_ref }}
+          echo "starter_ref=$starter_ref" >>"$GITHUB_OUTPUT"
+          echo "agent_rules_ref=$agent_rules_ref" >>"$GITHUB_OUTPUT"
 
       - name: Build package
         id: package
@@ -87,11 +117,14 @@ jobs:
         env:
           REPOSITORY_REF: ${{ steps.refs.outputs.starter_ref }}
           AGENT_RULES_REF: ${{ steps.refs.outputs.agent_rules_ref }}
+          PACKAGE_NAME: git-starter-kit-${{ steps.refs.outputs.starter_ref }}-with-agent-rules.zip
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           ./tools/build-release-package.ps1 `
             -RepositoryRef $env:REPOSITORY_REF `
             -AgentRulesRef $env:AGENT_RULES_REF `
-            -OutputDirectory $env:RUNNER_TEMP
+            -OutputDirectory $env:RUNNER_TEMP `
+            -PackageName $env:PACKAGE_NAME
 
       - name: Validate composed package
         shell: bash
@@ -102,16 +135,11 @@ jobs:
           mkdir -p "$validation_root"
           python -m zipfile -e "$PACKAGE_PATH" "$validation_root"
           cd "$validation_root"
-          NPM_CONFIG_IGNORE_SCRIPTS=true \
-            npx --yes markdownlint-cli2@0.22.1 "**/*.md"
-          python -m pip install \
-            --disable-pip-version-check \
-            --no-input \
-            codespell==2.4.2
-          codespell .
+          "$GITHUB_WORKSPACE/tools/quality/node_modules/.bin/markdownlint-cli2" \
+            --config .markdownlint-cli2.yaml "**/*.md"
+          python -m codespell --config .codespellrc .
 
       - name: Build upgrade toolkit
-        if: github.repository == 'asphyx0r/git-starter-kit'
         id: toolkit
         shell: bash
         env:
@@ -123,46 +151,176 @@ jobs:
           python tools/starter-kit-upgrade.py toolkit \
             --new-package "$PACKAGE_PATH" \
             --output "$toolkit_path"
-          echo "toolkit_path=$toolkit_path" >> "$GITHUB_OUTPUT"
+          echo "toolkit_path=$toolkit_path" >>"$GITHUB_OUTPUT"
 
-      - name: Upload release package
+      - name: Seal release payload
+        id: seal
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
           PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
-          STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
-        run: >-
-          gh release upload "$STARTER_REF"
-          "$PACKAGE_PATH"
-
-      - name: Upload starter upgrade toolkit
-        if: github.repository == 'asphyx0r/git-starter-kit'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
           TOOLKIT_PATH: ${{ steps.toolkit.outputs.toolkit_path }}
-          STARTER_REF: ${{ steps.refs.outputs.starter_ref }}
-        run: >-
-          gh release upload "$STARTER_REF"
-          "$TOOLKIT_PATH"
+          RELEASE_TAG: ${{ steps.refs.outputs.starter_ref }}
+          TRANSFER_ROOT: ${{ runner.temp }}/release-package-transfer
+          EXPECTED_SUMS_PATH: ${{ runner.temp }}/release-package-build-expected-sha256s
+        run: |
+          set -euo pipefail
 
-  promote:
-    name: Promote validated release
-    needs: package
-    if: >-
-      github.repository == 'asphyx0r/git-starter-kit' &&
-      github.event_name == 'release' &&
-      github.event.release.prerelease
+          if [ -e "$TRANSFER_ROOT" ]; then
+            echo "Release payload transfer path already exists." >&2
+            exit 1
+          fi
+          mkdir "$TRANSFER_ROOT"
+
+          package_name="git-starter-kit-${RELEASE_TAG}-with-agent-rules.zip"
+          toolkit_name="git-starter-kit-${RELEASE_TAG}-upgrade-toolkit.zip"
+          if [ "$(basename "$PACKAGE_PATH")" != "$package_name" ] ||
+            [ "$(basename "$TOOLKIT_PATH")" != "$toolkit_name" ]; then
+            echo "Release payload filenames do not match the validated tag." >&2
+            exit 1
+          fi
+
+          cp -- "$PACKAGE_PATH" "$TRANSFER_ROOT/$package_name"
+          cp -- "$TOOLKIT_PATH" "$TRANSFER_ROOT/$toolkit_name"
+          package_sha256="$(sha256sum "$TRANSFER_ROOT/$package_name" | cut -d' ' -f1)"
+          toolkit_sha256="$(sha256sum "$TRANSFER_ROOT/$toolkit_name" | cut -d' ' -f1)"
+          printf '%s  %s\n%s  %s\n' \
+            "$package_sha256" "$package_name" \
+            "$toolkit_sha256" "$toolkit_name" \
+            >"$TRANSFER_ROOT/SHA256SUMS"
+          printf '%s  %s\n%s  %s\n' \
+            "$package_sha256" "$package_name" \
+            "$toolkit_sha256" "$toolkit_name" \
+            >"$EXPECTED_SUMS_PATH"
+
+          python - "$TRANSFER_ROOT" \
+            "$package_name" "$toolkit_name" <<'PY'
+          import os
+          from pathlib import Path
+          import stat
+          import sys
+
+          root = Path(sys.argv[1])
+          allowed = {sys.argv[2], sys.argv[3], "SHA256SUMS"}
+          entries = list(os.scandir(root))
+          if len(entries) != 3 or {entry.name for entry in entries} != allowed:
+              raise SystemExit("Release payload must contain exactly three named files.")
+          for entry in entries:
+              mode = entry.stat(follow_symlinks=False).st_mode
+              if entry.is_symlink() or not stat.S_ISREG(mode):
+                  raise SystemExit(f"Release payload entry is not regular: {entry.name}")
+          PY
+          if ! cmp -s "$EXPECTED_SUMS_PATH" "$TRANSFER_ROOT/SHA256SUMS"; then
+            echo "Release payload checksum manifest changed." >&2
+            exit 1
+          fi
+          (
+            cd "$TRANSFER_ROOT"
+            sha256sum --check --strict SHA256SUMS
+          )
+
+          {
+            echo "package_name=$package_name"
+            echo "toolkit_name=$toolkit_name"
+            echo "package_sha256=$package_sha256"
+            echo "toolkit_sha256=$toolkit_sha256"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Upload sealed release payload
+        # actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-package-${{ steps.refs.outputs.starter_ref }}
+          path: |
+            ${{ runner.temp }}/release-package-transfer/${{ steps.seal.outputs.package_name }}
+            ${{ runner.temp }}/release-package-transfer/${{ steps.seal.outputs.toolkit_name }}
+            ${{ runner.temp }}/release-package-transfer/SHA256SUMS
+          if-no-files-found: error
+
+  publish:
+    name: Publish release package
+    needs: build
+    if: github.repository == 'asphyx0r/git-starter-kit'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: write
 
     steps:
-      - name: Promote release
+      - name: Download sealed release payload
+        # actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: release-package-${{ needs.build.outputs.release_tag }}
+          path: ${{ runner.temp }}/release-package-publish
+
+      - name: Verify sealed release payload
+        id: verify
+        shell: bash
+        env:
+          TRANSFER_ROOT: ${{ runner.temp }}/release-package-publish
+          EXPECTED_PACKAGE_NAME: ${{ needs.build.outputs.package_name }}
+          EXPECTED_TOOLKIT_NAME: ${{ needs.build.outputs.toolkit_name }}
+          EXPECTED_PACKAGE_SHA256: ${{ needs.build.outputs.package_sha256 }}
+          EXPECTED_TOOLKIT_SHA256: ${{ needs.build.outputs.toolkit_sha256 }}
+          EXPECTED_SUMS_PATH: ${{ runner.temp }}/release-package-publish-expected-sha256s
+        run: |
+          set -euo pipefail
+
+          python - "$TRANSFER_ROOT" \
+            "$EXPECTED_PACKAGE_NAME" "$EXPECTED_TOOLKIT_NAME" <<'PY'
+          import os
+          from pathlib import Path
+          import stat
+          import sys
+
+          root = Path(sys.argv[1])
+          allowed = {sys.argv[2], sys.argv[3], "SHA256SUMS"}
+          entries = list(os.scandir(root))
+          if len(entries) != 3 or {entry.name for entry in entries} != allowed:
+              raise SystemExit("Release payload must contain exactly three named files.")
+          for entry in entries:
+              mode = entry.stat(follow_symlinks=False).st_mode
+              if entry.is_symlink() or not stat.S_ISREG(mode):
+                  raise SystemExit(f"Release payload entry is not regular: {entry.name}")
+          PY
+          printf '%s  %s\n%s  %s\n' \
+            "$EXPECTED_PACKAGE_SHA256" "$EXPECTED_PACKAGE_NAME" \
+            "$EXPECTED_TOOLKIT_SHA256" "$EXPECTED_TOOLKIT_NAME" \
+            >"$EXPECTED_SUMS_PATH"
+          if ! cmp -s "$EXPECTED_SUMS_PATH" "$TRANSFER_ROOT/SHA256SUMS"; then
+            echo "Release payload checksum manifest changed." >&2
+            exit 1
+          fi
+          (
+            cd "$TRANSFER_ROOT"
+            sha256sum --check --strict SHA256SUMS
+          )
+
+      - name: Publish release assets
+        id: publish
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: >-
-          gh release edit "$RELEASE_TAG" --repo "$REPOSITORY"
-          --prerelease=false --latest
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+          TRANSFER_ROOT: ${{ runner.temp }}/release-package-publish
+          PACKAGE_NAME: ${{ needs.build.outputs.package_name }}
+          TOOLKIT_NAME: ${{ needs.build.outputs.toolkit_name }}
+        run: |
+          set -euo pipefail
+
+          gh release upload "$RELEASE_TAG" \
+            "$TRANSFER_ROOT/$PACKAGE_NAME" \
+            "$TRANSFER_ROOT/$TOOLKIT_NAME" \
+            "$TRANSFER_ROOT/SHA256SUMS" \
+            --repo "$GH_REPO"
+
+          if [[ "$EVENT_NAME" = "release" && "$PRERELEASE" = "true" ]]; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GH_REPO" \
+              --prerelease=false \
+              --latest
+          fi

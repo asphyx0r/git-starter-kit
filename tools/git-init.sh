@@ -375,6 +375,7 @@ commit_message_file="$(
 printf '%s\n' "$commit_message" >"$commit_message_file"
 
 run_git init "$target_path" >/dev/null
+run_git -C "$target_path" config core.hooksPath .githooks
 
 if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
   fail "Tag already exists in target repository: $tag"

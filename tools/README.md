@@ -171,6 +171,8 @@ Install the pinned validator first:
 
 ```bash
 python -m pip install \
+  --no-input \
+  --require-hashes \
   --requirement tools/release-artifacts-requirements.txt
 ```
 
@@ -378,6 +380,8 @@ from packages distributed to derived repositories.
 - Writes schema 3 `_starter-kit-files.json` with managed-file hashes, modes,
   upgrade strategies, and `starter-kit-state` handling.
 - Verifies required files before and after ZIP creation.
+- Builds and validates a sibling temporary ZIP before atomically publishing it;
+  a failed build, validation, or replacement preserves an existing destination.
 - Emits GitHub Actions outputs when `GITHUB_OUTPUT` is set.
 - Rejects every repository slug and `origin` except the canonical
   `asphyx0r/git-starter-kit` repository.
@@ -631,12 +635,13 @@ preserve `source`, replace `current` and `files`, and reject changes outside
 the expected source-only difference. The adoption manifest anchors the
 preserved source descriptor so a later local alteration is a conflict.
 
-Repository-specific inventories and operator documentation use the
-`initialize-only` strategy. The updater preserves `docs/SKILLS.md`,
-`docs/repository-files.md`, and `tools/README.md`
-because their contents legitimately diverge in downstream repositories. It
-also preserves `tools/repository-audit.sh`, whose checks must remain aligned
-with the target repository's own languages, tools, and tests.
+The distribution classifications are explicit. `.github/CODEOWNERS`, the
+release-package workflow, packaging and upgrade sources, their
+repository-specific tests, and package operator guides are source-only.
+`.github/dependabot.yml` is merge-managed, `tools/quality/` is replaced as one
+baseline, and the repository-audit dispatcher and modules are
+initialization-only. The updater therefore preserves downstream inventories,
+operator documentation, and repository-specific audit behavior.
 
 When an initialization-only file changed upstream, the plan reports
 `review-initialize-only` without blocking or writing the target. This makes
@@ -916,7 +921,8 @@ release skill before a tag and after the final atomic push. It prevents a green
 run for the same SHA from masking a failed required run on another ref. The
 caller resolves the exact `Repository audit` workflow ID, records the UTC time
 immediately before the corresponding push, and supplies every expected branch
-or tag with a separate `--ref` argument.
+or tag with a separate `--ref` argument. Every `gh api` subprocess receives at
+most 30 seconds and never more than the remaining global timeout.
 
 ### Usage/Examples
 
@@ -972,25 +978,93 @@ The tool requires Python 3, `gh`, authenticated read access to Actions, and a
 workflow ID resolved independently from the tracked workflow path. It never
 reruns or cancels a workflow. Treat every nonzero exit as a release blocker.
 
+## quality/check-versions.py
+
+`quality/check-versions.py` detects drift between `quality/versions.json` and
+the locked Python, Node, and quality-policy declarations. The default check is
+declarative: it validates the registry, requirements and package locks,
+integrity metadata, and the configured coverage threshold without installing,
+downloading, or modifying anything.
+
+### Synopsis
+
+```text
+usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime]
+```
+
+`--quality-root PATH` selects another quality configuration directory. The
+default is the script directory. `--runtime` additionally checks installed
+Python distributions, packages under `tools/quality/node_modules`, and the
+registry-owned external tools through bounded local version probes. It does
+not install missing tools.
+
+### Exit Status
+
+- `0`: every selected declaration and runtime check matched.
+- `1`: a declaration, policy, lock, integrity digest, or runtime version did
+  not match.
+- `2`: command-line argument parsing failed.
+
+## quality/install-external-tools.py
+
+`quality/install-external-tools.py` installs registry-pinned external quality
+tools for one supported runner platform. It uses only the Python standard
+library. `RUNNER_TEMP` must name an existing directory without symbolic links,
+and the new installation root must be strictly below it.
+
+### Synopsis
+
+```text
+usage: python tools/quality/install-external-tools.py \
+  --platform {linux-x64,windows-x64} \
+  --install-root PATH \
+  [--tool {actionlint,shfmt,PSScriptAnalyzer,shellcheck}]
+```
+
+Repeat `--tool` to select multiple compatible tools. When it is omitted, the
+installer selects every registry tool available for the chosen platform. It
+downloads only from credential-free HTTPS locations, verifies the declared
+SHA-256 digest before extraction, rejects unsafe archive layouts, stages all
+selected tools, and runs their exact version probes. The final installation
+root is published only after every probe succeeds.
+
+Selecting PSScriptAnalyzer, including through the default compatible-tool
+selection on either platform, requires `pwsh` with PowerShell 7.4.6 or newer.
+The installer stages and publishes to a new destination only below
+`RUNNER_TEMP` and does not invoke Git. Callers must keep `RUNNER_TEMP` and
+`--install-root` outside tracked repository content.
+
+### Exit Status
+
+- `0`: every selected tool was verified and installed.
+- `1`: registry, path, download, digest, archive, installation, or probe
+  validation failed.
+- `2`: command-line argument parsing failed.
+
 ## repository-audit.sh
 
 ### Features
 
-- Runs the shared local and CI repository audit suite.
-- Defaults to the full audit profile.
-- Supports an optional read-only profile and focused CI audit modes.
-- Checks Markdown, spelling, whitespace, shell scripts, PowerShell parsing,
-  YAML, workflows, secrets, cross-language SemVer pattern drift, Python backup
-  behavior, and commit messages.
+- Dispatches the shared local and CI audit suite through focused modules for
+  common services, contracts, hooks, security, smoke tests, and profiles.
+- Defaults to the exhaustive audit profile.
+- Maps `all`, `full`, and `static` to the same exhaustive profile without
+  repeating Markdown or spelling checks.
+- Provides a fast profile for declarations, Git whitespace and line endings,
+  Bash and Node syntax, Ruff, and Mypy, plus a focused PowerShell static check,
+  read-only checks, and the three Git-hook profiles.
+- Checks Markdown, spelling, whitespace, Bash, Python, PowerShell, YAML,
+  workflows, secret-scanner configuration, cross-language SemVer patterns,
+  release contracts, tests, coverage, and commit messages.
 - Resolves new-ref and stable-tag commit ranges from the highest reachable
   stable tag, including all reachable commits for a first release.
 - Exercises exact message-file commits through the forced `commit-msg` hook in
   isolated temporary repositories.
-- Bootstraps pinned tools and exercises mutating smoke cases only in full
-  profiles.
+- Uses installed, registry-pinned dependencies and never installs Python,
+  Node, or external tools from an audit profile.
 - Uses WSL-aware temporary paths when Windows PowerShell is invoked from WSL.
-- Uses the native `npx.cmd` launcher under Git Bash on Windows so Node-based
-  checks never fall through to the WSL Bash launcher.
+- Resolves repository-local Node package executables before commands on
+  `PATH`.
 
 ### Synopsis
 
@@ -998,35 +1072,80 @@ reruns or cancels a workflow. Treat every nonzero exit as a release blocker.
 usage: bash tools/repository-audit.sh [mode]
 
 modes:
-  all       run markdown, spelling, static, and smoke checks, default
-  full      alias for all
-  readonly  run non-mutating checks with installed tools
-  markdown  run Markdown lint only
-  spelling  run Codespell only
-  static    run static checks and script smoke tests only
-  -h        show help
-  --help    show help
-  help      show help
+  all                run the exhaustive profile, default
+  full               alias for all
+  static             alias for all
+  readonly           run installed-tool read-only checks without smoke tests
+  markdown           run Markdown lint only
+  spelling           run Codespell only
+  fast               run declaration and fast static checks
+  powershell-static  run PSScriptAnalyzer on tracked .ps1 files
+  hook-pre-commit    validate staged content for pre-commit
+  hook-commit-msg    validate one commit-message file
+  hook-pre-push      validate affected pushed objects and release tags
+  -h, --help, help   show help
 ```
 
 ### Description
 
-`repository-audit.sh` is the source of truth for repository validation. Its
-default `all` mode and the explicit `full` alias run Markdown lint, spelling
-checks, and static checks. The `static` mode includes Git whitespace checks,
-Bash syntax checks, ShellCheck, PowerShell parsing, SemVer pattern drift
-checks, script smoke tests, Node syntax checks, and commitlint validation for
-every commit in the resolved push or release range. A zero `before` SHA uses
-the highest reachable stable tag, excluding the tag currently being audited;
-without an earlier stable tag, all reachable commits are checked.
+`repository-audit.sh` is the thin source-of-truth dispatcher. It loads
+`common.sh`, `contracts.sh`, `hooks.sh`, `security.sh`, `smoke.sh`, and
+`profiles.sh` from `tools/repository-audit/`; those modules own the checks and
+profile composition.
 
-Static smoke checks install the pinned release-manifest validator in temporary
-storage and run the release artifact unit tests and CLI checks.
+The default `all` mode, `full`, and `static` all execute one exhaustive
+profile. It includes the declaration and runtime version gate, Markdown,
+spelling, YAML and workflow checks, language-specific static analysis,
+contracts, coverage, behavior tests, smoke tests, and commit-range validation.
+A zero `before` SHA uses the highest reachable stable tag, excluding the tag
+currently being audited; without an earlier stable tag, all reachable commits
+are checked.
 
-The optional `readonly` mode uses only installed tools, disables optional Git
-locks, and does not install packages, access the network, create temporary
-files, or run mutating smoke tests. GitHub Actions calls explicit focused
-modes.
+`fast` validates declarations, Git whitespace and line endings, Bash and Node
+syntax, Ruff, and Mypy. It intentionally omits runtime version checks,
+PSScriptAnalyzer, coverage, behavior tests, and smoke tests.
+`powershell-static` runs PSScriptAnalyzer against tracked `.ps1` files.
+`readonly` uses installed tools, disables optional Git locks, and avoids
+network access, temporary files, and mutating smoke tests.
+
+The hook profiles expose the same implementation used by `.githooks`.
+`hook-pre-commit` checks relevant staged files from an isolated index snapshot.
+`hook-commit-msg MESSAGE_FILE` validates the message file named by its required
+positional argument. `hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
+`LOCAL_REF LOCAL_OBJECT_ID REMOTE_REF REMOTE_OBJECT_ID` quadruplets from
+standard input, runs affected test families from the exact pushed objects with
+a 180-second timeout per selected family, and validates new SemVer release tags.
+
+### Prerequisites
+
+Install the locked Python and Node dependencies before running an exhaustive
+profile:
+
+```bash
+python -m pip install \
+  --disable-pip-version-check \
+  --no-input \
+  --require-hashes \
+  --requirement tools/quality/requirements.lock
+npm ci --ignore-scripts --prefix tools/quality
+```
+
+The external versions declared in `tools/quality/versions.json` must also be
+installed. Audit profiles never run these installation commands or download
+tools. Smoke tests require the locked `jsonschema` package and stop with the
+installation command when it is absent.
+
+In GitHub Actions, each isolated quality job installs the Python and npm locks
+once and invokes the external-tool installer once for the tools compatible with
+its platform. The workflow uses no generic dependency cache and no Go setup or
+dynamic `go install`; every external binary or module comes from the registry
+entry whose HTTPS artifact digest and runtime probe were validated.
+
+Only the exhaustive profile's release-package smoke test uses network access.
+It requests `releases/latest` metadata for `asphyx0r/agent-coding-rules` from
+the GitHub API and includes `GITHUB_TOKEN` when that environment variable is
+set. It does not download release assets or dependencies. The other checks
+consume local repository content and installed dependencies.
 
 ### Usage/Examples
 
@@ -1060,25 +1179,43 @@ Run static checks and smoke tests:
 bash tools/repository-audit.sh static
 ```
 
+Run the fast declaration and static subset:
+
+```bash
+bash tools/repository-audit.sh fast
+```
+
+Run PSScriptAnalyzer against tracked PowerShell scripts:
+
+```bash
+bash tools/repository-audit.sh powershell-static
+```
+
 ### Options
 
-- `all`: runs Markdown, spelling, static, and smoke checks. This is the default
-  when no mode is provided.
-- `full`: alias for `all`.
+- `all`, `full`, `static`: run the same exhaustive profile. `all` is the
+  default when no mode is provided.
 - `readonly`: runs non-mutating checks with installed tools.
 - `markdown`: runs `markdownlint-cli2` against repository Markdown files.
 - `spelling`: runs Codespell with the repository configuration.
-- `static`: runs Git whitespace checks, Bash and ShellCheck checks,
-  PowerShell parsing, SemVer drift checks, Python backup and release-artifact
-  tests, script smoke tests, exact commit-message fixtures, Node syntax checks,
-  and commitlint checks.
+- `fast`: runs declaration checks and the fast static subset without runtime
+  probes, PSScriptAnalyzer, or coverage.
+- `powershell-static`: runs PSScriptAnalyzer on tracked `.ps1` files.
+- `hook-pre-commit`: validates relevant staged files.
+- `hook-commit-msg MESSAGE_FILE`: validates the required commit-message file.
+- `hook-pre-push [REMOTE_NAME REMOTE_URL]`: reads Git push-update quadruplets
+  from standard input and validates the affected pushed objects and release
+  tags.
 - `-h`, `--help`, `help`: prints usage information, then exits.
 
 ### Exit Status
 
 - `0`: the selected audit mode passed, or help was shown.
-- `1`: an unknown mode was provided, a required command was missing, a
-  validation check failed, a smoke test failed, or a bootstrapped tool failed.
+- Any nonzero status: an unknown mode, missing prerequisite, version mismatch,
+  validation, test, smoke check, or hook signal failed. The dispatcher
+  propagates the failing check's status; signal-aware hook profiles return
+  `129`, `130`, or `143` for `HUP`, `INT`, or `TERM`, respectively. A timed-out
+  pre-push test family returns `124`.
 
 ### Appendix
 
@@ -1091,19 +1228,13 @@ for push, pull request, and published-release runs. Its manual counterpart has
 the distinct name `Repository audit (manual)` so a manual success cannot
 replace a failed automatic run for branch protection or release validation.
 
-The full audit needs local tools such as `git`, `bash`, `shellcheck`, a
-PowerShell command, `python`, `node`, and `npx`. It also needs network access
-to npm for Markdown lint bootstrapping, PyPI for Codespell and JSON Schema
-validator bootstrapping, and GitHub for the latest `agent-coding-rules` release
-used in release package smoke checks.
-
-On Windows, run the audit with Git Bash. The script resolves Node package
-execution through `npx.cmd`; if that native launcher is unavailable, it stops
-with a missing-command error instead of invoking a WSL-backed `npx` shim.
+The exhaustive audit needs local tools such as `git`, `bash`, `shellcheck`,
+`shfmt`, `actionlint`, a PowerShell command, `python`, and `node`, plus the
+locked Python and Node dependencies. On Windows, run the audit with Git Bash.
 
 Use focused modes while diagnosing failures. For example, `markdown` and
-`spelling` isolate documentation issues, while `static` isolates script,
-configuration, and smoke-test behavior.
+`spelling` isolate documentation issues, while `fast` isolates declarative and
+fast static checks.
 
 On Windows, Codex may repeatedly create Git processes while a repository is
 open, as tracked in

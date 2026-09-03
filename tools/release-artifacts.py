@@ -13,7 +13,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal, overload
 
 VERSION = "1.0.0"
 VERSION_PATH = "VERSION"
@@ -33,13 +33,19 @@ SEMVER_TAG_PATTERN = re.compile(
 SEMVER_PATTERN = re.compile("^" + SEMVER_TAG_PATTERN.pattern[2:])
 UTC_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 PLACEHOLDER_PATTERN = re.compile(r"^\{\{([A-Za-z0-9:-]+)\}\}$")
-RAW_PLACEHOLDER_PATTERN = re.compile(
-    r'(?<!")\{\{([A-Za-z0-9:-]+)\}\}(?!")'
-)
+RAW_PLACEHOLDER_PATTERN = re.compile(r'(?<!")\{\{([A-Za-z0-9:-]+)\}\}(?!")')
 
 
 class ReleaseArtifactError(RuntimeError):
     """Raised when release artifacts cannot be prepared or validated."""
+
+
+@overload
+def run_git(root: Path, *arguments: str, binary: Literal[False] = False) -> str: ...
+
+
+@overload
+def run_git(root: Path, *arguments: str, binary: Literal[True]) -> bytes: ...
 
 
 def run_git(root: Path, *arguments: str, binary: bool = False) -> str | bytes:
@@ -51,9 +57,7 @@ def run_git(root: Path, *arguments: str, binary: bool = False) -> str | bytes:
     )
     if result.returncode != 0:
         stderr = (
-            result.stderr.decode("utf-8", errors="replace")
-            if binary
-            else result.stderr
+            result.stderr.decode("utf-8", errors="replace") if binary else result.stderr
         )
         raise ReleaseArtifactError(
             f"git {' '.join(arguments)} failed: {stderr.strip()}"
@@ -65,9 +69,7 @@ def require_repository_root(value: Path) -> Path:
     root = value.resolve()
     if not root.is_dir():
         raise ReleaseArtifactError(f"Repository root does not exist: {root}")
-    actual = Path(
-        str(run_git(root, "rev-parse", "--show-toplevel")).strip()
-    ).resolve()
+    actual = Path(str(run_git(root, "rev-parse", "--show-toplevel")).strip()).resolve()
     if actual != root:
         raise ReleaseArtifactError(f"Repository root must be the Git root: {root}")
     return root
@@ -370,7 +372,9 @@ def build_manifest(
     )
     artifacts = template.get("artifacts")
     if not isinstance(artifacts, list) or len(artifacts) != 1:
-        raise ReleaseArtifactError("manifest template must define one artifact prototype")
+        raise ReleaseArtifactError(
+            "manifest template must define one artifact prototype"
+        )
     artifact_template = artifacts[0]
     if not isinstance(artifact_template, dict):
         raise ReleaseArtifactError("artifact prototype must be an object")
@@ -389,25 +393,19 @@ def build_manifest(
         "minimum-upgradable-source-semver-number": metadata["update"].get(
             "min_source_version"
         ),
-        "update-strategy-patch-or-full-reinstall": metadata["update"].get(
-            "strategy"
-        ),
+        "update-strategy-patch-or-full-reinstall": metadata["update"].get("strategy"),
         "preserve-paths-json-array": metadata["update"].get("preserve_paths"),
         "remove-obsolete-files-boolean": metadata["update"].get(
             "remove_obsolete_files"
         ),
         "backup-required-boolean": metadata["update"].get("backup_required"),
         "restart-required-boolean": metadata["update"].get("restart_required"),
-        "rollback-supported-boolean": metadata["update"].get(
-            "rollback_supported"
-        ),
+        "rollback-supported-boolean": metadata["update"].get("rollback_supported"),
         "migrations-json-array": metadata["update"].get("migrations"),
         "artifact-id": metadata["artifact"]["id"],
         "target-os": metadata["artifact"]["target"]["os"],
         "target-architecture": metadata["artifact"]["target"]["arch"],
-        "target-minimum-os-version": metadata["artifact"]["target"][
-            "min_os_version"
-        ],
+        "target-minimum-os-version": metadata["artifact"]["target"]["min_os_version"],
         "artifact-archive-type": "git-tree",
         "artifact-total-files": len(files),
         "artifact-size-in-bytes": sum(item["size_bytes"] for item in files),
@@ -453,7 +451,7 @@ def validate_schema(
     schema_content: bytes | None = None,
 ) -> None:
     try:
-        from jsonschema import Draft202012Validator, FormatChecker
+        from jsonschema import Draft202012Validator, FormatChecker  # type: ignore[import-untyped]
     except ImportError as error:
         raise ReleaseArtifactError(
             "jsonschema is required; install tools/release-artifacts-requirements.txt"
@@ -476,19 +474,14 @@ def validate_schema(
         ) from error
     if errors:
         details = "; ".join(
-            f"{'/'.join(str(part) for part in error.path) or '<root>'}: "
-            f"{error.message}"
+            f"{'/'.join(str(part) for part in error.path) or '<root>'}: {error.message}"
             for error in errors
         )
-        raise ReleaseArtifactError(
-            f"Manifest does not match the schema: {details}"
-        )
+        raise ReleaseArtifactError(f"Manifest does not match the schema: {details}")
 
 
 def manifest_bytes(manifest: dict[str, Any]) -> bytes:
-    return (json.dumps(manifest, ensure_ascii=False, indent=4) + "\n").encode(
-        "utf-8"
-    )
+    return (json.dumps(manifest, ensure_ascii=False, indent=4) + "\n").encode("utf-8")
 
 
 def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
@@ -518,7 +511,9 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
                 target.unlink(missing_ok=True)
             else:
                 target.write_bytes(old_content)
-        raise ReleaseArtifactError(f"Unable to write release artifacts: {error}") from error
+        raise ReleaseArtifactError(
+            f"Unable to write release artifacts: {error}"
+        ) from error
     finally:
         for path in temporary.values():
             path.unlink(missing_ok=True)
@@ -590,7 +585,9 @@ def check_artifacts(args: argparse.Namespace) -> int:
     entries = git_entries(root, requested_treeish)
     manifest_entry = entries.get(MANIFEST_PATH)
     if manifest_entry is None:
-        raise ReleaseArtifactError("selected Git content does not contain manifest.json")
+        raise ReleaseArtifactError(
+            "selected Git content does not contain manifest.json"
+        )
     try:
         manifest = json.loads(manifest_entry[1].decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -708,9 +705,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.verbose:
-            print(
-                f"Repository root: {args.repository_root.resolve()}", file=sys.stderr
-            )
+            print(f"Repository root: {args.repository_root.resolve()}", file=sys.stderr)
         if args.command == "prepare":
             return prepare_artifacts(args)
         return check_artifacts(args)

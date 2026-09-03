@@ -9,7 +9,7 @@ import unittest
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, gettempdir
 from unittest import mock
 
 SCRIPT_PATH = (
@@ -18,7 +18,9 @@ SCRIPT_PATH = (
 
 
 def load_script_module():
-    spec = importlib.util.spec_from_file_location("backup_target_directory", SCRIPT_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "backup_target_directory", SCRIPT_PATH
+    )
     module = importlib.util.module_from_spec(spec)
     if spec.loader is None:
         raise RuntimeError("Unable to load backup-target-directory.py.")
@@ -268,8 +270,7 @@ class BackupTargetDirectoryTest(unittest.TestCase):
             self.assertIn("[INFO ] Using source directory:", output)
             self.assertIn("[INFO ] Using target directory:", output)
             self.assertIn(
-                "source-with-spaces-20260718-125229-"
-                "000000000000-v0.0.0.zip",
+                "source-with-spaces-20260718-125229-000000000000-v0.0.0.zip",
                 output,
             )
             self.assertIn("[INFO ] Dry run completed without modifying data.", output)
@@ -291,6 +292,145 @@ class BackupTargetDirectoryTest(unittest.TestCase):
         )
         option_positions = [help_output.index(line) for line in option_lines]
         self.assertEqual(option_positions, sorted(option_positions))
+
+    def test_missing_cli_arguments_report_usage_on_stdout(self) -> None:
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = self.script.main([])
+
+        self.assertEqual(code, 2)
+        self.assertIn("usage: backup-target-directory.py", output.getvalue())
+        self.assertIn("the following arguments are required", output.getvalue())
+
+    def test_missing_source_is_reported_without_writing_target(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            missing_source = temp_path / "missing-source"
+            target = temp_path / "target"
+            target.mkdir()
+
+            code, output = self.run_cli(
+                "--source-directory",
+                str(missing_source),
+                "--target-directory",
+                str(target),
+            )
+
+            self.assertEqual(code, 1)
+            self.assertIn(
+                f"[FATAL] Source directory does not exist: {missing_source}",
+                output,
+            )
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_target_file_is_reported_without_modifying_it(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / "source"
+            target_file = temp_path / "target.txt"
+            source.mkdir()
+            target_file.write_bytes(b"original\n")
+
+            code, output = self.run_cli(
+                "--source-directory",
+                str(source),
+                "--target-directory",
+                str(target_file),
+            )
+
+            self.assertEqual(code, 1)
+            self.assertIn(
+                f"[FATAL] Target directory is not a directory: {target_file}",
+                output,
+            )
+            self.assertEqual(target_file.read_bytes(), b"original\n")
+
+    def test_linux_root_is_rejected_before_path_validation(self) -> None:
+        with (
+            mock.patch.object(self.script.sys, "platform", "linux"),
+            mock.patch.object(
+                self.script.os,
+                "geteuid",
+                return_value=0,
+                create=True,
+            ),
+            self.assertRaisesRegex(
+                self.script.BackupError,
+                "This script must not run as root on Linux",
+            ),
+        ):
+            self.script.run_backup(
+                Path("missing-source"),
+                Path("missing-target"),
+                None,
+                False,
+                self.script.Logger(False, io.StringIO()),
+            )
+
+    def test_archive_name_rejects_source_without_ascii_characters(self) -> None:
+        with self.assertRaisesRegex(
+            self.script.BackupError,
+            "Source directory name cannot be used in an archive name",
+        ):
+            self.script.build_archive_name(
+                "\u65e5\u672c\u8a9e",
+                "20260718-125229",
+                "ac42ebea5d4a",
+                "v1.0.0",
+            )
+
+    def test_dry_run_without_buffer_uses_system_temp_directory(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / "source"
+            target = temp_path / "target"
+            source.mkdir()
+            target.mkdir()
+
+            code, output = self.run_cli(
+                "--dry-run",
+                "--verbose",
+                "--source-directory",
+                str(source),
+                "--target-directory",
+                str(target),
+            )
+
+            expected_parent = Path(gettempdir()).resolve(strict=True)
+            self.assertEqual(code, 0)
+            self.assertIn("[DEBUG] Validating source and target directories.", output)
+            self.assertIn(f"[INFO ] Using staging parent: {expected_parent}", output)
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_invalid_optional_buffers_warn_and_use_system_temp(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / "source"
+            missing_buffer = temp_path / "missing-buffer"
+            buffer_file = temp_path / "buffer.txt"
+            nested_buffer = source / "buffer"
+            source.mkdir()
+            buffer_file.write_text("not a directory\n", encoding="utf-8")
+            nested_buffer.mkdir()
+            expected_parent = Path(gettempdir()).resolve(strict=True)
+            scenarios = (
+                (missing_buffer, "Buffer directory does not exist"),
+                (buffer_file, "Buffer path is not a directory"),
+                (nested_buffer, "Buffer directory is inside source"),
+            )
+
+            for buffer_path, warning in scenarios:
+                with self.subTest(buffer_path=buffer_path):
+                    output = io.StringIO()
+                    selected = self.script.select_buffer_parent(
+                        source,
+                        buffer_path,
+                        self.script.Logger(False, output),
+                    )
+
+                    self.assertEqual(selected, expected_parent)
+                    self.assertIn(f"[WARN ] {warning}", output.getvalue())
 
     def test_target_directory_inside_source_is_rejected(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -328,10 +468,7 @@ class BackupTargetDirectoryTest(unittest.TestCase):
             target.mkdir()
             buffer_directory.mkdir()
 
-            archive_path = (
-                target
-                / "source-20260718-125229-ac42ebea5d4a-v1.0.0.zip"
-            )
+            archive_path = target / "source-20260718-125229-ac42ebea5d4a-v1.0.0.zip"
             archive_path.write_bytes(b"existing archive")
 
             with mock.patch.object(
@@ -516,13 +653,98 @@ class BackupTargetDirectoryTest(unittest.TestCase):
                         )
 
             archive_path = (
-                target
-                / "source-project-20260718-125229-"
-                "ac42ebea5d4a-v1.0.0.zip"
+                target / "source-project-20260718-125229-ac42ebea5d4a-v1.0.0.zip"
             )
             self.assertTrue(archive_path.is_file())
             with zipfile.ZipFile(archive_path) as archive:
                 self.assertIn("Source Project/data.txt", archive.namelist())
+
+    def test_archive_writer_traverses_staging_tree_once_with_stable_contents(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            staged_source = temp_path / "source"
+            nested_directory = staged_source / "nested"
+            nested_directory.mkdir(parents=True)
+            (staged_source / "root.txt").write_bytes(b"root\n")
+            (nested_directory / "child.txt").write_bytes(b"child\n")
+            archive_path = temp_path / "backup.zip"
+            calls = []
+            original_rglob = Path.rglob
+
+            def track_rglob(path: Path, pattern: str):
+                calls.append((path, pattern))
+                return original_rglob(path, pattern)
+
+            with mock.patch.object(Path, "rglob", track_rglob):
+                self.script.write_zip_from_staged_tree(staged_source, archive_path)
+
+            self.assertEqual(calls, [(staged_source, "*")])
+            with zipfile.ZipFile(archive_path) as archive:
+                self.assertEqual(
+                    archive.namelist(),
+                    [
+                        "source/",
+                        "source/nested/",
+                        "source/nested/child.txt",
+                        "source/root.txt",
+                    ],
+                )
+                self.assertEqual(archive.read("source/root.txt"), b"root\n")
+                self.assertEqual(
+                    archive.read("source/nested/child.txt"),
+                    b"child\n",
+                )
+
+    def test_archive_publication_race_preserves_concurrent_destination(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            staged_source = temp_path / "source"
+            staged_source.mkdir()
+            (staged_source / "data.txt").write_bytes(b"new backup\n")
+            archive_path = temp_path / "backup.zip"
+            concurrent_contents = b"concurrent archive\n"
+            original_link = self.script.os.link
+            original_replace = Path.replace
+
+            def link_after_concurrent_create(source: Path, target: Path) -> None:
+                self.assertTrue(source.is_file())
+                target.write_bytes(concurrent_contents)
+                original_link(source, target)
+
+            def replace_after_concurrent_create(
+                source: Path,
+                target: Path,
+            ) -> Path:
+                self.assertTrue(source.is_file())
+                target.write_bytes(concurrent_contents)
+                return original_replace(source, target)
+
+            with (
+                mock.patch.object(
+                    self.script.os,
+                    "link",
+                    side_effect=link_after_concurrent_create,
+                ),
+                mock.patch.object(
+                    Path,
+                    "replace",
+                    autospec=True,
+                    side_effect=replace_after_concurrent_create,
+                ),
+                self.assertRaisesRegex(
+                    self.script.BackupError,
+                    "Target archive already exists",
+                ),
+            ):
+                self.script.create_archive(staged_source, archive_path)
+
+            self.assertEqual(archive_path.read_bytes(), concurrent_contents)
+            self.assertEqual(
+                sorted(path.name for path in temp_path.iterdir()),
+                ["backup.zip", "source"],
+            )
 
     @unittest.skipUnless(shutil.which("git"), "Git is required for this test.")
     def test_backup_of_git_repository_is_complete_and_readable(self) -> None:
@@ -578,10 +800,7 @@ class BackupTargetDirectoryTest(unittest.TestCase):
                         self.script.Logger(False, io.StringIO()),
                     )
 
-            archive_path = (
-                target
-                / f"repository-20260718-125229-{head}-v1.2.3.zip"
-            )
+            archive_path = target / f"repository-20260718-125229-{head}-v1.2.3.zip"
             self.assertTrue(archive_path.is_file())
             with zipfile.ZipFile(archive_path) as archive:
                 self.assertIsNone(archive.testzip())

@@ -9,7 +9,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
   storage, caches, and build outputs.
 - Commit message guidance with a reusable Git commit template, strict scoped
   Commitlint rules, and blocking validation for guarded commits.
-- Versioned staged Markdown and YAML pre-commit hook.
+- Versioned staged-only pre-commit, commit-message, and affected-test pre-push
+  hooks.
 - Lightweight spelling configuration for documentation and repository files.
 - Strict, byte-identical Betterleaks and Gitleaks rules for credential
   assignments, authorization headers, and service URI passwords.
@@ -23,8 +24,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
   contributing, code of conduct, security, support, environment, Git, Codex,
   skill documentation, and release notes files.
 - GitHub community files for pull requests, issues, conduct, and support.
-- GitHub Actions workflow for lightweight Markdown, spelling, commit message,
-  script, and configuration audits.
+- GitHub Actions quality checks for Ubuntu with Python 3.11 and Windows with
+  Python 3.14, published through one aggregate required check.
 - Per-repository scheduled workflow that proposes canonical agent-rule updates
   through a repository-local pull request.
 - Shared local and CI repository audit script for release readiness checks.
@@ -57,16 +58,15 @@ git config commit.template .gitmessage
 git config core.hooksPath .githooks
 ```
 
-The optional pre-commit hook checks staged `*.md` files with
-`markdownlint-cli2`, staged `*.yml` or `*.yaml` files with `yamllint`, and any
-staged release-identification set with Python and the pinned JSON Schema
-validator. The optional commit-msg hook checks commit messages with `commitlint`
-and the repository-specific scoped Conventional Commit rules. The pre-push hook
-validates every pushed SemVer release tag. Install those tools before enabling
-the hooks. Leaving `core.hooksPath` unset allows ordinary manual Git commands to
-bypass these local hooks. The guarded release skill therefore forces
-`core.hooksPath=.githooks` for every commit and commits the same message file
-that passed `commitlint --edit`.
+The optional hooks delegate to the shared repository-audit profiles. Pre-commit
+validates applicable staged content without rewriting it, commit-msg enforces
+the scoped Conventional Commit rules, and pre-push runs affected Python or
+shell test families against exact pushed objects and validates SemVer release
+artifacts. Install the locked quality toolchain before enabling the hooks.
+Leaving `core.hooksPath` unset allows ordinary manual Git commands to bypass
+them; guarded repository tools force `.githooks` independently. See
+[Contributing](CONTRIBUTING.md) for the hook policy and [Tools](tools/README.md)
+for the exact profiles and prerequisites.
 
 Copy files from `templates/` when starting a new project and replace the
 placeholder values with project-specific content.
@@ -74,52 +74,54 @@ placeholder values with project-specific content.
 Use the GitHub templates in `.github/` to keep issues and pull requests
 reviewable with minimal process.
 
-Run the same audit suite locally that GitHub Actions runs:
+Run the exhaustive audit used by the primary GitHub Actions job:
 
 ```bash
 bash tools/repository-audit.sh
 ```
 
-The default audit is the full profile. Run it only in an environment where
-package bootstrap, temporary files, network access, and smoke repositories are
-allowed. The explicit `full` mode is an alias for this default behavior:
+The default audit, `all`, `full`, and `static` select the same exhaustive
+profile without repeating audit families. It consumes the locked Python and
+npm environments plus integrity-verified external tools already installed by
+the caller; audit profiles never install dependencies. The explicit `full`
+mode is therefore an alias for the default behavior:
 
 ```bash
 bash tools/repository-audit.sh full
 ```
 
-Use the optional read-only profile when installations, network access,
-temporary files, and mutating smoke tests are not allowed:
+Use the optional read-only profile when network access, temporary files, and
+mutating smoke tests are not allowed:
 
 ```bash
 bash tools/repository-audit.sh readonly
 ```
 
 The read-only profile uses installed tools and disables optional Git locks.
-Missing tools fail the audit instead of being installed or skipped.
+A tool required by a selected check fails that check instead of being installed
+or skipped. Only the exhaustive profile's release-package smoke check uses the
+network: it queries GitHub for the latest `agent-coding-rules` release metadata
+without downloading release assets or dependencies.
 
-Do not create a release tag or GitHub release if the full audit fails. The full
-profile bootstraps `codespell` 2.4.2 and the pinned release-manifest validator
-in temporary Python targets and requires the same tools as CI, including
-`shellcheck`, `pwsh`, `python`, `node`, `git`, and `npx`. It intentionally
-resolves the latest published
-`agent-coding-rules` release during release package smoke checks; do not pin
-that check to an older rules release.
+The Repository audit workflow installs each declared dependency family once
+per isolated job without a generic cache or Go bootstrap. `quality-linux` runs
+the exhaustive profile on Ubuntu 24.04 with Python 3.11.
+`compatibility-windows` uses Windows 2025 with Python 3.14 for the fast
+cross-platform profile, the complete Python test suite, and PSScriptAnalyzer.
+Both use Node.js 24.20.0. The aggregate `Repository audit` check requires both
+jobs to succeed; manual runs retain the distinct
+`Repository audit (manual)` name.
+
+Do not create a release tag or GitHub release if the exhaustive audit fails.
 
 For new refs and stable release tags, the audit validates commit messages from
 the highest reachable stable tag through `HEAD`. A first release validates all
 reachable commits. Tag validation therefore cannot be replaced by a green
 check that inspected only the tag target commit.
 
-Audit tool bootstrap uses version-pinned package downloads from npm and PyPI
-without package hash verification. This is an accepted lightweight trust
-tradeoff for the generic starter kit.
-
-The full profile needs network access to npm for Markdown lint bootstrapping,
-PyPI for Codespell and JSON Schema validator bootstrapping, and GitHub for the
-latest agent-rules smoke check. Use `markdown`, `spelling`, or `static` to run
-one full-profile audit family at a time when diagnosing network or tool
-availability problems.
+Use `markdown`, `spelling`, `fast`, or `powershell-static` to isolate a focused
+subset while diagnosing failures. See [Tools](tools/README.md) for the complete
+profile contract and integrity-pinned installation procedure.
 
 When the audit runs from WSL with Windows PowerShell for PowerShell checks,
 it uses the ignored `.tmp/` path for temporary files that both environments
@@ -140,12 +142,14 @@ the copy when a consistent point-in-time backup is required. See
 [Tools](tools/README.md) for archive contents, provenance rules, limitations,
 and restoration caveats.
 
-`git-starter-kit` releases attach generated ZIP packages containing the
-tracked core manifest, rule files, and provenance. The package build asserts
-that the recorded sources match the release tag and requested
-`agent-coding-rules` release. Package-production tooling is
-source-repository-only and is excluded from derived repository packages. See
-[Release Package](docs/release-package.md) for automatic and manual usage.
+`git-starter-kit` releases attach two generated ZIP packages and their
+`SHA256SUMS` file. The package build asserts that the recorded sources match
+the release tag and requested `agent-coding-rules` release. It transfers only
+those three regular files to a separate write-scoped publish job, which
+revalidates their names and SHA-256 values before upload. Package-production
+tooling is source-repository-only and is excluded from derived repository
+packages. See [Release Package](docs/release-package.md) for automatic and
+manual usage.
 
 Automatic release packages use the latest published full `agent-coding-rules`
 release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
@@ -154,8 +158,11 @@ and the resolved SemVer tag.
 
 Each initialized repository owns its agent-rule synchronization. The
 `Agent rules update` workflow resolves the latest `agent-coding-rules` release,
-uses the synchronization tool owned by that same release, and opens or updates
-a pull request only in the repository that executed the workflow. Configure
+executes that release's synchronization tool without write credentials, and
+seals the allowed transfer. Its publishing job revalidates the source, target,
+and sealed hashes before minting the GitHub App token used only to push the
+branch and open or update the pull request in the repository that executed the
+workflow. Configure
 `AGENT_RULES_APP_CLIENT_ID` as a repository variable and
 `AGENT_RULES_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App
 on the target repository with **Contents** and **Pull requests** write access.
@@ -209,7 +216,8 @@ In a derived repository, the skill creates a stable latest release without
 assets. That release is complete only after the exact automatic
 `Agent rules update` and `Repository audit` release runs succeed. The canonical
 `git-starter-kit` extension instead creates a prerelease; `Release package`
-must also succeed, upload both verified assets, and promote the release.
+must also succeed, upload both verified ZIPs plus `SHA256SUMS`, and promote the
+release.
 
 For this canonical repository, the guarded workflow prepares and validates
 `starter-kit-manifest.json` in a distinct release-preparation commit before
@@ -239,6 +247,12 @@ audit`. The canonical starter-kit prerelease also triggers `Release package`.
 Each required run must match the published tag, its exact commit, the `release`
 event, and the publication time; a manual, scheduled, or tag-push run cannot
 replace any of these release runs.
+
+The retained non-conventional historical commit, single-owner CODEOWNERS risk,
+and external GitHub branch and release-environment protections are documented
+in [Contributing](CONTRIBUTING.md) and
+[Release Package](docs/release-package.md). Repository files alone do not prove
+those GitHub settings or an independent human approval.
 
 ## Maintainer operations
 

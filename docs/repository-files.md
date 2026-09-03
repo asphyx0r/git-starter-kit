@@ -167,6 +167,28 @@ deferred, or explicitly excluded from the template.
 - Usage: Keep GitHub files here when the platform expects this location.
 - Notes: Avoid duplicating root-level files in this directory.
 
+### `.github/CODEOWNERS`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Assigns ownership of the canonical source repository to its verified
+  maintainer.
+- Usage: GitHub applies the single catch-all rule to every repository path.
+- Notes: Contains exactly `* @asphyx0r`. This repository-specific ownership
+  file is source-only and is not distributed to derived repositories.
+
+### `.github/dependabot.yml`
+
+- Type: `file`
+- Status: `required`
+- Goal: Requests regular dependency updates for maintained automation and
+  quality toolchains.
+- Usage: Dependabot checks GitHub Actions at the repository root and the Python
+  and npm declarations under `tools/quality/` every week.
+- Notes: Defines only the three verified ecosystems, directories, and weekly
+  schedules. Cumulative upgrades merge downstream customizations instead of
+  replacing them.
+
 ### `.github/ISSUE_TEMPLATE/`
 
 - Type: `directory`
@@ -224,20 +246,18 @@ deferred, or explicitly excluded from the template.
   check on GitHub Actions.
 - Usage: Executes on pushes, pull requests, published releases, and manual
   dispatch.
-- Notes: The workflow uses a pinned runner and a checkout action pinned by
-  SHA for `actions/checkout@v7.0.0`. It delegates Markdown, spelling,
-  static, smoke, and configuration rules to `tools/repository-audit.sh` so
-  local and CI audits share the same source of truth. New refs and release tags
-  validate the complete commit range since the highest reachable stable tag.
-  Published releases audit the complete range from the previous stable tag to
-  the released tag. The aggregate job uses `Repository audit` for push, pull
-  request, and release runs and `Repository audit (manual)` for manual runs,
-  preventing a manual result from satisfying the protected-branch or release
-  check. Tool downloads are version-pinned but not hash-verified;
-  this is an accepted lightweight CI tradeoff for a generic starter kit with
-  read-only repository audit permissions, disabled checkout credential
-  persistence, and without forwarding the workflow token to checked-out audit
-  code.
+- Notes: `quality-linux` runs the exhaustive profile on Ubuntu 24.04 with
+  Python 3.11; `compatibility-windows` runs the fast profile, complete Python
+  suite, and PSScriptAnalyzer on Windows 2025 with Python 3.14. Both use Node.js
+  24.20.0, actions pinned by SHA, locked Python and npm dependencies, and the
+  integrity-pinned external-tool installer without a generic cache or Go
+  bootstrap. Each dependency family is installed once per isolated job. The
+  aggregate requires both environments and uses `Repository audit` for
+  automatic events and `Repository audit (manual)` for manual runs. Read-only
+  permissions, disabled checkout credential persistence, and the absence of a
+  forwarded workflow token keep checked-out audit code unprivileged. New refs
+  and release tags validate the complete commit range since the highest
+  reachable stable tag.
 
 ### `.github/workflows/agent-rules-update.yml`
 
@@ -247,38 +267,40 @@ deferred, or explicitly excluded from the template.
   agent-rule release without a central repository registry.
 - Usage: Runs daily, on every published release, or by manual dispatch and
   opens a repository-local pull request when the seven rule files change.
-- Notes: Uses the synchronization tool from the resolved
-  `agent-coding-rules` release and one target-repository GitHub App token. It
-  restricts changes to the seven rules and provenance, preserves customized rule
-  files, and runs in the starter kit as well as downstream repositories. Set
+- Notes: Resolves and seals the exact canonical rule transfer before minting
+  the target-repository GitHub App token in the publishing job. The publishing
+  phase revalidates source, base, transfer hashes, and the target ref before a
+  lease-protected push and pull request update. It restricts changes to the
+  seven rules and provenance, preserves customized rule files, and runs in the
+  starter kit as well as downstream repositories. Set
   `AGENT_RULES_SYNC_ENABLED=false` to suspend scheduled and manual jobs;
   published releases always run the job. Cumulative upgrades replace this
-  universal workflow. The guarded release flow requires the repository variable
-  `AGENT_RULES_APP_CLIENT_ID` and secret `AGENT_RULES_APP_PRIVATE_KEY` before
-  publication, then requires the exact automatic release run to succeed.
+  universal workflow. The guarded release flow requires the repository
+  variable `AGENT_RULES_APP_CLIENT_ID` and secret
+  `AGENT_RULES_APP_PRIVATE_KEY` before publication, then requires the exact
+  automatic release run to succeed.
 
 ### `.github/workflows/release-package.yml`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Builds and uploads an enriched release package asset, then promotes a
-  validated prerelease.
+- Goal: Builds and uploads two release ZIPs plus their checksum manifest, then
+  promotes a validated prerelease.
 - Usage: Runs when a release is published or manually through workflow
   dispatch.
-- Notes: Uses a pinned runner and actions pinned by SHA, disables checkout
-  credential persistence, limits package and promotion jobs to the exact
-  canonical repository, uses `latest` automatically for release packages, and
-  validates manual release tags, the tracked core manifest, and agent-rules
-  references against tracked provenance. The public source lookup requires no
-  GitHub App token. The
-  composed ZIP must pass Markdown and Codespell before the full package and
-  upgrade toolkit are uploaded with the built-in workflow token. A dependent
-  job promotes automatic prereleases only after successful packaging; manual
-  runs never promote releases. Package and toolkit names are derived from the
-  canonical repository and release tag. The checkout-free promotion command
-  receives explicit repository context. Shell validation messages are wrapped
-  for YAML lint readability. This workflow is excluded from packages
-  distributed to derived repositories.
+- Notes: A read-only `build` job validates the canonical repository and release
+  inputs, installs each locked quality environment once, and seals exactly the
+  full package, upgrade toolkit, and `SHA256SUMS` as three regular files. The
+  dependent `publish` job alone has `contents: write` and the `release`
+  environment. It checks out no repository, executes no downloaded payload,
+  revalidates the three names and SHA-256 values before exposing its
+  write-scoped token, and uploads without overwriting an existing asset.
+  Tag-scoped concurrency does not cancel an in-progress run. Automatic runs use
+  `latest` and promote a prerelease only after upload; manual runs validate an
+  explicit release tag and never promote. Actions are pinned by SHA, checkout
+  credentials are not persisted, and both jobs are limited to the exact
+  canonical repository. This source-only workflow is excluded from derived
+  packages.
 
 ### `.github/workflows/release-artifacts.yml`
 
@@ -287,9 +309,10 @@ deferred, or explicitly excluded from the template.
 - Goal: Validates the three release-identification artifacts for every pushed
   SemVer tag.
 - Usage: Runs automatically on tag pushes matching `v*`.
-- Notes: Installs the pinned JSON Schema validator, reads the exact tagged Git
-  tree, and blocks the `Release artifacts` check when `VERSION`, `SHA256SUMS`,
-  or `manifest.json` is missing, stale, or inconsistent.
+- Notes: Uses Python 3.11 through `actions/setup-python@v7.0.0` pinned by SHA,
+  installs the hash-locked validator without interactive input, reads the exact
+  tagged Git tree, and blocks the `Release artifacts` check when `VERSION`,
+  `SHA256SUMS`, or `manifest.json` is missing, stale, or inconsistent.
 
 ### `.githooks/`
 
@@ -298,9 +321,11 @@ deferred, or explicitly excluded from the template.
 - Goal: Stores versioned Git hooks for local repository validation.
 - Usage: Enable with `git config core.hooksPath .githooks` when local hooks are
   desired.
-- Notes: Hooks remain inactive for ordinary Git commands until each clone opts
-  in. The guarded release skill forces this path for every commit independently
-  of local Git configuration.
+- Notes: Each hook is a minimal wrapper around a repository-audit hook profile;
+  it does not duplicate checks, install dependencies, or modify files. The
+  initializers activate this directory only in repositories they create. The
+  guarded release skill forces this path for every commit independently of
+  local Git configuration.
 
 ### `.githooks/commit-msg`
 
@@ -310,28 +335,34 @@ deferred, or explicitly excluded from the template.
   validation.
 - Usage: Runs after local hook activation or through a guarded commit that
   explicitly sets `core.hooksPath=.githooks`.
-- Notes: Checks the commit message file with `commitlint.config.cjs`.
+- Notes: Delegates the message-file argument and exit status to the shared
+  `hook-commit-msg` profile, which uses `commitlint.config.cjs`.
 
 ### `.githooks/pre-commit`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Blocks commits when staged documentation, configuration, or release
-  artifacts fail their repository-owned validation.
+- Goal: Blocks commits when applicable staged source, configuration,
+  documentation, or release artifacts fail validation.
 - Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
-- Notes: Checks staged `*.md` files with `markdownlint-cli2`, staged `*.yml` or
-  `*.yaml` files with `yamllint`, and requires `VERSION`, `SHA256SUMS`, and
-  `manifest.json` to be staged and validated together.
+- Notes: Delegates to the shared `hook-pre-commit` profile. It checks only the
+  staged snapshot with the applicable Markdown, YAML, Python, Bash, JavaScript,
+  PowerShell, quality-declaration, spelling-configuration, Commitlint-
+  configuration, and release-artifact validators. It reports formatting drift
+  but never formats or installs dependencies.
 
 ### `.githooks/pre-push`
 
 - Type: `file`
 - Status: `required`
-- Goal: Prevents a SemVer release tag from being pushed with missing or stale
-  release-identification artifacts.
+- Goal: Runs affected test families against pushed commits and validates every
+  pushed SemVer release tag.
 - Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
-- Notes: Validates each pushed `refs/tags/v*` tree with the tracked release
-  artifact tool. Historical and non-release refs are not reclassified.
+- Notes: Delegates its input and arguments to the shared `hook-pre-push`
+  profile. The profile checks out each affected pushed object in a validated
+  disposable local clone, runs the relevant Python or shell test family, and validates
+  each pushed `refs/tags/v*` tree with the tracked release artifact tool.
+  Historical and non-release refs are not reclassified.
 
 ### `.gitignore`
 
@@ -629,8 +660,10 @@ deferred, or explicitly excluded from the template.
   SemVer path requires the selected tag to resolve to `HEAD` and rejects a
   packaged path whose Git-filtered content differs from `HEAD`. The
   command rejects every repository slug or `origin` except the canonical
-  `asphyx0r/git-starter-kit` repository and is excluded from packages
-  distributed to derived repositories.
+  `asphyx0r/git-starter-kit` repository. It validates a sibling temporary ZIP
+  before atomic same-volume publication, preserving an existing destination
+  on build, validation, or replacement failure. The tool is excluded from
+  packages distributed to derived repositories.
 
 ### `tools/README.md`
 
@@ -647,36 +680,225 @@ deferred, or explicitly excluded from the template.
   restoration limits. Cumulative upgrades treat this repository-specific
   operator reference as initialization-only.
 
+### `tools/quality/`
+
+- Type: `directory`
+- Status: `required`
+- Goal: Centralizes reproducible declarations and settings for repository
+  quality checks.
+- Usage: Install the locked Python and npm environments, then use the shared
+  audit and hook profiles instead of invoking divergent tool versions.
+- Notes: The component contains exactly ten maintained files. Cumulative
+  upgrades replace it as one repository-owned quality baseline.
+
+### `tools/quality/check-versions.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Detects drift between the quality registry, dependency locks, and
+  policy settings.
+- Usage: Run without options to validate declarations or with `--runtime` to
+  validate installed tool versions as well.
+- Notes: Uses bounded runtime probes and fails on missing, extra, malformed, or
+  inconsistent direct declarations.
+
+### `tools/quality/install-external-tools.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Installs non-package-manager quality tools from integrity-pinned
+  artifacts.
+- Usage: Select the declared platform and a new installation root strictly
+  below `RUNNER_TEMP`; optionally select individual supported tools.
+- Notes: Requires HTTPS, verifies SHA-256 before extraction, rejects unsafe
+  archive layouts and links, probes staged tools, and publishes the completed
+  installation only after every selected tool passes.
+
+### `tools/quality/package-lock.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Locks the complete npm dependency graph used by repository quality
+  checks.
+- Usage: Install it with `npm ci --ignore-scripts --prefix tools/quality`.
+- Notes: Records exact package versions and registry integrity values; do not
+  edit it independently from `package.json`.
+
+### `tools/quality/package.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Declares the direct Node.js quality tools owned by the repository.
+- Usage: Treat it as a private, non-publishable npm project and install through
+  its lockfile.
+- Notes: Contains only exact Commitlint and Markdownlint CLI development
+  dependencies.
+
+### `tools/quality/PSScriptAnalyzerSettings.psd1`
+
+- Type: `file`
+- Status: `required`
+- Goal: Provides the shared PSScriptAnalyzer settings entry point.
+- Usage: Pass it to `Invoke-ScriptAnalyzer` from audit and hook profiles.
+- Notes: The empty settings map intentionally retains the analyzer's default
+  rules without repository-wide exclusions or suppressions.
+
+### `tools/quality/pyproject.toml`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines scoped Ruff, Mypy, and branch-coverage policy for maintained
+  Python code.
+- Usage: Pass it explicitly to the corresponding quality commands.
+- Notes: Targets Python 3.11, lists the maintained production modules for Mypy,
+  and requires at least 85 percent branch coverage across `tools/`.
+
+### `tools/quality/requirements.in`
+
+- Type: `file`
+- Status: `required`
+- Goal: Declares the exact direct Python dependencies used by quality and
+  manifest validation.
+- Usage: Change this input first when deliberately updating a direct Python
+  quality dependency, then regenerate the lock.
+- Notes: Contains only exact direct requirements; transitive integrity data
+  belongs in `requirements.lock`.
+
+### `tools/quality/requirements.lock`
+
+- Type: `file`
+- Status: `required`
+- Goal: Locks the complete Python quality dependency graph with artifact
+  integrity.
+- Usage: Install with pip using both `--require-hashes` and
+  `--requirement tools/quality/requirements.lock`.
+- Notes: Generated with Python 3.11 from `requirements.in`; every requirement
+  block carries accepted SHA-256 hashes.
+
+### `tools/quality/versions.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Acts as the single registry for direct quality-tool versions and
+  enforced quality policy values.
+- Usage: Keep Python and npm declarations aligned with their lockfiles and use
+  the external records as installer inputs.
+- Notes: Schema 2 records supported platforms, official HTTPS artifact URLs,
+  SHA-256 digests, installation contracts, and version probes for Actionlint,
+  Shfmt, PSScriptAnalyzer, and ShellCheck.
+
+### `tools/quality/yamllint.yaml`
+
+- Type: `file`
+- Status: `required`
+- Goal: Defines the shared YAML syntax and style baseline.
+- Usage: Run Yamllint with this configuration from audit and hook profiles.
+- Notes: Extends the default rules while disabling only document-start and
+  line-length enforcement.
+
 ### `tools/repository-audit.sh`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Runs the shared local and CI repository audit rules.
-- Usage: Run `bash tools/repository-audit.sh` locally before creating a
-  release tag or GitHub release. GitHub Actions invokes the same script with
-  mode-specific `markdown`, `spelling`, and `static` arguments.
-- Notes: Static and read-only modes validate `tools/git-init.sh` with
-  ShellCheck and Shfmt using two-space indentation. Cumulative upgrades treat
-  this repository-specific audit as initialization-only.
-- Notes: Defaults to the full profile, with `full` as an explicit alias. Full
-  profiles own Markdown lint, spelling, Git whitespace, Bash syntax, ShellCheck
-  for shell scripts and Git hooks, PowerShell parsing, cross-language SemVer
-  pattern drift checks, Python backup and upgrade tests, smoke behavior,
-  release package manifests, commitlint configuration, exact message and hook
-  fixtures, and commit message checks for every commit in the resolved push or
-  release range. The optional
-  `readonly` profile uses installed tools, disables optional Git locks, avoids
-  network access, temporary files, package installation, and mutating smoke
-  tests, and also checks YAML, workflows, and secrets. Full profiles
-  intentionally resolve the latest
-  published `agent-coding-rules` release during release package smoke checks,
-  bootstraps pinned Codespell and JSON Schema validation dependencies in
-  temporary Python targets, handles WSL-aware
-  PowerShell command, path, and temporary directory compatibility through the
-  ignored `.tmp/` path when needed, uses
-  version-pinned package downloads without hash verification, documents the
-  npm, PyPI, and GitHub network requirements, and fails when required local
-  tools are unavailable instead of silently skipping CI rules.
+- Goal: Dispatches shared local, hook, and CI repository audit profiles.
+- Usage: Run `bash tools/repository-audit.sh` with `full`, `readonly`,
+  `markdown`, `spelling`, `static`, `fast`, `powershell-static`, or a supported
+  hook profile.
+- Notes: This compatibility entry point validates and loads the six audit
+  profile modules under `tools/repository-audit/`, then delegates without duplicating
+  their checks. `all` remains an alias for `full`. Cumulative upgrades treat
+  the dispatcher and its modules as initialization-only.
+
+### `tools/repository-audit/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Separates repository audit policy into focused Bash modules.
+- Usage: Load the six audit profile modules through `tools/repository-audit.sh`;
+  the agent-rules workflow invokes the autonomous transfer module directly.
+- Notes: Contains exactly seven modules for shared infrastructure, contracts,
+  hooks, profiles, security, smoke tests, and sealed agent-rule transfer.
+  Cumulative upgrades initialize this repository-specific component without
+  overwriting downstream ownership.
+
+### `tools/repository-audit/agent-rules-transfer.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Implements the bounded transfer boundary used by autonomous agent-rule
+  synchronization.
+- Usage: The workflow invokes its `resolve`, `seal`, `prepare-publish`, and
+  `publish` phases with their explicit environment contracts.
+- Notes: Preserves canonical tag and commit identity, seals only the allowed
+  rule and provenance files, revalidates source and target refs, and uses
+  lease-protected publication before creating or updating one pull request.
+
+### `tools/repository-audit/common.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides shared repository, command, temporary-path, Git-range, and
+  line-ending helpers.
+- Usage: The dispatcher loads it before modules that consume its globals and
+  helper functions.
+- Notes: Keeps cleanup bounded to audit-owned temporary directories and
+  resolves push, pull-request, release, and local audit ranges explicitly.
+
+### `tools/repository-audit/contracts.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Enforces repository-owned cross-file and workflow contracts.
+- Usage: Static and read-only profiles call its checks for SemVer, initializer,
+  release, workflow, skill, and documentation consistency.
+- Notes: Contract failures use focused diagnostics and are exercised with
+  valid fixtures plus single-cause mutations.
+
+### `tools/repository-audit/hooks.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Owns the shared `pre-commit`, `commit-msg`, and `pre-push` behavior.
+- Usage: Invoke only through the matching dispatcher profiles and versioned
+  hook wrappers.
+- Notes: Validates staged snapshots without modifying them, resolves locked
+  local tools, runs affected pushed-object tests in isolated local clones, and
+  retains release-tag artifact validation.
+
+### `tools/repository-audit/profiles.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Composes named audit profiles from reusable checks.
+- Usage: The dispatcher selects the requested full, read-only, focused, fast,
+  platform-specific, or hook profile.
+- Notes: The full/static profile owns exhaustive quality, contract, coverage,
+  behavior, smoke, and commit-range validation; focused profiles avoid
+  repeating unrelated work.
+
+### `tools/repository-audit/security.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Validates secret-scanner configuration and representative detection
+  behavior.
+- Usage: Full audits validate the configuration contract; read-only audits also
+  exercise scanner fixtures.
+- Notes: Requires byte-identical Betterleaks and Gitleaks policy, inherited
+  default rules, the repository's strict additions, and verified placeholder
+  exclusions.
+
+### `tools/repository-audit/smoke.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Exercises end-to-end initializer, hook, release, package, and upgrade
+  behavior in disposable fixtures.
+- Usage: The full/static profile invokes it after locked dependencies are
+  available.
+- Notes: Verifies distribution strategies and package contents against the
+  maintained manifests while keeping mutations inside audit-owned temporary
+  directories.
 
 ### `tools/release-artifacts.py`
 
@@ -695,10 +917,12 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `required`
-- Goal: Pins the runtime validator used for generated release manifests.
-- Usage: Install it before running the release artifact tool or its tests.
-- Notes: Uses the `jsonschema[format]` extra so URI and date-time formats are
-  enforced as part of manifest validation.
+- Goal: Selects the shared hash-locked Python environment required for release
+  manifest validation.
+- Usage: Install it with pip using `--require-hashes` before running the release
+  artifact tool or its tests.
+- Notes: Delegates to `tools/quality/requirements.lock`, which includes the
+  exact `jsonschema[format]` dependency and all transitive artifact hashes.
 
 ### `tools/verify-repository-audit-runs.py`
 
@@ -709,25 +933,95 @@ deferred, or explicitly excluded from the template.
 - Usage: Supply the repository, resolved workflow ID, exact SHA, inclusive UTC
   lower bound, and one `--ref` for every expected branch or tag.
 - Notes: Uses authenticated read-only `gh api` queries, ignores manual and
-  unrelated runs, exposes a side-effect-free `--dry-run`, and is included in
+  unrelated runs, bounds each subprocess by 30 seconds and the remaining
+  global timeout, exposes a side-effect-free `--dry-run`, and is included in
   packages for derived repositories.
 
 ### `tools/starter-kit-upgrade.py`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Builds, inspects, and applies cumulative starter-kit upgrade packages.
+- Goal: Preserves the executable and import-compatible interface for cumulative
+  starter-kit upgrades.
 - Usage: Build from exact base and new full packages, inspect with `plan`, and
   use `apply` only with an external backup directory.
-- Notes: Validates ZIP paths, semantic starter provenance, raw and canonical
-  per-file SHA-256 hashes, tracked worktree cleanliness, and conflicts. It
-  delegates agent-rule paths, three-way merges designated text files,
-  flags changed initialization-only files for local review, preserves locally
-  owned and unrelated untracked files, preserves the original starter-kit
-  source while updating the current core manifest, performs no deletion or Git
-  publication, and restores writes after a failed application attempt. The
-  source copy is excluded from the full package and supplied separately inside
-  the upgrade toolkit.
+- Notes: Re-exports the supported public surface and delegates each
+  responsibility to `tools/starter_kit_upgrade/` while retaining patchable
+  compatibility adapters. The facade and package sources are excluded from the
+  full package and supplied together inside the upgrade toolkit.
+
+### `tools/starter_kit_upgrade/`
+
+- Type: `directory`
+- Status: `optional`
+- Goal: Implements cumulative starter-kit upgrades as responsibility-focused
+  Python modules.
+- Usage: Execute the public facade rather than individual package modules.
+- Notes: Contains exactly six source-only modules with dependencies flowing
+  from shared primitives through archive, planning, application, and CLI
+  layers. The complete package accompanies the facade in upgrade toolkits.
+
+### `tools/starter_kit_upgrade/__init__.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines the minimal public package entry point.
+- Usage: Import `main`, `VERSION`, or `UpgradeError` when package-level access
+  is required.
+- Notes: Keeps the package surface narrow; compatibility exports remain owned
+  by `tools/starter-kit-upgrade.py`.
+
+### `tools/starter_kit_upgrade/application.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Applies validated upgrade plans with rollback protection.
+- Usage: The CLI calls it only after archive and target planning succeeds and
+  an external backup directory is supplied.
+- Notes: Captures file snapshots, writes validated payloads, creates the
+  rollback archive, and restores changed paths after a failed application.
+
+### `tools/starter_kit_upgrade/archive.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Reads, validates, and builds full upgrade packages and portable
+  toolkits.
+- Usage: The CLI uses it for `build` and `toolkit` operations before target
+  planning or application.
+- Notes: Enforces safe archive paths, exact starter provenance, hashes,
+  strategy manifests, and the complete source-only module inventory.
+
+### `tools/starter_kit_upgrade/cli.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines command-line parsing and orchestration for cumulative upgrades.
+- Usage: The facade delegates `build`, `toolkit`, `plan`, and `apply` commands
+  to this module.
+- Notes: Keeps command routing separate from archive, planning, and filesystem
+  mutation logic.
+
+### `tools/starter_kit_upgrade/common.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides shared constants, validated data primitives, hashing, JSON,
+  and run-journal behavior.
+- Usage: Other upgrade modules depend on these primitives instead of
+  duplicating provenance or content rules.
+- Notes: Owns the upgrade error type, path validation, raw and canonical
+  SHA-256 helpers, and structured operation logging.
+
+### `tools/starter_kit_upgrade/planning.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Evaluates a target repository and produces a guarded upgrade plan.
+- Usage: `plan` and `apply` use it to validate adoption, classify file actions,
+  and report operational compliance.
+- Notes: Handles three-way text merges, local ownership, conflicts, starter
+  manifest evolution, and exact-release alignment without writing the target.
 
 ### `tools/starter-kit-manifest.py`
 
@@ -791,6 +1085,18 @@ deferred, or explicitly excluded from the template.
 - Notes: Tests must isolate filesystem and Git mutations in temporary
   directories and must not leave repository artifacts.
 
+### `tests/test_agent_rules_transfer.sh`
+
+- Type: `file`
+- Status: `required`
+- Goal: Verifies the sealed, privilege-separated agent-rule transfer contract.
+- Usage: Run with Bash from a checkout that provides Git and the test's local
+  command fixtures.
+- Notes: Covers canonical ref resolution, path and checksum sealing, preserved
+  content, source and target races, lease-protected publication, pull request
+  handling, signal cleanup, and exact command boundaries. It is distributed by
+  replacement with the universal synchronization workflow.
+
 ### `tests/test_backup_target_directory.py`
 
 - Type: `file`
@@ -803,16 +1109,74 @@ deferred, or explicitly excluded from the template.
   and symbolic-link cases skip only when the required platform capability is
   unavailable.
 
+### `tests/test_build_release_package.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies release-package distribution policy and atomic ZIP
+  publication.
+- Usage: Run with Python where PowerShell 7 is available. On Windows, keep
+  Windows PowerShell 5.1 available for the dedicated compatibility case.
+- Notes: Builds real packages from alternate Git indexes, checks source-only,
+  merge, initialize-only, and replace perimeters, and proves that build,
+  validation, or replacement failures preserve an existing destination. This
+  canonical-repository test is source-only.
+
 ### `tests/test_commit_message_validation.sh`
 
 - Type: `file`
 - Status: `optional`
 - Goal: Reproduces overlong commit bodies and verifies forced hooks, exact
   message-file commits, preflight ranges, tag ranges, and first-release ranges.
-- Usage: Run `bash tests/test_commit_message_validation.sh` in an environment
-  with Git, Bash, Node.js, npm, and network access for pinned Commitlint.
+- Usage: Run `bash tests/test_commit_message_validation.sh` with Git, Bash, and
+  Node.js after installing the locked Node quality dependencies.
 - Notes: Uses only temporary Git repositories, leaves the source repository
   unchanged, and is included in packages for derived repositories.
+
+### `tests/test_quality_hooks.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies hook wrappers, dispatcher integration, activation, and shared
+  hook helper behavior.
+- Usage: Run with Bash from the repository root.
+- Notes: Exercises argument, input, output, and failure propagation; missing
+  dependency guidance; affected-path classification; and initializer-owned
+  hook activation in disposable repositories.
+
+### `tests/test_quality_pre_commit.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies staged-only pre-commit selection and validation.
+- Usage: Run with Bash after installing the locked quality dependencies.
+- Notes: Exercises applicable Markdown, YAML, Python, Bash, JavaScript,
+  PowerShell, configuration, and release-artifact paths while proving that
+  unstaged working-tree content does not replace the staged snapshot.
+
+### `tests/test_quality_pre_push.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies affected-test and release validation against pushed object
+  identities.
+- Usage: Run with Bash in an environment that provides the locked test
+  dependencies.
+- Notes: Uses disposable local repositories to cover new and updated refs,
+  multiple object identities, detached pushed-object execution, tag checks,
+  failure propagation, and temporary-path cleanup.
+
+### `tests/test_quality_toolchain.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies the centralized quality registry, integrity locks, policies,
+  runtime probes, and external-tool installer.
+- Usage: Run with Python's `unittest`; network behavior is replaced by
+  deterministic in-memory responses and local artifacts.
+- Notes: Covers declaration drift, exact direct dependencies, complete hashes,
+  coverage policy, HTTPS redirects, archive safety, symlink rejection,
+  staged probes, atomic publication, and bounded diagnostics.
 
 ### `tests/test_release_artifacts.py`
 
@@ -824,6 +1188,17 @@ deferred, or explicitly excluded from the template.
   `python -B -m unittest tests.test_release_artifacts`.
 - Notes: Uses temporary Git repositories and leaves the source repository
   unchanged.
+
+### `tests/test_repository_audit.sh`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies dispatcher loading, profile routing, and repository-owned
+  audit contracts.
+- Usage: Run with Bash from the repository root.
+- Notes: Exercises missing, malformed, and failing modules without changing a
+  sourcing caller's shell state, plus focused workflow and distribution
+  mutations with exact failure diagnostics.
 
 ### `tests/test_verify_repository_audit_runs.py`
 
@@ -840,24 +1215,28 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Verifies cumulative package construction, three-state planning,
-  provenance gates, conflict handling, rollback, and archive path safety.
+- Goal: Verifies facade compatibility, modular cumulative package construction,
+  three-state planning, provenance gates, conflict handling, rollback, and
+  archive path safety.
 - Usage: Run
   `python -B -m unittest discover -s tests -p "test_starter_kit_upgrade.py"`.
 - Notes: Uses temporary Git repositories and ZIP files without changing the
-  working repository. This starter-only test is excluded from the full package.
+  working repository. It verifies the exact six-module topology, public
+  re-exports, isolated imports, and toolkit execution. This starter-only test
+  is excluded from the full package.
 
 ### `tests/test_starter_kit_manifest.py`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Verifies manifest generation, validation, identity gates, dry-run,
-  idempotence, and release-tag inventory checks.
+- Goal: Verifies manifest generation, validation, identity gates, distribution
+  perimeters, dry-run, idempotence, and release-tag inventory checks.
 - Usage: Run
   `python -B -m unittest discover -s tests -p "test_starter_kit_manifest.py"`.
 - Notes: Uses temporary Git repositories, only the Python standard library,
-  and no network access. This starter-only test is excluded from the full
-  package.
+  and no network access. It checks the exact governance files and source-only,
+  merge, initialize-only, and replace policies. This starter-only test is
+  excluded from the full package.
 
 ### `docs/`
 

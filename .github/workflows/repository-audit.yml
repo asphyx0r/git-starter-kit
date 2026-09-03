@@ -12,72 +12,51 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.25.1"
-  SHFMT_VERSION: v3.13.1
+  NODE_VERSION: "24.20.0"
 
 jobs:
-  markdown:
-    name: Markdown lint
+  quality-linux:
+    name: Quality - Ubuntu 24.04 / Python 3.11
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         # actions/checkout@v7.0.0
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          persist-credentials: false
-
-      - name: Run markdown audit
-        run: bash tools/repository-audit.sh markdown
-
-  spelling:
-    name: Spelling
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        # actions/checkout@v7.0.0
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
-
-      - name: Run spelling audit
-        run: bash tools/repository-audit.sh spelling
-
-  static:
-    name: Static checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout repository
-        # actions/checkout@v7.0.0
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
           fetch-depth: 0
-
-      - name: Set up Go
-        # actions/setup-go@v6.4.0
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+          persist-credentials: false
+      - name: Set up Python
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
-          cache: false
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Install Shfmt
+          python-version: "3.11"
+      - name: Set up Node
+        # actions/setup-node@v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install locked language toolchains
         shell: bash
         run: |
-          echo "$(go env GOPATH)/bin" >> "${GITHUB_PATH}"
-          go install "mvdan.cc/sh/v3/cmd/shfmt@${SHFMT_VERSION}"
-
-      - name: Run static audit
+          python -m pip install --disable-pip-version-check \
+            --require-hashes \
+            --requirement tools/quality/requirements.lock
+          npm ci --ignore-scripts --prefix tools/quality
+      - name: Install verified external tools
+        shell: bash
+        run: |
+          python tools/quality/install-external-tools.py \
+            --platform linux-x64 \
+            --install-root "$RUNNER_TEMP/quality-tools"
+          echo "$RUNNER_TEMP/quality-tools/bin" >> "$GITHUB_PATH"
+          echo "PSModulePath=$RUNNER_TEMP/quality-tools/Modules:${PSModulePath:-}" \
+            >> "$GITHUB_ENV"
+      - name: Run the complete quality gate
         shell: bash
         env:
           AUDIT_COMMIT_SHA: >-
-            ${{ github.event.pull_request.head.sha ||
-            github.sha }}
+            ${{ github.event.pull_request.head.sha || github.sha }}
           BEFORE_SHA: >-
             ${{ github.event_name == 'release' &&
             '0000000000000000000000000000000000000000' ||
@@ -86,31 +65,67 @@ jobs:
           GIT_AUTHOR_EMAIL: codex@example.com
           GIT_COMMITTER_NAME: Codex
           GIT_COMMITTER_EMAIL: codex@example.com
-        run: bash tools/repository-audit.sh static
+        run: bash tools/repository-audit.sh full
+
+  compatibility-windows:
+    name: Compatibility - Windows 2025 / Python 3.14
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.14"
+      - name: Set up Node
+        # actions/setup-node@v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install locked language toolchains
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check `
+            --require-hashes `
+            --requirement tools/quality/requirements.lock
+          npm ci --ignore-scripts --prefix tools/quality
+      - name: Install verified PowerShell analyzer
+        shell: pwsh
+        run: |
+          python tools/quality/install-external-tools.py `
+            --platform windows-x64 `
+            --tool PSScriptAnalyzer `
+            --install-root "$env:RUNNER_TEMP/quality-tools"
+          Add-Content $env:GITHUB_ENV `
+            "PSModulePath=$env:RUNNER_TEMP/quality-tools/Modules$([IO.Path]::PathSeparator)$env:PSModulePath"
+      - name: Run cross-platform compatibility checks
+        shell: bash
+        run: bash tools/repository-audit.sh fast
+      - name: Run the complete Python suite on 3.14
+        shell: pwsh
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Analyze PowerShell on Windows
+        shell: bash
+        run: bash tools/repository-audit.sh powershell-static
 
   repository-audit:
     name: >-
       ${{ github.event_name == 'workflow_dispatch' &&
       'Repository audit (manual)' || 'Repository audit' }}
-    needs:
-      - markdown
-      - spelling
-      - static
+    needs: [quality-linux, compatibility-windows]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-
     steps:
-      - name: Require every audit job
+      - name: Require both supported environments
         env:
-          MARKDOWN_RESULT: ${{ needs.markdown.result }}
-          SPELLING_RESULT: ${{ needs.spelling.result }}
-          STATIC_RESULT: ${{ needs.static.result }}
+          LINUX_RESULT: ${{ needs.quality-linux.result }}
+          WINDOWS_RESULT: ${{ needs.compatibility-windows.result }}
         run: |
-          if [ "$MARKDOWN_RESULT" != "success" ] ||
-            [ "$SPELLING_RESULT" != "success" ] ||
-            [ "$STATIC_RESULT" != "success" ]; then
-            printf '%s\n' \
-              "Repository audit requires every child job to succeed." >&2
-            exit 1
-          fi
+          test "$LINUX_RESULT" = success && test "$WINDOWS_RESULT" = success
