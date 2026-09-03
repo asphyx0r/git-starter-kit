@@ -639,9 +639,11 @@ The distribution classifications are explicit. `.github/CODEOWNERS`, the
 release-package workflow, packaging and upgrade sources, their
 repository-specific tests, and package operator guides are source-only.
 `.github/dependabot.yml` is merge-managed, `tools/quality/` is replaced as one
-baseline, and the repository-audit dispatcher and modules are
-initialization-only. The updater therefore preserves downstream inventories,
-operator documentation, and repository-specific audit behavior.
+baseline, and the repository-audit dispatcher and modules are replace-managed
+as one operational runtime. The updater therefore installs the complete audit
+dependency set while preserving downstream inventories and operator
+documentation. Any downstream audit-runtime change is a blocking conflict and
+is not overwritten.
 
 When an initialization-only file changed upstream, the plan reports
 `review-initialize-only` without blocking or writing the target. This makes

@@ -807,7 +807,8 @@ deferred, or explicitly excluded from the template.
 - Notes: This compatibility entry point validates and loads the six audit
   profile modules under `tools/repository-audit/`, then delegates without duplicating
   their checks. `all` remains an alias for `full`. Cumulative upgrades treat
-  the dispatcher and its modules as initialization-only.
+  the dispatcher and its modules as one replace-managed runtime; local changes
+  cause a blocking conflict instead of being overwritten.
 
 ### `tools/repository-audit/`
 
@@ -818,8 +819,8 @@ deferred, or explicitly excluded from the template.
   the agent-rules workflow invokes the autonomous transfer module directly.
 - Notes: Contains exactly seven modules for shared infrastructure, contracts,
   hooks, profiles, security, smoke tests, and sealed agent-rule transfer.
-  Cumulative upgrades initialize this repository-specific component without
-  overwriting downstream ownership.
+  Cumulative upgrades add or update the complete runtime atomically and block
+  rather than overwrite downstream changes.
 
 ### `tools/repository-audit/agent-rules-transfer.sh`
 

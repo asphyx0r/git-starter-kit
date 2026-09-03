@@ -170,7 +170,9 @@ class StarterKitManifestTests(unittest.TestCase):
 
         self.assertEqual((self.root / "starter-kit-manifest.json").read_bytes(), before)
 
-    def test_prepare_classifies_audit_modules_as_initialize_only(self):
+    def test_prepare_classifies_audit_runtime_as_replace(self):
+        dispatcher_path = self.root / "tools" / "repository-audit.sh"
+        dispatcher_path.write_text(":\n", encoding="utf-8")
         audit_directory = self.root / "tools" / "repository-audit"
         audit_directory.mkdir()
         module_paths = {
@@ -192,6 +194,7 @@ class StarterKitManifestTests(unittest.TestCase):
         transfer_test.write_text(":\n", encoding="utf-8")
         self.run_git(
             "add",
+            "tools/repository-audit.sh",
             "tools/repository-audit",
             "tests/test_agent_rules_transfer.sh",
         )
@@ -207,13 +210,30 @@ class StarterKitManifestTests(unittest.TestCase):
         expected_paths = {
             module_path.relative_to(self.root).as_posix()
             for module_path in module_paths
-        }
+        } | {dispatcher_path.relative_to(self.root).as_posix()}
         self.assertEqual(
-            {path for path in strategies if path.startswith("tools/repository-audit/")},
+            {
+                path
+                for path in strategies
+                if path == "tools/repository-audit.sh"
+                or path.startswith("tools/repository-audit/")
+            },
             expected_paths,
         )
-        self.assertTrue(
-            all(strategies[path] == "initialize-only" for path in expected_paths)
+        self.assertEqual(
+            {path: strategies[path] for path in expected_paths},
+            {path: "replace" for path in expected_paths},
+        )
+        self.assertEqual(
+            MANIFEST.strategy_for(
+                "tools/repository-audit.sh",
+                audit_runtime_managed=True,
+            ),
+            "replace",
+        )
+        self.assertEqual(
+            MANIFEST.strategy_for("tools/repository-audit.sh"),
+            "initialize-only",
         )
         self.assertEqual(
             strategies["tests/test_agent_rules_transfer.sh"],
@@ -582,6 +602,10 @@ class StarterKitManifestTests(unittest.TestCase):
                     "tools/repository-audit.sh",
                 }
             ),
+        )
+        self.assertEqual(
+            MANIFEST.INITIALIZE_ONLY_PREFIXES,
+            ("tools/repository-audit/",),
         )
         self.assertEqual(MANIFEST.REPLACE_PREFIXES, ("tools/quality/",))
 

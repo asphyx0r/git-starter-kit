@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest import mock
 import zipfile
@@ -64,6 +65,17 @@ def starter_manifest(ref):
         "current": dict(release),
         "files": [],
     }
+
+
+def cleanup_temporary_directory(temporary):
+    for attempt in range(3):
+        try:
+            temporary.cleanup()
+            return
+        except OSError:
+            if attempt == 2:
+                raise
+            time.sleep(0.1)
 
 
 class StarterKitUpgradeTests(unittest.TestCase):
@@ -147,7 +159,28 @@ class StarterKitUpgradeTests(unittest.TestCase):
         self.build_upgrade()
 
     def tearDown(self):
-        self.temporary.cleanup()
+        cleanup_temporary_directory(self.temporary)
+
+    def test_temporary_cleanup_retries_transient_error(self):
+        temporary = mock.Mock()
+        temporary.cleanup.side_effect = [OSError(145, "directory not empty"), None]
+
+        with mock.patch("time.sleep") as sleep:
+            cleanup_temporary_directory(temporary)
+
+        self.assertEqual(temporary.cleanup.call_count, 2)
+        sleep.assert_called_once_with(0.1)
+
+    def test_temporary_cleanup_preserves_persistent_error(self):
+        temporary = mock.Mock()
+        error = OSError(145, "directory not empty")
+        temporary.cleanup.side_effect = error
+
+        with mock.patch("time.sleep"), self.assertRaises(OSError) as raised:
+            cleanup_temporary_directory(temporary)
+
+        self.assertIs(raised.exception, error)
+        self.assertEqual(temporary.cleanup.call_count, 3)
 
     @staticmethod
     def write_zip(path, files):

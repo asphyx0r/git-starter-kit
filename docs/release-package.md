@@ -87,11 +87,11 @@ responsible for synchronizing its rule files through its own pull-request
 workflow.
 
 Distribution keeps `.github/dependabot.yml` merge-managed and replaces the
-complete `tools/quality/` baseline. Repository-specific inventories, operator
-documentation, `tools/repository-audit.sh`, and every module under
-`tools/repository-audit/` are initialization-only, so cumulative upgrades
-preserve their downstream ownership instead of attempting an unsafe generic
-merge.
+complete `tools/quality/` baseline. Repository-specific inventories and
+operator documentation remain initialization-only. The repository-audit
+dispatcher and modules are replace-managed so cumulative upgrades install the
+complete runtime required by hooks and workflows. A downstream change to that
+runtime is a blocking conflict and is never overwritten.
 
 When an initialization-only file changed upstream, the plan reports
 `review-initialize-only`. The signal does not block or write the target; it

@@ -363,14 +363,9 @@ function Get-UpgradeStrategy {
         "docs/SKILLS.md",
         "docs/repository-files.md",
         "docs/repository-migration.md",
-        "tools/README.md",
-        "tools/repository-audit.sh"
+        "tools/README.md"
     )
-    if ($initializeOnly -contains $Path -or
-        $Path.StartsWith(
-            "tools/repository-audit/",
-            [System.StringComparison]::Ordinal
-        )) {
+    if ($initializeOnly -contains $Path) {
         return "initialize-only"
     }
 

@@ -844,7 +844,7 @@ publish_transfer() {
     fail "Target checkout is not on ${sync_branch}."
   fi
   remote_url="$(git remote get-url origin)"
-  if [[ "${remote_url}" != "https://github.com/${target_repository}.git" ]]; then
+  if [[ "${remote_url%.git}" != "https://github.com/${target_repository}" ]]; then
     fail 'Target remote URL is unexpected.'
   fi
   if [[ ! -f "${body_file}" ]]; then
