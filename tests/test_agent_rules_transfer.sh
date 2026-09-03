@@ -1147,7 +1147,7 @@ case " $* " in
   printf '%s\n' automation/agent-rules-update
   ;;
 *" remote get-url origin "*)
-  printf '%s\n' https://github.com/asphyx0r/git-starter-kit.git
+  printf '%s\n' "${TEST_TARGET_REMOTE_URL:?}"
   ;;
 *" ls-remote --exit-code --heads origin refs/heads/automation/agent-rules-update "*)
   printf '%s\n' "${GIT_ASKPASS:-}" >"${TEST_ASKPASS_TRACE:?}"
@@ -1231,6 +1231,7 @@ invoke_publish() {
   local remote_oid="$4"
   local pr_list="$5"
   local push_result="${6:-success}"
+  local target_remote_url="${7:-https://github.com/asphyx0r/git-starter-kit.git}"
   local stub_bin="${case_root}/bin"
   local target="${case_root}/target"
 
@@ -1251,6 +1252,7 @@ invoke_publish() {
       TEST_REMOTE_OID="${remote_oid}" \
       TEST_PR_LIST="${pr_list}" \
       TEST_PUSH_RESULT="${push_result}" \
+      TEST_TARGET_REMOTE_URL="${target_remote_url}" \
       TEST_COMMAND_TRACE="${case_root}/commands.trace" \
       TEST_GIT_TRACE="${case_root}/git.trace" \
       TEST_GH_TRACE="${case_root}/gh.trace" \
@@ -1312,6 +1314,30 @@ test_publish_uses_absent_ref_lease_and_explicit_pr() {
   fi
   assert_publish_cleanup "${case_root}"
   assert_no_forbidden_publish_command "${case_root}"
+}
+
+test_publish_accepts_checkout_remote_without_dot_git() {
+  local case_root="${test_temp}/publish-checkout-remote"
+
+  create_publish_fixture "${case_root}"
+  invoke_publish "${case_root}" absent true \
+    "${publish_target_commit}" '[]\n' success \
+    https://github.com/asphyx0r/git-starter-kit
+
+  assert_publish_cleanup "${case_root}"
+  assert_no_forbidden_publish_command "${case_root}"
+}
+
+test_publish_rejects_noncanonical_checkout_remote() {
+  local case_root="${test_temp}/publish-noncanonical-remote"
+
+  create_publish_fixture "${case_root}"
+  expect_failure publish-noncanonical-remote 1 \
+    'Target remote URL is unexpected.' \
+    invoke_publish "${case_root}" absent true \
+    "${publish_target_commit}" '[]\n' success \
+    https://example.com/asphyx0r/git-starter-kit.git
+  assert_no_pr_command "${case_root}"
 }
 
 test_publish_revalidates_no_push_ref_before_editing_pr() {
@@ -1450,6 +1476,8 @@ run_transport_tests() {
 
 run_publish_tests() {
   test_publish_uses_absent_ref_lease_and_explicit_pr
+  test_publish_accepts_checkout_remote_without_dot_git
+  test_publish_rejects_noncanonical_checkout_remote
   test_publish_revalidates_no_push_ref_before_editing_pr
   test_publish_revalidates_pushed_commit_before_creating_pr
   test_publish_enforces_existing_lease_and_stops_before_pr_on_failure

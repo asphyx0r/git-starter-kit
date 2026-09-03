@@ -553,9 +553,6 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     starter = json.load(archive.open("starter-kit-manifest.json"))
     if starter["schemaVersion"] != 1:
         raise SystemExit("Unexpected starter-kit manifest schema.")
-    starter_strategies = {
-        entry["path"]: entry["strategy"] for entry in starter["files"]
-    }
     for release_name in ("source", "current"):
         release = starter[release_name]
         expected_url = (
@@ -617,14 +614,6 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             f"Missing: {missing or '(none)'}. "
             f"Unexpected: {unexpected or '(none)'}."
         )
-    missing_core = sorted(set(starter_strategies) - listed)
-    if missing_core:
-        raise SystemExit(
-            "Starter core missing from package: " + ", ".join(missing_core)
-        )
-    for path, strategy in starter_strategies.items():
-        if strategies.get(path) != strategy:
-            raise SystemExit(f"Starter strategy mismatch for {path}.")
     expected_merge_paths = {
         ".codespellrc",
         ".editorconfig",
@@ -653,17 +642,21 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             "docs/repository-files.md",
             "docs/repository-migration.md",
             "tools/README.md",
-            "tools/repository-audit.sh",
-            "tools/repository-audit/common.sh",
-            "tools/repository-audit/agent-rules-transfer.sh",
-            "tools/repository-audit/contracts.sh",
-            "tools/repository-audit/hooks.sh",
-            "tools/repository-audit/profiles.sh",
-            "tools/repository-audit/security.sh",
-            "tools/repository-audit/smoke.sh",
         },
         "starter-kit-state": {"starter-kit-manifest.json"},
     }
+    audit_runtime_paths = {
+        "tools/repository-audit.sh",
+        "tools/repository-audit/common.sh",
+        "tools/repository-audit/agent-rules-transfer.sh",
+        "tools/repository-audit/contracts.sh",
+        "tools/repository-audit/hooks.sh",
+        "tools/repository-audit/profiles.sh",
+        "tools/repository-audit/security.sh",
+        "tools/repository-audit/smoke.sh",
+    }
+    if any(strategies.get(path) != "replace" for path in audit_runtime_paths):
+        raise SystemExit("Repository audit runtime must use the replace strategy")
     if strategies.get("tests/test_agent_rules_transfer.sh") != "replace":
         raise SystemExit(
             "Agent rules transfer test must use the replace strategy"

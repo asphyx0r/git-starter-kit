@@ -216,7 +216,12 @@ def read_blobs(root: Path, object_ids: list[str]) -> list[bytes]:
     return contents
 
 
-def strategy_for(path: str) -> str:
+def strategy_for(path: str, *, audit_runtime_managed: bool = False) -> str:
+    if audit_runtime_managed and (
+        path == "tools/repository-audit.sh"
+        or path.startswith("tools/repository-audit/")
+    ):
+        return "replace"
     if path in INITIALIZE_ONLY_PATHS or path.startswith(INITIALIZE_ONLY_PREFIXES):
         return "initialize-only"
     if path in MERGE_PATHS:
@@ -281,6 +286,10 @@ def tree_entries(root: Path, treeish: str) -> list[tuple[str, str, bytes]]:
 
 def core_entries(root: Path, treeish: str | None) -> list[dict[str, str]]:
     raw_entries = tree_entries(root, treeish) if treeish else index_entries(root)
+    audit_runtime_managed = any(
+        path.startswith("tools/repository-audit/")
+        for path, _mode, _content in raw_entries
+    )
     entries: list[dict[str, str]] = []
     for path, mode, content in raw_entries:
         content_kind, canonical_digest = content_metadata(content)
@@ -291,7 +300,10 @@ def core_entries(root: Path, treeish: str | None) -> list[dict[str, str]]:
                 "canonicalSha256": canonical_digest,
                 "contentKind": content_kind,
                 "mode": mode,
-                "strategy": strategy_for(path),
+                "strategy": strategy_for(
+                    path,
+                    audit_runtime_managed=audit_runtime_managed,
+                ),
             }
         )
     return sorted(entries, key=lambda entry: entry["path"])

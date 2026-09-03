@@ -261,8 +261,8 @@ class BuildReleasePackageTests(unittest.TestCase):
                 )
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
-    def test_full_package_initializes_audit_modules(self) -> None:
-        audit_paths = {
+    def test_full_package_replaces_complete_audit_runtime(self) -> None:
+        audit_paths = {"tools/repository-audit.sh"} | {
             f"tools/repository-audit/{name}"
             for name in (
                 "agent-rules-transfer.sh",
@@ -332,7 +332,7 @@ class BuildReleasePackageTests(unittest.TestCase):
             }
             self.assertEqual(
                 {path: strategies[path] for path in audit_paths},
-                {path: "initialize-only" for path in audit_paths},
+                {path: "replace" for path in audit_paths},
             )
             self.assertEqual(
                 strategies["tests/test_agent_rules_transfer.sh"],
