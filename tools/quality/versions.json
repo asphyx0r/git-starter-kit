@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "python": {
+    "codespell": "2.4.2",
+    "coverage": "7.16.0",
+    "jsonschema[format]": "4.26.0",
+    "mypy": "2.3.1",
+    "ruff": "0.15.16",
+    "yamllint": "1.38.0"
+  },
+  "node": {
+    "@commitlint/cli": "21.0.2",
+    "markdownlint-cli2": "0.23.2"
+  },
+  "external": {
+    "actionlint": {
+      "version": "1.7.12",
+      "platforms": ["linux-x64"],
+      "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+      "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+      "artifactType": "tar.gz",
+      "install": {
+        "kind": "executable",
+        "target": "bin/actionlint",
+        "memberBasename": "actionlint"
+      },
+      "probe": {
+        "arguments": ["-version"],
+        "expectedLine": "1.7.12"
+      }
+    },
+    "shfmt": {
+      "version": "3.14.0",
+      "platforms": ["linux-x64"],
+      "url": "https://github.com/mvdan/sh/releases/download/v3.14.0/shfmt_v3.14.0_linux_amd64",
+      "sha256": "fe42021c7272ef2d67ea36cbc3031683c625d0badec733ef3a57b567246a0b66",
+      "artifactType": "binary",
+      "install": {
+        "kind": "executable",
+        "target": "bin/shfmt"
+      },
+      "probe": {
+        "arguments": ["--version"],
+        "expectedLine": "v3.14.0"
+      }
+    },
+    "PSScriptAnalyzer": {
+      "version": "1.25.0",
+      "platforms": ["linux-x64", "windows-x64"],
+      "url": "https://www.powershellgallery.com/api/v2/package/PSScriptAnalyzer/1.25.0",
+      "sha256": "14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60",
+      "artifactType": "zip",
+      "install": {
+        "kind": "powershell-module",
+        "target": "Modules/PSScriptAnalyzer/1.25.0",
+        "requiredEntries": [
+          "PSScriptAnalyzer.psd1",
+          "PSScriptAnalyzer.psm1"
+        ]
+      },
+      "probe": {
+        "expectedLine": "1.25.0"
+      }
+    },
+    "shellcheck": {
+      "version": "0.11.0",
+      "platforms": ["linux-x64"],
+      "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+      "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198",
+      "artifactType": "tar.xz",
+      "install": {
+        "kind": "executable",
+        "target": "bin/shellcheck",
+        "member": "shellcheck-v0.11.0/shellcheck"
+      },
+      "probe": {
+        "arguments": ["--version"],
+        "expectedLine": "version: 0.11.0"
+      }
+    }
+  },
+  "policy": {
+    "coverageFailUnder": 85,
+    "nodeCiVersion": "24.20.0",
+    "nodeMinimum": "22.12.0",
+    "npmIgnoreScripts": true,
+    "pythonRequireHashes": true
+  }
+}

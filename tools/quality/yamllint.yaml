@@ -1,0 +1,10 @@
+---
+extends: default
+
+ignore: |
+  .tmp/
+  tools/quality/node_modules/
+
+rules:
+  document-start: disable
+  line-length: disable

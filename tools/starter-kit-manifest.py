@@ -11,14 +11,12 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal, overload
 
 VERSION = "1.1.0"
 MANIFEST_PATH = "starter-kit-manifest.json"
 CANONICAL_REPOSITORY = "https://github.com/asphyx0r/git-starter-kit"
-CANONICAL_ORIGINS = frozenset(
-    {CANONICAL_REPOSITORY, f"{CANONICAL_REPOSITORY}.git"}
-)
+CANONICAL_ORIGINS = frozenset({CANONICAL_REPOSITORY, f"{CANONICAL_REPOSITORY}.git"})
 SEMVER_TAG_PATTERN = re.compile(
     r"^v(0|[1-9][0-9]*)\."
     r"(0|[1-9][0-9]*)\."
@@ -46,19 +44,28 @@ SOURCE_ONLY_PATHS = frozenset(
             ".agents/skills/git-commit-push-tag/references/"
             "git-starter-kit-release-package.txt"
         ),
+        ".github/CODEOWNERS",
         ".github/workflows/release-package.yml",
         "SHA256SUMS",
         "VERSION",
         "docs/release-package.md",
         "docs/upgrade-toolkit.md",
         "manifest.json",
+        "tests/test_build_release_package.py",
         "tests/test_starter_kit_manifest.py",
         "tests/test_starter_kit_upgrade.py",
         "tools/build-release-package.ps1",
         "tools/starter-kit-manifest.py",
         "tools/starter-kit-upgrade.py",
+        "tools/starter_kit_upgrade/__init__.py",
+        "tools/starter_kit_upgrade/application.py",
+        "tools/starter_kit_upgrade/archive.py",
+        "tools/starter_kit_upgrade/cli.py",
+        "tools/starter_kit_upgrade/common.py",
+        "tools/starter_kit_upgrade/planning.py",
     }
 )
+SOURCE_ONLY_PREFIXES = ("tools/starter_kit_upgrade/",)
 RESERVED_STATE_PATHS = frozenset(
     {".starter-kit-adoption.json", "_starter-kit-files.json", MANIFEST_PATH}
 )
@@ -78,6 +85,8 @@ INITIALIZE_ONLY_PATHS = frozenset(
         "tools/repository-audit.sh",
     }
 )
+INITIALIZE_ONLY_PREFIXES = ("tools/repository-audit/",)
+REPLACE_PREFIXES = ("tools/quality/",)
 MERGE_PATHS = frozenset(
     {
         ".betterleaks.toml",
@@ -86,6 +95,7 @@ MERGE_PATHS = frozenset(
         ".gitattributes",
         ".gitleaks.toml",
         ".gitignore",
+        ".github/dependabot.yml",
         ".github/workflows/repository-audit.yml",
     }
 )
@@ -104,6 +114,14 @@ class ManifestError(RuntimeError):
     """Raised when the starter-kit manifest cannot be prepared or checked."""
 
 
+@overload
+def run_git(root: Path, *arguments: str, binary: Literal[False] = False) -> str: ...
+
+
+@overload
+def run_git(root: Path, *arguments: str, binary: Literal[True]) -> bytes: ...
+
+
 def run_git(root: Path, *arguments: str, binary: bool = False) -> str | bytes:
     result = subprocess.run(
         ["git", "-C", str(root), *arguments],
@@ -113,13 +131,9 @@ def run_git(root: Path, *arguments: str, binary: bool = False) -> str | bytes:
     )
     if result.returncode != 0:
         stderr = (
-            result.stderr.decode("utf-8", errors="replace")
-            if binary
-            else result.stderr
+            result.stderr.decode("utf-8", errors="replace") if binary else result.stderr
         )
-        raise ManifestError(
-            f"git {' '.join(arguments)} failed: {stderr.strip()}"
-        )
+        raise ManifestError(f"git {' '.join(arguments)} failed: {stderr.strip()}")
     return result.stdout
 
 
@@ -203,10 +217,12 @@ def read_blobs(root: Path, object_ids: list[str]) -> list[bytes]:
 
 
 def strategy_for(path: str) -> str:
-    if path in INITIALIZE_ONLY_PATHS:
+    if path in INITIALIZE_ONLY_PATHS or path.startswith(INITIALIZE_ONLY_PREFIXES):
         return "initialize-only"
     if path in MERGE_PATHS:
         return "merge"
+    if path.startswith(REPLACE_PREFIXES):
+        return "replace"
     return "replace"
 
 
@@ -214,6 +230,7 @@ def is_core_path(path: str) -> bool:
     return (
         path not in AGENT_RULE_PATHS
         and path not in SOURCE_ONLY_PATHS
+        and not path.startswith(SOURCE_ONLY_PREFIXES)
         and path not in RESERVED_STATE_PATHS
     )
 
@@ -313,7 +330,9 @@ def validate_release(value: Any, label: str) -> dict[str, str]:
     if release != expected:
         raise ManifestError(f"{label} does not identify the canonical release.")
     try:
-        timestamp = datetime.fromisoformat(release["generatedAt"].replace("Z", "+00:00"))
+        timestamp = datetime.fromisoformat(
+            release["generatedAt"].replace("Z", "+00:00")
+        )
     except ValueError as error:
         raise ManifestError(f"{label}.generatedAt must use RFC 3339 UTC.") from error
     if timestamp.tzinfo != UTC or not release["generatedAt"].endswith("Z"):
@@ -412,7 +431,15 @@ def prepare_manifest(args: argparse.Namespace) -> int:
 
 def ref_exists(root: Path, ref: str) -> bool:
     result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"refs/tags/{ref}^{{commit}}"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"refs/tags/{ref}^{{commit}}",
+        ],
         check=False,
         capture_output=True,
         text=True,

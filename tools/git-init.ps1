@@ -449,6 +449,9 @@ $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
 
 try {
     Invoke-Git -Arguments @("init", $targetPath) | Out-Null
+    Invoke-Git -Arguments @(
+        "-C", $targetPath, "config", "core.hooksPath", ".githooks"
+    ) | Out-Null
 
     if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "refs/tags/$tag")) {
         throw "Tag already exists in target repository: $tag"

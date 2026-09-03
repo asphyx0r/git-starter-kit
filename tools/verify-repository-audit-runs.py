@@ -12,15 +12,14 @@ import sys
 import time
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Never
 from urllib.parse import urlencode
 
 VERSION = "v1.0.0"
-REPOSITORY_PATTERN = re.compile(
-    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-)
+REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 REF_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+MAX_QUERY_TIMEOUT_SECONDS = 30
 
 
 class VerificationError(Exception):
@@ -30,15 +29,14 @@ class VerificationError(Exception):
 class CliArgumentParser(argparse.ArgumentParser):
     """Return repository-standard exit code one for invalid arguments."""
 
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> Never:
         raise VerificationError(message)
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = CliArgumentParser(
         description=(
-            "Wait for the exact Repository audit push runs required for a "
-            "release SHA."
+            "Wait for the exact Repository audit push runs required for a release SHA."
         )
     )
     parser.add_argument(
@@ -131,9 +129,7 @@ def _validate_ref(ref_name: str) -> None:
 
 def _validate_args(args: argparse.Namespace) -> datetime:
     if not REPOSITORY_PATTERN.fullmatch(args.repository):
-        raise VerificationError(
-            "--repository must use the OWNER/REPO format."
-        )
+        raise VerificationError("--repository must use the OWNER/REPO format.")
     if args.workflow_id <= 0:
         raise VerificationError("--workflow-id must be positive.")
     if not SHA_PATTERN.fullmatch(args.sha):
@@ -162,7 +158,11 @@ def _write_verbose(enabled: bool, message: str) -> None:
     print(f"{timestamp} {message}", file=sys.stderr)
 
 
-def _query_runs(repository: str, sha: str) -> list[dict[str, Any]]:
+def _query_runs(
+    repository: str,
+    sha: str,
+    timeout_seconds: float = MAX_QUERY_TIMEOUT_SECONDS,
+) -> list[dict[str, Any]]:
     gh_command = shutil.which("gh")
     if gh_command is None:
         raise VerificationError("gh is required to inspect GitHub Actions runs.")
@@ -175,13 +175,23 @@ def _query_runs(repository: str, sha: str) -> list[dict[str, Any]]:
         }
     )
     endpoint = f"repos/{repository}/actions/runs?{query}"
-    completed = subprocess.run(
-        [gh_command, "api", "--paginate", "--slurp", endpoint],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
+    try:
+        completed = subprocess.run(
+            [gh_command, "api", "--paginate", "--slurp", endpoint],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        detail = error.stderr or error.stdout or "no diagnostic output"
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        raise VerificationError(
+            "GitHub Actions query timed out after "
+            f"{timeout_seconds:g} seconds: {detail.strip()}"
+        ) from error
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
         raise VerificationError(f"GitHub Actions query failed: {detail}")
@@ -224,7 +234,9 @@ def _select_applicable_runs(
     expected_refs: Sequence[str],
     created_after: datetime,
 ) -> dict[str, list[dict[str, Any]]]:
-    selected = {ref_name: [] for ref_name in expected_refs}
+    selected: dict[str, list[dict[str, Any]]] = {
+        ref_name: [] for ref_name in expected_refs
+    }
     for run in workflow_runs:
         ref_name = run.get("head_branch")
         if ref_name not in selected:
@@ -280,11 +292,25 @@ def _wait_for_runs(
     timeout_seconds: int,
     poll_seconds: int,
     verbose: bool,
-    query_runs: Callable[[str, str], list[dict[str, Any]]] = _query_runs,
+    query_runs: Callable[[str, str], list[dict[str, Any]]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     deadline = time.monotonic() + timeout_seconds
     while True:
-        workflow_runs = query_runs(repository, sha)
+        if timeout_seconds == 0:
+            query_timeout: float = MAX_QUERY_TIMEOUT_SECONDS
+        else:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise VerificationError(
+                    "Timed out waiting for Repository audit runs: "
+                    f"{', '.join(expected_refs)}"
+                )
+            query_timeout = min(MAX_QUERY_TIMEOUT_SECONDS, remaining)
+
+        if query_runs is None:
+            workflow_runs = _query_runs(repository, sha, query_timeout)
+        else:
+            workflow_runs = query_runs(repository, sha)
         selected = _select_applicable_runs(
             workflow_runs,
             workflow_id,
@@ -294,10 +320,7 @@ def _wait_for_runs(
         )
         complete, pending = _evaluate_runs(selected)
         if complete:
-            return {
-                ref_name: runs[0]
-                for ref_name, runs in selected.items()
-            }
+            return {ref_name: runs[0] for ref_name, runs in selected.items()}
 
         if time.monotonic() >= deadline:
             missing = ", ".join(pending)
@@ -338,7 +361,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     for ref_name in args.refs:
-        print(f"Repository audit succeeded for {ref_name}: {_run_summary(verified[ref_name])}")
+        print(
+            f"Repository audit succeeded for {ref_name}: {_run_summary(verified[ref_name])}"
+        )
     return 0
 
 

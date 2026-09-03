@@ -122,6 +122,228 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
         self.assertIn(f"head_sha={SHA}", command[4])
         self.assertIn("event=push", command[4])
 
+    def test_snapshot_query_uses_thirty_second_subprocess_timeout(self):
+        observed_timeouts = []
+
+        def query_runs(_repository, _sha, timeout_seconds):
+            observed_timeouts.append(timeout_seconds)
+            return [make_run(1, "main"), make_run(2, "v1.1.1")]
+
+        with patch.object(MODULE, "_query_runs", side_effect=query_runs):
+            self.assertEqual(
+                set(
+                    MODULE._wait_for_runs(
+                        repository="owner/repository",
+                        workflow_id=123,
+                        sha=SHA,
+                        expected_refs=("main", "v1.1.1"),
+                        created_after=CREATED_AFTER,
+                        timeout_seconds=0,
+                        poll_seconds=0,
+                        verbose=False,
+                    )
+                ),
+                {"main", "v1.1.1"},
+            )
+        self.assertEqual(observed_timeouts, [30])
+
+    def test_wait_query_caps_positive_remaining_budget_at_thirty_seconds(self):
+        observed_timeouts = []
+
+        def query_runs(_repository, _sha, timeout_seconds):
+            observed_timeouts.append(timeout_seconds)
+            return [make_run(1, "main"), make_run(2, "v1.1.1")]
+
+        with (
+            patch.object(MODULE.time, "monotonic", side_effect=[100, 101]),
+            patch.object(MODULE, "_query_runs", side_effect=query_runs),
+        ):
+            MODULE._wait_for_runs(
+                repository="owner/repository",
+                workflow_id=123,
+                sha=SHA,
+                expected_refs=("main", "v1.1.1"),
+                created_after=CREATED_AFTER,
+                timeout_seconds=100,
+                poll_seconds=1,
+                verbose=False,
+            )
+
+        self.assertEqual(observed_timeouts, [30])
+
+    def test_wait_query_uses_remaining_global_timeout_when_less_than_thirty(self):
+        observed_timeouts = []
+
+        def query_runs(_repository, _sha, timeout_seconds):
+            observed_timeouts.append(timeout_seconds)
+            return [make_run(1, "main"), make_run(2, "v1.1.1")]
+
+        with (
+            patch.object(MODULE.time, "monotonic", side_effect=[100, 101]),
+            patch.object(MODULE, "_query_runs", side_effect=query_runs),
+        ):
+            MODULE._wait_for_runs(
+                repository="owner/repository",
+                workflow_id=123,
+                sha=SHA,
+                expected_refs=("main", "v1.1.1"),
+                created_after=CREATED_AFTER,
+                timeout_seconds=5,
+                poll_seconds=1,
+                verbose=False,
+            )
+
+        self.assertEqual(observed_timeouts, [4])
+
+    def test_pending_two_argument_query_exhausts_global_budget(self):
+        calls = []
+
+        def query_runs(_repository, _sha):
+            calls.append((_repository, _sha))
+            return [
+                make_run(1, "main", conclusion=None, status="in_progress"),
+                make_run(2, "v1.1.1"),
+            ]
+
+        with (
+            patch.object(
+                MODULE.time,
+                "monotonic",
+                side_effect=[100, 100, 101, 101, 102],
+            ),
+            patch.object(MODULE.time, "sleep") as sleep,
+            self.assertRaisesRegex(
+                MODULE.VerificationError,
+                "Timed out waiting for Repository audit runs: main",
+            ),
+        ):
+            MODULE._wait_for_runs(
+                repository="owner/repository",
+                workflow_id=123,
+                sha=SHA,
+                expected_refs=("main", "v1.1.1"),
+                created_after=CREATED_AFTER,
+                timeout_seconds=2,
+                poll_seconds=1,
+                verbose=False,
+                query_runs=query_runs,
+            )
+
+        self.assertEqual(calls, [("owner/repository", SHA)])
+        sleep.assert_called_once_with(1)
+
+    def test_query_timeout_keeps_partial_stderr_context(self):
+        timeout = MODULE.subprocess.TimeoutExpired(
+            cmd=["gh", "api"],
+            timeout=7,
+            stderr="API did not respond",
+        )
+
+        with (
+            patch.object(MODULE.shutil, "which", return_value="gh"),
+            patch.object(MODULE.subprocess, "run", side_effect=timeout),
+            self.assertRaisesRegex(
+                MODULE.VerificationError,
+                "timed out after 7 seconds: API did not respond",
+            ),
+        ):
+            MODULE._query_runs("owner/repository", SHA, timeout_seconds=7)
+
+    def test_query_timeout_decodes_byte_diagnostics(self):
+        timeout = MODULE.subprocess.TimeoutExpired(
+            cmd=["gh", "api"],
+            timeout=3,
+            output=b"gateway did not respond\xff",
+        )
+
+        with (
+            patch.object(MODULE.shutil, "which", return_value="gh"),
+            patch.object(MODULE.subprocess, "run", side_effect=timeout),
+            self.assertRaisesRegex(
+                MODULE.VerificationError,
+                "timed out after 3 seconds: gateway did not respond",
+            ),
+        ):
+            MODULE._query_runs("owner/repository", SHA, timeout_seconds=3)
+
+    def test_query_requires_github_cli(self):
+        with (
+            patch.object(MODULE.shutil, "which", return_value=None),
+            self.assertRaisesRegex(
+                MODULE.VerificationError,
+                "gh is required to inspect GitHub Actions runs",
+            ),
+        ):
+            MODULE._query_runs("owner/repository", SHA)
+
+    def test_query_reports_github_cli_failure_detail(self):
+        response = MODULE.subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="authentication required\n",
+        )
+
+        with (
+            patch.object(MODULE.shutil, "which", return_value="gh"),
+            patch.object(MODULE.subprocess, "run", return_value=response),
+            self.assertRaisesRegex(
+                MODULE.VerificationError,
+                "GitHub Actions query failed: authentication required",
+            ),
+        ):
+            MODULE._query_runs("owner/repository", SHA)
+
+    def test_query_rejects_malformed_workflow_run_responses(self):
+        responses = (
+            "not JSON",
+            json.dumps({"workflow_runs": {"id": 1}}),
+        )
+
+        for response_body in responses:
+            with self.subTest(response_body=response_body):
+                response = MODULE.subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout=response_body,
+                    stderr="",
+                )
+                with (
+                    patch.object(MODULE.shutil, "which", return_value="gh"),
+                    patch.object(MODULE.subprocess, "run", return_value=response),
+                    self.assertRaisesRegex(
+                        MODULE.VerificationError,
+                        "invalid workflow-runs response",
+                    ),
+                ):
+                    MODULE._query_runs("owner/repository", SHA)
+
+    def test_applicable_run_requires_valid_created_at(self):
+        malformed_runs = (
+            ({}, "has no created_at value"),
+            ({"created_at": "July 31"}, "invalid created_at value: July 31"),
+        )
+
+        for run, message in malformed_runs:
+            with self.subTest(run=run):
+                with self.assertRaisesRegex(MODULE.VerificationError, message):
+                    MODULE._parse_run_time(run)
+
+    def test_unrelated_ref_and_workflow_runs_are_ignored(self):
+        runs = [
+            make_run(1, "main"),
+            make_run(2, "v1.1.1"),
+            make_run(3, "other"),
+            make_run(4, "main", workflow_id=999),
+        ]
+
+        verified = self.wait_for(runs)
+
+        self.assertEqual(
+            {ref_name: run["id"] for ref_name, run in verified.items()},
+            {"main": 1, "v1.1.1": 2},
+        )
+
     def test_run_before_push_does_not_satisfy_expected_ref(self):
         runs = [
             make_run(1, "main", created_at="2026-07-31T13:40:59Z"),
@@ -209,6 +431,135 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 1)
         self.assertIn("Invalid expected ref", error_output.getvalue())
+
+    def test_missing_required_options_return_exit_one(self):
+        error_output = io.StringIO()
+
+        with redirect_stderr(error_output):
+            exit_code = MODULE.main([])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("the following arguments are required", error_output.getvalue())
+
+    def test_validation_rejects_unsafe_or_inconsistent_arguments(self):
+        valid_arguments = {
+            "repository": "owner/repository",
+            "workflow_id": 123,
+            "sha": SHA,
+            "refs": ["main", "v1.1.1"],
+            "created_after": "2026-07-31T13:41:00Z",
+            "timeout_seconds": 600,
+            "poll_seconds": 5,
+        }
+        scenarios = (
+            ({"repository": "owner"}, "--repository must use the OWNER/REPO format"),
+            ({"workflow_id": 0}, "--workflow-id must be positive"),
+            ({"sha": "abc123"}, "--sha must contain exactly 40 hexadecimal"),
+            ({"timeout_seconds": -1}, "--timeout-seconds must not be negative"),
+            ({"poll_seconds": -1}, "--poll-seconds must not be negative"),
+            (
+                {"timeout_seconds": 1, "poll_seconds": 0},
+                "--poll-seconds must be positive when waiting is enabled",
+            ),
+            ({"refs": ["main", "main"]}, "Each --ref value must be unique"),
+            (
+                {"created_after": "2026-07-31"},
+                "--created-after must use YYYY-MM-DDTHH:MM:SSZ",
+            ),
+        )
+
+        for replacements, message in scenarios:
+            with self.subTest(replacements=replacements):
+                arguments = MODULE.argparse.Namespace(
+                    **{**valid_arguments, **replacements}
+                )
+                with self.assertRaisesRegex(MODULE.VerificationError, message):
+                    MODULE._validate_args(arguments)
+
+    def test_verbose_wait_reports_pending_ref_before_success(self):
+        snapshots = [
+            [
+                make_run(1, "main", conclusion=None, status="in_progress"),
+                make_run(2, "v1.1.1"),
+            ],
+            [make_run(1, "main"), make_run(2, "v1.1.1")],
+        ]
+
+        def query_runs(_repository, _sha):
+            return snapshots.pop(0)
+
+        error_output = io.StringIO()
+        with (
+            patch.object(
+                MODULE.time,
+                "monotonic",
+                side_effect=[100, 100, 100, 100, 101],
+            ),
+            patch.object(MODULE.time, "sleep"),
+            redirect_stderr(error_output),
+        ):
+            verified = MODULE._wait_for_runs(
+                repository="owner/repository",
+                workflow_id=123,
+                sha=SHA,
+                expected_refs=("main", "v1.1.1"),
+                created_after=CREATED_AFTER,
+                timeout_seconds=10,
+                poll_seconds=1,
+                verbose=True,
+                query_runs=query_runs,
+            )
+
+        self.assertEqual(set(verified), {"main", "v1.1.1"})
+        self.assertRegex(
+            error_output.getvalue(),
+            r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} "
+            r"Waiting for Repository audit: main\n$",
+        )
+
+    def test_successful_cli_reports_each_verified_ref(self):
+        args = [
+            "--repository",
+            "owner/repository",
+            "--workflow-id",
+            "123",
+            "--sha",
+            SHA,
+            "--ref",
+            "main",
+            "--ref",
+            "v1.1.1",
+            "--created-after",
+            "2026-07-31T13:41:00Z",
+            "--timeout-seconds",
+            "0",
+            "--poll-seconds",
+            "0",
+        ]
+        output = io.StringIO()
+
+        with (
+            patch.object(
+                MODULE,
+                "_query_runs",
+                return_value=[make_run(1, "main"), make_run(2, "v1.1.1")],
+            ),
+            redirect_stdout(output),
+        ):
+            exit_code = MODULE.main(args)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            [
+                "Repository audit succeeded for main: run_id=1 attempt=1 "
+                "status=completed conclusion=success "
+                "url=https://example.test/runs/1",
+                "Repository audit succeeded for v1.1.1: run_id=2 attempt=1 "
+                "status=completed conclusion=success "
+                "url=https://example.test/runs/2",
+            ],
+        )
 
     def test_help_lists_repository_standard_options_first(self):
         option_order = [

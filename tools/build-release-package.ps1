@@ -31,17 +31,28 @@ $StarterKitManifestPath = "starter-kit-manifest.json"
 
 $StarterOnlyPaths = @(
     ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
+    ".github/CODEOWNERS",
     ".github/workflows/release-package.yml",
     "SHA256SUMS",
     "VERSION",
     "docs/release-package.md",
     "docs/upgrade-toolkit.md",
     "manifest.json",
+    "tests/test_build_release_package.py",
     "tests/test_starter_kit_manifest.py",
     "tests/test_starter_kit_upgrade.py",
     "tools/build-release-package.ps1",
     "tools/starter-kit-manifest.py",
-    "tools/starter-kit-upgrade.py"
+    "tools/starter-kit-upgrade.py",
+    "tools/starter_kit_upgrade/__init__.py",
+    "tools/starter_kit_upgrade/application.py",
+    "tools/starter_kit_upgrade/archive.py",
+    "tools/starter_kit_upgrade/cli.py",
+    "tools/starter_kit_upgrade/common.py",
+    "tools/starter_kit_upgrade/planning.py"
+)
+$StarterOnlyPrefixes = @(
+    "tools/starter_kit_upgrade/"
 )
 $CanonicalRepositorySlug = "asphyx0r/git-starter-kit"
 $CanonicalRepositoryUrls = @(
@@ -205,7 +216,17 @@ function Copy-TrackedRepositoryFile {
         if ([string]::IsNullOrWhiteSpace($relativePath)) {
             continue
         }
-        if ($StarterOnlyPaths -ccontains $relativePath) {
+        $isStarterOnly = $StarterOnlyPaths -ccontains $relativePath
+        foreach ($starterOnlyPrefix in $StarterOnlyPrefixes) {
+            if ($relativePath.StartsWith(
+                    $starterOnlyPrefix,
+                    [System.StringComparison]::Ordinal
+                )) {
+                $isStarterOnly = $true
+                break
+            }
+        }
+        if ($isStarterOnly) {
             continue
         }
 
@@ -345,7 +366,11 @@ function Get-UpgradeStrategy {
         "tools/README.md",
         "tools/repository-audit.sh"
     )
-    if ($initializeOnly -contains $Path) {
+    if ($initializeOnly -contains $Path -or
+        $Path.StartsWith(
+            "tools/repository-audit/",
+            [System.StringComparison]::Ordinal
+        )) {
         return "initialize-only"
     }
 
@@ -356,10 +381,18 @@ function Get-UpgradeStrategy {
         ".gitattributes",
         ".gitleaks.toml",
         ".gitignore",
+        ".github/dependabot.yml",
         ".github/workflows/repository-audit.yml"
     )
     if ($mergeManaged -contains $Path) {
         return "merge"
+    }
+
+    if ($Path.StartsWith(
+            "tools/quality/",
+            [System.StringComparison]::Ordinal
+        )) {
+        return "replace"
     }
 
     return "replace"
@@ -500,6 +533,8 @@ $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
 $stagingRoot = Join-Path $tempRoot "package"
+$temporaryPackagePath = $null
+$temporaryBackupPath = $null
 
 if ($RepositorySlug -cne $CanonicalRepositorySlug) {
     throw "RepositorySlug must be exactly $CanonicalRepositorySlug."
@@ -719,19 +754,19 @@ try {
     }
 
 
-    if (Test-Path -LiteralPath $packagePath) {
-        Remove-Item -LiteralPath $packagePath -Force
-    }
+    $temporaryPackagePath = Join-Path `
+        $outputRoot `
+        ".$([System.IO.Path]::GetFileNameWithoutExtension($packagePath)).$([guid]::NewGuid().ToString('N')).zip.tmp"
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::CreateFromDirectory(
         $stagingRoot,
-        $packagePath,
+        $temporaryPackagePath,
         [System.IO.Compression.CompressionLevel]::Optimal,
         $false
     )
 
-    $zip = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($temporaryPackagePath)
     try {
         $zipEntries = @($zip.Entries | ForEach-Object { $_.FullName -replace "\\", "/" })
         foreach ($requiredFile in $requiredFiles) {
@@ -766,6 +801,23 @@ try {
         $zip.Dispose()
     }
 
+    if (Test-Path -LiteralPath $packagePath) {
+        $temporaryBackupPath = Join-Path `
+            $outputRoot `
+            ".$([System.IO.Path]::GetFileNameWithoutExtension($packagePath)).$([guid]::NewGuid().ToString('N')).zip.bak"
+        [System.IO.File]::Replace(
+            $temporaryPackagePath,
+            $packagePath,
+            $temporaryBackupPath
+        )
+        Remove-Item -LiteralPath $temporaryBackupPath -Force
+        $temporaryBackupPath = $null
+    }
+    else {
+        [System.IO.File]::Move($temporaryPackagePath, $packagePath)
+    }
+    $temporaryPackagePath = $null
+
     if ($env:GITHUB_OUTPUT) {
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "package_path=$packagePath"
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "package_name=$PackageName"
@@ -776,6 +828,14 @@ try {
     Write-Output "Created release package: $packagePath"
 }
 finally {
+    if ($null -ne $temporaryBackupPath -and
+        (Test-Path -LiteralPath $temporaryBackupPath)) {
+        Remove-Item -LiteralPath $temporaryBackupPath -Force
+    }
+    if ($null -ne $temporaryPackagePath -and
+        (Test-Path -LiteralPath $temporaryPackagePath)) {
+        Remove-Item -LiteralPath $temporaryPackagePath -Force
+    }
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force
     }

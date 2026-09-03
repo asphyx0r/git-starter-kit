@@ -36,6 +36,11 @@ rules in `commitlint.config.cjs`, for example `docs(readme): update usage`.
 Never use `-m` or `--no-verify`. A Commitlint or hook failure blocks the commit
 and requires correcting and revalidating the same candidate file.
 
+The non-conventional historical commit
+`2fbb9bcb749db1d9e2a9a79403246ba20884a90a`
+(`Rename GitHub release notes template`, 2026-06-18) predates this strict
+policy. It remains a retained exception and must never be rewritten.
+
 ## Git hooks
 
 Enable the repository hook path for ordinary local Git commands:
@@ -44,14 +49,19 @@ Enable the repository hook path for ordinary local Git commands:
 git config core.hooksPath .githooks
 ```
 
-The pre-commit hook requires `markdownlint-cli2` for staged `*.md` files,
-`yamllint` for staged `*.yml` or `*.yaml` files, and Python plus the pinned
-release-artifact requirements when release identification is staged. The
+The pre-commit hook checks only a temporary staged snapshot from the Git index.
+It routes staged Markdown, YAML, Python, Bash or hook, JavaScript, and
+PowerShell files to their language-specific checks. It also validates relevant
+quality configuration and release artifacts, and never auto-formats files. The
 commit-msg hook requires `commitlint` and rejects messages that do not match the
-repository-specific scoped Conventional Commit rules. The pre-push hook blocks
-SemVer tags whose `VERSION`, `SHA256SUMS`, or `manifest.json` is inconsistent.
-Guarded repository tools force this hook path independently of local Git
-configuration.
+repository-specific scoped Conventional Commit rules.
+
+The pre-push hook selects the affected Python and/or shell test families from
+each pushed branch update and runs them at the pushed commit in disposable
+detached clones. Each selected test family has a 180-second timeout. The hook
+removes those clones when it exits. It also validates `VERSION`, `SHA256SUMS`,
+and `manifest.json` for pushed SemVer tags. Guarded repository tools force this
+hook path independently of local Git configuration.
 
 ## Release tags
 
@@ -67,6 +77,12 @@ validation, and commit the generated `VERSION`, `SHA256SUMS`, and
 
 ## Pull requests
 
+`.github/CODEOWNERS` assigns every path to `@asphyx0r`. This provides ownership
+and review traceability, but does not provide an independent approval by
+another person. Branch protection, required reviews, and required conversation
+resolution are GitHub repository settings. Configure and verify them on GitHub;
+this document does not assert that they are enabled.
+
 A good pull request should explain:
 
 - What changed.
@@ -76,8 +92,17 @@ A good pull request should explain:
 
 ## Verification
 
-Before submitting changes, check that:
+The supported CI gate runs the exhaustive profile on Ubuntu 24.04 with Python
+3.11 and runs the fast profile, complete Python suite, and PSScriptAnalyzer on
+Windows 2025 with Python 3.14. Both jobs use Node.js 24.20.0, install the locked
+dependencies and integrity-verified external tools without a generic cache,
+and must pass before the aggregate `Repository audit` check succeeds.
+
+Before submitting changes, run the applicable focused hook profiles and the
+complete local audit when its required tools are available, then check that:
 
 - Only expected files changed.
 - Markdown and configuration files are readable and valid.
 - The repository inventory matches the files present in the repository.
+- `bash tools/repository-audit.sh full` succeeds in the locked quality
+  environment.

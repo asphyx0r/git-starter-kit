@@ -16,8 +16,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-from typing import TextIO
+from typing import Never, Optional, TextIO
 
 SCRIPT_NAME = "backup-target-directory.py"
 VERSION = "0.1.0"
@@ -113,12 +112,12 @@ class StdoutArgumentParser(argparse.ArgumentParser):
     def format_help(self) -> str:
         return f"{SCRIPT_NAME} v{VERSION}\n\n{super().format_help()}"
 
-    def exit(self, status: int = 0, message: Optional[str] = None) -> None:
+    def exit(self, status: int = 0, message: Optional[str] = None) -> Never:
         if message:
             self._print_message(message, sys.stdout)
         raise SystemExit(status)
 
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> Never:
         self.print_usage(sys.stdout)
         self.exit(2, f"{self.prog}: error: {message}\n")
 
@@ -319,8 +318,7 @@ def run_backup(
 
         if resolve_git_identity(source) != (backup_head, backup_tag):
             raise BackupError(
-                "Source Git identity changed during staging; "
-                "no archive was created."
+                "Source Git identity changed during staging; no archive was created."
             )
 
         logger.debug("Creating Zip archive from staged data.")
@@ -398,9 +396,7 @@ def log_git_identity(head: str, semver_tag: str, logger: Logger) -> None:
 
     logger.debug(f"Resolved Git HEAD: {head}")
     if semver_tag == DEFAULT_SEMVER_TAG:
-        logger.warn(
-            f"No SemVer tag points to source HEAD; using {DEFAULT_SEMVER_TAG}."
-        )
+        logger.warn(f"No SemVer tag points to source HEAD; using {DEFAULT_SEMVER_TAG}.")
         return
 
     logger.debug(f"Resolved SemVer tag for HEAD: {semver_tag}")
@@ -436,7 +432,9 @@ def build_archive_name(
 ) -> str:
     safe_source_name = sanitize_name(source_name)
     if not safe_source_name:
-        raise BackupError(f"Source directory name cannot be used in an archive name: {source_name}")
+        raise BackupError(
+            f"Source directory name cannot be used in an archive name: {source_name}"
+        )
     return f"{safe_source_name}-{timestamp}-{head}-{semver_tag}.zip"
 
 
@@ -462,7 +460,9 @@ def select_buffer_parent(
     if is_relative_to(default_parent, source):
         raise BackupError("Default temporary directory is inside the source directory.")
     if not is_accessible_directory(default_parent):
-        raise BackupError(f"Default temporary directory is not accessible: {default_parent}")
+        raise BackupError(
+            f"Default temporary directory is not accessible: {default_parent}"
+        )
     return default_parent
 
 
@@ -473,18 +473,26 @@ def resolve_optional_buffer(
 ) -> Optional[Path]:
     expanded_buffer = buffer_directory.expanduser()
     if not expanded_buffer.exists():
-        logger.warn(f"Buffer directory does not exist; using default temporary directory: {expanded_buffer}")
+        logger.warn(
+            f"Buffer directory does not exist; using default temporary directory: {expanded_buffer}"
+        )
         return None
     if not expanded_buffer.is_dir():
-        logger.warn(f"Buffer path is not a directory; using default temporary directory: {expanded_buffer}")
+        logger.warn(
+            f"Buffer path is not a directory; using default temporary directory: {expanded_buffer}"
+        )
         return None
 
     buffer_parent = expanded_buffer.resolve(strict=True)
     if is_relative_to(buffer_parent, source):
-        logger.warn(f"Buffer directory is inside source; using default temporary directory: {buffer_parent}")
+        logger.warn(
+            f"Buffer directory is inside source; using default temporary directory: {buffer_parent}"
+        )
         return None
     if not is_accessible_directory(buffer_parent):
-        logger.warn(f"Buffer directory is not accessible; using default temporary directory: {buffer_parent}")
+        logger.warn(
+            f"Buffer directory is not accessible; using default temporary directory: {buffer_parent}"
+        )
         return None
     return buffer_parent
 
@@ -499,13 +507,12 @@ def create_archive(staged_source: Path, archive_path: Path) -> None:
     )
     try:
         write_zip_from_staged_tree(staged_source, temp_archive)
-        if archive_path.exists():
-            raise BackupError(f"Target archive already exists: {archive_path}")
-        temp_archive.replace(archive_path)
-    except Exception:
-        if temp_archive.exists():
-            temp_archive.unlink()
-        raise
+        try:
+            os.link(temp_archive, archive_path)
+        except FileExistsError as exc:
+            raise BackupError(f"Target archive already exists: {archive_path}") from exc
+    finally:
+        temp_archive.unlink(missing_ok=True)
 
 
 def write_zip_from_staged_tree(staged_source: Path, archive_path: Path) -> None:
@@ -516,12 +523,13 @@ def write_zip_from_staged_tree(staged_source: Path, archive_path: Path) -> None:
         compresslevel=MAX_COMPRESSION,
     ) as archive:
         add_directory_entry(archive, staged_source.name)
-        for directory in sorted(path for path in staged_source.rglob("*") if path.is_dir()):
+        staged_paths = sorted(staged_source.rglob("*"))
+        for directory in (path for path in staged_paths if path.is_dir()):
             add_directory_entry(
                 archive,
                 f"{staged_source.name}/{directory.relative_to(staged_source).as_posix()}",
             )
-        for file_path in sorted(path for path in staged_source.rglob("*") if path.is_file()):
+        for file_path in (path for path in staged_paths if path.is_file()):
             archive.write(
                 file_path,
                 f"{staged_source.name}/{file_path.relative_to(staged_source).as_posix()}",

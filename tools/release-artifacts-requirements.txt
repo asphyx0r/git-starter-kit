@@ -1,1 +1,1 @@
-jsonschema[format]==4.26.0
+--requirement quality/requirements.lock
