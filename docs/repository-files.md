@@ -360,9 +360,10 @@ deferred, or explicitly excluded from the template.
 - Usage: Runs through Git after `core.hooksPath` points to `.githooks`.
 - Notes: Delegates its input and arguments to the shared `hook-pre-push`
   profile. The profile checks out each affected pushed object in a validated
-  disposable local clone, runs the relevant Python or shell test family, and validates
-  each pushed `refs/tags/v*` tree with the tracked release artifact tool.
-  Historical and non-release refs are not reclassified.
+  disposable local clone, assigns that clone the pushed remote URL, runs the
+  relevant Python or shell test family, and validates each pushed
+  `refs/tags/v*` tree with the tracked release artifact tool. Historical and
+  non-release refs are not reclassified.
 
 ### `.gitignore`
 
