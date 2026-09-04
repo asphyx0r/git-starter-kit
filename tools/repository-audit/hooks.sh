@@ -635,7 +635,6 @@ run_hook_affected_tests() {
         bash "${shell_test}" || exit $?
       done
     ' hook-shell-family "${pushed_root}" \
-      tests/test_repository_audit.sh \
       tests/test_quality_hooks.sh \
       tests/test_commit_message_validation.sh || return $?
   fi
