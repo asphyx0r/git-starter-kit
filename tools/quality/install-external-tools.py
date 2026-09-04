@@ -661,6 +661,8 @@ def validate_install_root(install_root: Path, runner_temp: Path) -> tuple[Path, 
         raise InstallerError("RUNNER_TEMP must not contain a symlink")
     resolved_runner = raw_runner.resolve(strict=True)
     raw_install = install_root.absolute()
+    if raw_install.is_symlink():
+        raise InstallerError("install root must not contain a symlink")
     existing_components = [
         component
         for component in _path_chain(raw_install.parent)
@@ -673,7 +675,7 @@ def validate_install_root(install_root: Path, runner_temp: Path) -> tuple[Path, 
         resolved_runner
     ):
         raise InstallerError("install root must be strictly under RUNNER_TEMP")
-    if raw_install.exists() or raw_install.is_symlink():
+    if raw_install.exists():
         raise InstallerError("install root must not already exist")
     return resolved_install, resolved_runner
 

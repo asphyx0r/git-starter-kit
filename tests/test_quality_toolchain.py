@@ -841,6 +841,7 @@ class QualityToolchainTests(unittest.TestCase):
             quality_root.mkdir()
             registry_path = quality_root / "versions.json"
             registry_path.write_text("[]\n", encoding="utf-8")
+            resolved_registry_path = registry_path.resolve(strict=True)
 
             with (
                 mock.patch.object(sys, "stdout", stdout),
@@ -852,7 +853,7 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(
             stderr.getvalue(),
-            f"quality versions: expected a JSON object: {registry_path}\n",
+            f"quality versions: expected a JSON object: {resolved_registry_path}\n",
         )
 
     def test_direct_python_requirements_are_exact_and_lock_is_hashed(self) -> None:
