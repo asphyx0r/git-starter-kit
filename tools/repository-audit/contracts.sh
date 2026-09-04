@@ -1452,10 +1452,11 @@ PY
     return 1
   fi
 
-  if ! grep -F \
-    'VERSION, SHA256SUMS, and manifest.json must be staged together.' \
+  # shellcheck disable=SC2016
+  if ! grep -F 'tools/release-artifacts.py' \
     tools/repository-audit/hooks.sh >/dev/null ||
-    ! grep -F 'tools/release-artifacts.py' \
+    ! grep -F \
+      'if ((check_status == 0 && ${#release_paths[@]} > 0)); then' \
       tools/repository-audit/hooks.sh >/dev/null ||
     ! grep -F -- '--expected-ref' \
       tools/repository-audit/hooks.sh >/dev/null; then

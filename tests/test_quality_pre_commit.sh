@@ -52,6 +52,67 @@ source "${source_root}/tools/repository-audit.sh"
 repository_root="${fixture}"
 cd "${repository_root}"
 
+release_fixture="${test_temp}/release-artifact-repository"
+release_metadata="${test_temp}/release-artifact-metadata.json"
+git clone -q --no-hardlinks "${source_root}" "${release_fixture}"
+git -C "${release_fixture}" config user.name "Pre-commit Test"
+git -C "${release_fixture}" config user.email "pre-commit@example.com"
+printf 'release candidate\n' >"${release_fixture}/release-candidate.txt"
+git -C "${release_fixture}" add release-candidate.txt
+git -C "${release_fixture}" commit -q -m "test: add release candidate"
+release_date="$(
+  python - "${release_fixture}/manifest.json" "${release_metadata}" <<'PYTHON'
+import json
+import sys
+
+manifest_path, metadata_path = sys.argv[1:]
+manifest = json.load(open(manifest_path, encoding="utf-8"))
+metadata = {
+    key: manifest[key]
+    for key in (
+        "program_id",
+        "name",
+        "channel",
+        "critical_update",
+        "release_notes",
+        "update",
+        "metadata",
+    )
+}
+artifact = manifest["artifacts"][0]
+metadata["artifact"] = {"id": artifact["id"], "target": artifact["target"]}
+with open(metadata_path, "w", encoding="utf-8") as stream:
+    json.dump(metadata, stream)
+    stream.write("\n")
+print(manifest["release_date"])
+PYTHON
+)"
+(
+  cd "${release_fixture}"
+  python tools/release-artifacts.py --force prepare \
+    --release-ref v2.8.0 \
+    --release-date "${release_date}" \
+    --metadata-file "${release_metadata}" >/dev/null
+)
+git -C "${release_fixture}" diff --quiet -- VERSION ||
+  fail "release artifact preparation changed VERSION"
+git -C "${release_fixture}" diff --quiet -- SHA256SUMS &&
+  fail "release artifact preparation did not update SHA256SUMS"
+git -C "${release_fixture}" diff --quiet -- manifest.json &&
+  fail "release artifact preparation did not update manifest.json"
+git -C "${release_fixture}" add SHA256SUMS manifest.json
+printf '%s\n' SHA256SUMS manifest.json >"${test_temp}/release-paths.expected"
+git -C "${release_fixture}" diff --cached --name-only \
+  >"${test_temp}/release-paths.actual"
+cmp -s "${test_temp}/release-paths.expected" \
+  "${test_temp}/release-paths.actual" ||
+  fail "release fixture did not stage only coherent artifact updates"
+(
+  cd "${release_fixture}"
+  repository_root="${release_fixture}"
+  run_hook_pre_commit
+) || fail "pre-commit rejected coherent artifact updates with unchanged VERSION"
+
 for failed_diff_position in 1 2 3; do
   git reset -q --hard HEAD
   diff_case_root="${test_temp}/diff-${failed_diff_position}"

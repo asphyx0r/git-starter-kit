@@ -392,12 +392,6 @@ run_hook_pre_commit() (
   while IFS= read -r -d '' staged_file; do
     release_paths+=("${staged_file}")
   done <"${release_names}"
-  if ((${#release_paths[@]} != 0 && ${#release_paths[@]} != 3)); then
-    printf '%s\n' \
-      'pre-commit: VERSION, SHA256SUMS, and manifest.json must be staged together.' \
-      >&2
-    return 1
-  fi
 
   if ((${#markdown_paths[@]} == 0 && \
     ${#yaml_paths[@]} == 0 && \
@@ -758,6 +752,9 @@ run_hook_pre_push() (
 
   if ((${#test_object_ids[@]} > 0)); then
     local source_node_bin="${repository_root}/tools/quality/node_modules/.bin"
+    if command -v cygpath >/dev/null 2>&1; then
+      source_node_bin="$(cygpath -u "${source_node_bin}")"
+    fi
     export PATH="${source_node_bin}:${PATH}"
     for ((update_index = 0; update_index < ${#test_object_ids[@]}; update_index += 1)); do
       local pushed_root="${hook_temp}/repository.${update_index}"

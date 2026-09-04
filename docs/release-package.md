@@ -135,7 +135,10 @@ Use this mode for the normal release process.
 3. Resolve every release-manifest value from verified evidence, ask the user
     only for unresolved or contradictory values, obtain explicit validation,
     then generate and commit exactly `VERSION`, `SHA256SUMS`, and
-    `manifest.json`.
+    `manifest.json`. Whenever the Git index changes any release-identification
+    artifact, the pre-commit hook validates the complete indexed release state.
+    Normal generation stages all three files. A coherent correction may stage
+    only `SHA256SUMS` and `manifest.json` when `VERSION` is unchanged.
 4. From a clean repository, run `bash tools/repository-audit.sh` locally.
 5. Stop if the local audit fails; do not create a release tag or release.
 6. Create and push the release tag, for example `v1.3.0`.

@@ -461,6 +461,10 @@ PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE RELEASE
   `python tools/release-artifacts.py check --expected-ref <tag> --index`, puis
   crée un commit distinct de préparation des artefacts en répétant tous les
   contrôles et le contrat de commit des points 18 à 28.
+- Le hook `pre-commit` valide l'état complet de l'index dès qu'au moins un
+  artefact d'identification est staged. La génération normale stage les trois
+  fichiers ; une correction cohérente peut ne stage que `SHA256SUMS` et
+  `manifest.json` lorsque `VERSION` est inchangé.
 - Après le commit, exécute
   `python tools/release-artifacts.py check --expected-ref <tag> --treeish HEAD`.
   Tout échec, toute autre modification ou tout placeholder non résolu bloque la
