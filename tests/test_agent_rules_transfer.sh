@@ -771,6 +771,7 @@ test_seal_rejects_missing_nonregular_and_executable_rules() {
     "${source_tag_oid}" "${source_commit}"
   git_fixture -C "${target}" restore -- AGENTS.md
 
+  chmod +x -- "${target}/AGENTS.md"
   git_fixture -C "${target}" update-index --chmod=+x AGENTS.md
   expect_failure seal-executable-rule 1 \
     'Agent rule Git mode must be 100644: AGENTS.md' \
