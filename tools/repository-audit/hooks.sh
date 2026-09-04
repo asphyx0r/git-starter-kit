@@ -677,6 +677,7 @@ run_hook_test_family() {
 }
 
 run_hook_pre_push() (
+  local remote_url="${2:-}"
   local local_ref
   local local_object_id
   local remote_ref
@@ -777,6 +778,15 @@ run_hook_pre_push() (
         --work-tree="${validated_hook_root}" \
         checkout --quiet --detach --force \
         "${test_object_ids[update_index]}"; then
+        :
+      else
+        change_status=$?
+        return "${change_status}"
+      fi
+      if git \
+        --git-dir="${validated_hook_git_dir}" \
+        --work-tree="${validated_hook_root}" \
+        remote set-url origin "${remote_url}"; then
         :
       else
         change_status=$?

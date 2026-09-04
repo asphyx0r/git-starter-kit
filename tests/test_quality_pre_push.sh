@@ -175,6 +175,7 @@ if [[ "${QUALITY_STUB_AFFECTED_TESTS:-false}" == true ]]; then
   run_hook_affected_tests() {
     local pushed_oid
     pushed_oid="$(git -C "$1" rev-parse HEAD)"
+    git -C "$1" remote get-url origin >>"${QUALITY_REMOTE_TRACE}"
     printf '%s|%s|%s\n' "$2" "$3" "${pushed_oid}" \
       >>"${QUALITY_AFFECTED_TRACE}"
     if [[ "$2" == true ]]; then
@@ -279,6 +280,7 @@ export QUALITY_LOCAL_DEPENDENCY_TRACE="${test_temp}/local-dependency.trace"
 export QUALITY_CLONE_TRACE="${test_temp}/clone.trace"
 export QUALITY_CLONE_DESTINATION_TRACE="${test_temp}/clone-destination.trace"
 export QUALITY_CHECKOUT_TRACE="${test_temp}/checkout.trace"
+export QUALITY_REMOTE_TRACE="${test_temp}/remote.trace"
 export QUALITY_REDIRECTED_GIT_DIR_TRACE="${test_temp}/redirected-git-dir.trace"
 export QUALITY_REAL_GIT="${real_git}"
 export QUALITY_POISON_OID="${shell_oid}"
@@ -343,6 +345,7 @@ source_status_before="$(git -C "${fixture}" status --porcelain --untracked-files
 : >"${QUALITY_CLONE_TRACE}"
 : >"${QUALITY_CLONE_DESTINATION_TRACE}"
 : >"${QUALITY_CHECKOUT_TRACE}"
+: >"${QUALITY_REMOTE_TRACE}"
 : >"${QUALITY_AFFECTED_TRACE}"
 run_pre_push_bounded 120 "${combined_updates}" origin local
 source_status_after="$(git -C "${fixture}" status --porcelain --untracked-files=all)"
@@ -360,6 +363,10 @@ if [[ "$(wc -l <"${QUALITY_CLONE_TRACE}" | tr -d ' ')" != 5 ]]; then
 fi
 if [[ "$(wc -l <"${QUALITY_CHECKOUT_TRACE}" | tr -d ' ')" != 5 ]]; then
   fail "pre-push did not anchor checkout for every distinct selected object ID"
+fi
+if [[ "$(wc -l <"${QUALITY_REMOTE_TRACE}" | tr -d ' ')" != 5 ]] ||
+  grep -Fvx 'local' "${QUALITY_REMOTE_TRACE}" >/dev/null; then
+  fail "pre-push clone origin did not match the pushed remote URL"
 fi
 while IFS= read -r normal_clone_destination; do
   if [[ -e "${normal_clone_destination}" ]]; then

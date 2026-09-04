@@ -1054,7 +1054,33 @@ covered(True)
             / "markdownlint-cli2"
             / "markdownlint-cli2-bin.mjs"
         )
-        self.assertTrue(markdownlint_entry.is_file())
+        if markdownlint_entry.is_file():
+            markdownlint_command = [node_command, str(markdownlint_entry)]
+        else:
+            markdownlint_executable = shutil.which("markdownlint-cli2")
+            if markdownlint_executable is None:
+                self.fail("the locked Markdownlint command is required")
+            markdownlint_command = [markdownlint_executable]
+        version_result = subprocess.run(
+            [*markdownlint_command, "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            version_result.returncode,
+            0,
+            version_result.stdout + version_result.stderr,
+        )
+        version_lines = version_result.stdout.splitlines()
+        self.assertTrue(version_lines)
+        version_fields = version_lines[0].split()
+        self.assertGreaterEqual(len(version_fields), 2)
+        self.assertEqual(version_fields[0], "markdownlint-cli2")
+        self.assertEqual(
+            version_fields[1],
+            f"v{EXPECTED_NODE_REQUIREMENTS['markdownlint-cli2']}",
+        )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
@@ -1080,8 +1106,7 @@ covered(True)
 
             result = subprocess.run(
                 [
-                    node_command,
-                    str(markdownlint_entry),
+                    *markdownlint_command,
                     "--config",
                     ".markdownlint-cli2.yaml",
                     "**/*.md",
