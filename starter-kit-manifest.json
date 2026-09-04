@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.7.0",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.7.0",
-    "generatedAt": "2026-08-22T07:38:03Z"
+    "ref": "v2.8.0",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.0",
+    "generatedAt": "2026-09-04T13:45:37Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.7.0",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.7.0",
-    "generatedAt": "2026-08-22T07:38:03Z"
+    "ref": "v2.8.0",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.0",
+    "generatedAt": "2026-09-04T13:45:37Z"
   },
   "files": [
     {
@@ -47,8 +47,8 @@
     },
     {
       "path": ".codespellrc",
-      "sha256": "4ee81226707315324d09837db2952d733cdfcac7718175f8c7bc62262eab8404",
-      "canonicalSha256": "4ee81226707315324d09837db2952d733cdfcac7718175f8c7bc62262eab8404",
+      "sha256": "d2e2577db40e89beaab25d50d2d32ddf1782f138633b76635ce1374441a3cdf2",
+      "canonicalSha256": "d2e2577db40e89beaab25d50d2d32ddf1782f138633b76635ce1374441a3cdf2",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "merge"
@@ -71,24 +71,24 @@
     },
     {
       "path": ".githooks/commit-msg",
-      "sha256": "69a68b98736cea9e34de77717736b418443ee7987911a73b49a5247eb11469ef",
-      "canonicalSha256": "69a68b98736cea9e34de77717736b418443ee7987911a73b49a5247eb11469ef",
+      "sha256": "e4af4d69167f42206c0f8f629884984c8d02f5a8b5cb3442b6ecc876b6a8283e",
+      "canonicalSha256": "e4af4d69167f42206c0f8f629884984c8d02f5a8b5cb3442b6ecc876b6a8283e",
       "contentKind": "text",
       "mode": "100755",
       "strategy": "replace"
     },
     {
       "path": ".githooks/pre-commit",
-      "sha256": "934d317690d7b88a26ae7cc5eb51729bef32770a8de6d517b1f081f1b00fe6b9",
-      "canonicalSha256": "934d317690d7b88a26ae7cc5eb51729bef32770a8de6d517b1f081f1b00fe6b9",
+      "sha256": "229fe413b751991e337e6789fa0cc9d0de087055c130f62cc5940f24af302380",
+      "canonicalSha256": "229fe413b751991e337e6789fa0cc9d0de087055c130f62cc5940f24af302380",
       "contentKind": "text",
       "mode": "100755",
       "strategy": "replace"
     },
     {
       "path": ".githooks/pre-push",
-      "sha256": "6354e6e784f386bac5bc69fb0d01b8d3f3e90ddc0c6f05929b571f2c97858a9d",
-      "canonicalSha256": "6354e6e784f386bac5bc69fb0d01b8d3f3e90ddc0c6f05929b571f2c97858a9d",
+      "sha256": "46a6349c8919fcf22586bfd996868557e6f3611b75d1c17444012c7b2cf18dae",
+      "canonicalSha256": "46a6349c8919fcf22586bfd996868557e6f3611b75d1c17444012c7b2cf18dae",
       "contentKind": "text",
       "mode": "100755",
       "strategy": "replace"
@@ -126,25 +126,33 @@
       "strategy": "replace"
     },
     {
+      "path": ".github/dependabot.yml",
+      "sha256": "5c144a11c08467ba0a77e28712a24cef02fdfdc4ab19301a9a63df40709ca154",
+      "canonicalSha256": "5c144a11c08467ba0a77e28712a24cef02fdfdc4ab19301a9a63df40709ca154",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "merge"
+    },
+    {
       "path": ".github/workflows/agent-rules-update.yml",
-      "sha256": "e7903e977fc94989664c0fcb514523633d878731b5cbd68a40258dc25fa096b7",
-      "canonicalSha256": "e7903e977fc94989664c0fcb514523633d878731b5cbd68a40258dc25fa096b7",
+      "sha256": "f2a63db81f68f73b2e780c8bc290d53fcca1882219b4308382ce1577d28b780c",
+      "canonicalSha256": "f2a63db81f68f73b2e780c8bc290d53fcca1882219b4308382ce1577d28b780c",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": ".github/workflows/release-artifacts.yml",
-      "sha256": "c0e751bc440248de057f9ede8ae7ccf94efd7bc619f99e053b6c321f25a7b6fc",
-      "canonicalSha256": "c0e751bc440248de057f9ede8ae7ccf94efd7bc619f99e053b6c321f25a7b6fc",
+      "sha256": "f8022cefd729afe016a456dd5f06d3c4d4c9e36c964161d3c4c4c42856ed1ede",
+      "canonicalSha256": "f8022cefd729afe016a456dd5f06d3c4d4c9e36c964161d3c4c4c42856ed1ede",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": ".github/workflows/repository-audit.yml",
-      "sha256": "4d17aea1c215ae00b150c61ccd5e61cfef221ede0b7b22dce9bc289561dd6ca9",
-      "canonicalSha256": "4d17aea1c215ae00b150c61ccd5e61cfef221ede0b7b22dce9bc289561dd6ca9",
+      "sha256": "c0d3178f343cd40ca4223f3a27277c5f3584e1fd135d1c9576aa2768142e961f",
+      "canonicalSha256": "c0d3178f343cd40ca4223f3a27277c5f3584e1fd135d1c9576aa2768142e961f",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "merge"
@@ -175,8 +183,8 @@
     },
     {
       "path": ".markdownlint-cli2.yaml",
-      "sha256": "0e1ac110636833d43d75ebff7b336b0089aab9006b2c1e515e375c4ade14586c",
-      "canonicalSha256": "0e1ac110636833d43d75ebff7b336b0089aab9006b2c1e515e375c4ade14586c",
+      "sha256": "f39f262a3549b2fa2410da7b07082bd3f34d26e506964b852b23a7b9454edff1",
+      "canonicalSha256": "f39f262a3549b2fa2410da7b07082bd3f34d26e506964b852b23a7b9454edff1",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -199,8 +207,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "e5d03a129edf90195dac124c01e6cdbc307af49ea806f82454537fe35d35c0de",
-      "canonicalSha256": "e5d03a129edf90195dac124c01e6cdbc307af49ea806f82454537fe35d35c0de",
+      "sha256": "efb8b65bea94827e7cf45fdbaf614fd9d5cf31574cb8d65b9b94013824c0718d",
+      "canonicalSha256": "efb8b65bea94827e7cf45fdbaf614fd9d5cf31574cb8d65b9b94013824c0718d",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -215,8 +223,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "sha256": "545d9ec252fc83a2d913bd8f3698416f42643caefcf213353fb36e75362698fd",
-      "canonicalSha256": "545d9ec252fc83a2d913bd8f3698416f42643caefcf213353fb36e75362698fd",
+      "sha256": "f66f2336ff834ee0faaff08ab8f4bce53ca419095e1ed9aa9b6780d56af21488",
+      "canonicalSha256": "f66f2336ff834ee0faaff08ab8f4bce53ca419095e1ed9aa9b6780d56af21488",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -231,8 +239,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "1d17114e008c6eadf3e9a52356994beb081156ef02439344324d0e1678852f9e",
-      "canonicalSha256": "1d17114e008c6eadf3e9a52356994beb081156ef02439344324d0e1678852f9e",
+      "sha256": "3b94bfe9215d954a057a792fd43ecb2f00e3bffb26014f79fd858aab3e1abda4",
+      "canonicalSha256": "3b94bfe9215d954a057a792fd43ecb2f00e3bffb26014f79fd858aab3e1abda4",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -271,8 +279,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "cbf69b8aef8cd96bb68269b2764479b0090329980301e0a25534c3ce6ca5e99f",
-      "canonicalSha256": "cbf69b8aef8cd96bb68269b2764479b0090329980301e0a25534c3ce6ca5e99f",
+      "sha256": "567c48a2e9a625925a429fb6452bac1b03dbc74af4204c284e0d19fcef07625e",
+      "canonicalSha256": "567c48a2e9a625925a429fb6452bac1b03dbc74af4204c284e0d19fcef07625e",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -398,97 +406,281 @@
       "strategy": "replace"
     },
     {
+      "path": "tests/test_agent_rules_transfer.sh",
+      "sha256": "c9c6f1dae6f5fce6b7ba54bccd81c8425c8c3461f29a3b583411972d5e5b56c8",
+      "canonicalSha256": "c9c6f1dae6f5fce6b7ba54bccd81c8425c8c3461f29a3b583411972d5e5b56c8",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
       "path": "tests/test_backup_target_directory.py",
-      "sha256": "a26cf92a90b98cff12562e97d475b861faa4716ff1aba2e7fb543fccaf0e01e7",
-      "canonicalSha256": "a26cf92a90b98cff12562e97d475b861faa4716ff1aba2e7fb543fccaf0e01e7",
+      "sha256": "8f57c779669ef9500d58843313f31eb6907c1ff210f145673109fa9f65d5f864",
+      "canonicalSha256": "8f57c779669ef9500d58843313f31eb6907c1ff210f145673109fa9f65d5f864",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tests/test_commit_message_validation.sh",
-      "sha256": "63f8a0fdab62f68520171fd00768c23ad79a7fe5db7c8ce0043f3016e91948a8",
-      "canonicalSha256": "63f8a0fdab62f68520171fd00768c23ad79a7fe5db7c8ce0043f3016e91948a8",
+      "sha256": "264743c133c9e8c370ad1f64c0cb51c825848e0776103916bf9a45ba0750096b",
+      "canonicalSha256": "264743c133c9e8c370ad1f64c0cb51c825848e0776103916bf9a45ba0750096b",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_quality_hooks.sh",
+      "sha256": "a657f65e9c63d742ca202a2953339a9a72b21131eafed637b1439bdc92a3b41a",
+      "canonicalSha256": "a657f65e9c63d742ca202a2953339a9a72b21131eafed637b1439bdc92a3b41a",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_quality_pre_commit.sh",
+      "sha256": "7784def463b5c7db5f761a1b7a4f308dc35ef27ac8f95d9fb699ac88e67e1f9f",
+      "canonicalSha256": "7784def463b5c7db5f761a1b7a4f308dc35ef27ac8f95d9fb699ac88e67e1f9f",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_quality_pre_push.sh",
+      "sha256": "6cc458c348521088c381a84d79d698fac96583266f2af953b2fc67e66d3c951d",
+      "canonicalSha256": "6cc458c348521088c381a84d79d698fac96583266f2af953b2fc67e66d3c951d",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_quality_toolchain.py",
+      "sha256": "1ca5e595fc3d9444a28e6634678f7b6a86ec16ab919b1d373e2ce94b2632e3df",
+      "canonicalSha256": "1ca5e595fc3d9444a28e6634678f7b6a86ec16ab919b1d373e2ce94b2632e3df",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tests/test_release_artifacts.py",
-      "sha256": "649e4ac7d41e0b73070595d622a34e64ea3d8f6cc9c7fd5d7f8456d74e92fe60",
-      "canonicalSha256": "649e4ac7d41e0b73070595d622a34e64ea3d8f6cc9c7fd5d7f8456d74e92fe60",
+      "sha256": "72da48746143ae622d3d3e1d87b886f1b13aef714a9877163725bdfda4edd06c",
+      "canonicalSha256": "72da48746143ae622d3d3e1d87b886f1b13aef714a9877163725bdfda4edd06c",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_repository_audit.sh",
+      "sha256": "0807016cc319a702f84e1dd6a9b41cc7f3cbde458706d175f0fc3cee33e74277",
+      "canonicalSha256": "0807016cc319a702f84e1dd6a9b41cc7f3cbde458706d175f0fc3cee33e74277",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tests/test_verify_repository_audit_runs.py",
-      "sha256": "8cbabd3f462c8b84f11adf435136afa242e331c0bbd2e7a206f982bbe1d64fb3",
-      "canonicalSha256": "8cbabd3f462c8b84f11adf435136afa242e331c0bbd2e7a206f982bbe1d64fb3",
+      "sha256": "e12388ba7c84b8c9af39685b8bf059873d39e5b572fee48161db91888d1ab868",
+      "canonicalSha256": "e12388ba7c84b8c9af39685b8bf059873d39e5b572fee48161db91888d1ab868",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/README.md",
-      "sha256": "82c2290eafffda59ea55eb8d350e856eb9697d3cc4e9e2846cda3f020614fec0",
-      "canonicalSha256": "82c2290eafffda59ea55eb8d350e856eb9697d3cc4e9e2846cda3f020614fec0",
+      "sha256": "ef058923690e3e0fdf78cf5b5567712b6363cd7f6153a1f52a330dd40b558b27",
+      "canonicalSha256": "ef058923690e3e0fdf78cf5b5567712b6363cd7f6153a1f52a330dd40b558b27",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
     },
     {
       "path": "tools/backup-target-directory.py",
-      "sha256": "8ad8cfd79b6590069b2a1035fe138d961576fc9df13df0bcd3d29f6c2ade7898",
-      "canonicalSha256": "8ad8cfd79b6590069b2a1035fe138d961576fc9df13df0bcd3d29f6c2ade7898",
+      "sha256": "2151e88d0907a0c0de04d43feea80be2779f40979b4c00a1e55821094802e9bf",
+      "canonicalSha256": "2151e88d0907a0c0de04d43feea80be2779f40979b4c00a1e55821094802e9bf",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/git-init.ps1",
-      "sha256": "dde863da6ff9e1c8a11ad3b5ec8bf7381d5a76070b838e269c5621116c611eeb",
-      "canonicalSha256": "dde863da6ff9e1c8a11ad3b5ec8bf7381d5a76070b838e269c5621116c611eeb",
+      "sha256": "425ffb60c0aab8a340e2b7a4836901c63e2905bbde0e22996462cc8a4a231a7c",
+      "canonicalSha256": "425ffb60c0aab8a340e2b7a4836901c63e2905bbde0e22996462cc8a4a231a7c",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/git-init.sh",
-      "sha256": "2b24f80155f9d64f227ae60a03bad90c7bef1a1207ab7837161bcb7dbd2a2d7e",
-      "canonicalSha256": "2b24f80155f9d64f227ae60a03bad90c7bef1a1207ab7837161bcb7dbd2a2d7e",
+      "sha256": "592de239ed339e3d8501f42ed79a4b560dd294eb5ab02ab9fed51e9f47ddf190",
+      "canonicalSha256": "592de239ed339e3d8501f42ed79a4b560dd294eb5ab02ab9fed51e9f47ddf190",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/PSScriptAnalyzerSettings.psd1",
+      "sha256": "99464340552767df146063032c20a515eaf5b5e54cfb4503655222fdec9fedee",
+      "canonicalSha256": "99464340552767df146063032c20a515eaf5b5e54cfb4503655222fdec9fedee",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/check-versions.py",
+      "sha256": "c12e31c0ef7289f413b8e9272b9c7f749c3187ae65ee1b5399ba65646cb44558",
+      "canonicalSha256": "c12e31c0ef7289f413b8e9272b9c7f749c3187ae65ee1b5399ba65646cb44558",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/install-external-tools.py",
+      "sha256": "cf142007aee0353804a37c84579cc4e94c758d5b0248bafd75d5f312fd44e2b7",
+      "canonicalSha256": "cf142007aee0353804a37c84579cc4e94c758d5b0248bafd75d5f312fd44e2b7",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/package-lock.json",
+      "sha256": "386d62e2286a39516ce115c20fea2867c0b9db32e8c85e751b25d0baceb8a9a4",
+      "canonicalSha256": "386d62e2286a39516ce115c20fea2867c0b9db32e8c85e751b25d0baceb8a9a4",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/package.json",
+      "sha256": "83d81a677fb61f2c9d520b09eef766affa0ab46bb88793def6886be3617f1afd",
+      "canonicalSha256": "83d81a677fb61f2c9d520b09eef766affa0ab46bb88793def6886be3617f1afd",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/pyproject.toml",
+      "sha256": "af1ef21f2f219d2c07b520c076414c4df2c48863f8880d51a651c1df6d0494a8",
+      "canonicalSha256": "af1ef21f2f219d2c07b520c076414c4df2c48863f8880d51a651c1df6d0494a8",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/requirements.in",
+      "sha256": "874c977d3e1fc3c034c4e8be40d577611af266bbf4955b31c83c39364ab510dc",
+      "canonicalSha256": "874c977d3e1fc3c034c4e8be40d577611af266bbf4955b31c83c39364ab510dc",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/requirements.lock",
+      "sha256": "f62a657799d24444286ae02c10885226da065204809aff9779f4d0b40ccd8a94",
+      "canonicalSha256": "f62a657799d24444286ae02c10885226da065204809aff9779f4d0b40ccd8a94",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/versions.json",
+      "sha256": "be0e1191bcf5d6bd8dac39a248477cf85cfa7a8d9a167baabc46278fe4169272",
+      "canonicalSha256": "be0e1191bcf5d6bd8dac39a248477cf85cfa7a8d9a167baabc46278fe4169272",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/quality/yamllint.yaml",
+      "sha256": "64287dc602196779ff5bc13867bfa3cbcbcaa0da557a5cad506ceaddfa687aa5",
+      "canonicalSha256": "64287dc602196779ff5bc13867bfa3cbcbcaa0da557a5cad506ceaddfa687aa5",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/release-artifacts-requirements.txt",
-      "sha256": "d0bc9baee84543883a0a966d477620161876536b552742ab6409d1da50251405",
-      "canonicalSha256": "d0bc9baee84543883a0a966d477620161876536b552742ab6409d1da50251405",
+      "sha256": "b604fb9f4093d2ccd3e372d89843eb0740d439c146f74bce94c2da19bdc1900d",
+      "canonicalSha256": "b604fb9f4093d2ccd3e372d89843eb0740d439c146f74bce94c2da19bdc1900d",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/release-artifacts.py",
-      "sha256": "11a2b384b01bf138cf9fc72c06dc83bb0c42dcd047f94aa9aa2f522aabf22c1f",
-      "canonicalSha256": "11a2b384b01bf138cf9fc72c06dc83bb0c42dcd047f94aa9aa2f522aabf22c1f",
+      "sha256": "e38be30578b1fada46a3e40cea4ad3ac2c8cd8b41e47da72beb6b5998427913c",
+      "canonicalSha256": "e38be30578b1fada46a3e40cea4ad3ac2c8cd8b41e47da72beb6b5998427913c",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/repository-audit.sh",
-      "sha256": "70076a7794761f4e8e947e7cda1c29695e6cb1d022318fc9d33ab29a84accc5c",
-      "canonicalSha256": "70076a7794761f4e8e947e7cda1c29695e6cb1d022318fc9d33ab29a84accc5c",
+      "sha256": "4b75c43ad2c5580ffe0566cdda039b94cc7093cc1a9201ae6dff5ef854ed095c",
+      "canonicalSha256": "4b75c43ad2c5580ffe0566cdda039b94cc7093cc1a9201ae6dff5ef854ed095c",
       "contentKind": "text",
       "mode": "100755",
-      "strategy": "initialize-only"
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/agent-rules-transfer.sh",
+      "sha256": "5794f851caa54b8b65ee55dbd6927687d11757457aeb0bde145226960e093d3a",
+      "canonicalSha256": "5794f851caa54b8b65ee55dbd6927687d11757457aeb0bde145226960e093d3a",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/common.sh",
+      "sha256": "25e6eddecd9d07b555dac97e35ff8c50d9a8e165b38ceceb21ea9c3954672c12",
+      "canonicalSha256": "25e6eddecd9d07b555dac97e35ff8c50d9a8e165b38ceceb21ea9c3954672c12",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/contracts.sh",
+      "sha256": "b46dfa5e4734d5f584076bcd943985b91fcc94e6a86e01002f0cc18254ea2090",
+      "canonicalSha256": "b46dfa5e4734d5f584076bcd943985b91fcc94e6a86e01002f0cc18254ea2090",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/hooks.sh",
+      "sha256": "7141bc4bb8ce1cc922ec8e664067528756add05ca199226aaf30b3bec7924c73",
+      "canonicalSha256": "7141bc4bb8ce1cc922ec8e664067528756add05ca199226aaf30b3bec7924c73",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/profiles.sh",
+      "sha256": "d0972aaaed9881efa086a88005f461a34bd7bca49092cc413e6b759b372e08f6",
+      "canonicalSha256": "d0972aaaed9881efa086a88005f461a34bd7bca49092cc413e6b759b372e08f6",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/security.sh",
+      "sha256": "110790053764f3fbd4be72aadb8b9506612c933c6a14939c2b6bdef34090e5b5",
+      "canonicalSha256": "110790053764f3fbd4be72aadb8b9506612c933c6a14939c2b6bdef34090e5b5",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/repository-audit/smoke.sh",
+      "sha256": "83432509a0e1b21c17258984890316ed54aa5b3591b357d6f81af373b00865a4",
+      "canonicalSha256": "83432509a0e1b21c17258984890316ed54aa5b3591b357d6f81af373b00865a4",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
     },
     {
       "path": "tools/verify-repository-audit-runs.py",
-      "sha256": "3a99c956fe7546b3bc5aac54c3efe96f1d3a905db74afb2d3f7b2176f841ccbb",
-      "canonicalSha256": "3a99c956fe7546b3bc5aac54c3efe96f1d3a905db74afb2d3f7b2176f841ccbb",
+      "sha256": "2da4111b0d95193e4631e8c84143cfd256e46cf7fa8eaf99988fc0f2fe1e1915",
+      "canonicalSha256": "2da4111b0d95193e4631e8c84143cfd256e46cf7fa8eaf99988fc0f2fe1e1915",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
