@@ -196,6 +196,7 @@ set -euo pipefail
 [[ "$*" == *'$ErrorActionPreference = "Stop"'* ]] || exit 56
 exit 51
 POWERSHELL_CONFIG
+cp -- "${quality_bin}/powershell.exe" "${quality_bin}/pwsh"
 cat >"${quality_bin}/yamllint" <<'YAMLLINT_CONFIG'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -242,6 +243,7 @@ MARKDOWNLINT_CONFIG
 chmod +x \
   "${quality_bin}/markdownlint-cli2" \
   "${quality_bin}/powershell.exe" \
+  "${quality_bin}/pwsh" \
   "${quality_bin}/yamllint"
 for configuration_index in 0 1 2; do
   git reset -q --hard HEAD
