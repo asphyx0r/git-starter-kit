@@ -191,7 +191,6 @@ exit "${QUALITY_PY_STATUS:-0}"
 PYTHON
 chmod +x "${affected_bin}/python"
 for shell_test in \
-  test_repository_audit.sh \
   test_quality_hooks.sh \
   test_commit_message_validation.sh; do
   cat >"${affected_root}/tests/${shell_test}" <<'SHELL_TEST'
@@ -305,13 +304,12 @@ assert_file_contains "${test_temp}/missing-timeout.err" \
 assert_file_contains "${test_temp}/missing-timeout.err" \
   "Install required timeout and ensure it is on PATH."
 
-for failed_shell_position in 1 2 3; do
+for failed_shell_position in 1 2; do
   shell_call_trace="${test_temp}/shell-${failed_shell_position}.trace"
   : >"${shell_call_trace}"
   shell_failure_status=$((46 + failed_shell_position))
   failed_shell_test="$(
     sed -n "${failed_shell_position}p" <<'EOF'
-test_repository_audit.sh
 test_quality_hooks.sh
 test_commit_message_validation.sh
 EOF
