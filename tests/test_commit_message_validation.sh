@@ -6,6 +6,7 @@ source_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 
 # shellcheck disable=SC1091
 source "$source_root/tools/repository-audit.sh"
+initialize_repository_root
 audit_all_commits_marker="${audit_all_commits_marker:-__all_commits__}"
 
 test_temp="$(mktemp -d "${TMPDIR:-/tmp}/commit-message-validation.XXXXXX")"
