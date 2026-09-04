@@ -707,9 +707,11 @@ PY
   fi
 
   git switch --create "${sync_branch}"
-  git \
-    -c user.name='agent-rules-sync[bot]' \
-    -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+  GIT_AUTHOR_NAME='agent-rules-sync[bot]' \
+    GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
+    GIT_COMMITTER_NAME='agent-rules-sync[bot]' \
+    GIT_COMMITTER_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
+    git \
     -c core.hooksPath=/dev/null \
     commit --no-verify --no-gpg-sign \
     -m "chore(agents): sync agent rules to ${SOURCE_REF}"
