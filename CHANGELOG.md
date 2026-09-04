@@ -6,17 +6,18 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
-| 36a2ced | fix(audit): remediate repository safeguards | asphyx |
-| 7ee3a6d | fix(audit): preserve release upgrade contracts | asphyx |
-| 7ffe209 | fix(hooks): preserve pushed checkout context | asphyx |
-| 8403d01 | perf(hooks): keep pre-push shell checks focused | asphyx |
-| 0f22260 | perf(ci): avoid duplicate branch audit runs | asphyx |
-| 6237edc | fix(ci): normalize cross-platform path checks | asphyx |
-| bd23736 | fix(ci): allow reliable cold tool probes | asphyx |
-| 88e11e9 | fix(ci): exercise executable rule mode on Linux | asphyx |
-| af61f47 | fix(ci): preserve agent sync bot identity | asphyx |
-| c3453da | fix(ci): stub PowerShell in Linux hook tests | asphyx |
+| dcee67f | fix(release): allow unchanged version artifact | asphyx |
 | 9fdacda | fix(ci): initialize commit validation repository | asphyx |
+| c3453da | fix(ci): stub PowerShell in Linux hook tests | asphyx |
+| af61f47 | fix(ci): preserve agent sync bot identity | asphyx |
+| 88e11e9 | fix(ci): exercise executable rule mode on Linux | asphyx |
+| bd23736 | fix(ci): allow reliable cold tool probes | asphyx |
+| 6237edc | fix(ci): normalize cross-platform path checks | asphyx |
+| 0f22260 | perf(ci): avoid duplicate branch audit runs | asphyx |
+| 8403d01 | perf(hooks): keep pre-push shell checks focused | asphyx |
+| 7ffe209 | fix(hooks): preserve pushed checkout context | asphyx |
+| 7ee3a6d | fix(audit): preserve release upgrade contracts | asphyx |
+| 36a2ced | fix(audit): remediate repository safeguards | asphyx |
 
 ## v2.7.0
 
