@@ -1775,7 +1775,7 @@ class ExternalInstallerTests(unittest.TestCase):
                 self.assertEqual(set(runner_temp.iterdir()), {install_root})
                 self.assertEqual(len(run_calls), 1)
                 self.assertFalse(run_calls[0][1]["shell"])
-                self.assertEqual(run_calls[0][1]["timeout"], 5)
+                self.assertEqual(run_calls[0][1]["timeout"], 15)
 
     def test_executable_probe_uses_installed_path_and_exact_options(self) -> None:
         observed: list[tuple[list[str], dict[str, object]]] = []
@@ -1793,7 +1793,7 @@ class ExternalInstallerTests(unittest.TestCase):
                     "check": False,
                     "capture_output": True,
                     "text": True,
-                    "timeout": 5,
+                    "timeout": 15,
                     "shell": False,
                     "cwd": staging_root,
                     "env": None,
