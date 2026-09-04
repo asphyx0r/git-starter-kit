@@ -451,13 +451,18 @@ def select_buffer_parent(
     buffer_directory: Optional[Path],
     logger: Logger,
 ) -> Path:
+    resolved_source = source.resolve(strict=True)
     if buffer_directory is not None:
-        buffer_parent = resolve_optional_buffer(buffer_directory, source, logger)
+        buffer_parent = resolve_optional_buffer(
+            buffer_directory,
+            resolved_source,
+            logger,
+        )
         if buffer_parent is not None:
             return buffer_parent
 
     default_parent = Path(tempfile.gettempdir()).resolve(strict=True)
-    if is_relative_to(default_parent, source):
+    if is_relative_to(default_parent, resolved_source):
         raise BackupError("Default temporary directory is inside the source directory.")
     if not is_accessible_directory(default_parent):
         raise BackupError(
