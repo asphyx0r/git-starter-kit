@@ -289,6 +289,24 @@ export QUALITY_AFFECTED_TRACE="${test_temp}/affected.trace"
 export QUALITY_REQUIRE_LOCAL_PROBE=true
 export PATH="${git_bin}:${PATH}"
 
+git_reported_root="$(git -C "${fixture}" rev-parse --show-toplevel)"
+git_reported_root_updates="${test_temp}/git-reported-root.updates"
+printf 'refs/heads/shell-clean %s refs/heads/shell-clean %s\n' \
+  "${shell_clean_oid}" "${base_oid}" >"${git_reported_root_updates}"
+: >"${QUALITY_LOCAL_DEPENDENCY_TRACE}"
+export QUALITY_FIXTURE="${git_reported_root}"
+run_pre_push_bounded "${integration_timeout_seconds}" \
+  "${git_reported_root_updates}" origin local ||
+  fail "pre-push could not use local dependencies from Git-reported root"
+export QUALITY_FIXTURE="${fixture}"
+if [[ "$(cat "${QUALITY_LOCAL_DEPENDENCY_TRACE}")" != local ]]; then
+  fail "Git-reported root did not resolve the source-local dependency"
+fi
+if [[ "${QUALITY_GIT_REPORTED_ROOT_ONLY:-false}" == true ]]; then
+  printf '%s\n' 'PASS: Git-reported root resolves source-local dependencies'
+  exit
+fi
+
 harness_child_pid_path="${test_temp}/harness-child.pid"
 harness_timeout_status=0
 (
