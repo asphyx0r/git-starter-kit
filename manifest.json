@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.8.0",
-    "release_date": "2026-09-04T13:49:55Z",
+    "release_date": "2026-09-04T21:35:47Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 111,
-            "size_bytes": 1698662,
-            "built_at": "2026-09-04T13:49:55Z",
-            "sha256": "bd840273e327d5e9b2f8256126b872faf2dbd3400db17f437843b1c0a2a211a7",
+            "size_bytes": 1702445,
+            "built_at": "2026-09-04T21:35:47Z",
+            "sha256": "beee68eaceba9450d3ec6ab102bdfac8ddcb9eed6a09de289e77a4ea0c078bd6",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -56,11 +56,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt",
-                    "size_bytes": 37950,
+                    "size_bytes": 38231,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "242c191e3dd4fbef821e85f0433d7e9a45cc5ed940a148a647bd89260129a760",
+                    "sha256": "d023f962b4c552d8450131c51a4882089495454d826f31709fddbb9ac6a973b9",
                     "mode": "644"
                 },
                 {
@@ -299,11 +299,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 12150,
+                    "size_bytes": 12220,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "efb8b65bea94827e7cf45fdbaf614fd9d5cf31574cb8d65b9b94013824c0718d",
+                    "sha256": "595c8a39c039a3c94733cd1051b5ba22c1fb9df49dd9bdd9b8830894d76f5b92",
                     "mode": "644"
                 },
                 {
@@ -443,11 +443,11 @@
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 12754,
+                    "size_bytes": 13041,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "770259b3a036a380e03d4a6525d748961bb10d2a8bc1a727f4266ed1315fba8d",
+                    "sha256": "be2c0e95beab704f6efae26c45ef158e4ecbc6621a388c76381f308ef2bb1d6a",
                     "mode": "644"
                 },
                 {
@@ -483,7 +483,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "72c1c11240dfa0aaf155438785edbc56af094d91a65f393b8b3925f763c882eb",
+                    "sha256": "a3e9e8da68ac52c31530d77de52d1a3e93e00fafcfed47ea80a63d0f567dc84e",
                     "mode": "644"
                 },
                 {
@@ -659,20 +659,20 @@
                 },
                 {
                     "relative_path": "tests/test_quality_pre_commit.sh",
-                    "size_bytes": 9710,
+                    "size_bytes": 12051,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7784def463b5c7db5f761a1b7a4f308dc35ef27ac8f95d9fb699ac88e67e1f9f",
+                    "sha256": "c24baeaf04695df227aa056a337284684cc5485a987326784df7b213330f3170",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tests/test_quality_pre_push.sh",
-                    "size_bytes": 22187,
+                    "size_bytes": 23054,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6cc458c348521088c381a84d79d698fac96583266f2af953b2fc67e66d3c951d",
+                    "sha256": "7af3e56653886bbea77951b4d4d3afb2ebc82117f025a2bdb599ec7925e51540",
                     "mode": "644"
                 },
                 {
@@ -911,20 +911,20 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/contracts.sh",
-                    "size_bytes": 67232,
+                    "size_bytes": 67259,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "b46dfa5e4734d5f584076bcd943985b91fcc94e6a86e01002f0cc18254ea2090",
+                    "sha256": "edf22bfeb6f048a6828006ee7566bbb6b9260b9a194d75c027c818d449d743e1",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/repository-audit/hooks.sh",
-                    "size_bytes": 24924,
+                    "size_bytes": 24834,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7141bc4bb8ce1cc922ec8e664067528756add05ca199226aaf30b3bec7924c73",
+                    "sha256": "52435fa15dbc6957371b418579d67531b9a2e3509f6823219248e81c4c4154d3",
                     "mode": "644"
                 },
                 {
