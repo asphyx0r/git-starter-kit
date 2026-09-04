@@ -5,7 +5,10 @@ name: Repository audit
   release:
     types: [published]
   push:
+    branches: [master]
+    tags: ["v*"]
   pull_request:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
