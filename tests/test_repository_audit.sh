@@ -1424,7 +1424,10 @@ name: Repository audit
   release:
     types: [published]
   push:
+    branches: [master]
+    tags: ["v*"]
   pull_request:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -1663,14 +1666,24 @@ assert_repository_audit_mutation \
   release-event 'types: [published]' 'types: [edited]' \
   "${repository_trigger_diagnostic}"
 assert_repository_audit_mutation \
-  missing-pull-request $'  pull_request:\n' '' \
+  missing-pull-request $'  pull_request:\n    branches: [master]\n' '' \
   "${repository_trigger_diagnostic}"
 assert_repository_audit_mutation \
   schedule $'  workflow_dispatch:\n' \
   $'  schedule:\n    - cron: "17 5 * * *"\n  workflow_dispatch:\n' \
   "${repository_trigger_diagnostic}"
 assert_repository_audit_mutation \
-  push-branches $'  push:\n' $'  push:\n    branches: [master]\n' \
+  push-branch \
+  $'  push:\n    branches: [master]\n    tags: ["v*"]' \
+  $'  push:\n    branches: [main]\n    tags: ["v*"]' \
+  "${repository_trigger_diagnostic}"
+assert_repository_audit_mutation \
+  push-tags '    tags: ["v*"]' '    tags: ["release-*"]' \
+  "${repository_trigger_diagnostic}"
+assert_repository_audit_mutation \
+  pull-request-branch \
+  $'  pull_request:\n    branches: [master]' \
+  $'  pull_request:\n    branches: [main]' \
   "${repository_trigger_diagnostic}"
 
 assert_repository_audit_mutation \

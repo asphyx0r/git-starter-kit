@@ -856,7 +856,10 @@ expected_on_block = (
     "  release:\n"
     "    types: [published]\n"
     "  push:\n"
+    "    branches: [master]\n"
+    '    tags: ["v*"]\n'
     "  pull_request:\n"
+    "    branches: [master]\n"
     "  workflow_dispatch:\n"
     "\n"
 )

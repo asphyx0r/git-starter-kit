@@ -244,8 +244,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Runs the shared repository audit and publishes one aggregate required
   check on GitHub Actions.
-- Usage: Executes on pushes, pull requests, published releases, and manual
-  dispatch.
+- Usage: Executes on `master` and `v*` pushes, pull requests targeting
+  `master`, published releases, and manual dispatch.
 - Notes: `quality-linux` runs the exhaustive profile on Ubuntu 24.04 with
   Python 3.11; `compatibility-windows` runs the fast profile, complete Python
   suite, and PSScriptAnalyzer on Windows 2025 with Python 3.14. Both use Node.js
@@ -255,9 +255,10 @@ deferred, or explicitly excluded from the template.
   aggregate requires both environments and uses `Repository audit` for
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
-  forwarded workflow token keep checked-out audit code unprivileged. New refs
-  and release tags validate the complete commit range since the highest
-  reachable stable tag.
+  forwarded workflow token keep checked-out audit code unprivileged. Filtering
+  branch pushes avoids duplicating pull-request runs. Pull requests, `master`
+  updates, and release tags validate the complete commit range since the
+  highest reachable stable tag.
 
 ### `.github/workflows/agent-rules-update.yml`
 
