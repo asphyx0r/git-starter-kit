@@ -86,6 +86,7 @@ write_valid_message() {
 }
 
 require_test_command git
+require_test_command python
 locked_commitlint_command="$(resolve_hook_node_tool commitlint)"
 
 test_bin="$test_temp/bin"
@@ -101,6 +102,118 @@ export AUDIT_COMMITLINT_COMMAND="$locked_commitlint_command"
 export PATH="$test_bin:$PATH"
 commitlint_command="$test_bin/commitlint"
 unset AUDIT_COMMIT_SHA
+
+historical_valid_server_message="$test_temp/pr-17-valid-server-message.txt"
+historical_invalid_server_message="$test_temp/pr-17-invalid-server-message.txt"
+historical_valid_message="$test_temp/pr-17-valid-cli-message.txt"
+historical_invalid_message="$test_temp/pr-17-invalid-cli-message.txt"
+historical_valid_commit='8582877'
+historical_invalid_commit='25ec213'
+historical_invalid_run='33954012383'
+{
+  printf '%s\n' \
+    'fix(release): invoke Codespell CLI' \
+    '' \
+    'Use the console entry point installed by the locked Python dependency' \
+    'when validating composed release packages.' \
+    '' \
+    'Reject the unsupported module invocation in the repository audit'
+  printf '%s' 'contract.'
+} >"$historical_valid_server_message"
+{
+  printf '%s\n' \
+    'fix(release): invoke Codespell CLI' \
+    '' \
+    'Use the Codespell console entry point installed by the locked dependency when validating composed release packages.' \
+    ''
+  printf '%s' \
+    'Reject the unsupported module invocation in the repository self-audit contract.'
+} >"$historical_invalid_server_message"
+cp "$historical_valid_server_message" "$historical_valid_message"
+cp "$historical_invalid_server_message" "$historical_invalid_message"
+printf '\n' >>"$historical_valid_message"
+printf '\n' >>"$historical_invalid_message"
+
+if [[ "$historical_valid_commit" != '8582877' ]] ||
+  [[ "$historical_invalid_commit" != '25ec213' ]] ||
+  [[ "$historical_invalid_run" != '33954012383' ]]; then
+  fail "PR #17 historical fixture provenance changed"
+fi
+if [[ "$(wc -c <"$historical_valid_server_message" | tr -d ' ')" != 224 ]] ||
+  [[ "$(wc -c <"$historical_invalid_server_message" | tr -d ' ')" != 232 ]] ||
+  [[ "$(wc -c <"$historical_valid_message" | tr -d ' ')" != 225 ]] ||
+  [[ "$(wc -c <"$historical_invalid_message" | tr -d ' ')" != 233 ]]; then
+  fail "PR #17 server messages do not preserve their exact byte lengths"
+fi
+
+"$commitlint_command" --edit "$historical_valid_server_message" \
+  --config "$source_root/commitlint.config.cjs"
+historical_failure_output="$test_temp/pr-17-invalid.out"
+if "$commitlint_command" --edit "$historical_invalid_server_message" \
+  --config "$source_root/commitlint.config.cjs" \
+  >"$historical_failure_output" 2>&1; then
+  fail "historical invalid squash message was accepted"
+fi
+if ! grep -F 'body-max-line-length' "$historical_failure_output" >/dev/null; then
+  sed 's/^/  /' "$historical_failure_output" >&2
+  fail "historical squash failure did not report body-max-line-length"
+fi
+"$commitlint_command" --edit "$historical_valid_message" \
+  --config "$source_root/commitlint.config.cjs"
+
+body_72="$(printf '%072d' 0 | tr '0' x)"
+body_73="${body_72}x"
+body_72_message="$test_temp/body-72-message.txt"
+body_73_message="$test_temp/body-73-message.txt"
+printf 'fix(git): accept boundary\n\n%s\n' "$body_72" >"$body_72_message"
+printf 'fix(git): reject boundary\n\n%s\n' "$body_73" >"$body_73_message"
+"$commitlint_command" --edit "$body_72_message" \
+  --config "$source_root/commitlint.config.cjs"
+body_73_output="$test_temp/body-73.out"
+if "$commitlint_command" --edit "$body_73_message" \
+  --config "$source_root/commitlint.config.cjs" \
+  >"$body_73_output" 2>&1; then
+  fail "Commitlint accepted a 73-character body line"
+fi
+if ! grep -F 'body-max-line-length' "$body_73_output" >/dev/null; then
+  sed 's/^/  /' "$body_73_output" >&2
+  fail "73-character body failure did not report body-max-line-length"
+fi
+if [[ "$(sed -n '3p' "$historical_invalid_message" | wc -c | tr -d ' ')" != 116 ]] ||
+  [[ "$(sed -n '5p' "$historical_invalid_message" | wc -c | tr -d ' ')" != 80 ]]; then
+  fail "historical invalid body lines are not 115 and 79 characters"
+fi
+
+historical_gh_trace="$test_temp/pr-17-gh.trace"
+: >"$historical_gh_trace"
+cat >"$test_bin/gh" <<'HISTORICAL_GH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$HISTORICAL_GH_TRACE"
+exit 99
+HISTORICAL_GH
+chmod +x "$test_bin/gh"
+export HISTORICAL_GH_TRACE="$historical_gh_trace"
+historical_cli_output="$test_temp/pr-17-cli.out"
+historical_cli_status=0
+python "$source_root/tools/merge-pull-request.py" \
+  request \
+  --force \
+  --pull-request 17 \
+  --message-file "$historical_invalid_message" \
+  --repository asphyx0r/git-starter-kit \
+  >"$historical_cli_output" 2>&1 || historical_cli_status=$?
+if ((historical_cli_status != 1)); then
+  sed 's/^/  /' "$historical_cli_output" >&2
+  fail "historical invalid squash message returned ${historical_cli_status} instead of 1"
+fi
+if ! grep -F 'body-max-line-length' "$historical_cli_output" >/dev/null; then
+  sed 's/^/  /' "$historical_cli_output" >&2
+  fail "guarded merge CLI did not preserve the Commitlint diagnostic"
+fi
+if [[ -s "$historical_gh_trace" ]]; then
+  fail "guarded merge CLI called gh before rejecting the historical message"
+fi
 
 range_fixture="$test_temp/range-fixture"
 initialize_fixture "$range_fixture"

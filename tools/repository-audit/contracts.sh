@@ -1253,6 +1253,250 @@ PY
   fi
 }
 
+check_guarded_pull_request_merge_workflow_contract() {
+  local python_cmd
+  local workflow_path="${1:-.github/workflows/guarded-pull-request-merge.yml}"
+
+  if [ ! -f "$workflow_path" ]; then
+    printf 'Guarded merge workflow is missing: %s\n' "$workflow_path" >&2
+    return 1
+  fi
+
+  python_cmd="$(resolve_command python python3 python.exe)"
+  if ! "$python_cmd" - "$workflow_path" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+workflow_path = Path(sys.argv[1])
+raw = workflow_path.read_bytes()
+
+
+def reject(message: str) -> None:
+    sys.stderr.buffer.write((message + "\n").encode("utf-8"))
+    raise SystemExit(1)
+
+
+if b"\r" in raw:
+    reject("Guarded merge workflow formatting contract changed.")
+try:
+    text = raw.decode("utf-8")
+except UnicodeDecodeError:
+    reject("Guarded merge workflow formatting contract changed.")
+
+
+def yaml_key_count(name: str) -> int:
+    escaped_name = re.escape(name)
+    pattern = (
+        rf"(?m)^[ \t]*(?:\"{escaped_name}\"|'{escaped_name}'|{escaped_name})"
+        r"[ \t]*:"
+    )
+    return len(re.findall(pattern, text))
+
+
+expected_trigger = (
+    '"on":\n'
+    "  repository_dispatch:\n"
+    "    types: [guarded-squash-merge]\n\n"
+)
+if text.count(expected_trigger) != 1 or yaml_key_count("on") != 1:
+    reject("Guarded merge workflow trigger contract changed.")
+expected_permissions = (
+    "permissions:\n"
+    "  contents: read\n"
+    "  pull-requests: read\n\n"
+)
+if text.count(expected_permissions) != 1 or yaml_key_count("permissions") != 1:
+    reject("Guarded merge workflow privilege boundary changed.")
+expected_run_name = (
+    "run-name: Guarded merge "
+    "${{ github.event.client_payload.request_id }}\n"
+)
+if text.count(expected_run_name) != 1:
+    reject("Guarded merge workflow correlation contract changed.")
+expected_concurrency = (
+    "concurrency:\n"
+    "  group: guarded-merge-"
+    "${{ github.event.client_payload.pull_request }}\n"
+    "  cancel-in-progress: false\n\n"
+)
+if text.count(expected_concurrency) != 1 or text.count("concurrency:\n") != 1:
+    reject("Guarded merge workflow concurrency contract changed.")
+
+trigger_index = text.index('"on":\n')
+permissions_index = text.index("permissions:\n")
+concurrency_index = text.index("concurrency:\n")
+if text[trigger_index:permissions_index] != expected_trigger:
+    reject("Guarded merge workflow trigger contract changed.")
+if text[permissions_index:concurrency_index] != expected_permissions:
+    reject("Guarded merge workflow privilege boundary changed.")
+
+if (
+    text.count("  guarded-merge:\n") != 1
+    or text.count("    runs-on: ubuntu-24.04\n") != 1
+    or text.count("    timeout-minutes: 20\n") != 1
+):
+    reject("Guarded merge workflow job boundary changed.")
+
+step_names = re.findall(r"(?m)^      - name: (.+)$", text)
+expected_step_names = [
+    "Check out immutable default-branch commit without credentials",
+    "Set up Python",
+    "Set up Node",
+    "Install locked Commitlint",
+    "Validate guarded merge without privileged credentials",
+    "Generate guarded merge token",
+    "Revalidate and squash merge with the guarded token",
+]
+if step_names != expected_step_names:
+    reject("Guarded merge workflow validation order changed.")
+if len(re.findall(r"(?m)^      - ", text)) != len(expected_step_names):
+    reject("Guarded merge workflow validation order changed.")
+
+expected_actions = [
+    "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
+]
+used_actions = re.findall(r"(?m)^\s+uses: (?:>-\n\s+)?([^\n]+)$", text)
+if used_actions != expected_actions:
+    reject("Guarded merge workflow action revision contract changed.")
+
+checkout_start = text.index(f"      - name: {expected_step_names[0]}\n")
+checkout_end = text.index(f"      - name: {expected_step_names[1]}\n")
+checkout = text[checkout_start:checkout_end]
+if (
+    checkout.count("          ref: ${{ github.sha }}\n") != 1
+    or checkout.count("          fetch-depth: 1\n") != 1
+    or checkout.count("          persist-credentials: false\n") != 1
+    or "pull_request" in checkout
+    or "client_payload" in checkout
+):
+    reject("Guarded merge workflow checkout boundary changed.")
+
+if (
+    text.count('          python-version: "3.11"\n') != 1
+    or text.count("          node-version: ${{ env.NODE_VERSION }}\n") != 1
+    or text.count("npm ci --ignore-scripts --prefix tools/quality\n") != 1
+):
+    reject("Guarded merge workflow runtime contract changed.")
+
+dry_command = (
+    "          python tools/merge-pull-request.py --dry-run execute \\\n"
+    '            --event-file "$GITHUB_EVENT_PATH"\n'
+)
+merge_command = (
+    "          python tools/merge-pull-request.py execute \\\n"
+    '            --event-file "$GITHUB_EVENT_PATH"\n'
+)
+if text.count(dry_command) != 1 or text.count(merge_command) != 1:
+    reject("Guarded merge workflow validation order changed.")
+dry_index = text.index(dry_command)
+install_index = text.index(f"      - name: {expected_step_names[3]}\n")
+dry_step_index = text.index(f"      - name: {expected_step_names[4]}\n")
+app_installation_step_index = text.index("      - name: Generate guarded merge token\n")
+merge_index = text.index(merge_command)
+if not install_index < dry_step_index <= dry_index < app_installation_step_index < merge_index:
+    reject("Guarded merge workflow validation order changed.")
+
+install_step = text[install_index:dry_step_index]
+expected_install_step = (
+    "      - name: Install locked Commitlint\n"
+    "        run: npm ci --ignore-scripts --prefix tools/quality\n"
+    "\n"
+)
+if install_step != expected_install_step:
+    reject("Guarded merge workflow runtime contract changed.")
+
+dry_step = text[dry_step_index:app_installation_step_index]
+expected_dry_step = (
+    "      - name: Validate guarded merge without privileged credentials\n"
+    "        shell: bash\n"
+    "        env:\n"
+    "          GH_TOKEN: ${{ github.token }}\n"
+    "        run: |\n"
+    "          python tools/merge-pull-request.py --dry-run execute \\\n"
+    '            --event-file "$GITHUB_EVENT_PATH"\n'
+    "\n"
+)
+if dry_step != expected_dry_step:
+    reject("Guarded merge workflow unprivileged validation changed.")
+
+app_installation_step_end = text.index(
+    "      - name: Revalidate and squash merge with the guarded token\n"
+)
+app_installation_step = text[
+    app_installation_step_index:app_installation_step_end
+]
+expected_app_installation_step = (
+    "      - name: Generate guarded merge token\n"
+    "        id: guarded-merge-token\n"
+    "        # actions/create-github-app-token@v3\n"
+    "        uses: >-\n"
+    "          actions/create-github-app-token@"
+    "bcd2ba49218906704ab6c1aa796996da409d3eb1\n"
+    "        with:\n"
+    "          client-id: ${{ vars.AGENT_RULES_APP_CLIENT_ID }}\n"
+    "          private-key: ${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}\n"
+    "          owner: ${{ github.repository_owner }}\n"
+    "          repositories: |\n"
+    "            ${{ github.event.repository.name }}\n"
+    "          permission-contents: write\n"
+    "          permission-pull-requests: write\n"
+    "\n"
+)
+if app_installation_step != expected_app_installation_step:
+    reject("Guarded merge workflow token boundary changed.")
+if (
+    text.count("${{ vars.AGENT_RULES_APP_CLIENT_ID }}") != 1
+    or text.count("${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}") != 1
+):
+    reject("Guarded merge workflow token boundary changed.")
+
+merge_step = text[app_installation_step_end:]
+expected_merge_step = (
+    "      - name: Revalidate and squash merge with the guarded token\n"
+    "        shell: bash\n"
+    "        env:\n"
+    "          GH_TOKEN: ${{ steps.guarded-merge-token.outputs.token }}\n"
+    "        run: |\n"
+    "          python tools/merge-pull-request.py execute \\\n"
+    '            --event-file "$GITHUB_EVENT_PATH"\n'
+)
+if merge_step != expected_merge_step:
+    reject("Guarded merge workflow validation order changed.")
+
+if text.count("          GH_TOKEN: ${{ github.token }}\n") != 1:
+    reject("Guarded merge workflow unprivileged validation changed.")
+if (
+    text.count(
+        "          GH_TOKEN: ${{ steps.guarded-merge-token.outputs.token }}\n"
+    )
+    != 1
+):
+    reject("Guarded merge workflow token boundary changed.")
+if text.count("steps.guarded-merge-token.outputs.token") != 1:
+    reject("Guarded merge workflow token boundary changed.")
+if text.count("github.event.client_payload") != 2:
+    reject("Guarded merge workflow payload trust boundary changed.")
+if any(
+    forbidden in text
+    for forbidden in (
+        "--admin",
+        "--auto",
+        "--delete-branch",
+        "--disable-auto",
+        "pull_request_target",
+    )
+):
+    reject("Guarded merge workflow forbidden merge option found.")
+PY
+  then
+    return 1
+  fi
+}
+
 check_release_artifact_contract() {
   local main_reference_path=".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
   local python_cmd

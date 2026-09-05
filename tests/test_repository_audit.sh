@@ -56,12 +56,17 @@ from pathlib import Path
 
 configuration = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 mypy_files = configuration["tool"]["mypy"]["files"]
-if "tools/quality/install-external-tools.py" not in mypy_files:
-    raise SystemExit("install-external-tools.py is not checked by Mypy")
+required_mypy_files = {
+    "tools/merge-pull-request.py",
+    "tools/quality/install-external-tools.py",
+}
+missing = sorted(required_mypy_files - set(mypy_files))
+if missing:
+    raise SystemExit(f"Mypy omits required files: {missing}")
 PYPROJECT_CONTRACT
 then
 
-  fail "Mypy does not cover the external-tool installer"
+  fail "Mypy does not cover every required Python tool"
 fi
 
 outside_root="${test_temp}/outside"
@@ -459,6 +464,9 @@ static_behavior_trace="${test_temp}/static-behavior.trace"
   check_repository_audit_workflow_contract() {
     printf '%s\n' repository-audit-contract >>"${QUALITY_PROFILE_TRACE}"
   }
+  check_guarded_pull_request_merge_workflow_contract() {
+    printf '%s\n' guarded-merge-contract >>"${QUALITY_PROFILE_TRACE}"
+  }
   check_release_artifact_contract() {
     printf '%s\n' release-artifact-contract >>"${QUALITY_PROFILE_TRACE}"
   }
@@ -513,6 +521,7 @@ commit-documentation-contract
 secret-config-contract
 agent-rules-contract
 repository-audit-contract
+guarded-merge-contract
 release-artifact-contract
 release-skill-contract
 release-package-portability
@@ -2748,6 +2757,175 @@ fi
 if [[ -e "${errexit_later_marker}" || -e "${errexit_main_marker}" ]]; then
   fail "unguarded module failure reached a later module or main"
 fi
+
+# BEGIN GUARDED MERGE WORKFLOW TESTS
+guarded_merge_workflow="${source_root}/.github/workflows/guarded-pull-request-merge.yml"
+if ! (
+  repository_root="${source_root}"
+  cd "${repository_root}"
+  check_guarded_pull_request_merge_workflow_contract \
+    "${guarded_merge_workflow}"
+) >"${test_temp}/guarded-merge-valid.out" \
+  2>"${test_temp}/guarded-merge-valid.err"; then
+  sed 's/^/  /' "${test_temp}/guarded-merge-valid.err" >&2
+  fail "valid guarded merge workflow failed its contract"
+fi
+
+assert_guarded_merge_contract_rejects() {
+  local case_name="$1"
+  local fixture_path="$2"
+  local expected_diagnostic="$3"
+  local actual_status=0
+  local expected_error="${test_temp}/${case_name}.expected.err"
+
+  (
+    repository_root="${source_root}"
+    cd "${repository_root}"
+    check_guarded_pull_request_merge_workflow_contract "${fixture_path}"
+  ) >"${test_temp}/${case_name}.out" \
+    2>"${test_temp}/${case_name}.err" || actual_status=$?
+  if ((actual_status == 0)); then
+    printf '  accepted invalid fixture: %s\n' "${case_name}" >&2
+    return 1
+  fi
+  if ((actual_status != 1)); then
+    printf '  fixture returned %s, expected 1: %s\n' \
+      "${actual_status}" "${case_name}" >&2
+    return 1
+  fi
+  printf '%s\n' "${expected_diagnostic}" >"${expected_error}"
+  if ! cmp -s "${expected_error}" "${test_temp}/${case_name}.err"; then
+    diff -u "${expected_error}" "${test_temp}/${case_name}.err" >&2 || true
+    printf '  fixture diagnostic changed: %s\n' "${case_name}" >&2
+    return 1
+  fi
+}
+
+guarded_merge_mutation_root="${test_temp}/guarded-merge-mutations"
+mkdir -p "${guarded_merge_mutation_root}"
+guarded_merge_contract_failures=0
+
+assert_guarded_merge_mutation() {
+  local case_name="$1"
+  local old_text="$2"
+  local new_text="$3"
+  local expected_diagnostic="$4"
+  local mutation_path="${guarded_merge_mutation_root}/${case_name}.yml"
+
+  replace_repository_audit_literal \
+    "${guarded_merge_workflow}" "${mutation_path}" \
+    "${old_text}" "${new_text}"
+  assert_guarded_merge_contract_rejects \
+    "guarded-merge-${case_name}" "${mutation_path}" \
+    "${expected_diagnostic}" ||
+    guarded_merge_contract_failures=$((guarded_merge_contract_failures + 1))
+}
+
+assert_guarded_merge_mutation \
+  trigger-type \
+  '    types: [guarded-squash-merge]' \
+  '    types: [other]' \
+  'Guarded merge workflow trigger contract changed.'
+assert_guarded_merge_mutation \
+  extra-workflow-dispatch \
+  $'    types: [guarded-squash-merge]\n\npermissions:' \
+  $'    types: [guarded-squash-merge]\n\n  workflow_dispatch:\n\npermissions:' \
+  'Guarded merge workflow trigger contract changed.'
+assert_guarded_merge_mutation \
+  write-default-permission \
+  '  contents: read' \
+  '  contents: write' \
+  'Guarded merge workflow privilege boundary changed.'
+assert_guarded_merge_mutation \
+  extra-actions-permission \
+  $'  pull-requests: read\n\nconcurrency:' \
+  $'  pull-requests: read\n\n  actions: write\n\nconcurrency:' \
+  'Guarded merge workflow privilege boundary changed.'
+assert_guarded_merge_mutation \
+  quoted-job-permission \
+  '    name: Validate and squash merge pull request' \
+  $'    "permissions":\n      contents: write\n    name: Validate and squash merge pull request' \
+  'Guarded merge workflow privilege boundary changed.'
+assert_guarded_merge_mutation \
+  quoted-on-key \
+  $'env:\n  NODE_VERSION: "24.20.0"' \
+  $'env:\n  "on": marker\n  NODE_VERSION: "24.20.0"' \
+  'Guarded merge workflow trigger contract changed.'
+assert_guarded_merge_mutation \
+  run-name \
+  "run-name: Guarded merge \${{ github.event.client_payload.request_id }}" \
+  "run-name: Merge request \${{ github.event.client_payload.request_id }}" \
+  'Guarded merge workflow correlation contract changed.'
+assert_guarded_merge_mutation \
+  cancel-in-progress \
+  '  cancel-in-progress: false' \
+  '  cancel-in-progress: true' \
+  'Guarded merge workflow concurrency contract changed.'
+assert_guarded_merge_mutation \
+  untrusted-checkout \
+  "          ref: \${{ github.sha }}" \
+  "          ref: \${{ github.event.client_payload.expected_head_oid }}" \
+  'Guarded merge workflow checkout boundary changed.'
+assert_guarded_merge_mutation \
+  credential-checkout \
+  '          persist-credentials: false' \
+  '          persist-credentials: true' \
+  'Guarded merge workflow checkout boundary changed.'
+assert_guarded_merge_mutation \
+  install-continue-on-error \
+  '      - name: Install locked Commitlint' \
+  $'      - name: Install locked Commitlint\n        continue-on-error: true' \
+  'Guarded merge workflow runtime contract changed.'
+assert_guarded_merge_mutation \
+  appended-install-command \
+  '        run: npm ci --ignore-scripts --prefix tools/quality' \
+  $'        run: |\n          npm ci --ignore-scripts --prefix tools/quality\n          printf unexpected >>tools/merge-pull-request.py' \
+  'Guarded merge workflow runtime contract changed.'
+assert_guarded_merge_mutation \
+  skip-dry-validation \
+  "          python tools/merge-pull-request.py --dry-run execute \\" \
+  "          python tools/merge-pull-request.py execute \\" \
+  'Guarded merge workflow validation order changed.'
+assert_guarded_merge_mutation \
+  secret-before-dry-validation \
+  "          GH_TOKEN: \${{ github.token }}" \
+  $'          GH_TOKEN: ${{ github.token }}\n          APP_PRIVATE_KEY: ${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}' \
+  'Guarded merge workflow unprivileged validation changed.'
+assert_guarded_merge_mutation \
+  broad-app-token \
+  '          permission-contents: write' \
+  '          permission-contents: administration' \
+  'Guarded merge workflow token boundary changed.'
+assert_guarded_merge_mutation \
+  no-privileged-execution \
+  "          python tools/merge-pull-request.py execute \\" \
+  "          python tools/merge-pull-request.py --dry-run execute \\" \
+  'Guarded merge workflow validation order changed.'
+assert_guarded_merge_mutation \
+  extra-unnamed-step \
+  '    steps:' \
+  $'    steps:\n      - run: echo unexpected' \
+  'Guarded merge workflow validation order changed.'
+assert_guarded_merge_mutation \
+  appended-privileged-command \
+  $'          python tools/merge-pull-request.py execute \\\n            --event-file "$GITHUB_EVENT_PATH"' \
+  $'          python tools/merge-pull-request.py execute \\\n            --event-file "$GITHUB_EVENT_PATH"\n          echo unexpected' \
+  'Guarded merge workflow validation order changed.'
+assert_guarded_merge_mutation \
+  extra-token-repository \
+  "            \${{ github.event.repository.name }}" \
+  $'            ${{ github.event.repository.name }}\n            other-repository' \
+  'Guarded merge workflow token boundary changed.'
+assert_guarded_merge_mutation \
+  extra-token-input \
+  "          owner: \${{ github.repository_owner }}" \
+  $'          owner: ${{ github.repository_owner }}\n          skip-token-revoke: true' \
+  'Guarded merge workflow token boundary changed.'
+
+if ((guarded_merge_contract_failures > 0)); then
+  fail "Guarded merge contract accepted ${guarded_merge_contract_failures} invalid fixtures"
+fi
+# END GUARDED MERGE WORKFLOW TESTS
 
 space_fixture_root="${test_temp}/copied repository with spaces"
 space_tools="${space_fixture_root}/tools"

@@ -893,6 +893,120 @@ Use `--remote` only after checking that the target remote URL is correct. When
 Run from Bash 4 or newer. On Windows, the PowerShell initializer may be easier
 when the target path is a native Windows path.
 
+## merge-pull-request.py
+
+### Features
+
+- Validates one exact UTF-8 squash message with the repository-pinned
+  Commitlint before contacting GitHub.
+- Seals an open, non-draft pull request number, its 40-character head SHA, the
+  message SHA-256 digest, and a UUID in a typed repository dispatch.
+- Reconciles effective default-branch required checks with current check rows,
+  including the exact `Repository audit` workflow check from `pull_request`.
+- Refuses repository auto-merge, effective merge-queue rules, and pull requests
+  that already have auto-merge enabled or are queued.
+- Supports fork pull requests without checking out or executing their code.
+- Revalidates the sealed request before an exact squash merge and verifies the
+  real merge commit message afterward.
+
+### Synopsis
+
+```text
+usage: merge-pull-request.py [-h] [--version] [--dry-run] [-v]
+                             {request,execute} ...
+
+request:
+  --force
+  --pull-request NUMBER
+  --message-file PATH
+  [--repository OWNER/REPO]
+  [--timeout-seconds SECONDS]
+
+execute:
+  --event-file PATH
+```
+
+### Description
+
+`merge-pull-request.py` provides the local request side and workflow execution
+side of the guarded squash merge path. `request` validates the exact message,
+repository, default branch, pull request head, effective required-check
+contexts, repository auto-merge setting, and applicable merge-queue rules
+before it sends one `guarded-squash-merge` repository dispatch. It then waits
+for the workflow-specific `Guarded merge <UUID>` run.
+
+`execute` accepts only the trusted event file supplied by GitHub Actions. It
+uses the top-level event repository and default branch, never payload values,
+and rejects any payload field outside the sealed five-field contract. The
+workflow first invokes it with `--dry-run` and the read-only workflow token,
+mints the existing App token only after that succeeds, then invokes it again
+to revalidate and merge.
+
+The message file accepts exactly `subject\n` or `subject\n\nbody\n`, without
+normalization. It must be non-empty UTF-8 without BOM or NUL, use LF only, and
+end in exactly one LF. Both merge subject and body file are always explicit;
+subject-only messages use an empty body file.
+
+### Usage/Examples
+
+Preview a request without dispatching:
+
+```bash
+python tools/merge-pull-request.py --dry-run request \
+  --pull-request 17 \
+  --message-file /path/to/merge-message.txt \
+  --repository owner/repository
+```
+
+Dispatch after an uppercase `Y` confirmation and wait up to 900 seconds:
+
+```bash
+python tools/merge-pull-request.py request \
+  --pull-request 17 \
+  --message-file /path/to/merge-message.txt \
+  --repository owner/repository \
+  --timeout-seconds 900
+```
+
+See [Guarded pull request merges](../docs/guarded-pull-request-merges.md) for
+the activation procedure and repository ruleset boundary.
+
+### Options
+
+- `-h`, `--help`: shows help and exits.
+- `--version`: prints `v0.1.0` and exits.
+- `--dry-run`: performs all applicable read-only validation without dispatching
+  or merging.
+- `-v`, `--verbose`: reports workflow polling progress.
+- `--force`: request-only; skips the uppercase `Y` prompt without bypassing any
+  validation.
+- `--pull-request NUMBER`: selects the positive pull request number.
+- `--message-file PATH`: selects the exact candidate squash message.
+- `--repository OWNER/REPO`: selects the target repository; omission uses the
+  repository resolved by `gh`.
+- `--timeout-seconds SECONDS`: bounds the post-dispatch wait; it must convert
+  to a finite, non-negative value before dispatch; default `900`.
+- `--event-file PATH`: execute-only; selects the GitHub Actions event file.
+
+### Exit Status
+
+- `0`: help, version, dry-run, or the requested operation succeeded.
+- `1`: validation or the requested operation failed.
+- `2`: command-line usage was invalid.
+- `3`: a dispatch or merge may have started, but the exact remote outcome is
+  unavailable or conflicting.
+
+### Appendix
+
+Status `3` always reports the exact UUID and must not trigger an automatic
+retry. Inspect the exact correlated workflow, pull request, and merge commit
+first. The UUID identifies the run and SHA-256 seals the message; neither
+authenticates the dispatch origin.
+
+The CLI and workflow are inert until a separately authorized publication and
+GitHub activation configure the distinct rulesets and merge methods described
+in the operational guide.
+
 ## verify-repository-audit-runs.py
 
 ### Features

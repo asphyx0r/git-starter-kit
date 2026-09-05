@@ -1,0 +1,77 @@
+---
+name: Guarded pull request merge
+run-name: Guarded merge ${{ github.event.client_payload.request_id }}
+
+"on":
+  repository_dispatch:
+    types: [guarded-squash-merge]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: guarded-merge-${{ github.event.client_payload.pull_request }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24.20.0"
+
+jobs:
+  guarded-merge:
+    name: Validate and squash merge pull request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out immutable default-branch commit without credentials
+        # actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        # actions/setup-node@v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install locked Commitlint
+        run: npm ci --ignore-scripts --prefix tools/quality
+
+      - name: Validate guarded merge without privileged credentials
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/merge-pull-request.py --dry-run execute \
+            --event-file "$GITHUB_EVENT_PATH"
+
+      - name: Generate guarded merge token
+        id: guarded-merge-token
+        # actions/create-github-app-token@v3
+        uses: >-
+          actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.AGENT_RULES_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Revalidate and squash merge with the guarded token
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.guarded-merge-token.outputs.token }}
+        run: |
+          python tools/merge-pull-request.py execute \
+            --event-file "$GITHUB_EVENT_PATH"

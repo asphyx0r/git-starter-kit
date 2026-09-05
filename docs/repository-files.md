@@ -260,6 +260,22 @@ deferred, or explicitly excluded from the template.
   updates, and release tags validate the complete commit range since the
   highest reachable stable tag.
 
+### `.github/workflows/guarded-pull-request-merge.yml`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Revalidates and squash-merges a sealed pull request without executing
+  pull request code.
+- Usage: Runs only for the typed `guarded-squash-merge` repository dispatch
+  sent by `tools/merge-pull-request.py`.
+- Notes: Checks out immutable `github.sha` without credentials, validates with
+  the read-only workflow token, and mints the existing App token only for a
+  second validation and exact merge. The token is limited to `contents: write`
+  and `pull-requests: write`; concurrency is deterministic per pull request and
+  does not cancel an active run. Cumulative packages distribute this workflow
+  with the default `replace` strategy. Its presence does not activate GitHub
+  enforcement.
+
 ### `.github/workflows/agent-rules-update.yml`
 
 - Type: `file`
@@ -854,7 +870,7 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Enforces repository-owned cross-file and workflow contracts.
 - Usage: Static and read-only profiles call its checks for SemVer, initializer,
-  release, workflow, skill, and documentation consistency.
+  release, guarded merge, workflow, skill, and documentation consistency.
 - Notes: Contract failures use focused diagnostics and are exercised with
   valid fixtures plus single-cause mutations.
 
@@ -876,9 +892,9 @@ deferred, or explicitly excluded from the template.
 - Goal: Composes named audit profiles from reusable checks.
 - Usage: The dispatcher selects the requested full, read-only, focused, fast,
   platform-specific, or hook profile.
-- Notes: The full/static profile owns exhaustive quality, contract, coverage,
-  behavior, smoke, and commit-range validation; focused profiles avoid
-  repeating unrelated work.
+- Notes: The full/static profile owns exhaustive quality, guarded-workflow
+  contract, coverage, behavior, smoke, and commit-range validation; focused
+  profiles avoid repeating unrelated work.
 
 ### `tools/repository-audit/security.sh`
 
@@ -927,6 +943,20 @@ deferred, or explicitly excluded from the template.
   artifact tool or its tests.
 - Notes: Delegates to `tools/quality/requirements.lock`, which includes the
   exact `jsonschema[format]` dependency and all transitive artifact hashes.
+
+### `tools/merge-pull-request.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Seals, dispatches, revalidates, and confirms exact squash merges.
+- Usage: Use `request` with a positive pull request number and exact message
+  file; the repository-owned workflow uses `execute --event-file`.
+- Notes: Validates Commitlint before the first `gh` call, requires an open
+  non-draft default-branch pull request and every effective required check,
+  rejects repository auto-merge and applicable merge queues, supports forks
+  without running their code, never retries a dispatch, and returns `3` when a
+  started dispatch or merge has an indeterminate result. Cumulative packages
+  use the default `replace` strategy.
 
 ### `tools/verify-repository-audit-runs.py`
 
@@ -1134,8 +1164,24 @@ deferred, or explicitly excluded from the template.
   message-file commits, preflight ranges, tag ranges, and first-release ranges.
 - Usage: Run `bash tests/test_commit_message_validation.sh` with Git, Bash, and
   Node.js after installing the locked Node quality dependencies.
-- Notes: Uses only temporary Git repositories, leaves the source repository
-  unchanged, and is included in packages for derived repositories.
+- Notes: Reproduces PR #17 with the valid branch message and invalid squash
+  message, requires the latter to fail on `body-max-line-length` before any
+  `gh` call, uses only temporary Git repositories, and is included in packages
+  for derived repositories.
+
+### `tests/test_merge_pull_request.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies exact message, payload, pull request, dispatch, workflow, and
+  post-merge behavior for the guarded squash merge CLI.
+- Usage: Run
+  `python -B -m unittest discover -s tests -p "test_merge_pull_request.py"`.
+- Notes: Covers Unicode and message boundaries, malformed event values,
+  confirmation and dry-run behavior, forks, stale heads, required checks,
+  merge-queue and auto-merge rejection, bounded timeout status `3`, exact merge
+  arguments, cleanup, and post-merge recovery or mismatch. GitHub operations
+  are replaced by deterministic in-memory boundaries.
 
 ### `tests/test_quality_hooks.sh`
 
@@ -1201,7 +1247,7 @@ deferred, or explicitly excluded from the template.
   audit contracts.
 - Usage: Run with Bash from the repository root.
 - Notes: Exercises missing, malformed, and failing modules without changing a
-  sourcing caller's shell state, plus focused workflow and distribution
+  sourcing caller's shell state, plus guarded-merge, workflow, and distribution
   mutations with exact failure diagnostics.
 
 ### `tests/test_verify_repository_audit_runs.py`
@@ -1260,6 +1306,18 @@ deferred, or explicitly excluded from the template.
 - Notes: This file is documentation-only. Each skill's `SKILL.md` remains the
   authoritative source for its behavior and instructions. Cumulative upgrades
   preserve this repository-specific inventory as initialization-only.
+
+### `docs/guarded-pull-request-merges.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Defines the operator procedure and security boundaries for exact
+  guarded squash merges.
+- Usage: Read before requesting a guarded merge or separately activating its
+  GitHub rulesets and repository settings.
+- Notes: Documents the message contract, status `3` recovery, privilege split,
+  fork safety, distinct rulesets, merge-method settings, and disposable pull
+  request proof. Cumulative packages use the default `replace` strategy.
 
 ### `docs/repository-files.md`
 
