@@ -29,9 +29,9 @@
             },
             "format": "git-tree",
             "total_files": 111,
-            "size_bytes": 1702590,
+            "size_bytes": 1702661,
             "built_at": "2026-09-05T09:12:08Z",
-            "sha256": "67e42ce0fb03b18d74610e2f312c5fe4e644541d17b70b655376238e14bf822a",
+            "sha256": "6e6eb97dd196b56f0d4a6fc246648493c3c49be5feb1c4d08b5d994a6cf7bca6",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -480,7 +480,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6a12cf0f649547a2df03e370b7ef1594afe1b9831b44b337f405da327d627e46",
+                    "sha256": "cfa49db432ded7980db0393ca9f0858838224102de8da118cfd05fa197d216d1",
                     "mode": "644"
                 },
                 {
@@ -656,11 +656,11 @@
                 },
                 {
                     "relative_path": "tests/test_quality_pre_commit.sh",
-                    "size_bytes": 12051,
+                    "size_bytes": 12122,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c24baeaf04695df227aa056a337284684cc5485a987326784df7b213330f3170",
+                    "sha256": "1426b4d42522d7653020e5f5f5ac7ee616813885afa34cb65c1a19084c7398c6",
                     "mode": "644"
                 },
                 {
