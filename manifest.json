@@ -2,15 +2,12 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.8.0",
-    "release_date": "2026-09-04T21:35:47Z",
+    "version": "2.8.1",
+    "release_date": "2026-09-05T09:12:08Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Modularize repository audit and cumulative upgrade tooling into focused modules.",
-        "Lock and validate Python, Node.js, and external quality toolchain across supported platforms.",
-        "Enforce staged-only pre-commit checks and affected-test pre-push checks with bounded execution.",
-        "Harden GitHub Actions and release publication with least-privilege job boundaries and sealed artifact verification."
+        "Invoke the installed Codespell CLI when validating composed release packages."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -24,7 +21,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.8.0-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.8.1-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -32,9 +29,9 @@
             },
             "format": "git-tree",
             "total_files": 111,
-            "size_bytes": 1702445,
-            "built_at": "2026-09-04T21:35:47Z",
-            "sha256": "beee68eaceba9450d3ec6ab102bdfac8ddcb9eed6a09de289e77a4ea0c078bd6",
+            "size_bytes": 1702590,
+            "built_at": "2026-09-05T09:12:08Z",
+            "sha256": "67e42ce0fb03b18d74610e2f312c5fe4e644541d17b70b655376238e14bf822a",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -209,11 +206,11 @@
                 },
                 {
                     "relative_path": ".github/workflows/release-package.yml",
-                    "size_bytes": 12608,
+                    "size_bytes": 12598,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "9db6bc0b55025821b82f54c2ed0e9db004bd55c3883daa4d464a3d00a925645b",
+                    "sha256": "f9a18690c9a7d032b0cd9a6a26228d7d28b761603525d61580eccc31329923a9",
                     "mode": "644"
                 },
                 {
@@ -299,11 +296,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 12220,
+                    "size_bytes": 12351,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "595c8a39c039a3c94733cd1051b5ba22c1fb9df49dd9bdd9b8830894d76f5b92",
+                    "sha256": "15c78fc6f376f1caf9453ae3e723582944f49362c0760599c58ffb3bd64df55f",
                     "mode": "644"
                 },
                 {
@@ -411,7 +408,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "dceb827995520dae388b7283c5bc7847ef58a16e8013318c3bb436feeb5dc51e",
+                    "sha256": "c94b6101b82efbf24da807958404613ad9bd7ecfd875f596f8286fa9638e4aa5",
                     "mode": "644"
                 },
                 {
@@ -483,7 +480,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a3e9e8da68ac52c31530d77de52d1a3e93e00fafcfed47ea80a63d0f567dc84e",
+                    "sha256": "6a12cf0f649547a2df03e370b7ef1594afe1b9831b44b337f405da327d627e46",
                     "mode": "644"
                 },
                 {
@@ -911,11 +908,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/contracts.sh",
-                    "size_bytes": 67259,
+                    "size_bytes": 67283,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "edf22bfeb6f048a6828006ee7566bbb6b9260b9a194d75c027c818d449d743e1",
+                    "sha256": "32b5d83402fda813a07884275f2ec735dc5bd09bedbce82686f9a3d1463e8230",
                     "mode": "644"
                 },
                 {
