@@ -318,11 +318,11 @@ for required_install_fragment in (
     "-r tools/quality/requirements.lock",
     "npm ci --ignore-scripts --prefix tools/quality",
     "tools/quality/node_modules/.bin/markdownlint-cli2",
-    "python -m codespell --config .codespellrc .",
+    "codespell --config .codespellrc .",
 ):
     if required_install_fragment not in build:
         reject("Release package workflow dependency installation changed.")
-if "npx --yes" in build or "codespell==" in build:
+if "npx --yes" in build or "codespell==" in build or "python -m codespell" in build:
     reject("Release package workflow dependency installation changed.")
 
 outputs_match = re.search(r"(?m)^    outputs:\n((?:^      [^\n]+\n)+)", build)
