@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.8.0",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.0",
-    "generatedAt": "2026-09-04T21:03:27Z"
+    "ref": "v2.8.1",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.1",
+    "generatedAt": "2026-09-05T08:48:56Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.8.0",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.0",
-    "generatedAt": "2026-09-04T21:03:27Z"
+    "ref": "v2.8.1",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.1",
+    "generatedAt": "2026-09-05T08:48:56Z"
   },
   "files": [
     {
@@ -207,8 +207,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "595c8a39c039a3c94733cd1051b5ba22c1fb9df49dd9bdd9b8830894d76f5b92",
-      "canonicalSha256": "595c8a39c039a3c94733cd1051b5ba22c1fb9df49dd9bdd9b8830894d76f5b92",
+      "sha256": "15c78fc6f376f1caf9453ae3e723582944f49362c0760599c58ffb3bd64df55f",
+      "canonicalSha256": "15c78fc6f376f1caf9453ae3e723582944f49362c0760599c58ffb3bd64df55f",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -639,8 +639,8 @@
     },
     {
       "path": "tools/repository-audit/contracts.sh",
-      "sha256": "edf22bfeb6f048a6828006ee7566bbb6b9260b9a194d75c027c818d449d743e1",
-      "canonicalSha256": "edf22bfeb6f048a6828006ee7566bbb6b9260b9a194d75c027c818d449d743e1",
+      "sha256": "32b5d83402fda813a07884275f2ec735dc5bd09bedbce82686f9a3d1463e8230",
+      "canonicalSha256": "32b5d83402fda813a07884275f2ec735dc5bd09bedbce82686f9a3d1463e8230",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"

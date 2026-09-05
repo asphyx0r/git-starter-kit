@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.8.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 963b1e4 | fix(release): invoke Codespell CLI | asphyx |
+
 ## v2.8.0
 
 | References | Description | Author(s) |
