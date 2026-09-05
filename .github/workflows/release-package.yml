@@ -137,7 +137,7 @@ jobs:
           cd "$validation_root"
           "$GITHUB_WORKSPACE/tools/quality/node_modules/.bin/markdownlint-cli2" \
             --config .markdownlint-cli2.yaml "**/*.md"
-          python -m codespell --config .codespellrc .
+          codespell --config .codespellrc .
 
       - name: Build upgrade toolkit
         id: toolkit
