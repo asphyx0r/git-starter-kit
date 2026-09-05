@@ -87,10 +87,11 @@ with open(metadata_path, "w", encoding="utf-8") as stream:
 print(manifest["release_date"])
 PYTHON
 )"
+release_ref="v$(tr -d '\r\n' <"${release_fixture}/VERSION")"
 (
   cd "${release_fixture}"
   python tools/release-artifacts.py --force prepare \
-    --release-ref v2.8.0 \
+    --release-ref "${release_ref}" \
     --release-date "${release_date}" \
     --metadata-file "${release_metadata}" >/dev/null
 )
