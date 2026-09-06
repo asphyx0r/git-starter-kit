@@ -5,7 +5,7 @@
     "coverage": "7.16.0",
     "jsonschema[format]": "4.26.0",
     "mypy": "2.3.1",
-    "ruff": "0.15.16",
+    "ruff": "0.16.5",
     "yamllint": "1.38.0"
   },
   "node": {
