@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import time
@@ -515,6 +516,39 @@ print(upgrade.VERSION)
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "starter-kit-upgrade.py 0.3.1\n")
+
+    def test_toolkit_matches_release_skill_inventory(self):
+        reference_path = (
+            SCRIPT_PATH.parents[1]
+            / ".agents/skills/git-commit-push-tag/references"
+            / "git-starter-kit-release-package.txt"
+        )
+        inventories = re.findall(
+            r"```json\n(.*?)\n```",
+            reference_path.read_text(encoding="utf-8"),
+            flags=re.DOTALL,
+        )
+        self.assertEqual(len(inventories), 1, "Expected one toolkit inventory")
+        expected_members = [
+            name.replace("<tag>", "v2.0.0") for name in json.loads(inventories[0])
+        ]
+        package = self.root / "git-starter-kit-v2.0.0-with-agent-rules.zip"
+        package.write_bytes(self.new_package.read_bytes())
+        toolkit = self.root / "toolkit.zip"
+        arguments = argparse.Namespace(
+            new_package=package,
+            output=toolkit,
+            dry_run=False,
+        )
+
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(UPGRADE.build_toolkit(arguments), 0)
+
+        with zipfile.ZipFile(toolkit) as archive:
+            self.assertCountEqual(archive.namelist(), expected_members)
+            self.assertEqual(
+                archive.read(f"packages/{package.name}"), package.read_bytes()
+            )
 
     def test_modified_managed_file_is_a_conflict(self):
         target = self.create_target()
