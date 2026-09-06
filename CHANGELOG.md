@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.9.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 6dea144 | fix(release): align modular toolkit validation | asphyx |
+
 ## v2.9.0
 
 | References | Description | Author(s) |
