@@ -9,7 +9,7 @@
     "yamllint": "1.38.0"
   },
   "node": {
-    "@commitlint/cli": "21.0.2",
+    "@commitlint/cli": "21.2.2",
     "markdownlint-cli2": "0.23.2"
   },
   "external": {

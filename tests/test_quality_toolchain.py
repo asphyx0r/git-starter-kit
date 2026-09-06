@@ -33,7 +33,7 @@ EXPECTED_PYTHON_REQUIREMENTS = {
     "yamllint": "1.38.0",
 }
 EXPECTED_NODE_REQUIREMENTS = {
-    "@commitlint/cli": "21.0.2",
+    "@commitlint/cli": "21.2.2",
     "markdownlint-cli2": "0.23.2",
 }
 EXPECTED_NODE_MINIMUM = "22.12.0"
@@ -760,7 +760,7 @@ class QualityToolchainTests(unittest.TestCase):
             [
                 ("runtime: node expected >=22.12.0, found None (command not found)"),
                 "runtime: codespell expected 2.4.2, found None",
-                "runtime: @commitlint/cli expected 21.0.2, found None",
+                "runtime: @commitlint/cli expected 21.2.2, found None",
                 "runtime: markdownlint-cli2 expected 0.23.2, found 0.0.0",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],
