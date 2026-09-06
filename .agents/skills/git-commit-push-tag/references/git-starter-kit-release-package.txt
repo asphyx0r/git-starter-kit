@@ -109,11 +109,27 @@ CONTRÔLES DE PACKAGE APRÈS LES RUNS OBLIGATOIRES
     `starter-kit-manifest.json` avec la stratégie `starter-kit-state` ;
   - il ne contient aucun fichier réservé au repository source, tel que le
     workflow, les builders, leurs tests ou leur documentation opérateur.
-- Vérifie que l'upgrade toolkit contient exactement `README.md`,
-  `starter-kit-upgrade.py` et
-  `packages/git-starter-kit-<tag>-with-agent-rules.zip`, puis que le
-  SHA-256 du package imbriqué est identique à celui du package complet
-  publié séparément.
+- Vérifie que l'upgrade toolkit contient exactement les fichiers de cet
+  inventaire JSON, en remplaçant `<tag>` par le tag publié. Cet inventaire
+  est comparé au ZIP réellement construit par le test de non-régression
+  `test_toolkit_matches_release_skill_inventory`.
+
+```json
+[
+  "README.md",
+  "starter-kit-upgrade.py",
+  "starter_kit_upgrade/__init__.py",
+  "starter_kit_upgrade/application.py",
+  "starter_kit_upgrade/archive.py",
+  "starter_kit_upgrade/cli.py",
+  "starter_kit_upgrade/common.py",
+  "starter_kit_upgrade/planning.py",
+  "packages/git-starter-kit-<tag>-with-agent-rules.zip"
+]
+```
+
+- Vérifie que le SHA-256 du package imbriqué est identique à celui du
+  package complet publié séparément.
 - Supprime uniquement le répertoire temporaire de vérification après avoir
   confirmé qu'il reste dans la racine temporaire attendue.
 - Retourne au workflow principal uniquement après la réussite de tous ces
