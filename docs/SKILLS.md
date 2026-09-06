@@ -38,18 +38,25 @@ synchronization checks, and optional template-based GitHub Release workflow.
 
 - Analyze the next SemVer bump before mutation.
 - Commit the exact file accepted by Commitlint through the repository hooks.
+- Keep the release target fixed while preparing one intention per dedicated
+  branch and guarded pull request on protected or shared targets. Require the
+  exact post-merge audit and revalidate the merged tree between intentions.
 - Resolve release metadata from authoritative project and release evidence,
   request only unresolved or contradictory values, then require explicit user
   validation.
 - Generate and validate `VERSION`, `SHA256SUMS`, and `manifest.json` without
   inventing release metadata.
 - Prevalidate the release SHA, then require every expected branch and tag audit
-  run around the atomic final push.
+  run around the atomic final push. Verify that the push filter covers the
+  unique `codex/release-preflight-*` ref before mutation.
 - Prevalidate release workflows and required GitHub App configuration before
   mutation when a GitHub Release is requested.
 - Complete a requested, template-based GitHub Release only after the exact
   `Agent rules update` and `Repository audit` release runs, plus every
   applicable repository-specific run, succeed.
+- For the canonical starter repository, verify the sealed build/publication
+  boundary and exactly three assets: both ZIPs and their `SHA256SUMS` file.
+  Validate all GitHub digests and the checksum file's exact two entries.
 
 ### Usage examples
 
@@ -86,6 +93,9 @@ only after every applicable repository-specific check succeeds.
 - The starter-only release extension must be readable when the exact
   `asphyx0r/git-starter-kit` remote is active. It is intentionally omitted
   from packages distributed to derived repositories.
+- The pull-request path requires the guarded merge tool, pinned Commitlint,
+  and active guarded merge workflow to be installed on the release target.
+  Missing prerequisites stop the skill; it does not bootstrap them itself.
 
 ### Limitations
 
