@@ -29,7 +29,7 @@ EXPECTED_PYTHON_REQUIREMENTS = {
     "coverage": "7.16.0",
     "jsonschema[format]": "4.26.0",
     "mypy": "2.3.1",
-    "ruff": "0.15.16",
+    "ruff": "0.16.5",
     "yamllint": "1.38.0",
 }
 EXPECTED_NODE_REQUIREMENTS = {
@@ -572,7 +572,7 @@ class QualityToolchainTests(unittest.TestCase):
             requirements_path = quality_copy / "requirements.in"
             requirements = requirements_path.read_text(encoding="utf-8")
             requirements_path.write_text(
-                requirements.replace("ruff==0.15.16\n", "") + "unexpected==9.9.9\n",
+                requirements.replace("ruff==0.16.5\n", "") + "unexpected==9.9.9\n",
                 encoding="utf-8",
             )
 
@@ -603,9 +603,9 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertEqual(
             errors,
             [
-                "requirements.in: expected direct requirement ruff==0.15.16",
+                "requirements.in: expected direct requirement ruff==0.16.5",
                 "requirements.in: unexpected direct requirement unexpected",
-                "requirements.in: ruff expected 0.15.16, found None",
+                "requirements.in: ruff expected 0.16.5, found None",
                 "requirements.in: unexpected expected None, found 9.9.9",
                 "package-lock.json: node engine expected >=22.12.0",
                 "package-lock.json: root dependencies differ from versions.json",
@@ -627,7 +627,7 @@ class QualityToolchainTests(unittest.TestCase):
                 "coverage==7.16.0 --hash=sha256:0\n"
                 "jsonschema==4.26.0 --hash=sha256:0\n"
                 "mypy==2.3.1 --hash=sha256:0\n"
-                "ruff==0.15.16 --hash=sha256:0\n"
+                "ruff==0.16.5 --hash=sha256:0\n"
                 "yamllint==1.38.0 --hash=sha256:0\n",
                 encoding="utf-8",
             )
