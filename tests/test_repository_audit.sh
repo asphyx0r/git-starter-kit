@@ -1433,7 +1433,7 @@ name: Repository audit
   release:
     types: [published]
   push:
-    branches: [master]
+    branches: [master, "codex/release-preflight-*"]
     tags: ["v*"]
   pull_request:
     branches: [master]
@@ -1683,8 +1683,18 @@ assert_repository_audit_mutation \
   "${repository_trigger_diagnostic}"
 assert_repository_audit_mutation \
   push-branch \
-  $'  push:\n    branches: [master]\n    tags: ["v*"]' \
-  $'  push:\n    branches: [main]\n    tags: ["v*"]' \
+  $'    branches: [master, "codex/release-preflight-*"]' \
+  $'    branches: [main, "codex/release-preflight-*"]' \
+  "${repository_trigger_diagnostic}"
+assert_repository_audit_mutation \
+  missing-preflight \
+  '    branches: [master, "codex/release-preflight-*"]' \
+  '    branches: [master]' \
+  "${repository_trigger_diagnostic}"
+assert_repository_audit_mutation \
+  broad-preflight \
+  '    branches: [master, "codex/release-preflight-*"]' \
+  '    branches: [master, "codex/*"]' \
   "${repository_trigger_diagnostic}"
 assert_repository_audit_mutation \
   push-tags '    tags: ["v*"]' '    tags: ["release-*"]' \
@@ -1995,6 +2005,108 @@ if ! (
   fail "Repository audit contract rejected the repository workflow"
 fi
 # END REPOSITORY AUDIT WORKFLOW TESTS
+
+# BEGIN RELEASE SKILL GUARD TESTS
+if [ -f "${source_root}/.github/workflows/release-package.yml" ]; then
+  release_skill_fixture_root="${test_temp}/release-skill-guard"
+  release_skill_reference_dir=".agents/skills/git-commit-push-tag/references"
+  mkdir -p "${release_skill_fixture_root}/${release_skill_reference_dir}"
+
+  assert_release_skill_guard_mutation() {
+    local case_name="$1"
+    local reference_name="$2"
+    local old_text="$3"
+    local new_text="$4"
+    local expected_diagnostic="$5"
+    local expected_count="${6:-1}"
+    local actual_status
+
+    cp "${source_root}/${release_skill_reference_dir}/"*.txt \
+      "${release_skill_fixture_root}/${release_skill_reference_dir}/"
+    replace_repository_audit_literal \
+      "${source_root}/${release_skill_reference_dir}/${reference_name}" \
+      "${release_skill_fixture_root}/${release_skill_reference_dir}/${reference_name}" \
+      "${old_text}" "${new_text}" "${expected_count}"
+    if (
+      cd "${release_skill_fixture_root}"
+      check_release_guard_contract
+    ) >"${test_temp}/skill-${case_name}.out" \
+      2>"${test_temp}/skill-${case_name}.err"; then
+      fail "Release guard accepted ${case_name}"
+    else
+      actual_status=$?
+    fi
+    if ((actual_status != 1)); then
+      fail "Release guard returned unexpected status for ${case_name}"
+    fi
+    assert_file_contains "${test_temp}/skill-${case_name}.err" \
+      "${expected_diagnostic}"
+  }
+
+  release_main_reference="git-commit-push-tag.txt"
+  release_package_reference="git-starter-kit-release-package.txt"
+  release_branch_diagnostic='Release guard omits protected-branch integration gates.'
+  release_payload_diagnostic='Release guard omits the sealed publication boundary.'
+  assert_release_skill_guard_mutation \
+    multi-commit-pr "${release_main_reference}" \
+    'Limite chaque PR à un commit candidat' \
+    'Allow multiple candidate commits in each PR' "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    rebuilt-merge-message "${release_main_reference}" \
+    '--message-file <même-fichier-temporaire>' \
+    '--message-file <rebuilt-message>' "${release_branch_diagnostic}" 2
+  assert_release_skill_guard_mutation \
+    missing-target-audit "${release_main_reference}" \
+    'au SHA exact du squash et après cet horodatage' \
+    'at any previously successful commit' "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    premature-changelog "${release_main_reference}" \
+    'contrôles du changelog seulement après sa préparation pour la release' \
+    'Always validate the changelog before it is prepared' \
+    "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    shared-direct-write "${release_main_reference}" \
+    "et non partagée lorsque les instructions du repository l'autorisent." \
+    'including protected or shared targets.' "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    mutable-target "${release_main_reference}" \
+    'branche cible de release immuable' 'branche courante variable' \
+    "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    unchecked-merge "${release_main_reference}" \
+    'python tools/merge-pull-request.py request --force' \
+    'gh pr merge --squash' "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    missing-merged-tree-check "${release_main_reference}" \
+    'revalide les artefacts contre le véritable arbre fusionné' \
+    'reuse task-branch artifacts' \
+    "${release_branch_diagnostic}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    missing-preflight-trigger "${release_main_reference}" \
+    'le filtre `push.branches` couvre `codex/release-preflight-*`' \
+    'le workflow écoute seulement les pushes de master' \
+    "${release_branch_diagnostic}"
+  assert_release_skill_guard_mutation \
+    two-assets "${release_package_reference}" \
+    'contient exactement trois assets nommés' \
+    'contient exactement deux assets nommés' \
+    'Release guard does not require all three release assets.'
+  assert_release_skill_guard_mutation \
+    missing-checksum-validation "${release_package_reference}" \
+    'octet pour octet les deux lignes attendues' \
+    'uniquement la présence du fichier' "${release_payload_diagnostic}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    writable-build "${release_package_reference}" \
+    'un job `build` limité à `contents: read`' \
+    'un job `build` avec `contents: write`' "${release_payload_diagnostic}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    overwrite-assets "${release_package_reference}" \
+    'sans `--clobber`' 'avec `--clobber`' "${release_payload_diagnostic}"
+fi
+# END RELEASE SKILL GUARD TESTS
 
 fast_missing_error="${test_temp}/fast-missing.err"
 if (
