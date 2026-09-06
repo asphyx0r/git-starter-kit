@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.8.1",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.1",
-    "generatedAt": "2026-09-05T09:36:00Z"
+    "ref": "v2.9.0",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.9.0",
+    "generatedAt": "2026-09-06T15:19:02Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.8.1",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.8.1",
-    "generatedAt": "2026-09-05T09:36:00Z"
+    "ref": "v2.9.0",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.9.0",
+    "generatedAt": "2026-09-06T15:19:02Z"
   },
   "files": [
     {
@@ -31,8 +31,8 @@
     },
     {
       "path": ".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt",
-      "sha256": "d023f962b4c552d8450131c51a4882089495454d826f31709fddbb9ac6a973b9",
-      "canonicalSha256": "d023f962b4c552d8450131c51a4882089495454d826f31709fddbb9ac6a973b9",
+      "sha256": "fa4c2070b252e904c149ff854c84eb5b3b9e08142b8f404d144f8e985d77f31e",
+      "canonicalSha256": "fa4c2070b252e904c149ff854c84eb5b3b9e08142b8f404d144f8e985d77f31e",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -142,6 +142,14 @@
       "strategy": "replace"
     },
     {
+      "path": ".github/workflows/guarded-pull-request-merge.yml",
+      "sha256": "c7b6f2011929516a4d840d6974c8b2deb779c8d2dddc06b6bf3237e417919ae9",
+      "canonicalSha256": "c7b6f2011929516a4d840d6974c8b2deb779c8d2dddc06b6bf3237e417919ae9",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
       "path": ".github/workflows/release-artifacts.yml",
       "sha256": "f8022cefd729afe016a456dd5f06d3c4d4c9e36c964161d3c4c4c42856ed1ede",
       "canonicalSha256": "f8022cefd729afe016a456dd5f06d3c4d4c9e36c964161d3c4c4c42856ed1ede",
@@ -151,8 +159,8 @@
     },
     {
       "path": ".github/workflows/repository-audit.yml",
-      "sha256": "c0d3178f343cd40ca4223f3a27277c5f3584e1fd135d1c9576aa2768142e961f",
-      "canonicalSha256": "c0d3178f343cd40ca4223f3a27277c5f3584e1fd135d1c9576aa2768142e961f",
+      "sha256": "593a2942691b4541cff281ebee7832b6cc98fc0a60b1661c1b012193a6380c8e",
+      "canonicalSha256": "593a2942691b4541cff281ebee7832b6cc98fc0a60b1661c1b012193a6380c8e",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "merge"
@@ -207,8 +215,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "15c78fc6f376f1caf9453ae3e723582944f49362c0760599c58ffb3bd64df55f",
-      "canonicalSha256": "15c78fc6f376f1caf9453ae3e723582944f49362c0760599c58ffb3bd64df55f",
+      "sha256": "3981546661aaacaae4c7c198d92bd5700f0aa597ab8751e9a01b0bf40282b11e",
+      "canonicalSha256": "3981546661aaacaae4c7c198d92bd5700f0aa597ab8751e9a01b0bf40282b11e",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -223,8 +231,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "sha256": "f66f2336ff834ee0faaff08ab8f4bce53ca419095e1ed9aa9b6780d56af21488",
-      "canonicalSha256": "f66f2336ff834ee0faaff08ab8f4bce53ca419095e1ed9aa9b6780d56af21488",
+      "sha256": "6fc37d0ae6480d61acdc387cb2bd634f1ea27c2fdbd0c00af7af4f73c0754313",
+      "canonicalSha256": "6fc37d0ae6480d61acdc387cb2bd634f1ea27c2fdbd0c00af7af4f73c0754313",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -239,8 +247,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "3b94bfe9215d954a057a792fd43ecb2f00e3bffb26014f79fd858aab3e1abda4",
-      "canonicalSha256": "3b94bfe9215d954a057a792fd43ecb2f00e3bffb26014f79fd858aab3e1abda4",
+      "sha256": "67f1d92d2f1f01f7e773188c5bf19e6b0f2b21ca5104ec757b18f5a701a868ac",
+      "canonicalSha256": "67f1d92d2f1f01f7e773188c5bf19e6b0f2b21ca5104ec757b18f5a701a868ac",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -271,16 +279,24 @@
     },
     {
       "path": "docs/SKILLS.md",
-      "sha256": "77dd2fdbe8081e67a1c78a73a936f60b8a4647787ae357e9f6199f776bba63d8",
-      "canonicalSha256": "77dd2fdbe8081e67a1c78a73a936f60b8a4647787ae357e9f6199f776bba63d8",
+      "sha256": "8397cc7e72a7ff0a52efca64bf98b8652a6e6d3a251d84012a66a343ad7d32d4",
+      "canonicalSha256": "8397cc7e72a7ff0a52efca64bf98b8652a6e6d3a251d84012a66a343ad7d32d4",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
     },
     {
+      "path": "docs/guarded-pull-request-merges.md",
+      "sha256": "68ebdf751927e028bb19f0721d09de38eb00b945b68c8326d00715f0be286521",
+      "canonicalSha256": "68ebdf751927e028bb19f0721d09de38eb00b945b68c8326d00715f0be286521",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
       "path": "docs/repository-files.md",
-      "sha256": "567c48a2e9a625925a429fb6452bac1b03dbc74af4204c284e0d19fcef07625e",
-      "canonicalSha256": "567c48a2e9a625925a429fb6452bac1b03dbc74af4204c284e0d19fcef07625e",
+      "sha256": "10e8ae56b67a25331a2b51d52c48913d8763e609d101b5adef13168680aa721f",
+      "canonicalSha256": "10e8ae56b67a25331a2b51d52c48913d8763e609d101b5adef13168680aa721f",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -423,8 +439,16 @@
     },
     {
       "path": "tests/test_commit_message_validation.sh",
-      "sha256": "264743c133c9e8c370ad1f64c0cb51c825848e0776103916bf9a45ba0750096b",
-      "canonicalSha256": "264743c133c9e8c370ad1f64c0cb51c825848e0776103916bf9a45ba0750096b",
+      "sha256": "32f0ee16800bada0717d850232eadceea53aa9ea5478acffa86d4e3bbac356bb",
+      "canonicalSha256": "32f0ee16800bada0717d850232eadceea53aa9ea5478acffa86d4e3bbac356bb",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tests/test_merge_pull_request.py",
+      "sha256": "c9adc6cca0092beeac3aae5a543a9103b01583be82790742733f99b394f37057",
+      "canonicalSha256": "c9adc6cca0092beeac3aae5a543a9103b01583be82790742733f99b394f37057",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -471,8 +495,8 @@
     },
     {
       "path": "tests/test_repository_audit.sh",
-      "sha256": "0807016cc319a702f84e1dd6a9b41cc7f3cbde458706d175f0fc3cee33e74277",
-      "canonicalSha256": "0807016cc319a702f84e1dd6a9b41cc7f3cbde458706d175f0fc3cee33e74277",
+      "sha256": "45124d0e382e07d4f50ceab63b3cea9f2b9a34ae0061e776baacaf743a57437f",
+      "canonicalSha256": "45124d0e382e07d4f50ceab63b3cea9f2b9a34ae0061e776baacaf743a57437f",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -487,8 +511,8 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "ef058923690e3e0fdf78cf5b5567712b6363cd7f6153a1f52a330dd40b558b27",
-      "canonicalSha256": "ef058923690e3e0fdf78cf5b5567712b6363cd7f6153a1f52a330dd40b558b27",
+      "sha256": "aa00208bc7e3096046d4f3676494d21bbe97d82eb04188d7f26cd79a951657a2",
+      "canonicalSha256": "aa00208bc7e3096046d4f3676494d21bbe97d82eb04188d7f26cd79a951657a2",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -513,6 +537,14 @@
       "path": "tools/git-init.sh",
       "sha256": "592de239ed339e3d8501f42ed79a4b560dd294eb5ab02ab9fed51e9f47ddf190",
       "canonicalSha256": "592de239ed339e3d8501f42ed79a4b560dd294eb5ab02ab9fed51e9f47ddf190",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
+      "path": "tools/merge-pull-request.py",
+      "sha256": "20d6baeda2c6be374d5a584411f1b8dd4f5daf935bf69f509b5333adcbbd0bc2",
+      "canonicalSha256": "20d6baeda2c6be374d5a584411f1b8dd4f5daf935bf69f509b5333adcbbd0bc2",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -559,8 +591,8 @@
     },
     {
       "path": "tools/quality/pyproject.toml",
-      "sha256": "af1ef21f2f219d2c07b520c076414c4df2c48863f8880d51a651c1df6d0494a8",
-      "canonicalSha256": "af1ef21f2f219d2c07b520c076414c4df2c48863f8880d51a651c1df6d0494a8",
+      "sha256": "7f77dff586b25daed06ccad0162df5efd23e9f793c21a3ce262da6987b3d3f25",
+      "canonicalSha256": "7f77dff586b25daed06ccad0162df5efd23e9f793c21a3ce262da6987b3d3f25",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -639,8 +671,8 @@
     },
     {
       "path": "tools/repository-audit/contracts.sh",
-      "sha256": "32b5d83402fda813a07884275f2ec735dc5bd09bedbce82686f9a3d1463e8230",
-      "canonicalSha256": "32b5d83402fda813a07884275f2ec735dc5bd09bedbce82686f9a3d1463e8230",
+      "sha256": "34e3812edf61ae91bcdc2b647602fe373eaec61050d39b5524ccdf5847c58670",
+      "canonicalSha256": "34e3812edf61ae91bcdc2b647602fe373eaec61050d39b5524ccdf5847c58670",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -655,8 +687,8 @@
     },
     {
       "path": "tools/repository-audit/profiles.sh",
-      "sha256": "d0972aaaed9881efa086a88005f461a34bd7bca49092cc413e6b759b372e08f6",
-      "canonicalSha256": "d0972aaaed9881efa086a88005f461a34bd7bca49092cc413e6b759b372e08f6",
+      "sha256": "b66316e9172864de88e7e138fedda32b7eda73414453a692ea81ceea956db684",
+      "canonicalSha256": "b66316e9172864de88e7e138fedda32b7eda73414453a692ea81ceea956db684",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
