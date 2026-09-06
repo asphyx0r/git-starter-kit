@@ -25,7 +25,7 @@ SOURCE_ROOT = Path(__file__).resolve().parents[1]
 QUALITY_ROOT = SOURCE_ROOT / "tools" / "quality"
 INSTALLER_PATH = QUALITY_ROOT / "install-external-tools.py"
 EXPECTED_PYTHON_REQUIREMENTS = {
-    "codespell": "2.4.2",
+    "codespell": "2.4.3",
     "coverage": "7.16.0",
     "jsonschema[format]": "4.26.0",
     "mypy": "2.3.1",
@@ -623,7 +623,7 @@ class QualityToolchainTests(unittest.TestCase):
             quality_copy = Path(temporary_directory) / "quality"
             copy_quality_configuration(quality_copy)
             (quality_copy / "requirements.lock").write_text(
-                "codespell==2.4.2\n"
+                "codespell==2.4.3\n"
                 "coverage==7.16.0 --hash=sha256:0\n"
                 "jsonschema==4.26.0 --hash=sha256:0\n"
                 "mypy==2.3.1 --hash=sha256:0\n"
@@ -636,7 +636,7 @@ class QualityToolchainTests(unittest.TestCase):
 
         self.assertEqual(
             errors,
-            ["requirements.lock: unhashed block: codespell==2.4.2"],
+            ["requirements.lock: unhashed block: codespell==2.4.3"],
         )
 
     def test_command_version_distinguishes_probe_failure_modes(self) -> None:
@@ -759,7 +759,7 @@ class QualityToolchainTests(unittest.TestCase):
             errors,
             [
                 ("runtime: node expected >=22.12.0, found None (command not found)"),
-                "runtime: codespell expected 2.4.2, found None",
+                "runtime: codespell expected 2.4.3, found None",
                 "runtime: @commitlint/cli expected 21.2.2, found None",
                 "runtime: markdownlint-cli2 expected 0.23.2, found 0.0.0",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
