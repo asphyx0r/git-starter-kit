@@ -90,6 +90,32 @@ A good pull request should explain:
 - How the change was verified.
 - Whether any files were intentionally deferred, rejected, or removed.
 
+## Guarded squash merges
+
+Prepare the complete squash message in a UTF-8 LF file and validate the request
+through `tools/merge-pull-request.py`. The command preserves the exact message,
+requires the pull request head and required checks to remain unchanged, and
+routes the write through the repository-owned workflow:
+
+```bash
+python tools/merge-pull-request.py request \
+  --pull-request 17 \
+  --message-file /path/to/merge-message.txt \
+  --repository owner/repository
+```
+
+See [Guarded pull request merges](docs/guarded-pull-request-merges.md) for the
+message contract, dry-run procedure, exit statuses, indeterminate-result
+handling, and activation proof.
+
+This path is not enforced merely because the files are present. Publication
+and GitHub activation require separate authorization. Activation creates a
+distinct default-branch `Restrict updates` ruleset with only the existing App
+as bypass, retains `Protect master` without bypass, disables auto-merge and
+every applicable merge queue, disables merge-commit and rebase methods, and
+uses a disposable pull request to prove that manual merge is blocked while the
+App remains subject to required checks.
+
 ## Verification
 
 The supported CI gate runs the exhaustive profile on Ubuntu 24.04 with Python

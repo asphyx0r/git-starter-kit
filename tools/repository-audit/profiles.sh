@@ -327,6 +327,9 @@ run_static() {
   if [ -f .github/workflows/repository-audit.yml ]; then
     check_repository_audit_workflow_contract
   fi
+  if [ -f .github/workflows/guarded-pull-request-merge.yml ]; then
+    check_guarded_pull_request_merge_workflow_contract
+  fi
   check_release_artifact_contract
   check_release_skill_contract
   if [ -f .github/workflows/release-package.yml ]; then
@@ -386,6 +389,9 @@ run_readonly() {
   fi
   if [ -f .github/workflows/repository-audit.yml ]; then
     check_repository_audit_workflow_contract
+  fi
+  if [ -f .github/workflows/guarded-pull-request-merge.yml ]; then
+    check_guarded_pull_request_merge_workflow_contract
   fi
   check_release_artifact_contract
   check_release_skill_contract
