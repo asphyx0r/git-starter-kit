@@ -194,9 +194,42 @@ exit 99
 HISTORICAL_GH
 chmod +x "$test_bin/gh"
 export HISTORICAL_GH_TRACE="$historical_gh_trace"
+historical_cli_root="$test_temp/guarded-cli"
+historical_cli_bin="$historical_cli_root/tools/quality/node_modules/.bin"
+mkdir -p "$historical_cli_root/tools"
+cp "$source_root/tools/merge-pull-request.py" "$historical_cli_root/tools/"
+cp "$source_root/commitlint.config.cjs" "$historical_cli_root/"
+
+missing_local_output="$test_temp/missing-local-commitlint.out"
+if python "$historical_cli_root/tools/merge-pull-request.py" \
+  request --force --pull-request 17 \
+  --message-file "$historical_invalid_message" \
+  --repository asphyx0r/git-starter-kit >"$missing_local_output" 2>&1; then
+  fail "guarded merge CLI accepted missing repository-local Commitlint"
+fi
+if ! grep -F 'Repository-pinned Commitlint is unavailable' \
+  "$missing_local_output" >/dev/null; then
+  sed 's/^/  /' "$missing_local_output" >&2
+  fail "guarded merge CLI did not require repository-local Commitlint"
+fi
+
+# Pre-push clones omit node_modules; the fixture delegates to the real linter.
+mkdir -p "$historical_cli_bin"
+cp "$test_bin/commitlint" "$historical_cli_bin/commitlint"
+if command -v cygpath >/dev/null 2>&1; then
+  export HISTORICAL_COMMITLINT_NATIVE
+  HISTORICAL_COMMITLINT_NATIVE="$(
+    cygpath -w "${locked_commitlint_command%.cmd}.cmd"
+  )"
+  cat >"$historical_cli_bin/commitlint.cmd" <<'HISTORICAL_COMMITLINT'
+@ECHO OFF
+CALL "%HISTORICAL_COMMITLINT_NATIVE%" %*
+EXIT /B %ERRORLEVEL%
+HISTORICAL_COMMITLINT
+fi
 historical_cli_output="$test_temp/pr-17-cli.out"
 historical_cli_status=0
-python "$source_root/tools/merge-pull-request.py" \
+python "$historical_cli_root/tools/merge-pull-request.py" \
   request \
   --force \
   --pull-request 17 \
