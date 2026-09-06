@@ -2,13 +2,12 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.9.0",
-    "release_date": "2026-09-06T15:38:44Z",
+    "version": "2.9.1",
+    "release_date": "2026-09-06T18:17:42Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Add guarded squash merges that validate the exact commit message before privileged execution.",
-        "Align the release skill with protected-branch pull requests and sealed release package publication."
+        "Align release toolkit validation with the modular updater and prevent contract drift."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -22,7 +21,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.9.0-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.9.1-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -30,9 +29,9 @@
             },
             "format": "git-tree",
             "total_files": 115,
-            "size_bytes": 1889726,
-            "built_at": "2026-09-06T15:38:44Z",
-            "sha256": "8d036b0e7d413928e63212282ff3ce5742c71523d017d06a83bb5a0b5ee28316",
+            "size_bytes": 1891628,
+            "built_at": "2026-09-06T18:17:42Z",
+            "sha256": "71253f13bdf7ebc8ae6a9da568ede9ac3f4fcade3361c790a0ad9522e3bdb5dd",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -63,11 +62,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 6857,
+                    "size_bytes": 7317,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "82b6564a5e52a34e032a1ec64b6e22f446fb60b963b5006b991009ffcc86b831",
+                    "sha256": "5455dc026751b198298097a2724f375976936855365cfb1ba09d98fe08dbae2c",
                     "mode": "644"
                 },
                 {
@@ -306,11 +305,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 12628,
+                    "size_bytes": 12771,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "3981546661aaacaae4c7c198d92bd5700f0aa597ab8751e9a01b0bf40282b11e",
+                    "sha256": "3ce94fbe1957afbd46a23edb0f961c2853fdab4fb245951dcb76f2e2bc91871b",
                     "mode": "644"
                 },
                 {
@@ -418,7 +417,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8113ce620372292c25fda221ad5e8adf77dbe71c92c2042f8ca1ec3dfe9c50a1",
+                    "sha256": "5ba2db80e8ed2521570b58d5f1acba3a6b83978e500931fc9768dd85355489a8",
                     "mode": "644"
                 },
                 {
@@ -499,7 +498,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c77ac6eaeb17fb5c82f3add69f882ab1827a747efdee7760255d9c4fdfd5e1ba",
+                    "sha256": "3da6c18086a6c559df1e9b1eea562719fe44ffb2a65e2893bae3888207107b4c",
                     "mode": "644"
                 },
                 {
@@ -738,11 +737,11 @@
                 },
                 {
                     "relative_path": "tests/test_starter_kit_upgrade.py",
-                    "size_bytes": 49687,
+                    "size_bytes": 50986,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e3f18ac2998a92fbfa328bfae5ec361dbf2bdaaa376de554fcb0b14f9bdaa16b",
+                    "sha256": "2e0d84002371a1d8ff1a790ecffa6481b9fa276f8b58172fa1b4c2cad338aa95",
                     "mode": "644"
                 },
                 {
