@@ -713,8 +713,8 @@ jobs:
 
     steps:
       - name: Checkout tagged release
-        # actions/checkout@v7.0.0
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -869,7 +869,7 @@ assert_release_artifact_contract_rejects \
 
 wrong_checkout_sha_fixture="${test_temp}/release-artifacts-wrong-checkout-sha.yml"
 sed \
-  's/9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0/0000000000000000000000000000000000000000/' \
+  's/3d3c42e5aac5ba805825da76410c181273ba90b1/0000000000000000000000000000000000000000/' \
   "${release_artifact_workflow_fixture}" >"${wrong_checkout_sha_fixture}"
 assert_release_artifact_contract_rejects \
   release-artifacts-wrong-checkout-sha "${wrong_checkout_sha_fixture}" \
@@ -1123,7 +1123,7 @@ checkout_publish_fixture="${release_package_mutation_root}/checkout-publish.yml"
 replace_workflow_literal \
   "${release_package_workflow}" "${checkout_publish_fixture}" \
   '      - name: Download sealed release payload' \
-  $'      - name: Checkout in publish\n        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n\n      - name: Download sealed release payload'
+  $'      - name: Checkout in publish\n        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n\n      - name: Download sealed release payload'
 assert_release_package_contract_rejects \
   release-package-checkout-publish "${checkout_publish_fixture}" \
   'Release package workflow job graph changed.' ||
@@ -1452,8 +1452,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout repository
-        # actions/checkout@v7.0.0
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1504,8 +1504,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout repository
-        # actions/checkout@v7.0.0
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1786,7 +1786,7 @@ assert_repository_audit_mutation \
   "${repository_runner_diagnostic}"
 
 assert_repository_audit_mutation \
-  checkout-sha 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 \
+  checkout-sha 3d3c42e5aac5ba805825da76410c181273ba90b1 \
   0000000000000000000000000000000000000000 \
   "${repository_action_diagnostic}" 2
 assert_repository_audit_mutation \
@@ -1804,8 +1804,8 @@ assert_repository_audit_mutation \
   "${repository_action_diagnostic}"
 assert_repository_audit_mutation \
   detached-action-comment \
-  $'      - name: Checkout repository\n        # actions/checkout@v7.0.0\n        uses:' \
-  $'        # actions/checkout@v7.0.0\n      - name: Checkout repository\n        uses:' \
+  $'      - name: Checkout repository\n        # actions/checkout@v7.0.1\n        uses:' \
+  $'        # actions/checkout@v7.0.1\n      - name: Checkout repository\n        uses:' \
   "${repository_action_diagnostic}" 2
 assert_repository_audit_mutation \
   setup-go $'      - name: Install locked language toolchains\n' \
@@ -2170,7 +2170,7 @@ jobs:
       source_commit: ${{ steps.resolve.outputs.source_commit }}
     steps:
       - name: Check out target default branch without credentials
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
@@ -2230,7 +2230,7 @@ jobs:
       contents: read
     steps:
       - name: Check out sealed target commit without credentials
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.prepare.outputs.target_base_commit }}
           fetch-depth: 0

@@ -280,7 +280,7 @@ if expected_concurrency not in top_level:
     reject("Release package workflow concurrency changed.")
 
 action_revisions = {
-    "checkout": "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "checkout": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "setup-python": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "setup-node": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
     "upload-artifact": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
@@ -550,7 +550,7 @@ check_agent_rules_update_workflow_contract() {
         python_version++
       }
 
-      if (has(line, "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5")) {
+      if (has(line, "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1")) {
         checkout_count++
         checkout_line[checkout_count] = NR
       }
@@ -935,10 +935,10 @@ if text.count("    timeout-minutes:") != 3:
     reject("Repository audit workflow runner or timeout contract changed.")
 
 expected_actions = [
-    "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-    "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
 ]
@@ -946,10 +946,10 @@ used_actions = re.findall(r"(?m)^\s+uses: ([^\n]+)$", text)
 if used_actions != expected_actions:
     reject("Repository audit workflow action revision contract changed.")
 expected_action_comments = [
-    "actions/checkout@v7.0.0",
+    "actions/checkout@v7.0.1",
     "actions/setup-python@v7.0.0",
     "actions/setup-node@v7.0.0",
-    "actions/checkout@v7.0.0",
+    "actions/checkout@v7.0.1",
     "actions/setup-python@v7.0.0",
     "actions/setup-node@v7.0.0",
 ]
@@ -1354,7 +1354,7 @@ if len(re.findall(r"(?m)^      - ", text)) != len(expected_step_names):
     reject("Guarded merge workflow validation order changed.")
 
 expected_actions = [
-    "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
     "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
@@ -1650,7 +1650,7 @@ if step_names != [
 if len(re.findall(r"(?m)^      - ", job_text)) != 4:
     reject("Release artifacts workflow job graph changed.")
 
-checkout_revision = "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+checkout_revision = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 if text.count(checkout_revision) != 1:
     reject("Release artifacts workflow checkout contract changed.")
 if "          fetch-depth: 0\n" not in text or "          persist-credentials: false\n" not in text:
