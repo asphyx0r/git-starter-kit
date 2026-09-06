@@ -41,6 +41,10 @@ PAYLOAD_FIELDS = {
     "message_base64",
 }
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_AUTO_MERGE_POLICY_QUERY = (
+    "query RepositoryAutoMergePolicy($owner: String!, $repository: String!) { "
+    "repository(owner: $owner, name: $repository) { autoMergeAllowed } }"
+)
 PULL_REQUEST_MUTATION_STATE_QUERY = """query PullRequestMergeQueueState(
   $owner: String!
   $repository: String!
@@ -349,19 +353,42 @@ def _resolve_repository(repository: str | None) -> tuple[str, str]:
     return resolved_repository, default_branch
 
 
-def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:
-    repository_value = _run_gh_json(["api", f"repos/{repository}"])
-    if not isinstance(repository_value, dict) or not isinstance(
-        repository_value.get("allow_auto_merge"), bool
+def _require_repository_auto_merge_disabled(repository: str) -> None:
+    owner, repository_name = repository.split("/", maxsplit=1)
+    value = _run_gh_json(
+        [
+            "api",
+            "graphql",
+            "-f",
+            f"query={REPOSITORY_AUTO_MERGE_POLICY_QUERY}",
+            "-F",
+            f"owner={owner}",
+            "-F",
+            f"repository={repository_name}",
+        ]
+    )
+    data = value.get("data") if isinstance(value, dict) else None
+    repository_value = data.get("repository") if isinstance(data, dict) else None
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"data"}
+        or not isinstance(data, dict)
+        or set(data) != {"repository"}
+        or not isinstance(repository_value, dict)
+        or set(repository_value) != {"autoMergeAllowed"}
+        or not isinstance(repository_value["autoMergeAllowed"], bool)
     ):
         raise MergeRequestError(
             "GitHub returned an invalid repository auto-merge policy."
         )
-    if repository_value["allow_auto_merge"]:
+    if repository_value["autoMergeAllowed"]:
         raise MergeRequestError(
             "Repository auto-merge must be disabled before guarded merges."
         )
 
+
+def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:
+    _require_repository_auto_merge_disabled(repository)
     encoded_branch = quote(default_branch, safe="")
     pages = _run_gh_json(
         [
