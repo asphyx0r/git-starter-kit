@@ -45,8 +45,8 @@ jobs:
 
     steps:
       - name: Check out target default branch without credentials
-        # actions/checkout@v4
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
@@ -159,8 +159,8 @@ jobs:
 
     steps:
       - name: Check out sealed target commit without credentials
-        # actions/checkout@v4
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.prepare.outputs.target_base_commit }}
           fetch-depth: 0
