@@ -856,7 +856,7 @@ expected_on_block = (
     "  release:\n"
     "    types: [published]\n"
     "  push:\n"
-    "    branches: [master]\n"
+    '    branches: [master, "codex/release-preflight-*"]\n'
     '    tags: ["v*"]\n'
     "  pull_request:\n"
     "    branches: [master]\n"
@@ -2003,13 +2003,47 @@ check_release_guard_contract() {
     exit 1
   fi
 
-  if ! grep -F "contient exactement deux assets nommés" \
+  # shellcheck disable=SC2016
+  if ! grep -F 'branche cible de release immuable' \
+    "$reference_path" >/dev/null ||
+    ! grep -F 'Limite chaque PR à un commit candidat' \
+      "$reference_path" >/dev/null ||
+    [[ "$(grep -F -c -- '--message-file <même-fichier-temporaire>' \
+      "$reference_path")" != 2 ]] ||
+    ! grep -F 'au SHA exact du squash et après cet horodatage' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'contrôles du changelog seulement après sa préparation pour la release' \
+      "$reference_path" >/dev/null ||
+    ! grep -F "et non partagée lorsque les instructions du repository l'autorisent." \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'python tools/merge-pull-request.py request --force' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'revalide les artefacts contre le véritable arbre fusionné' \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'le filtre `push.branches` couvre `codex/release-preflight-*`' \
+      "$reference_path" >/dev/null; then
+    printf '%s\n' \
+      'Release guard omits protected-branch integration gates.' >&2
+    exit 1
+  fi
+
+  if ! grep -F "contient exactement trois assets nommés" \
     "$release_reference_path" >/dev/null ||
     ! grep -F 'git-starter-kit-<tag>-with-agent-rules.zip' \
       "$release_reference_path" >/dev/null ||
     ! grep -F 'git-starter-kit-<tag>-upgrade-toolkit.zip' \
       "$release_reference_path" >/dev/null; then
-    printf '%s\n' "Release guard does not require both release assets." >&2
+    printf '%s\n' "Release guard does not require all three release assets." >&2
+    exit 1
+  fi
+
+  # shellcheck disable=SC2016
+  if ! grep -F 'un job `build` limité à `contents: read`' \
+    "$release_reference_path" >/dev/null ||
+    ! grep -F 'sans `--clobber`' "$release_reference_path" >/dev/null ||
+    ! grep -F 'octet pour octet les deux lignes attendues' \
+      "$release_reference_path" >/dev/null; then
+    printf '%s\n' 'Release guard omits the sealed publication boundary.' >&2
     exit 1
   fi
 

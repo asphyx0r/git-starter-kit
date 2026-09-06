@@ -212,12 +212,20 @@ when `CREATE_GITHUB_RELEASE=true` is explicitly provided. Before mutation, the
 skill validates the required workflows, branch protection, release metadata,
 and the repository variable and secret used by `Agent rules update`.
 
+On a protected or shared release target, each preparation intention uses a
+dedicated branch and pull request. The installed guarded merge workflow
+validates the exact squash message, then the skill waits for the resulting
+target-branch audit and rechecks the merged tree before preparing the next
+intention. The final atomic push leaves that already-published target unchanged.
+
 In a derived repository, the skill creates a stable latest release without
 assets. That release is complete only after the exact automatic
 `Agent rules update` and `Repository audit` release runs succeed. The canonical
 `git-starter-kit` extension instead creates a prerelease; `Release package`
 must also succeed, upload both verified ZIPs plus `SHA256SUMS`, and promote the
-release.
+release. Its read-only build seals those three files for a separate privileged
+publication job; the skill verifies all three GitHub digests and the checksum
+asset's exact two ZIP entries.
 
 For this canonical repository, the guarded workflow prepares and validates
 `starter-kit-manifest.json` in a distinct release-preparation commit before
@@ -236,7 +244,8 @@ each derived repository creates release identification for itself.
 
 Before creating a tag, the guarded workflow pushes the candidate SHA to a
 unique `codex/release-preflight-*` branch and requires the aggregate
-`Repository audit` check to succeed. After the final atomic branch-and-tag
+`Repository audit` check to succeed. The workflow's push filter must explicitly
+cover that prefix. After the final atomic branch-and-tag
 push, every expected branch and tag audit run must succeed; a manual or
 scheduled green run cannot replace a failed push run. Protect the default
 branch with this GitHub Actions check and apply the rule to administrators when

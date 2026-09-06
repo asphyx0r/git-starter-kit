@@ -43,6 +43,10 @@ RÈGLES GÉNÉRALES
   fichier de message au hook et à `git commit`.
 - Avant toute création de commit ou de tag, exécute exactement une fois :
   `git fetch origin --prune --tags`.
+- Distingue la branche cible de release immuable des branches de travail
+  temporaires. Dans tout ce workflow, `<branche>` désigne uniquement cette
+  cible, jamais la branche de préparation courante. Les commits de travail,
+  les commits squash et le tag restent soumis aux mêmes règles de validation.
 
 EXTENSION CONDITIONNELLE DU STARTER KIT
 
@@ -61,6 +65,8 @@ PHASE 1 — ANALYSE DU BUMP
 1. Identifie :
    - la racine du repository ;
    - la branche locale courante ;
+   - la branche cible de release explicitement demandée ou définie sans
+     ambiguïté par le repository, et son commit de départ exact ;
    - `origin/<branche>` ;
    - l'éventuelle branche upstream ;
    - les opérations Git éventuellement en cours.
@@ -191,6 +197,10 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
   publie pour les pushes non manuels un job agrégateur nommé exactement
   `Repository audit`, qui réussit uniquement si tous ses jobs enfants
   réussissent.
+- Vérifie que le filtre `push.branches` couvre `codex/release-preflight-*`,
+  sans exclusion de ce préfixe, et que le workflow audite aussi les pushes de
+  la branche cible et du tag prévu. Un événement `push` présent mais filtré
+  hors du ref de prévalidation ne satisfait pas cette précondition.
 - Exige que `tools/verify-repository-audit-runs.py` soit suivi et lisible, puis
   vérifie que son aide et sa version peuvent être exécutées. Utilise uniquement
   cet outil suivi pour sélectionner et attendre les runs d'audit obligatoires.
@@ -209,6 +219,18 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
   avant toute mutation. Si cette fonctionnalité GitHub n'est pas disponible
   pour le repository, rapporte la limitation et demande une validation
   utilisateur explicite avant de continuer sans cette couche.
+- Applique `BRANCH_RULES.md` pour choisir le parcours de préparation. Sur une
+  cible protégée, permanente ou partagée, exige une branche dédiée et une PR
+  par intention ; ne crée et ne pousse aucun nouveau commit directement sur
+  cette cible. N'utilise le parcours direct que sur une branche non protégée
+  et non partagée lorsque les instructions du repository l'autorisent.
+- Pour le parcours par PR, exige que `tools/merge-pull-request.py`, sa
+  configuration Commitlint épinglée et le workflow
+  `.github/workflows/guarded-pull-request-merge.yml` soient déjà installés sur
+  la branche cible. Vérifie l'aide de l'outil, l'état actif du workflow et les
+  prérequis décrits dans `docs/guarded-pull-request-merges.md`. En cas
+  d'absence, arrête-toi : n'improvise aucun amorçage, merge manuel, bypass,
+  changement de protection, auto-merge ou merge queue.
 - Si `CREATE_GITHUB_RELEASE=true` :
   - exige que `.github/workflows/repository-audit.yml` écoute aussi l'événement
     `release` avec le type `published`, audite la plage complète depuis le tag
@@ -319,6 +341,12 @@ PHASE 2 — PRÉPARATION DU COMMIT
     `git add -A`. Si l'historique contient déjà les changements publiables,
     que le working tree ne nécessite aucun commit et que le changelog est
     valide, aucun nouveau commit n'est nécessaire.
+    Sur le parcours par PR, crée la branche dédiée avant la première écriture
+    de chaque intention, depuis la cible synchronisée. Une branche déjà
+    dédiée à cette intention peut être conservée si sa base est vérifiée.
+    Limite chaque PR à un commit candidat ; intègre-la et resynchronise la
+    cible avant de préparer la suivante. Ce parcours s'applique aussi aux
+    commits de changelog, de manifeste core et d'artefacts de release.
 
 21. Pour chaque commit candidat, vérifie le contenu staged avec :
     - `git diff --cached --name-status`
@@ -389,11 +417,64 @@ PHASE 3 — COMMIT ET TAG
 
     N'utilise ni `-m`, ni `--no-verify`. Après le succès, compare le message
     enregistré par Git au fichier validé et exige une identité exacte hors
-    fins de ligne finales normales. Supprime uniquement ce fichier temporaire
-    après cette vérification. Si commitlint est indisponible, s'il échoue, ou
+    fins de ligne finales normales. Sur le parcours par PR, conserve ce même
+    fichier jusqu'à la vérification du squash selon la section suivante ;
+    sinon, supprime-le après la comparaison. Si commitlint est indisponible,
+    s'il échoue, ou
     si un hook, la création du commit ou la comparaison échoue, arrête
     immédiatement le workflow. Répète les points 18 à 28 pour chaque autre
     commit publiable nécessaire.
+
+INTÉGRATION CONTRÔLÉE DE CHAQUE INTENTION
+
+- Cette section fait partie du point 28 sur le parcours par PR. Vérifie le
+  nom, l'absence de collision distante et le SHA exact de la branche dédiée,
+  puis publie uniquement cette branche avec les hooks actifs. Crée une PR
+  non draft vers `<branche>`, sans supprimer la branche après fusion.
+- Attends les contrôles requis de la PR sur son SHA exact. Un échec, un autre
+  SHA ou une base devenue incompatible impose l'arrêt ; ne relance aucun run
+  et ne rebase pas automatiquement. Le run de PR ne remplace pas celui du
+  futur commit squash.
+- Relis `COMMIT_RULES.md`, effectue le fetch unique requis avant le commit
+  squash et les contrôles d'intégrité, puis revalide le fichier de message
+  final exact avec Commitlint. Ne reconstruis pas son corps depuis la PR.
+- Utilise l'outil déjà installé sur la cible, d'abord sans écriture :
+
+  ```text
+  python tools/merge-pull-request.py --dry-run request \
+    --repository <owner/repository> \
+    --pull-request <numéro-PR> \
+    --message-file <même-fichier-temporaire>
+  ```
+
+- Si le plan conserve la PR, sa cible et son SHA attendus, soumets exactement
+  la même demande et attends le résultat contrôlé :
+
+  ```text
+  python tools/merge-pull-request.py request --force \
+    --repository <owner/repository> \
+    --pull-request <numéro-PR> \
+    --message-file <même-fichier-temporaire>
+  ```
+
+- Enregistre l'horodatage UTC immédiatement avant la demande. Exige le succès
+  du workflow contrôlé, son SHA de tête scellé et sa postcondition exacte :
+  commit squash, parent, arbre et message. Un code de sortie 3 signifie un
+  résultat indéterminé : diagnostic en lecture seule et arrêt, sans nouvelle
+  demande automatique. N'utilise jamais `gh pr merge` comme remplacement.
+- Attends ensuite le run `Repository audit` de l'événement `push` sur la
+  branche cible, au SHA exact du squash et après cet horodatage, avec l'outil
+  suivi `tools/verify-repository-audit-runs.py`, `--timeout-seconds 3600` et
+  `--poll-seconds 5`. Exige tous les jobs enfants et l'agrégateur réussis.
+- Après ce succès, récupère la cible et synchronise sa branche locale en
+  avance rapide uniquement. Exige un working tree propre et l'identité de
+  `HEAD`, `origin/<branche>` et du squash ; conserve la branche de travail.
+  Puis revalide les artefacts contre le véritable arbre fusionné : répète les
+  contrôles du changelog seulement après sa préparation pour la release
+  courante. Répète également les contrôles du manifeste core et des artefacts
+  d'identification, lorsqu'ils ont été préparés, avec `--treeish HEAD`. Un écart
+  interdit la préparation suivante et le tag. Supprime alors uniquement le
+  fichier de message de cette intention.
 
 29. Une fois les commits publiables finalisés, vérifie ou mets à jour la
     section exacte du prochain tag dans `CHANGELOG.md` à partir de
@@ -515,6 +596,9 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
   le tag calculé est absent localement et sur `origin`, puis construis le nom
   unique `codex/release-preflight-<tag>-<sha-court>`. Arrête-toi si ce ref
   existe déjà sur `origin` ; ne le remplace et ne le force jamais.
+- Sur le parcours par PR, exige avant ce gel que toutes les intentions soient
+  intégrées et que `HEAD` soit la branche cible propre, déjà identique à
+  `origin/<branche>`. Ne prévalide et ne tague aucune branche de préparation.
 - Pousse uniquement `HEAD` sur ce ref avec
   `git push origin HEAD:refs/heads/<branche-preflight>`. Ce push de
   prévalidation est distinct du push atomique final. Enregistre immédiatement
@@ -536,7 +620,9 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
     --workflow-id <id> \
     --sha <SHA exact de HEAD> \
     --ref <branche-preflight> \
-    --created-after <horodatage-UTC>
+    --created-after <horodatage-UTC> \
+    --timeout-seconds 3600 \
+    --poll-seconds 5
   ```
 - Après le succès, relis `origin/<branche>` sans le modifier et exige qu'il
   corresponde encore au SHA distant enregistré. Relis aussi les tags distants
@@ -558,6 +644,8 @@ PHASE 4 — PUSH FINAL ET VALIDATION
 
 34. Pousse la branche et le tag ensemble dans un unique push final :
     `git -c core.hooksPath=.githooks push --atomic origin <branche> <tag>`
+    Sur le parcours par PR, la branche cible est déjà publiée au même SHA :
+    ce push ne doit créer que le tag, sans avancer directement la cible.
     Enregistre immédiatement avant ce push un nouvel horodatage UTC au format
     `YYYY-MM-DDTHH:MM:SSZ`.
 

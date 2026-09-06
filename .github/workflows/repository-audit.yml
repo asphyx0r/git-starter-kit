@@ -5,7 +5,7 @@ name: Repository audit
   release:
     types: [published]
   push:
-    branches: [master]
+    branches: [master, "codex/release-preflight-*"]
     tags: ["v*"]
   pull_request:
     branches: [master]

@@ -23,7 +23,9 @@ PRÉPARATION DU MANIFESTE DE RELEASE
 - Crée un commit distinct de préparation du manifeste en répétant intégralement
   les contrôles et le contrat de commit des points 18 à 28. Ne mélange aucun
   autre changement à ce commit.
-- Après le commit, répète le contrôle `check` contre `HEAD`. Tout échec ou toute
+- Après le commit et après son intégration contrôlée dans la cible selon le
+  point 28, répète le contrôle `check` contre le véritable `HEAD` fusionné.
+  Tout échec ou toute
   modification supplémentaire bloque la prévalidation distante, le tag et la
   release.
 - Exécute ensuite la section « PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE
@@ -40,11 +42,20 @@ PRÉCONDITION DU WORKFLOW DE RELEASE
     publique enregistrée dans `_agent-rules-source.json` ;
   - n'exige aucun token GitHub App pour accéder au repository source
     public `agent-coding-rules` ;
-  - construit et téléverse le package complet et l'upgrade toolkit dans
-    un job de packaging ;
-  - contient un job de promotion dépendant du packaging, exécuté
-    uniquement pour une prerelease issue de l'événement `release`.
-  - limite les jobs de package et de promotion au repository exact
+  - construit le package complet et l'upgrade toolkit dans
+    un job `build` limité à `contents: read` ;
+  - scelle un transfert contenant exactement trois fichiers réguliers : les
+    deux ZIP nommés pour le tag et `SHA256SUMS`, avec les empreintes des ZIP
+    transmises comme sorties du job de build ;
+  - contient un job `publish` dépendant de `build`, sous l'environnement
+    `release`, seul détenteur de `contents: write`, sans checkout ni exécution
+    de code téléchargé ;
+  - vérifie le jeu exact de fichiers, les empreintes scellées et `SHA256SUMS`
+    avant de téléverser les trois chemins explicites, sans `--clobber` ;
+  - réserve l'authentification à la dernière étape de publication, dont la
+    dernière action promeut en stable/latest uniquement une prerelease issue
+    de l'événement `release`, après le succès du téléversement ;
+  - limite les jobs de build et de publication au repository exact
     `asphyx0r/git-starter-kit`.
 - Si le workflow est absent, illisible ou non conforme, applique les mêmes
   règles d'arrêt que lorsqu'aucun template de release n'est accessible.
@@ -73,12 +84,18 @@ CONTRÔLES DE PACKAGE APRÈS LES RUNS OBLIGATOIRES
   - cible toujours le tag exact et conserve les Release Notes rendues ;
   - n'est ni un draft ni une prerelease ;
   - est marquée comme dernière release ;
-  - contient exactement deux assets nommés
-    `git-starter-kit-<tag>-with-agent-rules.zip` et
-    `git-starter-kit-<tag>-upgrade-toolkit.zip`.
-- Télécharge ces deux assets dans un répertoire temporaire hors du working
+  - contient exactement trois assets nommés
+    `git-starter-kit-<tag>-with-agent-rules.zip`,
+    `git-starter-kit-<tag>-upgrade-toolkit.zip` et `SHA256SUMS`.
+- Télécharge ces trois assets dans un répertoire temporaire hors du working
   tree et vérifie que le SHA-256 de chacun correspond au digest publié par
   GitHub.
+- Vérifie que l'asset `SHA256SUMS` contient exactement, en UTF-8 sans BOM et
+  avec fins de ligne LF, octet pour octet les deux lignes attendues : empreinte
+  SHA-256 minuscule, deux espaces, nom du ZIP, puis LF ; package complet
+  d'abord, upgrade toolkit ensuite. Recalcule les deux empreintes depuis les
+  ZIP téléchargés. Ne confonds pas cet asset avec le fichier `SHA256SUMS` à la
+  racine du repository, qui inventorie les blobs de l'artefact `git-tree`.
 - Vérifie le package complet :
   - il contient `AGENTS.md`, `BRANCH_RULES.md`, `CODING_RULES.md`,
     `COMMIT_RULES.md`, `DOCUMENTATION_RULES.md`, `LANGUAGE_RULES.md`,

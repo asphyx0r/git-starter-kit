@@ -96,19 +96,23 @@ deferred, or explicitly excluded from the template.
 - Usage: Read completely before the skill takes any action or runs Git.
 - Notes: Preserve this file as the generic behavioral source of truth. It
   requires the common `Agent rules update` and `Repository audit` release runs.
-  The starter-only extension adds only its package release contract.
+  Protected or shared targets use one guarded PR per preparation intention,
+  followed by the exact target audit and merged-tree validation. The preflight
+  push filter must cover the unique release-preflight ref. The starter-only
+  extension adds only its package release contract.
 
 ### `.agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt`
 
 - Type: `file`
 - Status: `optional`
 - Goal: Orders starter-manifest and release-artifact preparation, then adds the
-  package CI and two-asset completion gate used only by
+  package CI and three-asset completion gate used only by
   `asphyx0r/git-starter-kit`.
 - Usage: Load only through the generic skill when its exact remote matches.
 - Notes: This source-repository extension adds `Release package`, prerelease
-  promotion, asset, digest, and provenance checks without duplicating common
-  release-run controls. It is excluded from packages distributed to derived
+  promotion, sealed build/publication separation, both ZIP digests, the exact
+  checksum asset, and provenance checks without duplicating common release-run
+  controls. It is excluded from packages distributed to derived
   repositories.
 
 ### `.betterleaks.toml`
@@ -244,8 +248,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Runs the shared repository audit and publishes one aggregate required
   check on GitHub Actions.
-- Usage: Executes on `master` and `v*` pushes, pull requests targeting
-  `master`, published releases, and manual dispatch.
+- Usage: Executes on `master`, `codex/release-preflight-*`, and `v*` pushes,
+  pull requests targeting `master`, published releases, and manual dispatch.
 - Notes: `quality-linux` runs the exhaustive profile on Ubuntu 24.04 with
   Python 3.11; `compatibility-windows` runs the fast profile, complete Python
   suite, and PSScriptAnalyzer on Windows 2025 with Python 3.14. Both use Node.js
@@ -256,9 +260,10 @@ deferred, or explicitly excluded from the template.
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
   forwarded workflow token keep checked-out audit code unprivileged. Filtering
-  branch pushes avoids duplicating pull-request runs. Pull requests, `master`
-  updates, and release tags validate the complete commit range since the
-  highest reachable stable tag.
+  ordinary task-branch pushes avoids duplicating pull-request runs while the
+  dedicated release-preflight prefix remains auditable. Pull requests,
+  `master` updates, preflight pushes, and release tags validate the complete
+  commit range since the highest reachable stable tag.
 
 ### `.github/workflows/guarded-pull-request-merge.yml`
 
