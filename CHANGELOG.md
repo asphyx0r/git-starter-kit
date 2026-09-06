@@ -2,6 +2,14 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.9.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| e2149b0 | fix(release): align protected release workflow | asphyx |
+| 1aa74bb | fix(git): read guard policy with read-only tokens | asphyx |
+| 021c0b9 | fix(git): guard squash merge messages | asphyx |
+
 ## v2.8.1
 
 | References | Description | Author(s) |
