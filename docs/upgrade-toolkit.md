@@ -86,7 +86,7 @@ déléguée des règles, même lorsque l'application automatisée a réussi.
 Un verdict final `NON_COMPLIANT` produit un code de sortie non nul et l'état
 `FAILED`. Les états `COMPLIANT_WITH_FOLLOW_UP` et `NOT_ALIGNED` restent compatibles
 avec une application réussie lorsque les stratégies sont respectées. Si une
-modification concurrente cause l'échec du contrôle final, elle reste préservée.
+modification concurrente cause l'échec du contrôle final, elle est préservée.
 
 Le mode `--dry-run` ne réalise aucune écriture et ne crée aucun journal.
 Il en va de même pour l'aide, la version, les erreurs d'arguments et les erreurs
@@ -128,9 +128,9 @@ L'application exige :
 Les archives sont limitées à 10 000 membres, répertoires inclus, et à 256 Mio
 décompressés. Leurs chemins doivent être relatifs et uniques sans distinction
 de casse. Les chemins Windows dangereux, noms de périphériques, flux alternatifs,
-composants `.git`, liens et types ZIP spéciaux sont refusés. Les fichiers cibles
+segments `.git`, liens et types ZIP spéciaux sont refusés. Les fichiers cibles
 doivent rester dans le dépôt et ne traverser aucun lien ni point de réanalyse
-Windows, notamment une jonction.
+Windows, notamment les liens de type `junction`.
 
 Les manifestes v1, v2 et v3 sont validés avant le plan et les sauvegardes : types,
 stratégies, modes, provenance et empreintes des contenus disponibles. Les anciens
@@ -138,17 +138,17 @@ formats restent acceptés sans leur imposer les champs apparus ensuite.
 
 En cas d'erreur ou d'interruption pendant l'écriture, l'outil tente de restaurer
 tous les fichiers modifiés et l'adoption, avec leur contenu et leur mode initial.
-Il conserve le ZIP de rollback. Si une restauration échoue, les autres sont
+Il conserve le ZIP de rollback. Si une remise en état échoue, les autres sont
 encore tentées ; chaque chemin en échec est signalé et l'interruption d'origine
-est propagée. Une restauration complète n'est donc pas garantie si le système
-refuse lui-même les écritures de restauration.
+est propagée. Une remise en état complète n'est donc pas assurée si le système
+refuse lui-même les écritures nécessaires.
 
 Les requêtes Git courtes sont limitées à 30 secondes et les fusions à 300 secondes.
-Le délai couvre aussi les flux capturés et l'arrêt des processus descendants
-ordinaires. Un dépassement devient une erreur explicite ; les fichiers
+Le délai couvre aussi les flux capturés et l'arrêt des programmes descendants
+ordinaires. Un dépassement produit un diagnostic d'erreur ; les fichiers
 temporaires de fusion sont nettoyés.
 Ce délai démarre après la création synchrone et la mise sous contrôle du
-processus ; ces API ne permettent pas d'annuler la création native elle-même.
+programme ; ces API ne permettent pas d'annuler la création native elle-même.
 
 L'outil ne réalise aucun commit, tag, push ou accès réseau.
 
