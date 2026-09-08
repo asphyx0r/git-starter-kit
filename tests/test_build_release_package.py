@@ -76,6 +76,12 @@ catch {
     def test_deadline_includes_pipes_inherited_by_a_started_descendant(self):
         source = SCRIPT_PATH.read_text(encoding="utf-8")
         definitions = source.split("$repoRoot = (Resolve-Path", 1)[0]
+        # Native process startup precedes the execution and cleanup budget.
+        self.assertEqual(definitions.count("$watch.Restart()"), 1)
+        definitions = definitions.replace(
+            "$watch.Restart()",
+            "$watch.Restart()\n        $script:deadlineWatch.Restart()",
+        )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             marker = root / "descendant.pid"
@@ -104,7 +110,7 @@ function Get-Command {{
     if ($Name -eq 'git') {{ [pscustomobject]@{{ Source = {literal(sys.executable)} }} }}
     else {{ Microsoft.PowerShell.Core\\Get-Command $Name }}
 }}
-$watch = [Diagnostics.Stopwatch]::StartNew()
+$deadlineWatch = [Diagnostics.Stopwatch]::new()
 try {{
     Invoke-GitLine -Arguments @({literal(parent)}) -TimeoutSeconds 3
     throw 'deadline missing'
@@ -112,7 +118,9 @@ try {{
 catch {{
     if ($_.Exception.Message -notmatch 'timed out') {{ throw }}
 }}
-if ($watch.Elapsed.TotalSeconds -ge 4) {{ throw 'inherited pipes exceeded deadline' }}
+if (-not $deadlineWatch.IsRunning -or $deadlineWatch.Elapsed.TotalSeconds -ge 4) {{
+    throw 'inherited pipes exceeded deadline'
+}}
 if (-not (Test-Path -LiteralPath {literal(marker)})) {{ throw 'descendant never started' }}
 $childId = [int](Get-Content -LiteralPath {literal(marker)})
 if ($childId -le 0) {{ throw 'descendant PID missing' }}
@@ -130,7 +138,7 @@ if ($null -ne $child -and -not $child.WaitForExit(1000)) {{ throw 'descendant su
                     capture_output=True,
                     text=True,
                     check=False,
-                    timeout=20,
+                    timeout=60,  # Shell startup and Add-Type are outside the deadline.
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
 
