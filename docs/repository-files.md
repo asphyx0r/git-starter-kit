@@ -912,8 +912,9 @@ deferred, or explicitly excluded from the template.
   hook wrappers.
 - Notes: Validates staged snapshots without modifying them, resolves locked
   local tools, runs affected pushed-object tests in isolated local clones, and
-  retains release-tag artifact validation. One affected-path mapping selects
-  snapshots and test modules for both hooks.
+  retains release-tag artifact validation. Clone guards compare directory
+  identities so equivalent Git Bash mount paths remain valid. One affected-path
+  mapping selects snapshots and test modules for both hooks.
 
 ### `tools/repository-audit/profiles.sh`
 
@@ -1285,7 +1286,8 @@ deferred, or explicitly excluded from the template.
 - Notes: Uses disposable local repositories to cover new and updated refs,
   multiple object identities, detached pushed-object execution, tag checks,
   failure propagation, and temporary-path cleanup. The `--windows` subset
-  verifies the pushed identity and cleanup through Git Bash on Windows.
+  verifies the pushed identity, alternate mount paths, and cleanup through Git
+  Bash on Windows.
 
 ### `tests/test_coverage_policy.py`
 

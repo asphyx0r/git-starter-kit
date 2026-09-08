@@ -673,9 +673,10 @@ validate_hook_clone() {
   )" || return
   actual_common_dir="$(canonical_hook_directory "${actual_common_dir}")" || return
 
-  if [[ "${actual_top_level}" != "${expected_root}" ||
-    "${actual_git_dir}" != "${expected_git_dir}" ||
-    "${actual_common_dir}" != "${expected_git_dir}" ]]; then
+  # Git Bash can name one directory through both drive and /tmp mounts.
+  if [[ ! "${actual_top_level}" -ef "${expected_root}" ||
+    ! "${actual_git_dir}" -ef "${expected_git_dir}" ||
+    ! "${actual_common_dir}" -ef "${expected_git_dir}" ]]; then
     printf '%s\n' \
       'pre-push: refusing clone with redirected repository paths.' >&2
     return 1
