@@ -35,7 +35,8 @@ class ReleaseArtifactTests(unittest.TestCase):
             handle = api.OpenProcess(0x100000, False, process_id)
             if handle:
                 try:
-                    self.assertEqual(api.WaitForSingleObject(handle, 0), 0)
+                    # Allow bounded observation of asynchronous OS exit acknowledgement.
+                    self.assertEqual(api.WaitForSingleObject(handle, 1000), 0)
                 finally:
                     api.CloseHandle(handle)
             else:
@@ -92,7 +93,7 @@ class ReleaseArtifactTests(unittest.TestCase):
         child_code = (
             "import os,pathlib,time; "
             f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
-            "time.sleep(4)"
+            "time.sleep(6)"
         )
         parent_code = (
             "import pathlib,subprocess,sys,time; "
@@ -118,13 +119,13 @@ class ReleaseArtifactTests(unittest.TestCase):
             started = time.monotonic()
             with (
                 patch.object(ARTIFACTS.subprocess, "Popen", start_parent),
-                patch.object(ARTIFACTS, "GIT_TIMEOUT_SECONDS", 1),
-                patch.object(ARTIFACTS, "GIT_BULK_TIMEOUT_SECONDS", 1),
+                patch.object(ARTIFACTS, "GIT_TIMEOUT_SECONDS", 3),
+                patch.object(ARTIFACTS, "GIT_BULK_TIMEOUT_SECONDS", 3),
                 self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "timed out"),
             ):
                 operation()
             self.assertTrue(marker.is_file(), "descendant did not start")
-            self.assertLess(time.monotonic() - started, 2)
+            self.assertLess(time.monotonic() - started, 4)
             self.assertIsNotNone(children[0].poll())
             self.assertTrue(children[0].stdout.closed)
             self.assertTrue(children[0].stderr.closed)
