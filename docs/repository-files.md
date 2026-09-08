@@ -1223,7 +1223,8 @@ deferred, or explicitly excluded from the template.
 - Notes: Builds real packages from alternate Git indexes, checks source-only,
   merge, initialize-only, and replace perimeters, and proves that build,
   validation, or replacement failures preserve an existing destination. This
-  canonical-repository test is source-only.
+  canonical-repository test is source-only. Measures inherited-pipe deadlines
+  after synchronous process startup.
 
 ### `tests/test_commit_message_validation.sh`
 
