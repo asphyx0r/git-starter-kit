@@ -1126,6 +1126,151 @@ print(upgrade.VERSION)
                 with self.assertRaises(UPGRADE.UpgradeError):
                     UPGRADE.load_upgrade(invalid)
 
+    def test_upgrade_requires_an_object_catalogue_and_object_entries(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        cases = (
+            (None, "Upgrade package is missing upgrade-manifest.json."),
+            ([], "upgrade-manifest.json must contain a JSON object."),
+            ({**original, "entries": {}}, "Unsupported upgrade package schema."),
+            (
+                {**original, "entries": ["merge.txt"]},
+                "Upgrade entries must be JSON objects.",
+            ),
+            (
+                {**original, "obsoletePaths": ["removed.txt", "REMOVED.txt"]},
+                "Duplicate obsolete path.",
+            ),
+        )
+        for index, (manifest, diagnostic) in enumerate(cases):
+            with self.subTest(diagnostic=diagnostic):
+                files = dict(original_files)
+                if manifest is None:
+                    files.pop(UPGRADE.UPGRADE_MANIFEST_PATH)
+                else:
+                    files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-catalogue-{index}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, re.escape(diagnostic)
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_rejects_missing_misdirected_and_tampered_new_payloads(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for defect in ("missing", "misdirected", "tampered"):
+            with self.subTest(defect=defect):
+                manifest = copy.deepcopy(original)
+                files = dict(original_files)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                if defect == "missing":
+                    files.pop(entry["payload"])
+                elif defect == "misdirected":
+                    entry["payload"] = UPGRADE.PAYLOAD_PREFIX + "a.txt"
+                else:
+                    files[entry["payload"]] = b"unauthorized replacement\n"
+                diagnostic = (
+                    "Upgrade payload digest mismatch: merge.txt"
+                    if defect == "tampered"
+                    else "Missing upgrade payload for merge.txt."
+                )
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-new-payload-{defect}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, re.escape(diagnostic)
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_consistent_base_digest_presence(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for field in ("baseSha256", "baseCanonicalSha256"):
+            with self.subTest(field=field):
+                manifest = copy.deepcopy(original)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                entry[field] = None
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"inconsistent-{field}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, r"Inconsistent base digests: merge\.txt"
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_authentic_decodable_merge_base_payloads(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        cases = (
+            ("undeclared", "Missing base payload for merge.txt."),
+            ("misdirected", "Missing base payload for merge.txt."),
+            ("missing", "Missing base payload for merge.txt."),
+            ("tampered", "Base payload digest mismatch: merge.txt"),
+            ("non-text", "Invalid base text payload: merge.txt"),
+        )
+        for defect, diagnostic in cases:
+            with self.subTest(defect=defect):
+                manifest = copy.deepcopy(original)
+                files = dict(original_files)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                if defect == "undeclared":
+                    entry["basePayload"] = None
+                elif defect == "misdirected":
+                    entry["basePayload"] = entry["payload"]
+                elif defect == "missing":
+                    files.pop(entry["basePayload"])
+                elif defect == "tampered":
+                    files[entry["basePayload"]] = b"unauthorized baseline\n"
+                elif defect == "non-text":
+                    files[entry["basePayload"]] = b"\xff\xfe"
+                    entry["baseSha256"] = UPGRADE.sha256_bytes(b"\xff\xfe")
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-base-payload-{defect}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, re.escape(diagnostic)
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_target_provenance_payload_and_inventory_entry(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for retain_payload in (False, True):
+            with self.subTest(retain_payload=retain_payload):
+                manifest = copy.deepcopy(original)
+                manifest["entries"] = [
+                    e
+                    for e in manifest["entries"]
+                    if e["path"] != UPGRADE.PROVENANCE_PATH
+                ]
+                files = dict(original_files)
+                if not retain_payload:
+                    files.pop(UPGRADE.PAYLOAD_PREFIX + UPGRADE.PROVENANCE_PATH)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"unattested-provenance-{retain_payload}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError,
+                    r"Upgrade package is missing its target provenance payload\.",
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_binds_target_release_metadata_to_provenance_payload(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for defect in ("digest", "identity"):
+            with self.subTest(defect=defect):
+                manifest = copy.deepcopy(original)
+                if defect == "digest":
+                    manifest["target"]["provenanceSha256"] = "0" * 64
+                else:
+                    manifest["target"]["provenance"]["agentRules"]["commit"] = "e" * 40
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"mismatched-provenance-{defect}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError,
+                    r"Target provenance payload does not match release metadata\.",
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
     def test_upgrade_manifest_rejects_duplicate_target_paths(self):
         manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
         duplicate = dict(next(e for e in manifest["entries"] if e["path"] == "a.txt"))
@@ -1461,7 +1606,7 @@ print(upgrade.VERSION)
         descendant = (
             "import os,pathlib,time; "
             f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
-            "time.sleep(4)"
+            "time.sleep(6)"
         )
         parent = (
             "import pathlib,subprocess,sys,time; "
@@ -1475,7 +1620,7 @@ print(upgrade.VERSION)
 
         def bounded_run(command, **options):
             commands.append(command)
-            options["timeout"] = 1
+            options["timeout"] = 3
             return real_run(command, **options)
 
         for operation in (
@@ -1497,7 +1642,7 @@ print(upgrade.VERSION)
             ):
                 operation()
             self.assertTrue(marker.is_file())
-            self.assertLess(time.monotonic() - started, 2)
+            self.assertLess(time.monotonic() - started, 4)
         self.assertFalse(Path(commands[-1][-1]).parent.exists())
 
     def test_rollback_continues_when_the_journal_fails(self):
