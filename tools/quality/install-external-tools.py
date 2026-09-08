@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 
 
 SCHEMA_VERSION = 2
-TOOL_NAMES = ("actionlint", "shfmt", "PSScriptAnalyzer", "shellcheck")
+TOOL_NAMES = ("actionlint", "shfmt", "PSScriptAnalyzer", "shellcheck", "gitleaks")
 PLATFORM_NAMES = frozenset(("linux-x64", "windows-x64"))
 ARTIFACT_TYPES = frozenset(("tar.gz", "tar.xz", "binary", "zip"))
 DOWNLOAD_TIMEOUT_SECONDS = 60

@@ -293,6 +293,7 @@ def external_commands(
         "$loaded.Version.ToString()"
     )
     return {
+        "gitleaks": ["gitleaks", *external["gitleaks"]["probe"]["arguments"]],
         "actionlint": ["actionlint", *external["actionlint"]["probe"]["arguments"]],
         "PSScriptAnalyzer": [
             "pwsh",
