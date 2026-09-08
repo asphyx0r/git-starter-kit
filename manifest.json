@@ -2,12 +2,15 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.9.1",
-    "release_date": "2026-09-06T18:17:42Z",
+    "version": "2.9.2",
+    "release_date": "2026-09-08T09:16:08Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Align release toolkit validation with the modular updater and prevent contract drift."
+        "Update actions/checkout to 7.0.1 and align workflow contracts.",
+        "Align Commitlint 21.2.2 dependencies and validation contracts.",
+        "Align Ruff 0.16.5 dependencies and validation contracts.",
+        "Align Codespell 2.4.3 dependencies and validation contracts."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -21,7 +24,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.9.1-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.9.2-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -29,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 115,
-            "size_bytes": 1891628,
-            "built_at": "2026-09-06T18:17:42Z",
-            "sha256": "71253f13bdf7ebc8ae6a9da568ede9ac3f4fcade3361c790a0ad9522e3bdb5dd",
+            "size_bytes": 1893143,
+            "built_at": "2026-09-08T09:16:08Z",
+            "sha256": "429dd9751b64ead580cc098ce3cd0f01f2fef2a43c1b757c274116f67c7e1d53",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -188,11 +191,11 @@
                 },
                 {
                     "relative_path": ".github/workflows/agent-rules-update.yml",
-                    "size_bytes": 8335,
+                    "size_bytes": 8343,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f2a63db81f68f73b2e780c8bc290d53fcca1882219b4308382ce1577d28b780c",
+                    "sha256": "e74a7bf8db5700f43e96abce2b8cb895b600d015cc3aba70125581615d70f4b5",
                     "mode": "644"
                 },
                 {
@@ -201,7 +204,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c7b6f2011929516a4d840d6974c8b2deb779c8d2dddc06b6bf3237e417919ae9",
+                    "sha256": "2494a1f75935fb44f2b94afe11440c196216f0720ed0f7183ff6a0ac28545859",
                     "mode": "644"
                 },
                 {
@@ -210,7 +213,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f8022cefd729afe016a456dd5f06d3c4d4c9e36c964161d3c4c4c42856ed1ede",
+                    "sha256": "a2d20710e2cc11c2ac72facbdebe1089c87e1c05f7ad8be782aac9664a4552c8",
                     "mode": "644"
                 },
                 {
@@ -219,7 +222,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f9a18690c9a7d032b0cd9a6a26228d7d28b761603525d61580eccc31329923a9",
+                    "sha256": "5a07ca9ff370548a331ef27385c8d54be31643115f6ddfab03cb1ab9de2e6839",
                     "mode": "644"
                 },
                 {
@@ -228,7 +231,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "593a2942691b4541cff281ebee7832b6cc98fc0a60b1661c1b012193a6380c8e",
+                    "sha256": "98a98bc852ec6c302a500b7bd8139d060b2a526bbb46f3ec06bbd8d16e19e2b1",
                     "mode": "644"
                 },
                 {
@@ -305,11 +308,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 12771,
+                    "size_bytes": 13135,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "3ce94fbe1957afbd46a23edb0f961c2853fdab4fb245951dcb76f2e2bc91871b",
+                    "sha256": "842c47da61927959f9b0c61b9d22f4572c8ba8cb8df89ece28ed46ae9cfb8a22",
                     "mode": "644"
                 },
                 {
@@ -417,7 +420,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "5ba2db80e8ed2521570b58d5f1acba3a6b83978e500931fc9768dd85355489a8",
+                    "sha256": "39d6e6e5077b3674cd6052b7bd41f3b13ce443fe248af29c55957eb960f60bad",
                     "mode": "644"
                 },
                 {
@@ -498,7 +501,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "3da6c18086a6c559df1e9b1eea562719fe44ffb2a65e2893bae3888207107b4c",
+                    "sha256": "ae6deaa32d57e812525bdf98e1aa837b5a4f00f90be58c527849af47c0b21651",
                     "mode": "644"
                 },
                 {
@@ -701,11 +704,11 @@
                 },
                 {
                     "relative_path": "tests/test_quality_toolchain.py",
-                    "size_bytes": 94543,
+                    "size_bytes": 94538,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1ca5e595fc3d9444a28e6634678f7b6a86ec16ab919b1d373e2ce94b2632e3df",
+                    "sha256": "48b0c50ac81f63c83d5db9d88590e7d784eb080c52f4301869e170945f5529a5",
                     "mode": "644"
                 },
                 {
@@ -723,7 +726,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "45124d0e382e07d4f50ceab63b3cea9f2b9a34ae0061e776baacaf743a57437f",
+                    "sha256": "d82457133d50b46c991a28f87a031f3ada6cd537bc37afcb379d79150ad2698f",
                     "mode": "644"
                 },
                 {
@@ -836,11 +839,11 @@
                 },
                 {
                     "relative_path": "tools/quality/package-lock.json",
-                    "size_bytes": 92839,
+                    "size_bytes": 93990,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "386d62e2286a39516ce115c20fea2867c0b9db32e8c85e751b25d0baceb8a9a4",
+                    "sha256": "3d4484c1aee10376d3b7029a2385b46c5863806bf8a9192c1e743253be173b15",
                     "mode": "644"
                 },
                 {
@@ -849,7 +852,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "83d81a677fb61f2c9d520b09eef766affa0ab46bb88793def6886be3617f1afd",
+                    "sha256": "57d8884c0c67a2e86fdf3029d325b41d8725baaa43fb619058c5badf29dc86c7",
                     "mode": "644"
                 },
                 {
@@ -863,29 +866,29 @@
                 },
                 {
                     "relative_path": "tools/quality/requirements.in",
-                    "size_bytes": 104,
+                    "size_bytes": 103,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "874c977d3e1fc3c034c4e8be40d577611af266bbf4955b31c83c39364ab510dc",
+                    "sha256": "0005ed68959108c5d03d4193f9cf71c822d2ce16c040edc162cca128f7d02797",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/quality/requirements.lock",
-                    "size_bytes": 53959,
+                    "size_bytes": 53958,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f62a657799d24444286ae02c10885226da065204809aff9779f4d0b40ccd8a94",
+                    "sha256": "a8648d1a9ff0d43e99d391cd3422fedf4f99fdacd39ae86195b76be226f3e7cb",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/quality/versions.json",
-                    "size_bytes": 2666,
+                    "size_bytes": 2665,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "be0e1191bcf5d6bd8dac39a248477cf85cfa7a8d9a167baabc46278fe4169272",
+                    "sha256": "63aec60ba56f2ad98cacb1f05795825300988fc18f135b2827ced63d8722f005",
                     "mode": "644"
                 },
                 {
@@ -948,7 +951,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "34e3812edf61ae91bcdc2b647602fe373eaec61050d39b5524ccdf5847c58670",
+                    "sha256": "2c557f4390e93c4ee14a3873d4d03c634812ed1aea1ab87a50fb64c8d2ef41b3",
                     "mode": "644"
                 },
                 {
