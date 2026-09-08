@@ -104,10 +104,12 @@ network: it queries GitHub for the latest `agent-coding-rules` release metadata
 without downloading release assets or dependencies.
 
 The Repository audit workflow installs each declared dependency family once
-per isolated job without a generic cache or Go bootstrap. `quality-linux` runs
-the exhaustive profile on Ubuntu 24.04 with Python 3.11.
+per isolated job and caches pip and npm downloads using the tracked dependency
+locks and tool versions. `quality-linux` runs the exhaustive profile on
+Ubuntu 24.04 with Python 3.11.
 `compatibility-windows` uses Windows 2025 with Python 3.14 for the fast
-cross-platform profile, the complete Python test suite, and PSScriptAnalyzer.
+cross-platform profile, the complete Python test suite, focused Git Bash hook
+checks, and PSScriptAnalyzer.
 Both use Node.js 24.20.0. The aggregate `Repository audit` check requires both
 jobs to succeed; manual runs retain the distinct
 `Repository audit (manual)` name.

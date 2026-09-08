@@ -626,7 +626,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
-- Notes: Summarizes audit prerequisites, local Git hook activation,
+- Notes: Summarizes audit prerequisites, dependency caches, Windows Git Bash
+  checks, local Git hook activation,
   release package behavior, the canonical skill invocation contract, generic
   ignore coverage, and the maintainer migration record. Do not leave
   future-project placeholders in the root README.
