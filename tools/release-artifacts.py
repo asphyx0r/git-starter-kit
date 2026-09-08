@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -14,6 +15,17 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, overload
+
+# Load the sibling by path for standalone and importlib-based callers alike.
+_GIT_SPEC = importlib.util.spec_from_file_location(
+    "git_objects", Path(__file__).with_name("git_objects.py")
+)
+assert _GIT_SPEC is not None and _GIT_SPEC.loader is not None
+git_objects = importlib.util.module_from_spec(_GIT_SPEC)
+_GIT_SPEC.loader.exec_module(git_objects)
+
+GIT_TIMEOUT_SECONDS = 30
+GIT_BULK_TIMEOUT_SECONDS = 300
 
 VERSION = "1.0.0"
 VERSION_PATH = "VERSION"
@@ -49,12 +61,25 @@ def run_git(root: Path, *arguments: str, binary: Literal[True]) -> bytes: ...
 
 
 def run_git(root: Path, *arguments: str, binary: bool = False) -> str | bytes:
-    result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
-        check=False,
-        capture_output=True,
-        text=not binary,
+    timeout = (
+        GIT_BULK_TIMEOUT_SECONDS
+        if arguments and arguments[0] in {"ls-files", "ls-tree"}
+        else GIT_TIMEOUT_SECONDS
     )
+    try:
+        result = git_objects.process_runner.run(
+            [git_objects.git_executable(), "-C", str(root), *arguments],
+            text=not binary,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ReleaseArtifactError(
+            f"git {' '.join(arguments)} timed out after {timeout}s"
+        ) from error
+    except OSError as error:
+        raise ReleaseArtifactError(
+            f"Unable to run git {' '.join(arguments)}: {error}"
+        ) from error
     if result.returncode != 0:
         stderr = (
             result.stderr.decode("utf-8", errors="replace") if binary else result.stderr
@@ -93,39 +118,16 @@ def sha256_bytes(content: bytes) -> str:
 
 
 def read_blobs(root: Path, records: list[tuple[str, str, str]]) -> dict[str, bytes]:
-    if not records:
-        return {}
-    object_ids = [record[2] for record in records]
-    result = subprocess.run(
-        ["git", "-C", str(root), "cat-file", "--batch"],
-        input=("\n".join(object_ids) + "\n").encode("ascii"),
-        check=False,
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        raise ReleaseArtifactError(
-            "git cat-file --batch failed: "
-            + result.stderr.decode("utf-8", errors="replace").strip()
-        )
-    contents: dict[str, bytes] = {}
-    offset = 0
-    for path, _mode, expected_id in records:
-        header_end = result.stdout.find(b"\n", offset)
-        if header_end < 0:
-            raise ReleaseArtifactError("git cat-file returned an incomplete header.")
-        header = result.stdout[offset:header_end].decode("ascii").split(" ")
-        if len(header) != 3 or header[0] != expected_id or header[1] != "blob":
-            raise ReleaseArtifactError(f"Unexpected Git object for {path}.")
-        size = int(header[2])
-        content_start = header_end + 1
-        content_end = content_start + size
-        if result.stdout[content_end : content_end + 1] != b"\n":
-            raise ReleaseArtifactError("git cat-file returned incomplete blob content.")
-        contents[path] = result.stdout[content_start:content_end]
-        offset = content_end + 1
-    if offset != len(result.stdout):
-        raise ReleaseArtifactError("git cat-file returned unexpected trailing output.")
-    return contents
+    """Compatibility adapter for callers that need all blob contents."""
+    with git_objects.blob_stream(
+        root,
+        [record[2] for record in records],
+        timeout=GIT_BULK_TIMEOUT_SECONDS,
+        error_type=ReleaseArtifactError,
+    ) as blobs:
+        return {
+            record[0]: content for record, content in zip(records, blobs, strict=True)
+        }
 
 
 def index_records(root: Path) -> list[tuple[str, str, str]]:
@@ -211,25 +213,68 @@ def file_record(path: str, mode: str, content: bytes) -> dict[str, Any]:
     }
 
 
-def release_payload(
-    entries: dict[str, tuple[str, bytes]], version: str, prepare: bool
-) -> tuple[list[dict[str, Any]], bytes]:
-    filtered = {
-        path: value for path, value in entries.items() if path not in OUTPUT_PATHS
+def release_inventory(
+    root: Path, treeish: str | None
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, bytes]]]:
+    """Hash one blob at a time, retaining only release control content."""
+    records = tree_records(root, treeish) if treeish else index_records(root)
+    retained_paths = {
+        VERSION_PATH,
+        CHECKSUMS_PATH,
+        MANIFEST_PATH,
+        SCHEMA_PATH,
+        TEMPLATE_PATH,
     }
+    retained: dict[str, tuple[str, bytes]] = {}
+    files: list[dict[str, Any]] = []
+    with git_objects.blob_stream(
+        root,
+        [record[2] for record in records],
+        timeout=GIT_BULK_TIMEOUT_SECONDS,
+        error_type=ReleaseArtifactError,
+    ) as blobs:
+        for path, mode, _object_id in records:
+            content = next(blobs)
+            if path in retained_paths:
+                retained[path] = (mode, content)
+            if path not in OUTPUT_PATHS:
+                files.append(file_record(path, mode, content))
+            del content
+        next(blobs, None)  # Consume the batch trailer and verify the exit status.
+    return files, retained
+
+
+def _payload_from_records(
+    records: list[dict[str, Any]],
+    version_entry: tuple[str, bytes] | None,
+    version: str,
+    prepare: bool,
+) -> tuple[list[dict[str, Any]], bytes]:
     version_content = f"{version}\n".encode("utf-8")
     if prepare:
-        filtered[VERSION_PATH] = ("100644", version_content)
-    elif filtered.get(VERSION_PATH) != ("100644", version_content):
+        records = [
+            record for record in records if record["relative_path"] != VERSION_PATH
+        ]
+        records.append(file_record(VERSION_PATH, "100644", version_content))
+    elif version_entry != ("100644", version_content):
         raise ReleaseArtifactError("VERSION does not match the manifest version.")
-    records = [
-        file_record(path, *filtered[path])
-        for path in sorted(filtered, key=lambda value: value.encode("utf-8"))
-    ]
+    records.sort(key=lambda record: record["relative_path"].encode("utf-8"))
     checksums = "".join(
         f"{record['sha256']}  {record['relative_path']}\n" for record in records
     ).encode("utf-8")
     return records, checksums
+
+
+def release_payload(
+    entries: dict[str, tuple[str, bytes]], version: str, prepare: bool
+) -> tuple[list[dict[str, Any]], bytes]:
+    """Compatibility adapter for callers with materialized Git entries."""
+    records = [
+        file_record(path, mode, content)
+        for path, (mode, content) in entries.items()
+        if path not in OUTPUT_PATHS
+    ]
+    return _payload_from_records(records, entries.get(VERSION_PATH), version, prepare)
 
 
 def parse_release_date(value: str) -> str:
@@ -520,11 +565,29 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
 
 
 def ref_exists(root: Path, ref: str) -> bool:
-    result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", ref],
-        check=False,
-        capture_output=True,
-    )
+    try:
+        result = git_objects.process_runner.run(
+            [
+                git_objects.git_executable(),
+                "-C",
+                str(root),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                ref,
+            ],
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ReleaseArtifactError(
+            f"git rev-parse {ref} timed out after {GIT_TIMEOUT_SECONDS}s"
+        ) from error
+    except OSError as error:
+        raise ReleaseArtifactError(
+            f"Unable to resolve Git ref {ref}: {error}"
+        ) from error
+    if result.returncode not in {0, 1}:
+        raise ReleaseArtifactError(f"git rev-parse {ref} failed: {result.stderr!r}")
     return result.returncode == 0
 
 
@@ -543,7 +606,10 @@ def prepare_artifacts(args: argparse.Namespace) -> int:
     metadata = load_metadata(root, args.metadata_file)
     version = version_from_ref(args.release_ref)
     release_date = parse_release_date(args.release_date)
-    files, checksums = release_payload(git_entries(root, "HEAD"), version, True)
+    records, retained = release_inventory(root, "HEAD")
+    files, checksums = _payload_from_records(
+        records, retained.get(VERSION_PATH), version, True
+    )
     manifest = build_manifest(root, metadata, version, release_date, files, checksums)
     validate_schema(root, manifest)
     outputs = {
@@ -582,7 +648,7 @@ def check_artifacts(args: argparse.Namespace) -> int:
             recorded_ref = f"v{worktree_version}"
             if ref_exists(root, f"refs/tags/{recorded_ref}^{{commit}}"):
                 requested_treeish = recorded_ref
-    entries = git_entries(root, requested_treeish)
+    records, entries = release_inventory(root, requested_treeish)
     manifest_entry = entries.get(MANIFEST_PATH)
     if manifest_entry is None:
         raise ReleaseArtifactError(
@@ -606,7 +672,9 @@ def check_artifacts(args: argparse.Namespace) -> int:
     expected_ref = args.expected_ref or f"v{version}"
     if expected_ref != f"v{version}":
         raise ReleaseArtifactError("manifest version does not match the expected ref")
-    files, checksums = release_payload(entries, version, False)
+    files, checksums = _payload_from_records(
+        records, entries.get(VERSION_PATH), version, False
+    )
     checksums_entry = entries.get(CHECKSUMS_PATH)
     if checksums_entry is None or checksums_entry[1] != checksums:
         raise ReleaseArtifactError("SHA256SUMS does not match the selected Git content")

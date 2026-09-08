@@ -1,9 +1,15 @@
 import importlib.util
+import ctypes
 import io
 import json
+import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import tracemalloc
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -19,6 +25,285 @@ SPEC.loader.exec_module(ARTIFACTS)
 
 
 class ReleaseArtifactTests(unittest.TestCase):
+    def assert_process_stopped(self, process_id):
+        if os.name == "nt":
+            api = ctypes.WinDLL("kernel32", use_last_error=True)
+            api.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+            api.OpenProcess.restype = ctypes.c_void_p
+            api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+            api.CloseHandle.argtypes = [ctypes.c_void_p]
+            handle = api.OpenProcess(0x100000, False, process_id)
+            if handle:
+                try:
+                    self.assertEqual(api.WaitForSingleObject(handle, 0), 0)
+                finally:
+                    api.CloseHandle(handle)
+            else:
+                self.assertEqual(ctypes.get_last_error(), 87)
+        else:
+            try:
+                os.kill(process_id, 0)
+            except ProcessLookupError:
+                return
+            # An orphan can briefly await init reaping after group termination.
+            try:
+                status = Path(f"/proc/{process_id}/stat").read_text()
+            except FileNotFoundError:
+                return
+            self.assertEqual(status.rsplit(")", 1)[1].split()[0], "Z")
+
+    def test_interrupt_before_batch_eof_cleans_an_attested_descendant(self):
+        native_popen = subprocess.Popen
+        marker = Path(self.temporary.name) / "interrupted-descendant.pid"
+        descendant = (
+            "import os,pathlib,time; "
+            f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
+            "time.sleep(4)"
+        )
+        parent = (
+            "import pathlib,subprocess,sys,time; "
+            f"subprocess.Popen([sys.executable,'-B','-c',{descendant!r}]); "
+            f"marker=pathlib.Path({str(marker)!r}); "
+            "exec('while not (marker.exists() and marker.stat().st_size): time.sleep(0.01)'); "
+            "sys.stdout.buffer.write(b'abc blob 1\\nx\\n'); sys.stdout.buffer.flush()"
+        )
+        with patch.object(
+            ARTIFACTS.subprocess,
+            "Popen",
+            side_effect=lambda *args, **kwargs: native_popen(
+                [sys.executable, "-B", "-c", parent], **kwargs
+            ),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                with ARTIFACTS.git_objects.blob_stream(
+                    self.root,
+                    ["abc", "def"],
+                    timeout=2,
+                    error_type=ARTIFACTS.ReleaseArtifactError,
+                ) as blobs:
+                    self.assertEqual(next(blobs), b"x")
+                    self.assertTrue(marker.is_file())
+                    raise KeyboardInterrupt
+        self.assert_process_stopped(int(marker.read_text()))
+
+    def test_deadline_cleans_up_a_started_descendant_holding_pipes(self):
+        native_popen = subprocess.Popen
+        marker = Path(self.temporary.name) / "descendant.pid"
+        child_code = (
+            "import os,pathlib,time; "
+            f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
+            "time.sleep(4)"
+        )
+        parent_code = (
+            "import pathlib,subprocess,sys,time; "
+            f"subprocess.Popen([sys.executable,'-B','-c',{child_code!r}]); "
+            f"marker=pathlib.Path({str(marker)!r}); "
+            "exec('while not (marker.exists() and marker.stat().st_size): time.sleep(0.01)')"
+        )
+        for operation in (
+            lambda: ARTIFACTS.read_blobs(self.root, [("file", "100644", "abc")]),
+            lambda: ARTIFACTS.run_git(self.root, "rev-parse", "HEAD"),
+            lambda: ARTIFACTS.ref_exists(self.root, "missing"),
+        ):
+            marker.unlink(missing_ok=True)
+            children = []
+
+            def start_parent(*args, **kwargs):
+                child = native_popen(
+                    [sys.executable, "-B", "-c", parent_code], **kwargs
+                )
+                children.append(child)
+                return child
+
+            started = time.monotonic()
+            with (
+                patch.object(ARTIFACTS.subprocess, "Popen", start_parent),
+                patch.object(ARTIFACTS, "GIT_TIMEOUT_SECONDS", 1),
+                patch.object(ARTIFACTS, "GIT_BULK_TIMEOUT_SECONDS", 1),
+                self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "timed out"),
+            ):
+                operation()
+            self.assertTrue(marker.is_file(), "descendant did not start")
+            self.assertLess(time.monotonic() - started, 2)
+            self.assertIsNotNone(children[0].poll())
+            self.assertTrue(children[0].stdout.closed)
+            self.assertTrue(children[0].stderr.closed)
+            self.assert_process_stopped(int(marker.read_text()))
+
+    def test_short_git_and_ref_deadlines_reap_a_blocking_child(self):
+        native_popen = subprocess.Popen
+        children = []
+
+        def start_child(*args, **kwargs):
+            child = native_popen(
+                [sys.executable, "-B", "-c", "import time; time.sleep(60)"], **kwargs
+            )
+            children.append(child)
+            return child
+
+        for operation in (
+            lambda: ARTIFACTS.run_git(self.root, "rev-parse", "HEAD"),
+            lambda: ARTIFACTS.ref_exists(self.root, "refs/tags/missing"),
+        ):
+            with (
+                patch.object(ARTIFACTS.subprocess, "Popen", start_child),
+                patch.object(ARTIFACTS, "GIT_TIMEOUT_SECONDS", 0.1),
+                self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "timed out"),
+            ):
+                operation()
+            self.assertIsNotNone(children[-1].poll())
+            self.assertTrue(children[-1].stdout.closed)
+            self.assertTrue(children[-1].stderr.closed)
+
+    def test_batch_deadline_kills_a_blocking_child_and_releases_pipes(self):
+        child_processes = []
+        native_popen = subprocess.Popen
+
+        def start_child(*args, **kwargs):
+            if Path(args[0][0]).stem != "git":
+                return native_popen(*args, **kwargs)
+            child = native_popen(
+                [sys.executable, "-B", "-c", "import time; time.sleep(60)"],
+                **kwargs,
+            )
+            child_processes.append(child)
+            return child
+
+        started = time.monotonic()
+        with (
+            patch.object(ARTIFACTS.git_objects.subprocess, "Popen", start_child),
+            patch.object(ARTIFACTS, "GIT_BULK_TIMEOUT_SECONDS", 0.1),
+            self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "timed out"),
+        ):
+            ARTIFACTS.read_blobs(self.root, [("file", "100644", "abc")])
+        self.assertLess(time.monotonic() - started, 2)
+        for stream in (
+            child_processes[0].stdin,
+            child_processes[0].stdout,
+            child_processes[0].stderr,
+        ):
+            self.assertTrue(stream.closed)
+        self.assertIsNotNone(child_processes[0].wait(timeout=1))
+
+    def test_batch_early_exit_and_interrupt_reap_the_child(self):
+        native_popen = subprocess.Popen
+        for interrupt in (False, True):
+            children = []
+
+            def start_child(*args, **kwargs):
+                if Path(args[0][0]).stem != "git":
+                    return native_popen(*args, **kwargs)
+                child = native_popen(*args, **kwargs)
+                children.append(child)
+                return child
+
+            object_id = self.run_git("rev-parse", "HEAD:README.md")
+            with patch.object(ARTIFACTS.git_objects.subprocess, "Popen", start_child):
+                try:
+                    with ARTIFACTS.git_objects.blob_stream(
+                        self.root,
+                        [object_id, object_id],
+                        timeout=5,
+                        error_type=ARTIFACTS.ReleaseArtifactError,
+                    ) as blobs:
+                        self.assertEqual(
+                            next(blobs), b"# Example" + os.linesep.encode()
+                        )
+                        if interrupt:
+                            raise KeyboardInterrupt
+                except KeyboardInterrupt:
+                    self.assertTrue(interrupt)
+            self.assertIsNotNone(children[0].poll())
+            self.assertTrue(children[0].stdout.closed)
+
+    def test_batch_drains_stderr_and_reports_nonzero_exit(self):
+        native_popen = subprocess.Popen
+        child = (
+            "import sys; sys.stdin.buffer.readline(); "
+            "sys.stderr.buffer.write(b'x' * 200000 + b'failure'); "
+            "sys.stdout.buffer.write(b'abc blob 1\\nx\\n'); "
+            "sys.stdout.buffer.flush(); sys.exit(7)"
+        )
+        with (
+            patch.object(
+                ARTIFACTS.git_objects.subprocess,
+                "Popen",
+                side_effect=lambda *args, **kwargs: native_popen(
+                    (
+                        [sys.executable, "-B", "-c", child]
+                        if Path(args[0][0]).stem == "git"
+                        else args[0]
+                    ),
+                    **kwargs,
+                ),
+            ),
+            self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "failure") as caught,
+        ):
+            ARTIFACTS.read_blobs(self.root, [("file", "100644", "abc")])
+        self.assertLess(len(str(caught.exception)), 66000)
+
+    def test_streamed_release_metadata_matches_compatibility_api(self):
+        for name, content in {
+            "empty.txt": b"",
+            "cr.txt": b"a\rb\r",
+            "utf8-é.txt": "é\r\n".encode(),
+            "invalid.bin": b"\xff\n",
+            "mixed.txt": b"a\r\nb\nc\r",
+        }.items():
+            (self.root / name).write_bytes(content)
+        self.run_git("add", ".")
+        for treeish in (None, "HEAD"):
+            expected = ARTIFACTS.release_payload(
+                ARTIFACTS.git_entries(self.root, treeish), "1.2.3", True
+            )
+            records, retained = ARTIFACTS.release_inventory(self.root, treeish)
+            actual = ARTIFACTS._payload_from_records(
+                records, retained.get("VERSION"), "1.2.3", True
+            )
+            self.assertEqual(actual, expected)
+            self.assertLessEqual(
+                set(retained),
+                {
+                    "VERSION",
+                    "SHA256SUMS",
+                    "manifest.json",
+                    ARTIFACTS.SCHEMA_PATH,
+                    ARTIFACTS.TEMPLATE_PATH,
+                },
+            )
+
+    def test_prepare_metadata_does_not_retain_the_whole_payload(self):
+        for index in range(24):
+            (self.root / f"large-{index}.bin").write_bytes(
+                bytes([index]) + b"\xff" * (256 * 1024)
+            )
+        self.run_git("add", ".")
+        self.run_git("commit", "-m", "test: add large payload")
+        self.assertEqual(self.prepare()[0], 0)  # Warm schema imports before measuring.
+        tracemalloc.start()
+        try:
+            code, _, stderr = self.prepare()
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(code, 0, stderr)
+        self.assertLess(peak, 4 * 1024 * 1024)
+
+    def test_git_timeout_is_a_contextual_domain_error_including_ref_checks(self):
+        for operation in (
+            lambda: ARTIFACTS.run_git(self.root, "rev-parse", "HEAD"),
+            lambda: ARTIFACTS.ref_exists(self.root, "refs/tags/missing"),
+        ):
+            with (
+                patch.object(
+                    ARTIFACTS.git_objects.process_runner,
+                    "run",
+                    side_effect=subprocess.TimeoutExpired("git", 0.01),
+                ),
+                self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "timed out"),
+            ):
+                operation()
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name) / "repository"
@@ -131,17 +416,40 @@ class ReleaseArtifactTests(unittest.TestCase):
         protocol_results = (
             subprocess.CompletedProcess([], 1, b"", b"failure"),
             subprocess.CompletedProcess([], 0, b"", b""),
+            subprocess.CompletedProcess([], 0, b"abc blob -1\n", b""),
+            subprocess.CompletedProcess([], 0, b"abc blob nope\n", b""),
+            subprocess.CompletedProcess([], 0, b"abc blob " + b"9" * 100 + b"\n", b""),
             subprocess.CompletedProcess([], 0, b"def blob 1\nx\n", b""),
             subprocess.CompletedProcess([], 0, b"abc blob 1\nx", b""),
             subprocess.CompletedProcess([], 0, b"abc blob 1\nx\nextra", b""),
         )
+        native_popen = subprocess.Popen
         for result in protocol_results:
+            child = (
+                "import sys; sys.stdin.buffer.readline(); "
+                f"sys.stdout.buffer.write({result.stdout!r}); "
+                f"sys.stderr.buffer.write({result.stderr!r}); "
+                f"sys.exit({result.returncode})"
+            )
             with (
                 self.subTest(stdout=result.stdout),
-                patch.object(ARTIFACTS.subprocess, "run", return_value=result),
-                self.assertRaises(ARTIFACTS.ReleaseArtifactError),
+                patch.object(
+                    ARTIFACTS.git_objects.subprocess,
+                    "Popen",
+                    side_effect=lambda *args, **kwargs: native_popen(
+                        (
+                            [sys.executable, "-B", "-c", child]
+                            if Path(args[0][0]).stem == "git"
+                            else args[0]
+                        ),
+                        **kwargs,
+                    ),
+                ),
+                self.assertRaises(ARTIFACTS.ReleaseArtifactError) as caught,
             ):
                 ARTIFACTS.read_blobs(self.root, [("file", "100644", "abc")])
+            if result.returncode:
+                self.assertIn("failure", str(caught.exception))
         self.assertEqual(ARTIFACTS.read_blobs(self.root, []), {})
 
         invalid_index_records = (
@@ -319,7 +627,9 @@ class ReleaseArtifactTests(unittest.TestCase):
             result = subprocess.CompletedProcess([], returncode, b"", b"")
             with (
                 self.subTest(returncode=returncode),
-                patch.object(ARTIFACTS.subprocess, "run", return_value=result),
+                patch.object(
+                    ARTIFACTS.git_objects.process_runner, "run", return_value=result
+                ),
             ):
                 self.assertEqual(
                     ARTIFACTS.ref_exists(self.root, "refs/tags/v1.2.3"), expected
@@ -529,6 +839,35 @@ class ReleaseArtifactTests(unittest.TestCase):
 
         self.assertEqual(code, 1)
         self.assertIn("SHA256SUMS", stderr)
+
+
+class ReleaseDependencyTests(unittest.TestCase):
+    def test_release_lock_preserves_shared_versions_and_hashes_without_linters(self):
+        def declarations(path):
+            text = path.read_text(encoding="utf-8")
+            blocks = re.split(
+                r"(?m)^(?=[A-Za-z][A-Za-z0-9_.-]*(?:\[[^\]]+\])?==)", text
+            )
+            result = {}
+            for block in blocks:
+                match = re.match(r"([A-Za-z0-9_.-]+)(\[[^\]]+\])?==([^\s\\]+)", block)
+                if match:
+                    hashes = set(re.findall(r"--hash=sha256:([0-9a-f]{64})\b", block))
+                    self.assertTrue(hashes, match.group(1))
+                    result[match.group(1)] = (match.group(3), hashes, match.group(2))
+            return result
+
+        release = declarations(SOURCE_ROOT / "tools/release-artifacts-requirements.txt")
+        quality = declarations(SOURCE_ROOT / "tools/quality/requirements.lock")
+        self.assertIn("jsonschema", release)
+        self.assertEqual(release["jsonschema"][2], "[format]")
+        self.assertLess(len(release), len(quality))
+        for name, (version, hashes, _extras) in release.items():
+            with self.subTest(name=name):
+                self.assertIn(name, quality)
+                self.assertEqual((version, hashes), quality[name][:2])
+        for name in ("codespell", "coverage", "mypy", "ruff", "yamllint", "pyyaml"):
+            self.assertNotIn(name, release)
 
 
 if __name__ == "__main__":

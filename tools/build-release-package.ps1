@@ -70,23 +70,310 @@ function Get-FullPath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
 }
 
-function Invoke-GitLine {
-    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+$GitTimeoutSeconds = 30
+$GitBulkTimeoutSeconds = 300
+$HttpTimeoutSeconds = 60
 
-    $previousErrorActionPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $output = & git @Arguments 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $message = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-            throw "git $($Arguments -join ' ') failed: $message"
+if (-not ("ReleaseProcessScope" -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+public sealed class ReleaseProcessScope : IDisposable
+{
+    private const uint CreateSuspended = 4;
+    private const uint CreateNoWindow = 0x08000000;
+    private const int StartUseStandardHandles = 0x100;
+    private IntPtr job;
+    public Process Process { get; private set; }
+    public StreamReader Output { get; private set; }
+    public StreamReader Error { get; private set; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecurityAttributes
+    {
+        public int Size;
+        public IntPtr Descriptor;
+        [MarshalAs(UnmanagedType.Bool)] public bool Inherit;
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int Size;
+        public string Reserved;
+        public string Desktop;
+        public string Title;
+        public int X;
+        public int Y;
+        public int Width;
+        public int Height;
+        public int Columns;
+        public int Rows;
+        public int Fill;
+        public int Flags;
+        public short Show;
+        public short ReservedSize;
+        public IntPtr ReservedBytes;
+        public IntPtr Input;
+        public IntPtr Output;
+        public IntPtr Error;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr Process;
+        public IntPtr Thread;
+        public int ProcessId;
+        public int ThreadId;
+    }
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateJobObject(IntPtr job, int exitCode);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CreatePipe(out IntPtr read, out IntPtr write,
+        ref SecurityAttributes attributes, int size);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetHandleInformation(IntPtr handle, int mask, int flags);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CreateProcess(string application, StringBuilder command,
+        IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags,
+        IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateProcess(IntPtr process, int exitCode);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetStdHandle(int kind);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
+    private static extern int Kill(int processGroup, int signal);
+
+    public static void StopGroup(int processId)
+    {
+        if (Kill(-processId, 9) != 0 && Marshal.GetLastWin32Error() != 3)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
         }
     }
-    finally {
-        $ErrorActionPreference = $previousErrorActionPreference
+
+    private static StreamReader CreateOutputPipe(out IntPtr write)
+    {
+        SecurityAttributes attributes = new SecurityAttributes();
+        attributes.Size = Marshal.SizeOf(attributes);
+        attributes.Inherit = true;
+        IntPtr read;
+        if (!CreatePipe(out read, out write, ref attributes, 0))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        SafeFileHandle handle = new SafeFileHandle(read, true);
+        try
+        {
+            if (!SetHandleInformation(read, 1, 0))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            return new StreamReader(new FileStream(handle, FileAccess.Read), Encoding.UTF8);
+        }
+        catch
+        {
+            handle.Dispose();
+            throw;
+        }
     }
 
-    return @($output | ForEach-Object { $_.ToString() })
+    public static ReleaseProcessScope Start(string executable, string command)
+    {
+        ReleaseProcessScope scope = new ReleaseProcessScope();
+        IntPtr outputWrite = IntPtr.Zero;
+        IntPtr errorWrite = IntPtr.Zero;
+        ProcessInformation information = new ProcessInformation();
+        try
+        {
+            scope.job = CreateJobObject(IntPtr.Zero, null);
+            if (scope.job == IntPtr.Zero) { throw new Win32Exception(Marshal.GetLastWin32Error()); }
+            scope.Output = CreateOutputPipe(out outputWrite);
+            scope.Error = CreateOutputPipe(out errorWrite);
+            StartupInfo startup = new StartupInfo();
+            startup.Size = Marshal.SizeOf(startup);
+            startup.Flags = StartUseStandardHandles;
+            startup.Input = GetStdHandle(-10);
+            startup.Output = outputWrite;
+            startup.Error = errorWrite;
+            if (!CreateProcess(executable, new StringBuilder(command), IntPtr.Zero, IntPtr.Zero,
+                true, CreateSuspended | CreateNoWindow, IntPtr.Zero, null, ref startup, out information))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            scope.Process = Process.GetProcessById(information.ProcessId);
+            if (!AssignProcessToJobObject(scope.job, scope.Process.Handle) ||
+                ResumeThread(information.Thread) == UInt32.MaxValue)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            return scope;
+        }
+        catch
+        {
+            // Creation succeeded but assignment/resumption may have failed.
+            try
+            {
+                if (information.Process != IntPtr.Zero && !TerminateProcess(information.Process, 1))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+            }
+            finally { scope.Dispose(); }
+            throw;
+        }
+        finally
+        {
+            if (outputWrite != IntPtr.Zero) { CloseHandle(outputWrite); }
+            if (errorWrite != IntPtr.Zero) { CloseHandle(errorWrite); }
+            if (information.Thread != IntPtr.Zero) { CloseHandle(information.Thread); }
+            if (information.Process != IntPtr.Zero) { CloseHandle(information.Process); }
+        }
+    }
+
+    public void Stop()
+    {
+        if (job != IntPtr.Zero && !TerminateJobObject(job, 1))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+    }
+
+    public void Dispose()
+    {
+        try { Stop(); }
+        finally
+        {
+            if (job != IntPtr.Zero) { CloseHandle(job); job = IntPtr.Zero; }
+            if (Output != null) { Output.Dispose(); }
+            if (Error != null) { Error.Dispose(); }
+            if (Process != null) { Process.Dispose(); }
+        }
+    }
+}
+'@
+}
+
+
+function ConvertTo-NativeArgument {
+    param([AllowEmptyString()][string]$Argument)
+
+    # Windows PowerShell 5.1 lacks ProcessStartInfo.ArgumentList.
+    $quoted = [regex]::Replace($Argument, '(\\*)"', '$1$1\"')
+    $quoted = [regex]::Replace($quoted, '(\\+)$', '$1$1')
+    return '"' + $quoted + '"'
+}
+
+function Invoke-GitLine {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [double]$TimeoutSeconds = $(
+            if ($Arguments -contains "ls-files" -or $Arguments -contains "ls-tree") {
+                $GitBulkTimeoutSeconds
+            }
+            else {
+                $GitTimeoutSeconds
+            }
+        )
+    )
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $gitPath = @(Get-Command git -CommandType Application -ErrorAction Stop)[0].Source
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT -and
+        [System.IO.Path]::GetFileName($gitPath) -ieq "git.exe" -and
+        (Split-Path -Leaf (Split-Path -Parent $gitPath)) -in @("cmd", "bin")) {
+        $installation = Split-Path -Parent (Split-Path -Parent $gitPath)
+        foreach ($architecture in @("mingw64", "mingw32")) {
+            $nativeGit = Join-Path $installation "$architecture/bin/git.exe"
+            if (Test-Path -LiteralPath $nativeGit -PathType Leaf) {
+                $gitPath = $nativeGit
+                break
+            }
+        }
+    }
+    $argumentLine = ($Arguments | ForEach-Object { ConvertTo-NativeArgument -Argument $_ }) -join ' '
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $totalMilliseconds = $TimeoutSeconds * 1000
+    $workMilliseconds = $totalMilliseconds - [Math]::Min(1000, $totalMilliseconds / 2)
+    $scope = $null
+    $process = $null
+    $tasks = @()
+    try {
+        if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+            $commandLine = (ConvertTo-NativeArgument -Argument $gitPath) + ' ' + $argumentLine
+            $scope = [ReleaseProcessScope]::Start($gitPath, $commandLine)
+            $process = $scope.Process
+            $stdout = $scope.Output.ReadToEndAsync()
+            $stderr = $scope.Error.ReadToEndAsync()
+        }
+        else {
+            $setsid = @(Get-Command setsid -CommandType Application -ErrorAction SilentlyContinue)
+            if ($setsid.Count -eq 0) {
+                throw "setsid (util-linux) is required to bound Git process groups on Unix."
+            }
+            $startInfo.FileName = $setsid[0].Source
+            $startInfo.Arguments = (ConvertTo-NativeArgument -Argument $gitPath) + ' ' + $argumentLine
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            $process = [System.Diagnostics.Process]::Start($startInfo)
+            $stdout = $process.StandardOutput.ReadToEndAsync()
+            $stderr = $process.StandardError.ReadToEndAsync()
+        }
+        # Native creation is synchronous; budget execution, collection and cleanup together.
+        $watch.Restart()
+        $tasks = [System.Threading.Tasks.Task[]]@($stdout, $stderr)
+        if (-not $process.WaitForExit((Get-ProcessTimeRemaining -Watch $watch -Limit $workMilliseconds)) -or
+            -not [System.Threading.Tasks.Task]::WaitAll(
+                $tasks, (Get-ProcessTimeRemaining -Watch $watch -Limit $workMilliseconds))) {
+            throw "git $($Arguments -join ' ') timed out after $TimeoutSeconds seconds."
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "git $($Arguments -join ' ') failed: $($stderr.Result.Trim())"
+        }
+        $reader = New-Object System.IO.StringReader($stdout.Result)
+        try {
+            while ($null -ne ($line = $reader.ReadLine())) { $line }
+        }
+        finally { $reader.Dispose() }
+    }
+    finally {
+        if ($null -ne $process) {
+            try {
+                if ($null -ne $scope) { $scope.Stop() }
+                else { [ReleaseProcessScope]::StopGroup($process.Id) }
+                if (-not $process.WaitForExit((Get-ProcessTimeRemaining -Watch $watch -Limit $totalMilliseconds)) -or
+                    -not [System.Threading.Tasks.Task]::WaitAll(
+                        $tasks, (Get-ProcessTimeRemaining -Watch $watch -Limit $totalMilliseconds))) {
+                    throw "git $($Arguments -join ' ') timed out during process cleanup."
+                }
+            }
+            finally {
+                if ($null -ne $scope) { $scope.Dispose() }
+                else { $process.Dispose() }
+            }
+        }
+    }
+}
+
+function Get-ProcessTimeRemaining {
+    param([Diagnostics.Stopwatch]$Watch, [double]$Limit)
+
+    return [int][Math]::Max(0, [Math]::Floor($Limit - $Watch.Elapsed.TotalMilliseconds))
 }
 
 function Get-GitHubLatestRelease {
@@ -107,7 +394,8 @@ function Get-GitHubLatestRelease {
             -Method Get `
             -Uri $releaseUrl `
             -Headers $headers `
-            -UserAgent "git-starter-kit-release-package"
+            -UserAgent "git-starter-kit-release-package" `
+            -TimeoutSec $HttpTimeoutSeconds
     }
     catch {
         throw "Unable to resolve latest agent rules release from $releaseUrl`: $($_.Exception.Message)"
@@ -545,7 +833,7 @@ try {
             )) -join "").Trim()
 }
 catch {
-    throw "RepositoryRoot must have the canonical git-starter-kit origin."
+    throw "RepositoryRoot must have the canonical git-starter-kit origin: $($_.Exception.Message)"
 }
 if ($CanonicalRepositoryUrls -cnotcontains $originUrl) {
     throw "RepositoryRoot origin must identify the canonical git-starter-kit repository."

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -12,6 +13,17 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, overload
+
+# Load the sibling by path for standalone and importlib-based callers alike.
+_GIT_SPEC = importlib.util.spec_from_file_location(
+    "git_objects", Path(__file__).with_name("git_objects.py")
+)
+assert _GIT_SPEC is not None and _GIT_SPEC.loader is not None
+git_objects = importlib.util.module_from_spec(_GIT_SPEC)
+_GIT_SPEC.loader.exec_module(git_objects)
+
+GIT_TIMEOUT_SECONDS = 30
+GIT_BULK_TIMEOUT_SECONDS = 300
 
 VERSION = "1.1.0"
 MANIFEST_PATH = "starter-kit-manifest.json"
@@ -123,12 +135,25 @@ def run_git(root: Path, *arguments: str, binary: Literal[True]) -> bytes: ...
 
 
 def run_git(root: Path, *arguments: str, binary: bool = False) -> str | bytes:
-    result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
-        check=False,
-        capture_output=True,
-        text=not binary,
+    timeout = (
+        GIT_BULK_TIMEOUT_SECONDS
+        if arguments and arguments[0] in {"ls-files", "ls-tree"}
+        else GIT_TIMEOUT_SECONDS
     )
+    try:
+        result = git_objects.process_runner.run(
+            [git_objects.git_executable(), "-C", str(root), *arguments],
+            text=not binary,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ManifestError(
+            f"git {' '.join(arguments)} timed out after {timeout}s"
+        ) from error
+    except OSError as error:
+        raise ManifestError(
+            f"Unable to run git {' '.join(arguments)}: {error}"
+        ) from error
     if result.returncode != 0:
         stderr = (
             result.stderr.decode("utf-8", errors="replace") if binary else result.stderr
@@ -182,38 +207,14 @@ def content_metadata(content: bytes) -> tuple[str, str]:
 
 
 def read_blobs(root: Path, object_ids: list[str]) -> list[bytes]:
-    if not object_ids:
-        return []
-    result = subprocess.run(
-        ["git", "-C", str(root), "cat-file", "--batch"],
-        input=("\n".join(object_ids) + "\n").encode("ascii"),
-        check=False,
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        raise ManifestError(
-            "git cat-file --batch failed: "
-            + result.stderr.decode("utf-8", errors="replace").strip()
-        )
-    contents: list[bytes] = []
-    offset = 0
-    for expected_id in object_ids:
-        header_end = result.stdout.find(b"\n", offset)
-        if header_end < 0:
-            raise ManifestError("git cat-file returned an incomplete header.")
-        header = result.stdout[offset:header_end].decode("ascii").split(" ")
-        if len(header) != 3 or header[0] != expected_id or header[1] != "blob":
-            raise ManifestError(f"Unexpected Git object for {expected_id}.")
-        size = int(header[2])
-        content_start = header_end + 1
-        content_end = content_start + size
-        if result.stdout[content_end : content_end + 1] != b"\n":
-            raise ManifestError("git cat-file returned incomplete blob content.")
-        contents.append(result.stdout[content_start:content_end])
-        offset = content_end + 1
-    if offset != len(result.stdout):
-        raise ManifestError("git cat-file returned unexpected trailing output.")
-    return contents
+    """Compatibility adapter for callers that need all blob contents."""
+    with git_objects.blob_stream(
+        root,
+        object_ids,
+        timeout=GIT_BULK_TIMEOUT_SECONDS,
+        error_type=ManifestError,
+    ) as blobs:
+        return list(blobs)
 
 
 def strategy_for(path: str, *, audit_runtime_managed: bool = False) -> str:
@@ -240,7 +241,7 @@ def is_core_path(path: str) -> bool:
     )
 
 
-def index_entries(root: Path) -> list[tuple[str, str, bytes]]:
+def index_records(root: Path) -> list[tuple[str, str, str]]:
     output = bytes(run_git(root, "ls-files", "--stage", "-z", binary=True))
     records: list[tuple[str, str, str]] = []
     for raw in output.split(b"\0"):
@@ -256,14 +257,10 @@ def index_entries(root: Path) -> list[tuple[str, str, bytes]]:
         if not is_core_path(path):
             continue
         records.append((path, mode, object_id))
-    contents = read_blobs(root, [record[2] for record in records])
-    return [
-        (path, mode, content)
-        for (path, mode, _object_id), content in zip(records, contents, strict=True)
-    ]
+    return records
 
 
-def tree_entries(root: Path, treeish: str) -> list[tuple[str, str, bytes]]:
+def tree_records(root: Path, treeish: str) -> list[tuple[str, str, str]]:
     output = bytes(run_git(root, "ls-tree", "-r", "-z", treeish, binary=True))
     records: list[tuple[str, str, str]] = []
     for raw in output.split(b"\0"):
@@ -277,35 +274,60 @@ def tree_entries(root: Path, treeish: str) -> list[tuple[str, str, bytes]]:
         if mode not in {"100644", "100755"}:
             raise ManifestError(f"Unsupported Git mode for {path}: {mode}")
         records.append((path, mode, object_id))
+    return records
+
+
+def index_entries(root: Path) -> list[tuple[str, str, bytes]]:
+    """Compatibility adapter returning materialized index contents."""
+    records = index_records(root)
     contents = read_blobs(root, [record[2] for record in records])
     return [
         (path, mode, content)
-        for (path, mode, _object_id), content in zip(records, contents, strict=True)
+        for (path, mode, _), content in zip(records, contents, strict=True)
+    ]
+
+
+def tree_entries(root: Path, treeish: str) -> list[tuple[str, str, bytes]]:
+    """Compatibility adapter returning materialized tree contents."""
+    records = tree_records(root, treeish)
+    contents = read_blobs(root, [record[2] for record in records])
+    return [
+        (path, mode, content)
+        for (path, mode, _), content in zip(records, contents, strict=True)
     ]
 
 
 def core_entries(root: Path, treeish: str | None) -> list[dict[str, str]]:
-    raw_entries = tree_entries(root, treeish) if treeish else index_entries(root)
+    records = tree_records(root, treeish) if treeish else index_records(root)
     audit_runtime_managed = any(
         path.startswith("tools/repository-audit/")
-        for path, _mode, _content in raw_entries
+        for path, _mode, _object_id in records
     )
     entries: list[dict[str, str]] = []
-    for path, mode, content in raw_entries:
-        content_kind, canonical_digest = content_metadata(content)
-        entries.append(
-            {
-                "path": path,
-                "sha256": sha256_bytes(content),
-                "canonicalSha256": canonical_digest,
-                "contentKind": content_kind,
-                "mode": mode,
-                "strategy": strategy_for(
-                    path,
-                    audit_runtime_managed=audit_runtime_managed,
-                ),
-            }
-        )
+    with git_objects.blob_stream(
+        root,
+        [record[2] for record in records],
+        timeout=GIT_BULK_TIMEOUT_SECONDS,
+        error_type=ManifestError,
+    ) as blobs:
+        for path, mode, _object_id in records:
+            content = next(blobs)
+            content_kind, canonical_digest = content_metadata(content)
+            entries.append(
+                {
+                    "path": path,
+                    "sha256": sha256_bytes(content),
+                    "canonicalSha256": canonical_digest,
+                    "contentKind": content_kind,
+                    "mode": mode,
+                    "strategy": strategy_for(
+                        path,
+                        audit_runtime_managed=audit_runtime_managed,
+                    ),
+                }
+            )
+            del content
+        next(blobs, None)  # Consume the batch trailer and verify the exit status.
     return sorted(entries, key=lambda entry: entry["path"])
 
 
@@ -442,20 +464,28 @@ def prepare_manifest(args: argparse.Namespace) -> int:
 
 
 def ref_exists(root: Path, ref: str) -> bool:
-    result = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "rev-parse",
-            "--verify",
-            "--quiet",
-            f"refs/tags/{ref}^{{commit}}",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = git_objects.process_runner.run(
+            [
+                git_objects.git_executable(),
+                "-C",
+                str(root),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                f"refs/tags/{ref}^{{commit}}",
+            ],
+            timeout=GIT_TIMEOUT_SECONDS,
+            text=True,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ManifestError(
+            f"git rev-parse {ref} timed out after {GIT_TIMEOUT_SECONDS}s"
+        ) from error
+    except OSError as error:
+        raise ManifestError(f"Unable to resolve Git ref {ref}: {error}") from error
+    if result.returncode not in {0, 1}:
+        raise ManifestError(f"git rev-parse {ref} failed: {result.stderr!r}")
     return result.returncode == 0
 
 
