@@ -2,6 +2,14 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.10.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| caa282e | docs(readme): align CI validation overview | asphyx |
+| 4b381c1 | fix(hooks): accept equivalent Git Bash paths | asphyx |
+| ce35f1a | fix(audit): harden tooling and validation gates | asphyx |
+
 ## v2.9.2
 
 | References | Description | Author(s) |
