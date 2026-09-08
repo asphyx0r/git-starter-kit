@@ -6,14 +6,18 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
+import stat
 import tempfile
 from typing import Any
 import zipfile
 
 from .common import (
+    ADOPTION_PATH,
     BASE_PAYLOAD_PREFIX,
     FILES_MANIFEST_PATH,
     MAX_ARCHIVE_SIZE,
+    MAX_ARCHIVE_MEMBERS,
     PAYLOAD_PREFIX,
     PROVENANCE_PATH,
     STARTER_MANIFEST_PATH,
@@ -25,9 +29,11 @@ from .common import (
     load_json_bytes,
     log_archive_contents,
     log_managed_entries,
+    parse_starter_manifest,
     sha256_bytes,
     sha256_file,
     starter_commit,
+    starter_release_from_provenance,
     starter_release_tag,
     validate_relative_path,
     write_json,
@@ -51,16 +57,36 @@ def read_archive(path: Path) -> dict[str, bytes]:
     total_size = 0
     try:
         with zipfile.ZipFile(path) as archive:
-            for info in archive.infolist():
-                if info.is_dir():
-                    continue
-                name = validate_relative_path(info.filename)
-                if name in files:
+            members = archive.infolist()
+            if len(members) > MAX_ARCHIVE_MEMBERS:
+                raise UpgradeError("Archive exceeds the 10000-member safety limit.")
+            seen: set[str] = set()
+            regular_paths = set()
+            for info in members:
+                name = validate_relative_path(
+                    info.orig_filename[:-1] if info.is_dir() else info.orig_filename
+                )
+                key = name.casefold()
+                if key in seen:
                     raise UpgradeError(f"Duplicate archive path: {name}")
+                seen.add(key)
+                if not info.is_dir():
+                    regular_paths.add(key)
+                kind = stat.S_IFMT(info.external_attr >> 16)
+                allowed_kind = stat.S_IFDIR if info.is_dir() else stat.S_IFREG
+                if kind not in {0, allowed_kind}:
+                    raise UpgradeError(f"Unsupported archive member type: {name}")
                 total_size += info.file_size
                 if total_size > MAX_ARCHIVE_SIZE:
                     raise UpgradeError("Archive expands beyond the safety limit.")
-                files[name] = archive.read(info)
+            for key in seen:
+                if any(parent in regular_paths for parent in _parent_keys(key)):
+                    raise UpgradeError(
+                        f"Archive file is also a parent directory: {key}"
+                    )
+            for info in members:
+                if not info.is_dir():
+                    files[info.filename] = archive.read(info)
     except zipfile.BadZipFile as error:
         raise UpgradeError(f"Invalid ZIP archive: {path}") from error
     return files
@@ -70,13 +96,52 @@ def require_package_provenance(files: dict[str, bytes], label: str) -> dict[str,
     if PROVENANCE_PATH not in files:
         raise UpgradeError(f"{label} is missing {PROVENANCE_PATH}.")
     provenance = load_json_bytes(files[PROVENANCE_PATH], f"{label}/{PROVENANCE_PATH}")
-    starter = provenance.get("starterKit")
-    agent_rules = provenance.get("agentRules")
-    if not isinstance(starter, dict) or not starter.get("commit"):
-        raise UpgradeError(f"{label} has no starter-kit commit provenance.")
-    if not isinstance(agent_rules, dict) or not agent_rules.get("commit"):
-        raise UpgradeError(f"{label} has no agent-rules commit provenance.")
+    _validate_provenance(provenance, label)
     return provenance
+
+
+def _validate_provenance(provenance: Any, label: str) -> None:
+    if not isinstance(provenance, dict):
+        raise UpgradeError(f"{label} has no provenance object.")
+    for field in ("starterKit", "agentRules"):
+        release = provenance.get(field)
+        if (
+            not isinstance(release, dict)
+            or not isinstance(release.get("commit"), str)
+            or not release["commit"]
+        ):
+            raise UpgradeError(f"{label} has no {field} commit provenance.")
+
+
+def _validate_entry_policy(entry: dict[str, Any], path: str, schema: int) -> None:
+    strategy = entry.get("strategy")
+    allowed = {"agent-rules", "initialize-only", "merge", "replace"}
+    if schema == 3:
+        allowed.add("starter-kit-state")
+    if not isinstance(strategy, str) or strategy not in allowed:
+        raise UpgradeError(f"Invalid upgrade strategy for {path}: {strategy}")
+    if strategy == "starter-kit-state" and path != STARTER_MANIFEST_PATH:
+        raise UpgradeError(f"Invalid starter-kit state path: {path}")
+    mode = entry.get("mode", "100644")
+    if not isinstance(mode, str) or mode not in {"100644", "100755"}:
+        raise UpgradeError(f"Unsupported Git mode for {path}: {mode}")
+
+
+def _validate_digest(value: Any, label: str, *, nullable: bool = False) -> None:
+    if nullable and value is None:
+        return
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise UpgradeError(f"Invalid SHA-256 digest: {label}")
+
+
+def _validate_content(
+    content: bytes, entry: dict[str, Any], path: str, digest_field: str
+) -> None:
+    kind, digest = content_metadata(content)
+    if entry.get("contentKind") != kind:
+        raise UpgradeError(f"Content kind mismatch: {path}")
+    if entry.get(digest_field) != digest:
+        raise UpgradeError(f"Canonical digest mismatch: {path}")
 
 
 def validate_new_package(
@@ -89,7 +154,11 @@ def validate_new_package(
         files[FILES_MANIFEST_PATH], f"new package/{FILES_MANIFEST_PATH}"
     )
     schema_version = manifest.get("schemaVersion")
-    if schema_version not in {1, 2, 3} or not isinstance(manifest.get("files"), list):
+    if (
+        type(schema_version) is not int
+        or schema_version not in {1, 2, 3}
+        or not isinstance(manifest.get("files"), list)
+    ):
         raise UpgradeError("Unsupported managed-file manifest schema.")
 
     managed: list[dict[str, Any]] = []
@@ -97,35 +166,21 @@ def validate_new_package(
     for raw_entry in manifest["files"]:
         if not isinstance(raw_entry, dict):
             raise UpgradeError("Managed-file entries must be JSON objects.")
-        path = validate_relative_path(str(raw_entry.get("path", "")))
-        if path in seen or path not in files:
+        path = validate_relative_path(raw_entry.get("path"))
+        if path.casefold() in seen or path not in files:
             raise UpgradeError(f"Invalid managed-file entry: {path}")
-        seen.add(path)
-        digest = str(raw_entry.get("sha256", ""))
+        seen.add(path.casefold())
+        digest = raw_entry.get("sha256")
         if digest != sha256_bytes(files[path]):
             raise UpgradeError(f"Managed-file digest mismatch: {path}")
-        strategy = str(raw_entry.get("strategy", ""))
-        allowed_strategies = {
-            "agent-rules",
-            "initialize-only",
-            "merge",
-            "replace",
-        }
-        if schema_version == 3:
-            allowed_strategies.add("starter-kit-state")
-        if strategy not in allowed_strategies:
-            raise UpgradeError(f"Invalid upgrade strategy for {path}: {strategy}")
-        if strategy == "starter-kit-state" and path != STARTER_MANIFEST_PATH:
-            raise UpgradeError(f"Invalid starter-kit state path: {path}")
-        mode = str(raw_entry.get("mode", "100644"))
-        if mode not in {"100644", "100755"}:
-            raise UpgradeError(f"Unsupported Git mode for {path}: {mode}")
+        _validate_entry_policy(raw_entry, path, schema_version)
+        strategy = raw_entry["strategy"]
+        mode = raw_entry.get("mode", "100644")
         content_kind, canonical_digest = content_metadata(files[path])
         if schema_version >= 2:
-            if raw_entry.get("contentKind") != content_kind:
-                raise UpgradeError(f"Managed-file content kind mismatch: {path}")
-            if raw_entry.get("canonicalSha256") != canonical_digest:
-                raise UpgradeError(f"Managed-file canonical digest mismatch: {path}")
+            _validate_content(files[path], raw_entry, path, "canonicalSha256")
+        if strategy == "starter-kit-state":
+            parse_starter_manifest(files[path], "new starter-kit manifest")
         managed.append(
             {
                 "path": path,
@@ -393,12 +448,14 @@ def build_toolkit(args: argparse.Namespace, journal: RunJournal | None = None) -
         f"starter_kit_upgrade/{name}": package_root / name
         for name in TOOLKIT_MODULE_NAMES
     }
+    package_members["process_runner.py"] = package_root.parent / "process_runner.py"
     readme = f"""# Starter Kit Upgrade Toolkit
 
 This toolkit contains:
 
 - `starter-kit-upgrade.py`, the executable compatibility facade;
 - `starter_kit_upgrade/`, the updater implementation package;
+- `process_runner.py`, the shared bounded native-process helper;
 - `packages/{package_path.name}`, the new complete starter-kit package.
 
 Build a cumulative package by supplying the exact full package used to
@@ -520,35 +577,109 @@ def load_upgrade(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
         raise UpgradeError(f"Upgrade package is missing {UPGRADE_MANIFEST_PATH}.")
     manifest = load_json_bytes(files[UPGRADE_MANIFEST_PATH], UPGRADE_MANIFEST_PATH)
     schema_version = manifest.get("schemaVersion")
-    if schema_version not in {1, 2, 3} or not isinstance(manifest.get("entries"), list):
+    if (
+        type(schema_version) is not int
+        or schema_version not in {1, 2, 3}
+        or not isinstance(manifest.get("entries"), list)
+    ):
         raise UpgradeError("Unsupported upgrade package schema.")
-
+    for label in ("base", "target"):
+        release = manifest.get(label)
+        if not isinstance(release, dict):
+            raise UpgradeError(f"Missing {label} release metadata.")
+        for field in ("archiveSha256", "provenanceSha256"):
+            _validate_digest(release.get(field), f"{label}.{field}")
+        _validate_provenance(release.get("provenance"), label)
+        starter_release_tag(release["provenance"], label)
+    if not isinstance(manifest["target"]["provenance"].get("repository"), dict):
+        raise UpgradeError("Target provenance has no repository object.")
+    obsolete = manifest.get("obsoletePaths")
+    if not isinstance(obsolete, list):
+        raise UpgradeError("Invalid obsolete path inventory.")
+    obsolete_keys = [validate_relative_path(item).casefold() for item in obsolete]
+    if len(set(obsolete_keys)) != len(obsolete_keys):
+        raise UpgradeError("Duplicate obsolete path.")
+    seen: set[str] = set()
     for entry in manifest["entries"]:
         if not isinstance(entry, dict):
             raise UpgradeError("Upgrade entries must be JSON objects.")
-        entry_path = validate_relative_path(str(entry.get("path", "")))
-        payload_path = validate_relative_path(str(entry.get("payload", "")))
-        if not payload_path.startswith(PAYLOAD_PREFIX) or payload_path not in files:
-            raise UpgradeError(f"Missing upgrade payload for {entry_path}.")
-        if sha256_bytes(files[payload_path]) != entry.get("newSha256"):
-            raise UpgradeError(f"Upgrade payload digest mismatch: {entry_path}")
-        if schema_version >= 2:
-            content_kind = str(entry.get("contentKind", ""))
-            if canonical_sha256(files[payload_path], content_kind) != entry.get(
-                "newCanonicalSha256"
-            ):
-                raise UpgradeError(f"Upgrade canonical digest mismatch: {entry_path}")
-            base_payload = entry.get("basePayload")
-            if base_payload is not None:
-                base_payload = validate_relative_path(str(base_payload))
-                if (
-                    not base_payload.startswith(BASE_PAYLOAD_PREFIX)
-                    or base_payload not in files
-                ):
-                    raise UpgradeError(f"Missing base payload for {entry_path}.")
-                if sha256_bytes(files[base_payload]) != entry.get("baseSha256"):
-                    raise UpgradeError(f"Base payload digest mismatch: {entry_path}")
+        entry_path = validate_relative_path(entry.get("path"))
+        key = entry_path.casefold()
+        if key in seen or key == ADOPTION_PATH.casefold():
+            raise UpgradeError(f"Duplicate or reserved upgrade target: {entry_path}")
+        seen.add(key)
+        _validate_upgrade_entry(entry, entry_path, schema_version, files)
+        if entry["strategy"] == "starter-kit-state":
+            starter_release_from_provenance(manifest["base"]["provenance"])
+    for key in seen:
+        if any(parent in seen for parent in _parent_keys(key)):
+            raise UpgradeError(f"Overlapping upgrade target: {key}")
+    provenance_payload = files.get(PAYLOAD_PREFIX + PROVENANCE_PATH)
+    if provenance_payload is None or PROVENANCE_PATH.casefold() not in seen:
+        raise UpgradeError("Upgrade package is missing its target provenance payload.")
+    if (
+        sha256_bytes(provenance_payload) != manifest["target"]["provenanceSha256"]
+        or load_json_bytes(provenance_payload, "target provenance")
+        != manifest["target"]["provenance"]
+    ):
+        raise UpgradeError("Target provenance payload does not match release metadata.")
     return manifest, files
+
+
+def _parent_keys(path: str) -> list[str]:
+    parts = path.split("/")
+    return ["/".join(parts[:index]) for index in range(1, len(parts))]
+
+
+def _validate_upgrade_entry(
+    entry: dict[str, Any], path: str, schema: int, files: dict[str, bytes]
+) -> None:
+    required = {"path", "strategy", "mode", "baseSha256", "newSha256", "payload"}
+    if schema >= 2:
+        required.update(
+            {"contentKind", "baseCanonicalSha256", "newCanonicalSha256", "basePayload"}
+        )
+    if not required.issubset(entry):
+        raise UpgradeError(f"Missing upgrade entry fields: {path}")
+    _validate_entry_policy(entry, path, schema)
+    _validate_digest(entry["baseSha256"], f"{path}.baseSha256", nullable=True)
+    _validate_digest(entry["newSha256"], f"{path}.newSha256")
+    payload = validate_relative_path(entry["payload"])
+    if payload != PAYLOAD_PREFIX + path or payload not in files:
+        raise UpgradeError(f"Missing upgrade payload for {path}.")
+    if sha256_bytes(files[payload]) != entry["newSha256"]:
+        raise UpgradeError(f"Upgrade payload digest mismatch: {path}")
+    if entry["strategy"] == "starter-kit-state":
+        parse_starter_manifest(files[payload], "new starter-kit manifest")
+    if schema == 1:
+        return
+    _validate_content(files[payload], entry, path, "newCanonicalSha256")
+    _validate_digest(
+        entry["baseCanonicalSha256"], f"{path}.baseCanonicalSha256", nullable=True
+    )
+    if (entry["baseSha256"] is None) != (entry["baseCanonicalSha256"] is None):
+        raise UpgradeError(f"Inconsistent base digests: {path}")
+    base_payload = entry["basePayload"]
+    needs_base = entry["strategy"] in {"merge", "starter-kit-state"} and (
+        entry["baseSha256"] is not None
+    )
+    if base_payload is None:
+        if needs_base:
+            raise UpgradeError(f"Missing base payload for {path}.")
+        return
+    base_payload = validate_relative_path(base_payload)
+    if base_payload != BASE_PAYLOAD_PREFIX + path or base_payload not in files:
+        raise UpgradeError(f"Missing base payload for {path}.")
+    if sha256_bytes(files[base_payload]) != entry["baseSha256"]:
+        raise UpgradeError(f"Base payload digest mismatch: {path}")
+    try:
+        base_digest = canonical_sha256(files[base_payload], entry["contentKind"])
+    except UnicodeDecodeError as error:
+        raise UpgradeError(f"Invalid base text payload: {path}") from error
+    if base_digest != entry["baseCanonicalSha256"]:
+        raise UpgradeError(f"Base canonical digest mismatch: {path}")
+    if entry["strategy"] == "starter-kit-state":
+        parse_starter_manifest(files[base_payload], "base starter-kit manifest")
 
 
 __all__ = [

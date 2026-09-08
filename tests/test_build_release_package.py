@@ -4,10 +4,14 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 import zipfile
 from pathlib import Path
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +39,214 @@ PACKAGE_FIXTURE_PATHS = (
 
 
 class BuildReleasePackageTests(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "Unix setsid prerequisite")
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_missing_setsid_fails_before_launching_git(self):
+        definitions = SCRIPT_PATH.read_text(encoding="utf-8").split(
+            "$repoRoot = (Resolve-Path", 1
+        )[0]
+        harness = (
+            definitions
+            + """
+function Get-Command {
+    param([string]$Name)
+    if ($Name -eq 'git') { [pscustomobject]@{ Source = '/not-started/git' } }
+}
+try {
+    Invoke-GitLine -Arguments @('--version')
+    throw 'missing prerequisite accepted'
+}
+catch {
+    if ($_.Exception.Message -notmatch 'setsid .*required') { throw }
+}
+"""
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            script = self.write_script(Path(temporary), harness)
+            result = subprocess.run(
+                ["pwsh", "-NoProfile", "-File", str(script)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=20,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_deadline_includes_pipes_inherited_by_a_started_descendant(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        definitions = source.split("$repoRoot = (Resolve-Path", 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "descendant.pid"
+            child_code = (
+                "import os,pathlib,time; "
+                f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
+                "time.sleep(6)"
+            )
+            parent = root / "parent.py"
+            parent.write_text(
+                "import pathlib,subprocess,sys,time\n"
+                f"subprocess.Popen([sys.executable,'-B','-c',{child_code!r}])\n"
+                f"marker = pathlib.Path({str(marker)!r})\n"
+                "while not (marker.exists() and marker.stat().st_size): time.sleep(0.01)\n",
+                encoding="utf-8",
+            )
+
+            def literal(value):
+                return "'" + str(value).replace("'", "''") + "'"
+
+            harness = (
+                definitions
+                + f"""
+function Get-Command {{
+    param([string]$Name)
+    if ($Name -eq 'git') {{ [pscustomobject]@{{ Source = {literal(sys.executable)} }} }}
+    else {{ Microsoft.PowerShell.Core\\Get-Command $Name }}
+}}
+$watch = [Diagnostics.Stopwatch]::StartNew()
+try {{
+    Invoke-GitLine -Arguments @({literal(parent)}) -TimeoutSeconds 3
+    throw 'deadline missing'
+}}
+catch {{
+    if ($_.Exception.Message -notmatch 'timed out') {{ throw }}
+}}
+if ($watch.Elapsed.TotalSeconds -ge 4) {{ throw 'inherited pipes exceeded deadline' }}
+if (-not (Test-Path -LiteralPath {literal(marker)})) {{ throw 'descendant never started' }}
+$childId = [int](Get-Content -LiteralPath {literal(marker)})
+if ($childId -le 0) {{ throw 'descendant PID missing' }}
+$child = Get-Process -Id $childId -ErrorAction SilentlyContinue
+if ($null -ne $child -and -not $child.WaitForExit(1000)) {{ throw 'descendant survived cleanup' }}
+"""
+            )
+            script = self.write_script(root, harness)
+            for executable in ("pwsh", "powershell"):
+                if not shutil.which(executable):
+                    continue
+                marker.unlink(missing_ok=True)
+                result = subprocess.run(
+                    [executable, "-NoProfile", "-File", str(script)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=20,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_latest_release_http_request_has_a_contextual_deadline(self):
+        class SlowResponse(BaseHTTPRequestHandler):
+            def do_GET(self):
+                time.sleep(2)
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, *arguments):
+                pass
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), SlowResponse) as server:
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                source = SCRIPT_PATH.read_text(encoding="utf-8")
+                definitions = source.split("$repoRoot = (Resolve-Path", 1)[0]
+                definitions = definitions.replace(
+                    "https://api.github.com", f"http://127.0.0.1:{server.server_port}"
+                )
+                harness = (
+                    definitions
+                    + """
+$HttpTimeoutSeconds = 1
+try {
+    Get-GitHubLatestRelease -Repository 'test/repository'
+    throw 'HTTP deadline missing'
+}
+catch {
+    if ($_.Exception.Message -notmatch 'Unable to resolve latest agent rules release') { throw }
+    $_.Exception.Message
+}
+"""
+                )
+                with tempfile.TemporaryDirectory() as temporary:
+                    script = self.write_script(Path(temporary), harness)
+                    result = subprocess.run(
+                        ["pwsh", "-NoProfile", "-File", str(script)],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=15,
+                    )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("127.0.0.1", result.stdout)
+            finally:
+                server.shutdown()
+                worker.join()
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_git_deadline_terminates_child_and_preserves_arguments(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        definitions = source.split("$repoRoot = (Resolve-Path", 1)[0]
+        with tempfile.TemporaryDirectory(prefix="package process ") as temporary:
+            root = Path(temporary)
+            child = root / "native child.py"
+            marker = root / "late-output.txt"
+            child.write_text(
+                "import json, pathlib, sys, time\n"
+                "if sys.argv[1] == 'block':\n"
+                "    time.sleep(2)\n"
+                "    pathlib.Path(sys.argv[2]).write_text('alive')\n"
+                "else:\n"
+                "    print(json.dumps(sys.argv[1:]))\n"
+                "    print('second line')\n",
+                encoding="utf-8",
+            )
+
+            def literal(value):
+                return "'" + str(value).replace("'", "''") + "'"
+
+            harness = (
+                definitions
+                + f"""
+function Get-Command {{
+    param([string]$Name)
+    if ($Name -eq 'git') {{ [pscustomobject]@{{ Source = {literal(sys.executable)} }} }}
+    else {{ Microsoft.PowerShell.Core\\Get-Command $Name }}
+}}
+$lines = @(Invoke-GitLine -Arguments @({literal(child)}, 'space value', 'quote"value', 'tail\\'))
+if ($lines.Count -ne 2) {{ throw 'stdout line semantics lost' }}
+$lines[0]
+try {{
+    Invoke-GitLine -Arguments @({literal(child)}, 'block', {literal(marker)}) -TimeoutSeconds 0.1
+    throw 'timeout was not raised'
+}}
+catch {{
+    if ($_.Exception.Message -notmatch 'timed out') {{ throw }}
+    'timed out'
+}}
+Start-Sleep -Seconds 3
+if (Test-Path -LiteralPath {literal(marker)}) {{ throw 'child survived deadline' }}
+"""
+            )
+            script = self.write_script(root, harness)
+            for executable in ("pwsh", "powershell"):
+                if not shutil.which(executable):
+                    continue
+                result = subprocess.run(
+                    [executable, "-NoProfile", "-File", str(script)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=20,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                lines = result.stdout.splitlines()
+                self.assertEqual(
+                    json.loads(lines[0]), ["space value", 'quote"value', "tail\\"]
+                )
+                self.assertIn("timed out", lines)
+            self.assertFalse(marker.exists())
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.base_script = subprocess.run(
@@ -342,6 +554,7 @@ class BuildReleasePackageTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
     def test_full_package_replaces_quality_configuration(self) -> None:
         quality_paths = {
+            "tools/quality/check-coverage.py",
             "tools/quality/check-versions.py",
             "tools/quality/install-external-tools.py",
             "tools/quality/package-lock.json",

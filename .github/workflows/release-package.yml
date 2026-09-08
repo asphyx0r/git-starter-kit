@@ -31,6 +31,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       release_tag: ${{ steps.refs.outputs.starter_ref }}
+      release_sha: ${{ steps.refs.outputs.starter_sha }}
       package_name: ${{ steps.seal.outputs.package_name }}
       toolkit_name: ${{ steps.seal.outputs.toolkit_name }}
       package_sha256: ${{ steps.seal.outputs.package_sha256 }}
@@ -50,12 +51,18 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: tools/quality/requirements.lock
 
       - name: Set up Node.js
         # actions/setup-node@v7.0.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24.20.0"
+          cache: npm
+          cache-dependency-path: |
+            tools/quality/package-lock.json
+            tools/quality/versions.json
 
       - name: Install locked quality dependencies
         shell: bash
@@ -108,8 +115,11 @@ jobs:
             exit 1
           fi
 
-          echo "starter_ref=$starter_ref" >>"$GITHUB_OUTPUT"
-          echo "agent_rules_ref=$agent_rules_ref" >>"$GITHUB_OUTPUT"
+          {
+            echo "starter_ref=$starter_ref"
+            echo "starter_sha=$(git rev-parse HEAD)"
+            echo "agent_rules_ref=$agent_rules_ref"
+          } >>"$GITHUB_OUTPUT"
 
       - name: Build package
         id: package
@@ -236,9 +246,61 @@ jobs:
             ${{ runner.temp }}/release-package-transfer/SHA256SUMS
           if-no-files-found: error
 
+  release-checks:
+    name: Verify release event checks
+    needs: build
+    if: github.repository == 'asphyx0r/git-starter-kit'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout immutable verifier
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: tools/verify-repository-audit-runs.py
+          sparse-checkout-cone-mode: false
+
+      - name: Require successful release event workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1800))
+          published_at="$(timeout 30s gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
+            --jq 'select(.draft == false) | .published_at')"
+          if [[ -z "$published_at" || "$published_at" == null ]]; then
+            echo "A published release is required for event verification." >&2
+            exit 1
+          fi
+          workflow_ids=()
+          for workflow in repository-audit.yml agent-rules-update.yml; do
+            workflow_ids+=("$(timeout 30s gh api "repos/$GH_REPO/actions/workflows/$workflow" --jq '.id')")
+          done
+          for workflow_id in "${workflow_ids[@]}"; do
+            remaining=$((deadline - SECONDS))
+            if ((remaining <= 0)); then
+              echo "Release checks exceeded the shared 30-minute deadline." >&2
+              exit 1
+            fi
+            python tools/verify-repository-audit-runs.py \
+              --repository "$GH_REPO" --workflow-id "$workflow_id" \
+              --event release --sha "$RELEASE_SHA" --ref "$RELEASE_TAG" \
+              --created-after "$published_at" --timeout-seconds "$remaining" \
+              --poll-seconds 5 --verbose
+          done
+
   publish:
     name: Publish release package
-    needs: build
+    needs: [build, release-checks]
     if: github.repository == 'asphyx0r/git-starter-kit'
     runs-on: ubuntu-24.04
     timeout-minutes: 5

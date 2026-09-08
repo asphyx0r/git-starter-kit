@@ -144,6 +144,8 @@ indistinguishable in the filename from a real tag with that exact name.
   exact SemVer release.
 - Reads Git blobs from `HEAD`, the index, or a selected tree instead of hashing
   untracked, ignored, or checkout-normalized files.
+- Builds inventory metadata incrementally without retaining every blob's
+  content in memory.
 - Generates the manifest from `templates/release/manifest.template.json` and
   validates it against `templates/release/manifest.schema.json`.
 - Requires release-specific business metadata from an external JSON file and
@@ -266,6 +268,14 @@ from the checksum inventory because either digest would create a
 self-reference. The SHA-256 recorded for the `git-tree` artifact is the digest
 of the exact `SHA256SUMS` bytes.
 
+Git requests are limited to 30 seconds; inventory listings and object batches
+have a 300-second limit. Expiration produces a contextual error and stops the
+Git process and its ordinary descendants, including processes holding captured
+streams open. Git for Windows uses its native executable when the installed
+launcher has a verified native sibling.
+The deadline starts after synchronous process creation and containment; this
+helper cannot cancel the native process creation call itself.
+
 ### Options
 
 - `--release-ref TAG`: exact SemVer release tag, including the leading `v`.
@@ -301,7 +311,7 @@ repositories.
 - Inventories core paths with raw and canonical SHA-256 digests, Git modes,
   content kinds, and upgrade strategies.
 - Reads committed or staged Git blobs so the inventory is independent of
-  checkout line endings.
+  checkout line endings, without retaining all blob contents in memory.
 - Preserves an existing generation timestamp when the selected ref and core
   inventory are unchanged.
 - Allows read-only validation in forks but permits preparation only with the
@@ -429,6 +439,15 @@ package.
 The script resolves `-AgentRulesRef latest` through the GitHub releases API.
 An explicit `-AgentRulesRef` must be a SemVer tag prefixed with `v`.
 Branch names and other refs are rejected to keep package inputs reproducible.
+The latest-release HTTP request has a 60-second limit. Git requests have a
+30-second limit, or 300 seconds for inventory listings. The deadline includes
+captured output and process cleanup; an expired process and its ordinary
+descendants are stopped, and temporary output is cleaned up. Unix execution
+requires the native `setsid` utility, provided by the Ubuntu CI runner; the
+script checks for it before starting Git. Windows PowerShell 5.1 needs no
+additional runtime for process containment.
+The deadline starts after synchronous process creation and containment; native
+process creation itself is outside that cancellable execution budget.
 
 ### Usage/Examples
 
@@ -611,6 +630,10 @@ operation status, strategy-aware operational compliance, and exact file
 alignment with the target release. A successful operational result can still
 require agent-rule synchronization or an explicit `initialize-only` review,
 and exact alignment reports those intentional differences independently.
+Final `NON_COMPLIANT` produces status `FAILED` and a nonzero exit code;
+`COMPLIANT_WITH_FOLLOW_UP` and `NOT_ALIGNED` remain valid when the file
+strategies are respected. Concurrent user changes detected by that final
+check are preserved.
 
 `--dry-run` remains side-effect free and creates no log. Help, version,
 argument-parser exits, and failures that occur before a valid target release
@@ -649,11 +672,16 @@ When an initialization-only file changed upstream, the plan reports
 `review-initialize-only` without blocking or writing the target. This makes
 required local review visible while preserving repository ownership.
 
-The tool performs no deletion, commit, tag, push, or network operation. An
-upgrade is all-or-nothing: any conflict blocks application. If a write fails,
-files already written in that attempt are restored immediately. The external
-rollback ZIP records every replaced or merged file and the prior adoption
-state for operator-controlled recovery.
+The tool performs no deletion, commit, tag, push, or network operation. Any
+conflict blocks application. An error or interruption during writes triggers
+restoration of the original content, modes and adoption state, including a
+partially written file. Restoration continues after individual failures and
+reports the paths it could not restore. The external rollback ZIP remains
+available for operator-controlled recovery.
+
+Archive limits, Windows path restrictions, legacy manifest validation and
+bounded Git operations are documented in the
+[upgrade safety guide](../docs/upgrade-toolkit.md#sécurité).
 
 ## git-init.ps1
 
@@ -1013,7 +1041,7 @@ in the operational guide.
 
 - Queries and paginates GitHub Actions through the authenticated `gh` CLI
   without mutation.
-- Selects runs by workflow ID, `push` event, exact SHA, expected ref, and
+- Selects runs by workflow ID, `push` or `release` event, exact SHA, expected ref, and
   inclusive creation timestamp.
 - Requires exactly one completed successful run for every repeated `--ref`.
 - Rejects missing, ambiguous, failed, cancelled, skipped, or neutral runs.
@@ -1025,6 +1053,7 @@ in the operational guide.
 usage: verify-repository-audit-runs.py [-h] [--version] [--dry-run] [-v]
                                        --repository OWNER/REPO
                                        --workflow-id ID --sha SHA --ref REF
+                                       [--event {push,release}]
                                        --created-after UTC
                                        [--timeout-seconds SECONDS]
                                        [--poll-seconds SECONDS]
@@ -1039,6 +1068,10 @@ caller resolves the exact `Repository audit` workflow ID, records the UTC time
 immediately before the corresponding push, and supplies every expected branch
 or tag with a separate `--ref` argument. Every `gh api` subprocess receives at
 most 30 seconds and never more than the remaining global timeout.
+
+The release-package workflow also calls this verifier with `--event release`
+for each required workflow, using the original release publication timestamp.
+The default remains `push` for existing preflight and final-push callers.
 
 ### Usage/Examples
 
@@ -1075,6 +1108,7 @@ python tools/verify-repository-audit-runs.py \
 - `-v`, `--verbose`: prints timestamped polling details.
 - `--repository OWNER/REPO`: selects the GitHub repository.
 - `--workflow-id ID`: selects the resolved numeric workflow ID.
+- `--event {push,release}`: selects the required event, default `push`.
 - `--sha SHA`: selects the exact 40-character target commit SHA.
 - `--ref REF`: declares one expected branch or tag; repeat as needed.
 - `--created-after UTC`: rejects runs created before the inclusive
@@ -1093,6 +1127,24 @@ python tools/verify-repository-audit-runs.py \
 The tool requires Python 3, `gh`, authenticated read access to Actions, and a
 workflow ID resolved independently from the tracked workflow path. It never
 reruns or cancels a workflow. Treat every nonzero exit as a release blocker.
+
+## quality/check-coverage.py
+
+`quality/check-coverage.py` validates a Coverage.py JSON report against the
+threshold in `quality/versions.json`. Both the combined instruction-and-branch
+score and the separate branch score must meet that threshold. Missing branch
+measurement, empty measurements, and inconsistent totals fail validation.
+
+```bash
+python tools/quality/check-coverage.py /path/to/coverage.json
+```
+
+The command prints the global, instruction, and branch percentages with their
+exact counts and returns `0` on success or `1` on a policy or report error. For
+valid measurements, GitHub Actions also receives the verdict in the job summary;
+unreadable or malformed reports produce a diagnostic on standard error. The
+complete audit generates this
+report in its temporary directory and removes it during cleanup.
 
 ## quality/check-versions.py
 
@@ -1134,7 +1186,7 @@ and the new installation root must be strictly below it.
 usage: python tools/quality/install-external-tools.py \
   --platform {linux-x64,windows-x64} \
   --install-root PATH \
-  [--tool {actionlint,shfmt,PSScriptAnalyzer,shellcheck}]
+  [--tool {actionlint,shfmt,PSScriptAnalyzer,shellcheck,gitleaks}]
 ```
 
 Repeat `--tool` to select multiple compatible tools. When it is omitted, the
@@ -1156,6 +1208,29 @@ The installer stages and publishes to a new destination only below
 - `1`: registry, path, download, digest, archive, installation, or probe
   validation failed.
 - `2`: command-line argument parsing failed.
+
+## repository-audit/workflow-contracts.py
+
+This internal validator checks applicable GitHub workflows from safely parsed
+YAML, rejecting duplicate keys. It compares triggers, dependencies, runtime
+versions, action references, permissions and executable guards independently of
+mapping order, indentation, comments and descriptive step names. The audit's
+contract wrappers invoke it; direct execution checks the repository's workflows:
+
+```bash
+python tools/repository-audit/workflow-contracts.py
+```
+
+The four distributed workflows are always required. `release-package.yml` is
+also checked when present, and is required when either source-only tool
+`tools/build-release-package.ps1` or `tools/starter-kit-manifest.py` is present.
+Generated consumer repositories can therefore omit the source release workflow.
+An explicit `--workflow` selection always requires its workflow file.
+
+Use `--workflow release-package --path /path/to/workflow.yml` to validate one
+fixture against its contract. The locked Python environment supplies PyYAML.
+Policy changes update the corresponding contract and its mutation tests;
+presentation-only edits do not require matching YAML text in Bash.
 
 ## repository-audit.sh
 
@@ -1212,7 +1287,8 @@ profile composition.
 The default `all` mode, `full`, and `static` all execute one exhaustive
 profile. It includes the declaration and runtime version gate, Markdown,
 spelling, YAML and workflow checks, language-specific static analysis,
-contracts, coverage, behavior tests, smoke tests, and commit-range validation.
+contracts, a redacted full-history Gitleaks scan, coverage, behavior tests,
+smoke tests, and commit-range validation.
 A zero `before` SHA uses the highest reachable stable tag, excluding the tag
 currently being audited; without an earlier stable tag, all reachable commits
 are checked.
@@ -1225,12 +1301,22 @@ PSScriptAnalyzer, coverage, behavior tests, and smoke tests.
 network access, temporary files, and mutating smoke tests.
 
 The hook profiles expose the same implementation used by `.githooks`.
-`hook-pre-commit` checks relevant staged files from an isolated index snapshot.
+`hook-pre-commit` scans the staged index with the pinned Gitleaks version and
+checks relevant staged files from an isolated index snapshot. Scanner policy
+and ignore files come from the index, including when the working tree differs.
+Simple Markdown, Bash, and YAML checks export only required indexed files and
+configuration; checks that need repository context use the full index.
 `hook-commit-msg MESSAGE_FILE` validates the message file named by its required
 positional argument. `hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
 `LOCAL_REF LOCAL_OBJECT_ID REMOTE_REF REMOTE_OBJECT_ID` quadruplets from
 standard input, runs affected test families from the exact pushed objects with
-a 180-second timeout per selected family, and validates new SemVer release tags.
+a 900-second timeout per selected family, and validates new SemVer release tags.
+Both hooks use one affected-path mapping. A standalone Python tool selects its
+test module, upgrade changes select the upgrade suite, and workflow changes
+select Actionlint and semantic workflow contracts. Shared runtime,
+configuration, and unknown paths select the complete Python suite and the
+existing hook and commit-message shell suites. The exhaustive shell behavior
+and audit suites remain mandatory in Linux CI.
 
 ### Prerequisites
 
@@ -1250,10 +1336,15 @@ The external versions declared in `tools/quality/versions.json` must also be
 installed. Audit profiles never run these installation commands or download
 tools. Smoke tests require the locked `jsonschema` package and stop with the
 installation command when it is absent.
+The pre-commit scanner also requires the exact Gitleaks version declared in
+`tools/quality/versions.json`; a missing or mismatched scanner blocks the commit
+with setup guidance. Betterleaks remains a separate manual review tool.
 
 In GitHub Actions, each isolated quality job installs the Python and npm locks
 once and invokes the external-tool installer once for the tools compatible with
-its platform. The workflow uses no generic dependency cache and no Go setup or
+its platform. Setup actions cache pip and npm downloads using dependency locks;
+the npm key also includes the declared runtime policy. Installation still uses
+`--require-hashes` and `npm ci --ignore-scripts`. The workflow uses no Go setup or
 dynamic `go install`; every external binary or module comes from the registry
 entry whose HTTPS artifact digest and runtime probe were validated.
 
@@ -1306,6 +1397,17 @@ Run PSScriptAnalyzer against tracked PowerShell scripts:
 ```bash
 bash tools/repository-audit.sh powershell-static
 ```
+
+Run the focused Git Bash compatibility cases used by the Windows CI job:
+
+```bash
+bash tests/test_quality_pre_commit.sh --windows
+bash tests/test_quality_pre_push.sh --windows
+```
+
+These cases cover paths containing spaces, partial staging, pushed commits
+different from the checkout, and temporary-directory cleanup. The Linux job
+retains the complete hook suites and the full-history secret scan.
 
 ### Options
 

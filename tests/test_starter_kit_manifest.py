@@ -1,9 +1,12 @@
 import copy
+import hashlib
 import importlib.util
 import io
 import json
 import subprocess
+import sys
 import tempfile
+import tracemalloc
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -21,6 +24,81 @@ SPEC.loader.exec_module(MANIFEST)
 
 
 class StarterKitManifestTests(unittest.TestCase):
+    def test_streamed_metadata_preserves_bytes_modes_and_index_selection(self):
+        content = {
+            "empty.txt": b"",
+            "lf.txt": b"a\n\n",
+            "cr.txt": b"a\rb\r",
+            "binary.bin": b"\xff\0",
+        }
+        for name, value in content.items():
+            (self.root / name).write_bytes(value)
+        self.run_git("-c", "core.autocrlf=false", "add", ".")
+        self.run_git("update-index", "--chmod=+x", "lf.txt")
+        entries = {
+            entry["path"]: entry for entry in MANIFEST.core_entries(self.root, None)
+        }
+        canonical = {
+            "empty.txt": b"",
+            "lf.txt": b"a\n",
+            "cr.txt": b"a\nb\n",
+            "binary.bin": b"\xff\0",
+        }
+        for name, value in content.items():
+            self.assertEqual(entries[name]["sha256"], hashlib.sha256(value).hexdigest())
+            self.assertEqual(
+                entries[name]["canonicalSha256"],
+                hashlib.sha256(canonical[name]).hexdigest(),
+            )
+            self.assertEqual(
+                entries[name]["contentKind"],
+                "binary" if name.endswith(".bin") else "text",
+            )
+        self.assertEqual(entries["lf.txt"]["mode"], "100755")
+        self.assertNotIn(
+            "lf.txt",
+            {entry["path"] for entry in MANIFEST.core_entries(self.root, "HEAD")},
+        )
+        self.assertEqual(
+            {path: data for path, _, data in MANIFEST.index_entries(self.root)}[
+                "cr.txt"
+            ],
+            b"a\rb\r",
+        )
+        self.assertNotIn(
+            "cr.txt", {path for path, _, _ in MANIFEST.tree_entries(self.root, "HEAD")}
+        )
+
+    def test_core_metadata_does_not_retain_the_whole_payload(self):
+        for index in range(24):
+            (self.root / f"large-{index}.bin").write_bytes(
+                bytes([index]) + b"\xff" * (256 * 1024)
+            )
+        self.run_git("add", ".")
+        tracemalloc.start()
+        try:
+            entries = MANIFEST.core_entries(self.root, None)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertGreaterEqual(len(entries), 24)
+        self.assertLess(peak, 4 * 1024 * 1024)
+
+    def test_git_timeout_is_a_contextual_domain_error_including_ref_checks(self):
+        for operation in (
+            lambda: MANIFEST.run_git(self.root, "rev-parse", "HEAD"),
+            lambda: MANIFEST.ref_exists(self.root, "v9.9.9"),
+        ):
+            with (
+                patch.object(
+                    MANIFEST.git_objects.process_runner,
+                    "run",
+                    side_effect=subprocess.TimeoutExpired("git", 0.01),
+                ),
+                self.assertRaisesRegex(MANIFEST.ManifestError, "timed out"),
+            ):
+                operation()
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
@@ -101,17 +179,40 @@ class StarterKitManifestTests(unittest.TestCase):
         protocol_results = (
             subprocess.CompletedProcess([], 1, b"", b"failure"),
             subprocess.CompletedProcess([], 0, b"", b""),
+            subprocess.CompletedProcess([], 0, b"abc blob -1\n", b""),
+            subprocess.CompletedProcess([], 0, b"abc blob nope\n", b""),
+            subprocess.CompletedProcess([], 0, b"abc blob " + b"9" * 100 + b"\n", b""),
             subprocess.CompletedProcess([], 0, b"def blob 1\nx\n", b""),
             subprocess.CompletedProcess([], 0, b"abc blob 1\nx", b""),
             subprocess.CompletedProcess([], 0, b"abc blob 1\nx\nextra", b""),
         )
+        native_popen = subprocess.Popen
         for result in protocol_results:
+            child = (
+                "import sys; sys.stdin.buffer.readline(); "
+                f"sys.stdout.buffer.write({result.stdout!r}); "
+                f"sys.stderr.buffer.write({result.stderr!r}); "
+                f"sys.exit({result.returncode})"
+            )
             with (
                 self.subTest(stdout=result.stdout),
-                patch.object(MANIFEST.subprocess, "run", return_value=result),
-                self.assertRaises(MANIFEST.ManifestError),
+                patch.object(
+                    MANIFEST.git_objects.subprocess,
+                    "Popen",
+                    side_effect=lambda *args, **kwargs: native_popen(
+                        (
+                            [sys.executable, "-B", "-c", child]
+                            if Path(args[0][0]).stem == "git"
+                            else args[0]
+                        ),
+                        **kwargs,
+                    ),
+                ),
+                self.assertRaises(MANIFEST.ManifestError) as caught,
             ):
                 MANIFEST.read_blobs(self.root, ["abc"])
+            if result.returncode:
+                self.assertIn("failure", str(caught.exception))
 
         invalid_index_records = (
             b"100644 abc 1\tfile\0",
@@ -403,7 +504,9 @@ class StarterKitManifestTests(unittest.TestCase):
             )
             with (
                 self.subTest(binary=binary),
-                patch.object(MANIFEST.subprocess, "run", return_value=completed),
+                patch.object(
+                    MANIFEST.git_objects.process_runner, "run", return_value=completed
+                ),
                 self.assertRaisesRegex(
                     MANIFEST.ManifestError, "git status failed: denied"
                 ),

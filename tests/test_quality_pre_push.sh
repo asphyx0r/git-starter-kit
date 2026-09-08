@@ -196,6 +196,7 @@ if [[ "${QUALITY_STUB_AFFECTED_TESTS:-false}" == true ]]; then
         git -C "$1" config core.worktree "${QUALITY_FIXTURE}"
       fi
     fi
+    return "${QUALITY_AFFECTED_STATUS:-0}"
   }
 fi
 run_hook_pre_push "$@"
@@ -307,6 +308,26 @@ if [[ "${QUALITY_GIT_REPORTED_ROOT_ONLY:-false}" == true ]]; then
   exit
 fi
 
+if [[ "${1:-}" == --windows ]]; then
+  [[ "$(git -C "${fixture}" rev-parse HEAD)" == "${base_oid}" ]] ||
+    fail 'Windows push changed source HEAD'
+  grep -Fx "false|true|${shell_clean_oid}" "${QUALITY_AFFECTED_TRACE}" >/dev/null ||
+    fail 'Windows push validated checkout instead of pushed SHA'
+  while IFS= read -r clone_path; do
+    [[ ! -e "${clone_path}" ]] || fail 'successful Windows push leaked snapshot'
+  done <"${QUALITY_CLONE_DESTINATION_TRACE}"
+  export QUALITY_AFFECTED_STATUS=47
+  failed_status=0
+  run_pre_push_bounded "${integration_timeout_seconds}" \
+    "${git_reported_root_updates}" origin local || failed_status=$?
+  ((failed_status == 47)) || fail 'Windows push swallowed validator failure'
+  while IFS= read -r clone_path; do
+    [[ ! -e "${clone_path}" ]] || fail 'failed Windows push leaked snapshot'
+  done <"${QUALITY_CLONE_DESTINATION_TRACE}"
+  printf '%s\n' 'PASS: Windows pushed SHA, spaces and cleanup'
+  exit 0
+fi
+
 harness_child_pid_path="${test_temp}/harness-child.pid"
 harness_timeout_status=0
 (
@@ -413,9 +434,8 @@ done
 grep -F "test_commit_message_validation.sh|${shell_oid}" \
   "${QUALITY_SHELL_TRACE}" >/dev/null ||
   fail "affected shell suite omitted commit-message integration"
-if grep -F "|${rename_oid}" "${QUALITY_SHELL_TRACE}" >/dev/null; then
-  fail "Python-only update ran the shell suite at ${rename_oid}"
-fi
+grep -F "|${rename_oid}" "${QUALITY_SHELL_TRACE}" >/dev/null ||
+  fail "unknown rename destination did not use full fallback"
 if [[ ! -s "${QUALITY_LOCAL_DEPENDENCY_TRACE}" ]]; then
   fail "pushed-OID shell tests could not use source-local dependencies"
 fi
@@ -512,14 +532,14 @@ if ((timeout_status != 124)); then
   fail "timed-out pre-push returned ${timeout_status} instead of 124"
 fi
 if ! grep -Fx \
-  'pre-push: affected Python test family timed out after 180 seconds.' \
+  'pre-push: affected Python test family timed out after 900 seconds.' \
   "${test_temp}/timeout.err" >/dev/null; then
   fail "timed-out pre-push omitted its Python family diagnostic"
 fi
 if [[ "$(sed -n '1p' "${QUALITY_TIMEOUT_TRACE}")" != --kill-after=1s ]] ||
-  [[ "$(sed -n '2p' "${QUALITY_TIMEOUT_TRACE}")" != 180s ]] ||
+  [[ "$(sed -n '2p' "${QUALITY_TIMEOUT_TRACE}")" != 900s ]] ||
   [[ "$(sed -n '3p' "${QUALITY_TIMEOUT_TRACE}")" != bash ]]; then
-  fail "pre-push did not invoke the portable 180-second timeout contract"
+  fail "pre-push did not invoke the portable 900-second timeout contract"
 fi
 timeout_clone_destination="$(cat "${QUALITY_CLONE_DESTINATION_TRACE}")"
 if [[ -e "${timeout_clone_destination}" ]]; then

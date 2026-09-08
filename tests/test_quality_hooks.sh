@@ -136,6 +136,74 @@ fi
 
 # shellcheck disable=SC1090
 source "${dispatcher}"
+if [[ "${1:-}" == --security ]]; then
+  scanner_bin="${test_temp}/scanner-bin"
+  mkdir -p "${scanner_bin}"
+  cat >"${scanner_bin}/gitleaks" <<'SCANNER'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == version ]]; then
+  printf '%s\n' "${QUALITY_SCANNER_VERSION}"
+  exit 0
+fi
+printf '%s\n' "$@" >"${QUALITY_SCANNER_TRACE}"
+exit "${QUALITY_SCANNER_STATUS}"
+SCANNER
+  chmod +x "${scanner_bin}/gitleaks"
+  export PATH="${scanner_bin}:${PATH}"
+  export QUALITY_SCANNER_VERSION=0.0.0 QUALITY_SCANNER_STATUS=42
+  export QUALITY_SCANNER_TRACE="${test_temp}/scanner.trace"
+  repository_root="${source_root}"
+  if run_full_secret_scan >"${test_temp}/scanner.out" 2>"${test_temp}/scanner.err"; then
+    fail 'full scan accepted unpinned Gitleaks'
+  fi
+  assert_file_contains "${test_temp}/scanner.err" 'Gitleaks version mismatch'
+  [[ ! -e "${QUALITY_SCANNER_TRACE}" ]] || fail 'wrong scanner version ran'
+  QUALITY_SCANNER_VERSION="$(python -B -c 'import json, sys; print(json.load(open(sys.argv[1]))["external"]["gitleaks"]["version"])' "${source_root}/tools/quality/versions.json")"
+  scanner_status=0
+  run_full_secret_scan || scanner_status=$?
+  ((scanner_status == 42)) || fail 'full scan swallowed scanner failure'
+  for expected in git --config --redact --no-banner --no-color --log-opts=--all --timeout 300; do
+    assert_file_contains "${QUALITY_SCANNER_TRACE}" "${expected}"
+  done
+  PATH="${test_temp}" resolve_hook_command registry gitleaks gitleaks.exe \
+    >"${test_temp}/missing-scanner.out" 2>"${test_temp}/missing-scanner.err" &&
+    fail 'missing Gitleaks accepted'
+  assert_file_contains "${test_temp}/missing-scanner.err" 'Install the pinned gitleaks version'
+  printf '%s\n' 'PASS: pinned mandatory full-history scanner and errors'
+  exit 0
+fi
+if [[ "${1:-}" == --selection ]]; then
+  assert_selection() {
+    local run_python=false run_shell=false run_workflows=false
+    local full_snapshot=false python_modules=''
+    classify_hook_path "$1"
+    [[ "${python_modules}" == "$2" ]] || fail "wrong modules for $1: ${python_modules}"
+    [[ "${full_snapshot}" == "$3" ]] || fail "wrong export policy for $1"
+    [[ "${run_workflows}" == "$4" ]] || fail "wrong workflow policy for $1"
+  }
+  assert_selection tools/backup-target-directory.py test_backup_target_directory.py true false
+  assert_selection tools/starter_kit_upgrade/planning.py test_starter_kit_upgrade.py true false
+  assert_selection tools/git_objects.py '*' true false
+  assert_selection tools/process_runner.py '*' true false
+  assert_selection .github/workflows/repository-audit.yml test_workflow_contracts.py true true
+  assert_selection docs/guide.md '' false false
+  assert_selection 'unknown file.bin' '*' true false
+  selected_root="${test_temp}/selected tests"
+  mkdir -p "${selected_root}/tests"
+  printf 'raise AssertionError("unrelated test was selected")\n' >"${selected_root}/tests/test_unrelated.py"
+  printf 'import unittest\nfrom pathlib import Path\nclass Selected(unittest.TestCase):\n    def test_selected(self):\n        marker = Path("selected.ran")\n        self.assertFalse(marker.exists())\n        marker.touch()\n' \
+    >"${selected_root}/tests/test_backup_target_directory.py"
+  run_hook_affected_tests "${selected_root}" true false \
+    'test_backup_target_directory.py test_backup_target_directory.py'
+  rm "${selected_root}/tests/test_backup_target_directory.py"
+  if run_hook_affected_tests "${selected_root}" true false test_backup_target_directory.py; then
+    fail 'missing selected unittest silently passed'
+  fi
+  printf '%s\n' 'PASS: centralized affected-check selection'
+  exit 0
+fi
+run_hook_secret_scan() { return 0; }
 for hook_function in \
   run_hook_pre_commit \
   run_hook_commit_msg \
@@ -222,13 +290,13 @@ export QUALITY_SHELL_TRACE="${test_temp}/family-shell.trace"
     run_hook_affected_tests "${affected_root}" true true
 )
 cat >"${test_temp}/family-timeout.expected" <<'EOF'
---kill-after=1s|180s|bash
---kill-after=1s|180s|bash
+--kill-after=1s|900s|bash
+--kill-after=1s|900s|bash
 EOF
 if ! cmp -s \
   "${test_temp}/family-timeout.expected" \
   "${family_timeout_trace}"; then
-  fail "affected Python and shell families did not receive separate 180-second timeouts"
+  fail "affected Python and shell families did not receive separate 900-second timeouts"
 fi
 
 for timed_out_family in python shell; do
@@ -251,7 +319,7 @@ for timed_out_family in python shell; do
   fi
   expected_family="${timed_out_family^}"
   assert_file_contains "${timeout_error}" \
-    "pre-push: affected ${expected_family} test family timed out after 180 seconds."
+    "pre-push: affected ${expected_family} test family timed out after 900 seconds."
 done
 
 timeout_137_status=0
@@ -266,7 +334,7 @@ if ((timeout_137_status != 124)); then
   fail "timeout status 137 returned ${timeout_137_status} instead of 124"
 fi
 assert_file_contains "${test_temp}/python-timeout-137.err" \
-  "pre-push: affected Python test family timed out after 180 seconds."
+  "pre-push: affected Python test family timed out after 900 seconds."
 
 python_timeout_trace="${test_temp}/python-timeout.trace"
 : >"${python_timeout_trace}"
@@ -369,23 +437,24 @@ assert_hook_path_flags() {
   local expected_shell="$3"
   local run_python=false
   local run_shell=false
+  local run_workflows=false full_snapshot=false python_modules=''
 
-  classify_hook_push_path "${path}"
+  classify_hook_path "${path}"
   if [[ "${run_python}" != "${expected_python}" ||
     "${run_shell}" != "${expected_shell}" ]]; then
     fail "unexpected affected-test flags for ${path}: ${run_python}/${run_shell}"
   fi
 }
 
-assert_hook_path_flags 'space file.py' true false
-assert_hook_path_flags tools/quality/requirements.lock true false
-assert_hook_path_flags tools/quality/PSScriptAnalyzerSettings.psd1 true false
-assert_hook_path_flags tools/quality/yamllint.yaml true false
+assert_hook_path_flags 'space file.py' true true
+assert_hook_path_flags tools/quality/requirements.lock true true
+assert_hook_path_flags tools/quality/PSScriptAnalyzerSettings.psd1 true true
+assert_hook_path_flags tools/quality/yamllint.yaml true true
 assert_hook_path_flags tools/quality/package-lock.json true true
-assert_hook_path_flags .codespellrc true false
-assert_hook_path_flags commitlint.config.cjs false true
-assert_hook_path_flags .markdownlint-cli2.yaml false true
-assert_hook_path_flags candidate.txt false false
+assert_hook_path_flags .codespellrc true true
+assert_hook_path_flags commitlint.config.cjs true true
+assert_hook_path_flags .markdownlint-cli2.yaml true true
+assert_hook_path_flags candidate.txt true true
 
 if grep -E 'git .*clean|git -C .*clean' \
   "${source_root}/tools/repository-audit/hooks.sh" >/dev/null; then
@@ -584,8 +653,8 @@ if [[ ! -s "${QUALITY_DECLARATION_TRACE}.arguments" ]]; then
 fi
 
 git -C "${staged_fixture}" reset -q --hard HEAD
-printf 'candidate\n' >"${staged_fixture}/notes.txt"
-git -C "${staged_fixture}" add notes.txt
+printf '# candidate\n' >"${staged_fixture}/notes.md"
+git -C "${staged_fixture}" add notes.md
 git -C "${staged_fixture}" commit -q -m "test: add unaffected file"
 local_object_id="$(git -C "${staged_fixture}" rev-parse HEAD)"
 remote_object_id="$(git -C "${staged_fixture}" rev-parse HEAD^)"
@@ -623,3 +692,5 @@ if ((push_failure_status != 41)); then
 fi
 
 printf '%s\n' 'PASS: locked quality hook behavior'
+bash "${source_root}/tests/test_quality_hooks.sh" --selection
+bash "${source_root}/tests/test_quality_hooks.sh" --security

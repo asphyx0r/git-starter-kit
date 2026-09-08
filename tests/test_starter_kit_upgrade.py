@@ -1,4 +1,5 @@
 import argparse
+import copy
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
 import importlib
@@ -8,7 +9,9 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -482,6 +485,7 @@ print(upgrade.VERSION)
 
         with zipfile.ZipFile(toolkit) as archive:
             self.assertIn("starter-kit-upgrade.py", archive.namelist())
+            self.assertIn("process_runner.py", archive.namelist())
             self.assertIn("packages/new.zip", archive.namelist())
             self.assertIn("README.md", archive.namelist())
             self.assertEqual(
@@ -516,6 +520,23 @@ print(upgrade.VERSION)
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "starter-kit-upgrade.py 0.3.1\n")
+        result = subprocess.run(
+            [
+                "python",
+                "-B",
+                "-c",
+                "from pathlib import Path; "
+                "from starter_kit_upgrade.planning import run_git; "
+                "result = run_git(Path.cwd(), '--version'); "
+                "print(result.stdout, end=''); raise SystemExit(result.returncode)",
+            ],
+            cwd=extracted,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("git version "))
 
     def test_toolkit_matches_release_skill_inventory(self):
         reference_path = (
@@ -889,6 +910,771 @@ print(upgrade.VERSION)
 
         with self.assertRaises(UPGRADE.UpgradeError):
             UPGRADE.read_archive(malicious)
+
+    def test_unsafe_portable_paths_are_rejected(self):
+        for path in (
+            "D:/x",
+            "D:x",
+            "safe/D:/x",
+            ".git/config",
+            "safe/.GiT/config",
+            "x:stream",
+            "CON.txt",
+            "aux",
+            "COM1",
+            "LPT9.log",
+            "COM¹.txt",
+            "a./b",
+            "a /b",
+            "a\x01b",
+            "a\x7fb",
+            "a//b",
+            "./a",
+            "/a",
+            "a/../b",
+            "a\\b",
+            "a?b",
+            "a*b",
+            42,
+            None,
+        ):
+            with self.subTest(path=path), self.assertRaises(UPGRADE.UpgradeError):
+                UPGRADE.validate_relative_path(path)
+        self.assertEqual(
+            UPGRADE.validate_relative_path("données/my file.txt"),
+            "données/my file.txt",
+        )
+
+    def test_reserved_device_stems_with_spaces_are_rejected(self):
+        for path in (
+            "CON .txt",
+            "NUL .log",
+            "COM1 .txt",
+            "LPT1 .foo",
+            "nested/aux  .txt",
+        ):
+            with self.subTest(path=path), self.assertRaises(UPGRADE.UpgradeError):
+                UPGRADE.validate_relative_path(path)
+        for path in ("data file.txt", "config .txt", "nested/my document.txt"):
+            with self.subTest(path=path):
+                self.assertEqual(UPGRADE.validate_relative_path(path), path)
+
+    def test_state_manifest_rejects_malformed_release_records(self):
+        valid = starter_manifest("v1.0.0")
+        self.assertEqual(
+            UPGRADE.parse_starter_manifest(json_bytes(valid), "state"), valid
+        )
+        invalid_values = [[], {**valid, "schemaVersion": 2}, {**valid, "files": {}}]
+        for release_name in ("source", "current"):
+            invalid_values.append({**valid, release_name: None})
+            for field in ("repository", "ref", "releaseUrl", "generatedAt"):
+                invalid_values.append(
+                    {**valid, release_name: {**valid[release_name], field: ""}}
+                )
+            invalid_values.append(
+                {
+                    **valid,
+                    release_name: {
+                        **valid[release_name],
+                        "releaseUrl": "https://github.com/example/foreign/releases/tag/v1.0.0",
+                    },
+                }
+            )
+        for value in invalid_values:
+            with self.subTest(value=value), self.assertRaises(UPGRADE.UpgradeError):
+                UPGRADE.parse_starter_manifest(json_bytes(value), "state")
+
+    def test_untrusted_adoption_is_not_evidence_of_a_known_release(self):
+        target = self.create_target()
+        manifest, _ = UPGRADE.load_upgrade(self.upgrade_package)
+        adoption_path = target / UPGRADE.ADOPTION_PATH
+        commit = subprocess.check_output(
+            ["git", "-C", str(target), "rev-parse", "HEAD"], text=True
+        ).strip()
+        valid = {
+            "schemaVersion": 2,
+            "starterKit": manifest["base"]["provenance"]["starterKit"],
+            "baseArchiveSha256": manifest["base"]["archiveSha256"],
+            "repositoryCommit": commit,
+        }
+        adoption_path.write_bytes(json_bytes(valid))
+        self.assertEqual(
+            UPGRADE.validate_adoption(target, manifest, adoption_path), valid
+        )
+        for fields in (
+            {"schemaVersion": 3},
+            {"starterKit": None},
+            {"baseArchiveSha256": "0" * 64},
+            {"starterKit": {"commit": "0" * 40}},
+            {"repositoryCommit": ""},
+            {"repositoryCommit": None},
+        ):
+            with self.subTest(fields=fields):
+                adoption_path.write_bytes(json_bytes({**valid, **fields}))
+                self.assertIsNone(
+                    UPGRADE.validate_adoption(target, manifest, adoption_path)
+                )
+
+    def test_ambiguous_local_state_is_preserved_as_a_conflict(self):
+        old = starter_manifest("v1.0.0")
+        new = starter_manifest("v2.0.0")
+        foreign = copy.deepcopy(old)
+        foreign["source"]["repository"] = "https://github.com/example/foreign"
+        foreign["source"]["releaseUrl"] = (
+            "https://github.com/example/foreign/releases/tag/v1.0.0"
+        )
+        cases = (
+            (json_bytes(foreign), json_bytes(old)),
+            (json_bytes(old), b"invalid JSON"),
+            (json_bytes(old), None),
+        )
+        for local_content, base_content in cases:
+            with self.subTest(local=local_content, base=base_content):
+                self.assertEqual(
+                    UPGRADE.starter_manifest_action(
+                        local_content, base_content, json_bytes(new), None
+                    ),
+                    "conflict-modified",
+                )
+
+    def test_archive_rejects_canonical_duplicates_and_special_members(self):
+        for index, names in enumerate((("A.txt", "a.txt"), ("a/", "A/"), ("a/", "a"))):
+            with self.subTest(names=names):
+                unsafe = self.root / f"duplicate-{index}.zip"
+                self.write_zip(unsafe, dict.fromkeys(names, b""))
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.read_archive(unsafe)
+        for kind in (stat.S_IFLNK, stat.S_IFIFO, stat.S_IFSOCK):
+            with self.subTest(kind=kind):
+                member = zipfile.ZipInfo("special")
+                member.create_system = 3
+                member.external_attr = (kind | 0o644) << 16
+                unsafe = self.root / f"special-{kind}.zip"
+                with zipfile.ZipFile(unsafe, "w") as archive:
+                    archive.writestr(member, b"outside")
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.read_archive(unsafe)
+
+    def test_archive_member_limit_counts_empty_directories_before_content(self):
+        path = self.root / "many.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for index in range(10000):
+                archive.writestr(f"directory-{index}/", b"")
+        self.assertEqual(UPGRADE.read_archive(path), {})
+        with zipfile.ZipFile(path, "a") as archive:
+            archive.writestr("extra.txt", b"")
+        with (
+            mock.patch.object(
+                zipfile.ZipFile,
+                "read",
+                side_effect=AssertionError(
+                    "Member content must not be read before count validation"
+                ),
+            ),
+            self.assertRaises(UPGRADE.UpgradeError),
+        ):
+            UPGRADE.read_archive(path)
+
+    def test_archive_rejects_nul_member_name_and_file_parent_collision(self):
+        nul_path = self.root / "nul.zip"
+        self.write_zip(nul_path, {"badXname": b"content"})
+        nul_path.write_bytes(nul_path.read_bytes().replace(b"badXname", b"bad\0name"))
+        with self.assertRaises(UPGRADE.UpgradeError):
+            UPGRADE.read_archive(nul_path)
+        conflict = self.root / "parent-conflict.zip"
+        self.write_zip(conflict, {"Parent": b"file", "parent/child": b"child"})
+        with self.assertRaises(UPGRADE.UpgradeError):
+            UPGRADE.read_archive(conflict)
+
+    def test_upgrade_manifest_rejects_invalid_consumed_fields(self):
+        original, files = UPGRADE.load_upgrade(self.upgrade_package)
+        invalid_entries = (
+            ("path", 42),
+            ("strategy", "invalid"),
+            ("mode", 100644),
+            ("mode", "120000"),
+            ("contentKind", []),
+            ("baseSha256", "invalid"),
+            ("baseCanonicalSha256", "0" * 64),
+            ("strategy", "starter-kit-state"),
+        )
+        for index, (field, value) in enumerate(invalid_entries):
+            with self.subTest(field=field, value=value):
+                manifest = copy.deepcopy(original)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                entry[field] = value
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-entry-{index}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.load_upgrade(invalid)
+        for index, (field, value) in enumerate(
+            (
+                ("base", None),
+                ("target", {}),
+                ("schemaVersion", True),
+                ("schemaVersion", []),
+                ("obsoletePaths", "removed.txt"),
+            )
+        ):
+            with self.subTest(field=field):
+                manifest = copy.deepcopy(original)
+                manifest[field] = value
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-manifest-{index}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_an_object_catalogue_and_object_entries(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        cases = (
+            (None, "Upgrade package is missing upgrade-manifest.json."),
+            ([], "upgrade-manifest.json must contain a JSON object."),
+            ({**original, "entries": {}}, "Unsupported upgrade package schema."),
+            (
+                {**original, "entries": ["merge.txt"]},
+                "Upgrade entries must be JSON objects.",
+            ),
+            (
+                {**original, "obsoletePaths": ["removed.txt", "REMOVED.txt"]},
+                "Duplicate obsolete path.",
+            ),
+        )
+        for index, (manifest, diagnostic) in enumerate(cases):
+            with self.subTest(diagnostic=diagnostic):
+                files = dict(original_files)
+                if manifest is None:
+                    files.pop(UPGRADE.UPGRADE_MANIFEST_PATH)
+                else:
+                    files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-catalogue-{index}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, re.escape(diagnostic)
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_rejects_missing_misdirected_and_tampered_new_payloads(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for defect in ("missing", "misdirected", "tampered"):
+            with self.subTest(defect=defect):
+                manifest = copy.deepcopy(original)
+                files = dict(original_files)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                if defect == "missing":
+                    files.pop(entry["payload"])
+                elif defect == "misdirected":
+                    entry["payload"] = UPGRADE.PAYLOAD_PREFIX + "a.txt"
+                else:
+                    files[entry["payload"]] = b"unauthorized replacement\n"
+                diagnostic = (
+                    "Upgrade payload digest mismatch: merge.txt"
+                    if defect == "tampered"
+                    else "Missing upgrade payload for merge.txt."
+                )
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-new-payload-{defect}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, re.escape(diagnostic)
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_consistent_base_digest_presence(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for field in ("baseSha256", "baseCanonicalSha256"):
+            with self.subTest(field=field):
+                manifest = copy.deepcopy(original)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                entry[field] = None
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"inconsistent-{field}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, r"Inconsistent base digests: merge\.txt"
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_authentic_decodable_merge_base_payloads(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        cases = (
+            ("undeclared", "Missing base payload for merge.txt."),
+            ("misdirected", "Missing base payload for merge.txt."),
+            ("missing", "Missing base payload for merge.txt."),
+            ("tampered", "Base payload digest mismatch: merge.txt"),
+            ("non-text", "Invalid base text payload: merge.txt"),
+        )
+        for defect, diagnostic in cases:
+            with self.subTest(defect=defect):
+                manifest = copy.deepcopy(original)
+                files = dict(original_files)
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                if defect == "undeclared":
+                    entry["basePayload"] = None
+                elif defect == "misdirected":
+                    entry["basePayload"] = entry["payload"]
+                elif defect == "missing":
+                    files.pop(entry["basePayload"])
+                elif defect == "tampered":
+                    files[entry["basePayload"]] = b"unauthorized baseline\n"
+                elif defect == "non-text":
+                    files[entry["basePayload"]] = b"\xff\xfe"
+                    entry["baseSha256"] = UPGRADE.sha256_bytes(b"\xff\xfe")
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-base-payload-{defect}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, re.escape(diagnostic)
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_requires_target_provenance_payload_and_inventory_entry(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for retain_payload in (False, True):
+            with self.subTest(retain_payload=retain_payload):
+                manifest = copy.deepcopy(original)
+                manifest["entries"] = [
+                    e
+                    for e in manifest["entries"]
+                    if e["path"] != UPGRADE.PROVENANCE_PATH
+                ]
+                files = dict(original_files)
+                if not retain_payload:
+                    files.pop(UPGRADE.PAYLOAD_PREFIX + UPGRADE.PROVENANCE_PATH)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"unattested-provenance-{retain_payload}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError,
+                    r"Upgrade package is missing its target provenance payload\.",
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_binds_target_release_metadata_to_provenance_payload(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for defect in ("digest", "identity"):
+            with self.subTest(defect=defect):
+                manifest = copy.deepcopy(original)
+                if defect == "digest":
+                    manifest["target"]["provenanceSha256"] = "0" * 64
+                else:
+                    manifest["target"]["provenance"]["agentRules"]["commit"] = "e" * 40
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"mismatched-provenance-{defect}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError,
+                    r"Target provenance payload does not match release metadata\.",
+                ):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_upgrade_manifest_rejects_duplicate_target_paths(self):
+        manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
+        duplicate = dict(next(e for e in manifest["entries"] if e["path"] == "a.txt"))
+        duplicate["path"] = "A.txt"
+        manifest["entries"].append(duplicate)
+        files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+        self.write_zip(self.root / "invalid.zip", files)
+        with self.assertRaises(UPGRADE.UpgradeError):
+            UPGRADE.load_upgrade(self.root / "invalid.zip")
+
+    def test_plan_rejects_duplicate_canonical_destinations(self):
+        target = self.create_target()
+        manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
+        duplicate = dict(next(e for e in manifest["entries"] if e["path"] == "a.txt"))
+        duplicate["path"] = "A.txt"
+        manifest["entries"].append(duplicate)
+        with self.assertRaises(UPGRADE.UpgradeError):
+            UPGRADE.evaluate_target(manifest, files, target)
+
+    def test_historical_upgrade_schemas_remain_readable(self):
+        original, files = UPGRADE.load_upgrade(self.upgrade_package)
+        target = self.create_target()
+        for version in (1, 2):
+            with self.subTest(version=version):
+                manifest = copy.deepcopy(original)
+                manifest["schemaVersion"] = version
+                manifest["entries"] = [
+                    e
+                    for e in manifest["entries"]
+                    if e["strategy"] != "starter-kit-state"
+                ]
+                if version == 1:
+                    for entry in manifest["entries"]:
+                        for field in (
+                            "contentKind",
+                            "baseCanonicalSha256",
+                            "newCanonicalSha256",
+                            "basePayload",
+                        ):
+                            entry.pop(field)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                legacy = self.root / f"legacy-{version}.zip"
+                self.write_zip(legacy, files)
+                loaded, payloads = UPGRADE.load_upgrade(legacy)
+                self.assertEqual(loaded["schemaVersion"], version)
+                self.assertTrue(
+                    UPGRADE.evaluate_target(loaded, payloads, target)["applicable"]
+                )
+
+    def test_upgrade_rejects_invalid_provenance_and_state_payload_before_plan(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for index, (relative, replacement) in enumerate(
+            (
+                (
+                    UPGRADE.PROVENANCE_PATH,
+                    {**provenance("c" * 40, "d" * 40, "v2.0.0"), "repository": []},
+                ),
+                (UPGRADE.STARTER_MANIFEST_PATH, {"schemaVersion": 1}),
+            )
+        ):
+            with self.subTest(relative=relative):
+                manifest = copy.deepcopy(original)
+                files = dict(original_files)
+                entry = next(e for e in manifest["entries"] if e["path"] == relative)
+                content = json_bytes(replacement)
+                files[entry["payload"]] = content
+                entry["newSha256"] = UPGRADE.sha256_bytes(content)
+                entry["newCanonicalSha256"] = UPGRADE.content_metadata(content)[1]
+                if relative == UPGRADE.PROVENANCE_PATH:
+                    manifest["target"]["provenance"] = replacement
+                    manifest["target"]["provenanceSha256"] = entry["newSha256"]
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-payload-{index}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_state_upgrade_rejects_incomplete_base_provenance_during_load(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for field in ("generatedAt", "repository"):
+            for index, value in enumerate((None, "", [], 42)):
+                with self.subTest(field=field, value=value):
+                    manifest = copy.deepcopy(original)
+                    provenance = manifest["base"]["provenance"]
+                    owner = (
+                        provenance
+                        if field == "generatedAt"
+                        else provenance["starterKit"]
+                    )
+                    if value is None:
+                        owner.pop(field)
+                    else:
+                        owner[field] = value
+                    state = next(
+                        e
+                        for e in manifest["entries"]
+                        if e["strategy"] == "starter-kit-state"
+                    )
+                    state["basePayload"] = None
+                    state["baseSha256"] = None
+                    state["baseCanonicalSha256"] = None
+                    files = dict(original_files)
+                    files.pop(
+                        UPGRADE.BASE_PAYLOAD_PREFIX + UPGRADE.STARTER_MANIFEST_PATH
+                    )
+                    files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                    invalid = self.root / f"incomplete-state-{field}-{index}.zip"
+                    self.write_zip(invalid, files)
+                    with self.assertRaises(UPGRADE.UpgradeError):
+                        UPGRADE.load_upgrade(invalid)
+                    self.assertEqual(list(self.backup_directory.iterdir()), [])
+
+    def test_legacy_upgrade_does_not_require_state_provenance_fields(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for schema in (1, 2):
+            with self.subTest(schema=schema):
+                manifest = copy.deepcopy(original)
+                manifest["schemaVersion"] = schema
+                manifest["entries"] = [
+                    e
+                    for e in manifest["entries"]
+                    if e["strategy"] != "starter-kit-state"
+                ]
+                manifest["base"]["provenance"].pop("generatedAt")
+                manifest["base"]["provenance"]["starterKit"].pop("repository")
+                if schema == 1:
+                    for entry in manifest["entries"]:
+                        for field in (
+                            "contentKind",
+                            "baseCanonicalSha256",
+                            "newCanonicalSha256",
+                            "basePayload",
+                        ):
+                            entry.pop(field)
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                legacy = self.root / f"legacy-provenance-{schema}.zip"
+                self.write_zip(legacy, files)
+                loaded, _ = UPGRADE.load_upgrade(legacy)
+                self.assertEqual(loaded["schemaVersion"], schema)
+
+    def test_upgrade_requires_historical_entry_fields_and_provenance_digests(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        entry_fields = (
+            "strategy",
+            "mode",
+            "baseSha256",
+            "baseCanonicalSha256",
+            "newCanonicalSha256",
+            "basePayload",
+        )
+        for field in entry_fields:
+            with self.subTest(field=field):
+                manifest = copy.deepcopy(original)
+                manifest["entries"][0].pop(field)
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"missing-{field}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.load_upgrade(invalid)
+        for label in ("base", "target"):
+            for field in ("archiveSha256", "provenanceSha256", "provenance"):
+                with self.subTest(label=label, field=field):
+                    manifest = copy.deepcopy(original)
+                    manifest[label].pop(field)
+                    files = dict(original_files)
+                    files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                    invalid = self.root / f"missing-{label}-{field}.zip"
+                    self.write_zip(invalid, files)
+                    with self.assertRaises(UPGRADE.UpgradeError):
+                        UPGRADE.load_upgrade(invalid)
+
+    def test_interruption_after_adoption_write_restores_all_originals(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        adoption_path = target / UPGRADE.ADOPTION_PATH
+        adoption_path.write_bytes(b'{"original": true}\n')
+        if os.name != "nt":
+            (target / "a.txt").chmod(0o751)
+            adoption_path.chmod(0o600)
+        before = {
+            p: UPGRADE.snapshot_file(target / p)
+            for p in (*self.base_files, UPGRADE.ADOPTION_PATH)
+        }
+        for exception_type in (RuntimeError, KeyboardInterrupt):
+            with self.subTest(exception_type=exception_type):
+                error = exception_type("interrupted after adoption replacement")
+                interrupted = False
+
+                def interrupt_write(path, content, mode, error=error):
+                    nonlocal interrupted
+                    UPGRADE.write_payload(path, content, mode)
+                    if path == adoption_path and not interrupted:
+                        interrupted = True
+                        raise error
+
+                with self.assertRaises(exception_type) as raised:
+                    application.apply_upgrade(
+                        manifest,
+                        files,
+                        target,
+                        plan,
+                        self.backup_directory,
+                        payload_writer=interrupt_write,
+                    )
+                self.assertIs(raised.exception, error)
+                for relative, snapshot in before.items():
+                    self.assertEqual(UPGRADE.snapshot_file(target / relative), snapshot)
+                self.assertFalse((target / "new.txt").exists())
+                self.assertFalse((target / UPGRADE.FILES_MANIFEST_PATH).exists())
+                backups = list(self.backup_directory.glob("*.zip"))
+                self.assertEqual(len(backups), 1)
+                backups[0].unlink()
+
+    def test_failed_restoration_attempts_remaining_files_and_reports_paths(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        error = KeyboardInterrupt("interrupted replacement")
+        interrupted = False
+
+        def failing_writer(path, content, mode):
+            nonlocal interrupted
+            if interrupted and path.name == "a.txt":
+                raise OSError("restoration denied")
+            UPGRADE.write_payload(path, content, mode)
+            if path.name == "merge.txt" and not interrupted:
+                interrupted = True
+                raise error
+
+        stderr = io.StringIO()
+        with redirect_stderr(stderr), self.assertRaises(KeyboardInterrupt) as raised:
+            application.apply_upgrade(
+                manifest,
+                files,
+                target,
+                plan,
+                self.backup_directory,
+                payload_writer=failing_writer,
+            )
+        self.assertIs(raised.exception, error)
+        self.assertEqual(
+            (target / "merge.txt").read_bytes(), self.base_files["merge.txt"]
+        )
+        self.assertEqual(
+            (target / UPGRADE.PROVENANCE_PATH).read_bytes(), self.base_provenance
+        )
+        self.assertFalse((target / UPGRADE.FILES_MANIFEST_PATH).exists())
+        self.assertIn("a.txt", stderr.getvalue())
+        self.assertIn("restoration denied", stderr.getvalue())
+        self.assertEqual(len(list(self.backup_directory.glob("*.zip"))), 1)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_target_rejects_existing_junction_before_reading(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "private.txt").write_bytes(b"unchanged")
+        target = self.root / "junction-target"
+        target.mkdir()
+        junction = target / "linked"
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+            capture_output=True,
+            check=True,
+        )
+        try:
+            with self.assertRaises(UPGRADE.UpgradeError):
+                UPGRADE.target_path(target, "linked/private.txt")
+            with self.assertRaises(UPGRADE.UpgradeError):
+                UPGRADE.target_path(target, "linked")
+        finally:
+            junction.rmdir()
+        self.assertEqual((outside / "private.txt").read_bytes(), b"unchanged")
+
+    def test_final_non_compliance_fails_without_reverting_concurrent_content(self):
+        target = self.create_target()
+        real_write = UPGRADE.write_payload
+
+        def concurrent_change_after_adoption(path, content, mode):
+            real_write(path, content, mode)
+            if path.name == UPGRADE.ADOPTION_PATH:
+                (target / "a.txt").write_bytes(b"concurrent content\n")
+
+        with mock.patch.object(
+            UPGRADE, "write_payload", side_effect=concurrent_change_after_adoption
+        ):
+            code, _, _ = self.run_main(
+                [
+                    "apply",
+                    "--upgrade-package",
+                    str(self.upgrade_package),
+                    "--target",
+                    str(target),
+                    "--backup-directory",
+                    str(self.backup_directory),
+                ]
+            )
+        self.assertNotEqual(code, 0)
+        self.assertEqual((target / "a.txt").read_bytes(), b"concurrent content\n")
+        log = next((self.root / "logs").glob("*.log")).read_text(encoding="utf-8")
+        self.assertIn("UPDATE_STATUS=FAILED", log)
+        self.assertIn("OPERATIONAL_COMPLIANCE=NON_COMPLIANT", log)
+
+    def test_git_timeout_is_bounded_and_merge_cleans_temporary_files(self):
+        planning = importlib.import_module("starter_kit_upgrade.planning")
+        observed = []
+
+        def timeout(command, **kwargs):
+            observed.append((command, kwargs.get("timeout")))
+            raise subprocess.TimeoutExpired(
+                command, kwargs.get("timeout"), stderr=b"slow" * 1000
+            )
+
+        with mock.patch.object(planning.process_runner, "run", side_effect=timeout):
+            with self.assertRaises(UPGRADE.UpgradeError) as raised:
+                planning.run_git(self.root, "rev-parse", "HEAD")
+            self.assertLess(len(str(raised.exception)), 1200)
+            self.assertEqual(observed[-1][1], 30)
+            with self.assertRaises(UPGRADE.UpgradeError):
+                planning.run_git(self.root, "status", "--porcelain=v1")
+            self.assertEqual(observed[-1][1], 300)
+            with self.assertRaises(UPGRADE.UpgradeError):
+                planning.merge_text_payload(b"local\n", b"base\n", b"new\n")
+            command, limit = observed[-1]
+            self.assertEqual(limit, 300)
+            self.assertFalse(Path(command[-1]).parent.exists())
+
+    def test_git_and_merge_deadlines_contain_started_descendants(self):
+        planning = importlib.import_module("starter_kit_upgrade.planning")
+        marker = self.root / "descendant.pid"
+        descendant = (
+            "import os,pathlib,time; "
+            f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
+            "time.sleep(6)"
+        )
+        parent = (
+            "import pathlib,subprocess,sys,time; "
+            f"subprocess.Popen([sys.executable,'-B','-c',{descendant!r}]); "
+            f"marker=pathlib.Path({str(marker)!r}); "
+            "exec('while not marker.exists(): time.sleep(0.01)')"
+        )
+        native_popen = subprocess.Popen
+        real_run = planning.process_runner.run
+        commands = []
+
+        def bounded_run(command, **options):
+            commands.append(command)
+            options["timeout"] = 3
+            return real_run(command, **options)
+
+        for operation in (
+            lambda: planning.run_git(self.root, "rev-parse", "HEAD"),
+            lambda: planning.merge_text_payload(b"local\n", b"base\n", b"new\n"),
+        ):
+            marker.unlink(missing_ok=True)
+            started = time.monotonic()
+            with (
+                mock.patch.object(planning.process_runner, "run", bounded_run),
+                mock.patch.object(
+                    subprocess,
+                    "Popen",
+                    side_effect=lambda *args, **kwargs: native_popen(
+                        [sys.executable, "-B", "-c", parent], **kwargs
+                    ),
+                ),
+                self.assertRaisesRegex(UPGRADE.UpgradeError, "timed out"),
+            ):
+                operation()
+            self.assertTrue(marker.is_file())
+            self.assertLess(time.monotonic() - started, 4)
+        self.assertFalse(Path(commands[-1][-1]).parent.exists())
+
+    def test_rollback_continues_when_the_journal_fails(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+
+        class FailingJournal(UPGRADE.RunJournal):
+            def write(self, level, phase, message):
+                if getattr(self, "broken", False):
+                    raise OSError("journal unavailable")
+                super().write(level, phase, message)
+
+        journal = FailingJournal("apply", [])
+
+        def fail_after_replace(path, content, mode):
+            UPGRADE.write_payload(path, content, mode)
+            if path.name == "a.txt":
+                journal.broken = True
+
+        with redirect_stderr(io.StringIO()), self.assertRaises(OSError):
+            application.apply_upgrade(
+                manifest,
+                files,
+                target,
+                plan,
+                self.backup_directory,
+                journal,
+                payload_writer=fail_after_replace,
+            )
+        self.assertEqual((target / "a.txt").read_bytes(), self.base_files["a.txt"])
+        self.assertFalse((target / UPGRADE.FILES_MANIFEST_PATH).exists())
 
     def test_failed_write_restores_already_updated_files(self):
         target = self.create_target()

@@ -9,12 +9,14 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
+import stat
 import time
 import traceback
 from typing import Any, NamedTuple
 
 VERSION = "0.3.1"
 MAX_ARCHIVE_SIZE = 256 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 10000
 PROVENANCE_PATH = "_agent-rules-source.json"
 FILES_MANIFEST_PATH = "_starter-kit-files.json"
 ADOPTION_PATH = ".starter-kit-adoption.json"
@@ -211,13 +213,41 @@ def canonical_sha256(content: bytes, content_kind: str) -> str:
     raise UpgradeError(f"Unsupported content kind: {content_kind}")
 
 
-def validate_relative_path(value: str) -> str:
-    if not value or "\\" in value:
+def validate_relative_path(value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or any(
+            character in '\\:<>"|?*'
+            or ord(character) < 32
+            or 127 <= ord(character) <= 159
+            for character in value
+        )
+    ):
         raise UpgradeError(f"Unsafe archive path: {value!r}")
-    path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise UpgradeError(f"Unsafe archive path: {value!r}")
-    return path.as_posix()
+    for part in value.split("/"):
+        device = part.split(".", 1)[0].rstrip(" ").upper()
+        if (
+            part in {"", ".", ".."}
+            or part.casefold() == ".git"
+            or part.endswith((".", " "))
+            or device in {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+            or re.fullmatch(r"(?:COM|LPT)[1-9¹²³]", device)
+        ):
+            raise UpgradeError(f"Unsafe archive path: {value!r}")
+    return PurePosixPath(value).as_posix()
+
+
+def reject_link_or_reparse_point(path: Path) -> None:
+    """Reject existing links and Windows reparse points, including junctions."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & (
+        stat.FILE_ATTRIBUTE_REPARSE_POINT
+    ):
+        raise UpgradeError(f"Target path is a symbolic link or reparse point: {path}")
 
 
 def load_json_bytes(content: bytes, label: str) -> dict[str, Any]:
@@ -228,6 +258,55 @@ def load_json_bytes(content: bytes, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise UpgradeError(f"{label} must contain a JSON object.")
     return value
+
+
+def parse_starter_manifest(content: bytes, label: str) -> dict[str, Any]:
+    value = load_json_bytes(content, label)
+    if value.get("schemaVersion") != 1:
+        raise UpgradeError(f"Unsupported starter-kit manifest schema in {label}.")
+    if set(value) != {"schemaVersion", "source", "current", "files"}:
+        raise UpgradeError(f"Invalid starter-kit manifest fields in {label}.")
+    for release_name in ("source", "current"):
+        release = value.get(release_name)
+        if not isinstance(release, dict):
+            raise UpgradeError(f"Invalid {release_name} release in {label}.")
+        for field in ("repository", "ref", "releaseUrl", "generatedAt"):
+            if not isinstance(release.get(field), str) or not release[field]:
+                raise UpgradeError(f"Invalid {release_name}.{field} in {label}.")
+        expected_url = (
+            release["repository"].rstrip("/") + "/releases/tag/" + release["ref"]
+        )
+        if release["releaseUrl"] != expected_url:
+            raise UpgradeError(f"Invalid {release_name} release URL in {label}.")
+    if not isinstance(value.get("files"), list):
+        raise UpgradeError(f"Invalid core file inventory in {label}.")
+    return value
+
+
+def starter_release_from_provenance(provenance: dict[str, Any]) -> dict[str, str]:
+    starter = provenance.get("starterKit")
+    generated_at = provenance.get("generatedAt")
+    if (
+        not isinstance(starter, dict)
+        or not isinstance(generated_at, str)
+        or not generated_at
+    ):
+        raise UpgradeError("Base package has incomplete starter-kit provenance.")
+    repository = starter.get("repository")
+    ref = starter.get("ref")
+    if (
+        not isinstance(repository, str)
+        or not repository
+        or not isinstance(ref, str)
+        or not ref
+    ):
+        raise UpgradeError("Base package has incomplete starter-kit provenance.")
+    return {
+        "repository": repository,
+        "ref": ref,
+        "releaseUrl": repository.rstrip("/") + "/releases/tag/" + ref,
+        "generatedAt": generated_at,
+    }
 
 
 def write_json(value: dict[str, Any]) -> bytes:

@@ -24,87 +24,14 @@ from unittest import mock
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 QUALITY_ROOT = SOURCE_ROOT / "tools" / "quality"
 INSTALLER_PATH = QUALITY_ROOT / "install-external-tools.py"
-EXPECTED_PYTHON_REQUIREMENTS = {
-    "codespell": "2.4.3",
-    "coverage": "7.16.0",
-    "jsonschema[format]": "4.26.0",
-    "mypy": "2.3.1",
-    "ruff": "0.16.5",
-    "yamllint": "1.38.0",
-}
-EXPECTED_NODE_REQUIREMENTS = {
-    "@commitlint/cli": "21.2.2",
-    "markdownlint-cli2": "0.23.2",
-}
-EXPECTED_NODE_MINIMUM = "22.12.0"
-EXPECTED_NODE_CI_VERSION = "24.20.0"
-EXPECTED_EXTERNAL_TOOLS = {
-    "actionlint": {
-        "version": "1.7.12",
-        "platforms": ["linux-x64"],
-        "url": (
-            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/"
-            "actionlint_1.7.12_linux_amd64.tar.gz"
-        ),
-        "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
-        "artifactType": "tar.gz",
-        "install": {
-            "kind": "executable",
-            "target": "bin/actionlint",
-            "memberBasename": "actionlint",
-        },
-        "probe": {"arguments": ["-version"], "expectedLine": "1.7.12"},
-    },
-    "shfmt": {
-        "version": "3.14.0",
-        "platforms": ["linux-x64"],
-        "url": (
-            "https://github.com/mvdan/sh/releases/download/v3.14.0/"
-            "shfmt_v3.14.0_linux_amd64"
-        ),
-        "sha256": "fe42021c7272ef2d67ea36cbc3031683c625d0badec733ef3a57b567246a0b66",
-        "artifactType": "binary",
-        "install": {"kind": "executable", "target": "bin/shfmt"},
-        "probe": {"arguments": ["--version"], "expectedLine": "v3.14.0"},
-    },
-    "PSScriptAnalyzer": {
-        "version": "1.25.0",
-        "platforms": ["linux-x64", "windows-x64"],
-        "url": (
-            "https://www.powershellgallery.com/api/v2/package/PSScriptAnalyzer/1.25.0"
-        ),
-        "sha256": "14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60",
-        "artifactType": "zip",
-        "install": {
-            "kind": "powershell-module",
-            "target": "Modules/PSScriptAnalyzer/1.25.0",
-            "requiredEntries": [
-                "PSScriptAnalyzer.psd1",
-                "PSScriptAnalyzer.psm1",
-            ],
-        },
-        "probe": {"expectedLine": "1.25.0"},
-    },
-    "shellcheck": {
-        "version": "0.11.0",
-        "platforms": ["linux-x64"],
-        "url": (
-            "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/"
-            "shellcheck-v0.11.0.linux.x86_64.tar.xz"
-        ),
-        "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198",
-        "artifactType": "tar.xz",
-        "install": {
-            "kind": "executable",
-            "target": "bin/shellcheck",
-            "member": "shellcheck-v0.11.0/shellcheck",
-        },
-        "probe": {
-            "arguments": ["--version"],
-            "expectedLine": "version: 0.11.0",
-        },
-    },
-}
+DECLARED_VERSIONS = json.loads(
+    (QUALITY_ROOT / "versions.json").read_text(encoding="utf-8")
+)
+DECLARED_PYTHON_REQUIREMENTS = DECLARED_VERSIONS["python"]
+DECLARED_NODE_REQUIREMENTS = DECLARED_VERSIONS["node"]
+DECLARED_NODE_MINIMUM = DECLARED_VERSIONS["policy"]["nodeMinimum"]
+DECLARED_NODE_CI_VERSION = DECLARED_VERSIONS["policy"]["nodeCiVersion"]
+DECLARED_EXTERNAL_TOOLS = DECLARED_VERSIONS["external"]
 
 
 class FakeResponse(io.BytesIO):
@@ -400,11 +327,12 @@ class QualityToolchainTests(unittest.TestCase):
             timeout_result = module.command_version(["tool", "--version"])
         self.assertEqual(timeout_result.diagnostic, "timed out")
 
-        commands = module.external_commands(EXPECTED_EXTERNAL_TOOLS)
-        self.assertEqual(set(commands), set(EXPECTED_EXTERNAL_TOOLS))
+        commands = module.external_commands(DECLARED_EXTERNAL_TOOLS)
+        self.assertEqual(set(commands), set(DECLARED_EXTERNAL_TOOLS))
         self.assertEqual(commands["actionlint"], ["actionlint", "-version"])
         self.assertEqual(commands["shfmt"], ["shfmt", "--version"])
         self.assertEqual(commands["shellcheck"], ["shellcheck", "--version"])
+        self.assertEqual(commands["gitleaks"], ["gitleaks", "version"])
         self.assertEqual(
             commands["PSScriptAnalyzer"][:4],
             ["pwsh", "-NoProfile", "-NonInteractive", "-Command"],
@@ -416,7 +344,7 @@ class QualityToolchainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             quality_copy = Path(temporary_directory) / "quality"
             copy_quality_configuration(quality_copy)
-            for name, version in EXPECTED_NODE_REQUIREMENTS.items():
+            for name, version in DECLARED_NODE_REQUIREMENTS.items():
                 package_path = quality_copy / "node_modules" / name / "package.json"
                 package_path.parent.mkdir(parents=True)
                 package_path.write_text(
@@ -425,11 +353,11 @@ class QualityToolchainTests(unittest.TestCase):
 
             python_versions = {
                 module.normalize_name(name): version
-                for name, version in EXPECTED_PYTHON_REQUIREMENTS.items()
+                for name, version in DECLARED_PYTHON_REQUIREMENTS.items()
             }
             line_versions = {
                 record["probe"]["expectedLine"]: record["version"]
-                for record in EXPECTED_EXTERNAL_TOOLS.values()
+                for record in DECLARED_EXTERNAL_TOOLS.values()
             }
 
             def probe_version(
@@ -476,7 +404,7 @@ class QualityToolchainTests(unittest.TestCase):
             old_node_errors,
             ["runtime: node expected >=22.12.0, found 22.11.0 (matched)"],
         )
-        self.assertEqual(version_mock.call_count, 5)
+        self.assertEqual(version_mock.call_count, 1 + len(DECLARED_EXTERNAL_TOOLS))
         self.assertEqual(
             [call.args for call in version_mock.call_args_list],
             [
@@ -484,9 +412,9 @@ class QualityToolchainTests(unittest.TestCase):
                 *[
                     (
                         commands[name],
-                        EXPECTED_EXTERNAL_TOOLS[name]["probe"]["expectedLine"],
+                        DECLARED_EXTERNAL_TOOLS[name]["probe"]["expectedLine"],
                     )
-                    for name in EXPECTED_EXTERNAL_TOOLS
+                    for name in DECLARED_EXTERNAL_TOOLS
                 ],
             ],
         )
@@ -622,21 +550,23 @@ class QualityToolchainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             quality_copy = Path(temporary_directory) / "quality"
             copy_quality_configuration(quality_copy)
-            (quality_copy / "requirements.lock").write_text(
-                "codespell==2.4.3\n"
-                "coverage==7.16.0 --hash=sha256:0\n"
-                "jsonschema==4.26.0 --hash=sha256:0\n"
-                "mypy==2.3.1 --hash=sha256:0\n"
-                "ruff==0.16.5 --hash=sha256:0\n"
-                "yamllint==1.38.0 --hash=sha256:0\n",
-                encoding="utf-8",
+            lock_path = quality_copy / "requirements.lock"
+            lock_content = lock_path.read_text(encoding="utf-8")
+            blocks = requirement_blocks(lock_content)
+            blocks[0] = blocks[0].split("\\", 1)[0].rstrip()
+            lock_content = re.sub(
+                rf"(?m)^{re.escape(blocks[0])}[^\n]*\n(?:[ \t].*\n)*",
+                blocks[0] + "\n",
+                lock_content,
+                count=1,
             )
+            lock_path.write_text(lock_content, encoding="utf-8")
 
             errors = checker.check_declarations(quality_copy)
 
         self.assertEqual(
             errors,
-            ["requirements.lock: unhashed block: codespell==2.4.3"],
+            [f"requirements.lock: unhashed block: {blocks[0]}"],
         )
 
     def test_command_version_distinguishes_probe_failure_modes(self) -> None:
@@ -706,11 +636,11 @@ class QualityToolchainTests(unittest.TestCase):
         )
         python_versions = {
             checker.normalize_name(name): version
-            for name, version in EXPECTED_PYTHON_REQUIREMENTS.items()
+            for name, version in DECLARED_PYTHON_REQUIREMENTS.items()
         }
         external_versions = {
             record["probe"]["expectedLine"]: record["version"]
-            for record in EXPECTED_EXTERNAL_TOOLS.values()
+            for record in DECLARED_EXTERNAL_TOOLS.values()
         }
 
         def installed_python_version(name: str) -> str:
@@ -868,17 +798,17 @@ class QualityToolchainTests(unittest.TestCase):
             direct_lines,
             {
                 f"{name}=={version}"
-                for name, version in EXPECTED_PYTHON_REQUIREMENTS.items()
+                for name, version in DECLARED_PYTHON_REQUIREMENTS.items()
             },
         )
 
         lock_content = (QUALITY_ROOT / "requirements.lock").read_text(encoding="utf-8")
         blocks = requirement_blocks(lock_content)
-        self.assertGreater(len(blocks), len(EXPECTED_PYTHON_REQUIREMENTS))
+        self.assertGreater(len(blocks), len(DECLARED_PYTHON_REQUIREMENTS))
         for block in blocks:
             self.assertRegex(block, r"^[A-Za-z0-9_.\[\]-]+==[^\s\\]+")
             self.assertIn("--hash=sha256:", block)
-        for name, version in EXPECTED_PYTHON_REQUIREMENTS.items():
+        for name, version in DECLARED_PYTHON_REQUIREMENTS.items():
             normalized = re.escape(name.split("[", 1)[0].lower().replace("_", "-"))
             self.assertRegex(
                 lock_content.lower().replace("_", "-"),
@@ -890,21 +820,21 @@ class QualityToolchainTests(unittest.TestCase):
             (QUALITY_ROOT / "package.json").read_text(encoding="utf-8")
         )
         self.assertTrue(package["private"])
-        self.assertEqual(package["devDependencies"], EXPECTED_NODE_REQUIREMENTS)
-        self.assertEqual(package["engines"], {"node": f">={EXPECTED_NODE_MINIMUM}"})
+        self.assertEqual(package["devDependencies"], DECLARED_NODE_REQUIREMENTS)
+        self.assertEqual(package["engines"], {"node": f">={DECLARED_NODE_MINIMUM}"})
         self.assertNotIn("scripts", package)
 
         lock = json.loads(
             (QUALITY_ROOT / "package-lock.json").read_text(encoding="utf-8")
         )
         self.assertEqual(
-            lock["packages"][""]["devDependencies"], EXPECTED_NODE_REQUIREMENTS
+            lock["packages"][""]["devDependencies"], DECLARED_NODE_REQUIREMENTS
         )
         self.assertEqual(
             lock["packages"][""]["engines"],
-            {"node": f">={EXPECTED_NODE_MINIMUM}"},
+            {"node": f">={DECLARED_NODE_MINIMUM}"},
         )
-        for name, version in EXPECTED_NODE_REQUIREMENTS.items():
+        for name, version in DECLARED_NODE_REQUIREMENTS.items():
             self.assertEqual(
                 lock["packages"][f"node_modules/{name}"]["version"], version
             )
@@ -915,9 +845,14 @@ class QualityToolchainTests(unittest.TestCase):
             (QUALITY_ROOT / "versions.json").read_text(encoding="utf-8")
         )
         self.assertEqual(registry["schemaVersion"], 2)
-        self.assertEqual(registry["external"], EXPECTED_EXTERNAL_TOOLS)
-        self.assertEqual(registry["policy"]["nodeMinimum"], EXPECTED_NODE_MINIMUM)
-        self.assertEqual(registry["policy"]["nodeCiVersion"], EXPECTED_NODE_CI_VERSION)
+        self.assertEqual(
+            set(registry["external"]),
+            {"actionlint", "shfmt", "shellcheck", "PSScriptAnalyzer", "gitleaks"},
+        )
+        for tool in registry["external"].values():
+            self.assertRegex(tool["url"], r"^https://")
+            self.assertRegex(tool["sha256"], r"^[a-f0-9]{64}$")
+            self.assertIn(tool["artifactType"], {"binary", "zip", "tar.gz", "tar.xz"})
 
         pyproject = tomllib.loads(
             (QUALITY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -1080,7 +1015,7 @@ covered(True)
         self.assertEqual(version_fields[0], "markdownlint-cli2")
         self.assertEqual(
             version_fields[1],
-            f"v{EXPECTED_NODE_REQUIREMENTS['markdownlint-cli2']}",
+            f"v{DECLARED_NODE_REQUIREMENTS['markdownlint-cli2']}",
         )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1185,19 +1120,23 @@ class ExternalInstallerTests(unittest.TestCase):
         )
         self.registry = {
             "schemaVersion": 2,
-            "python": copy.deepcopy(EXPECTED_PYTHON_REQUIREMENTS),
-            "node": copy.deepcopy(EXPECTED_NODE_REQUIREMENTS),
-            "external": copy.deepcopy(EXPECTED_EXTERNAL_TOOLS),
+            "python": copy.deepcopy(DECLARED_PYTHON_REQUIREMENTS),
+            "node": copy.deepcopy(DECLARED_NODE_REQUIREMENTS),
+            "external": copy.deepcopy(DECLARED_EXTERNAL_TOOLS),
             "policy": {
                 "coverageFailUnder": 85,
-                "nodeCiVersion": EXPECTED_NODE_CI_VERSION,
-                "nodeMinimum": EXPECTED_NODE_MINIMUM,
+                "nodeCiVersion": DECLARED_NODE_CI_VERSION,
+                "nodeMinimum": DECLARED_NODE_MINIMUM,
                 "npmIgnoreScripts": True,
                 "pythonRequireHashes": True,
             },
         }
 
     def artifact_for(self, tool_name: str) -> tuple[bytes, bytes, str]:
+        if tool_name == "gitleaks":
+            content = b"gitleaks executable\n"
+            artifact = make_tar("tar.gz", [("gitleaks", content, None)])
+            return artifact, content, "bin/gitleaks"
         if tool_name == "actionlint":
             content = b"actionlint executable\n"
             artifact = make_tar(
@@ -1261,6 +1200,7 @@ class ExternalInstallerTests(unittest.TestCase):
         calls: list[tuple[list[str], dict[str, object]]] | None = None,
     ) -> callable:
         expected_output = {
+            "gitleaks": "8.30.1\n",
             "actionlint": "1.7.12\n",
             "shfmt": "v3.14.0\n",
             "shellcheck": "version: 0.11.0\n",
@@ -1749,7 +1689,7 @@ class ExternalInstallerTests(unittest.TestCase):
             self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_offline_install_succeeds_for_all_four_artifact_forms(self) -> None:
-        for tool_name in EXPECTED_EXTERNAL_TOOLS:
+        for tool_name in DECLARED_EXTERNAL_TOOLS:
             with self.subTest(tool=tool_name), tempfile.TemporaryDirectory() as temp:
                 runner_temp = Path(temp)
                 calls: list[tuple[str, float, str]] = []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import stat
+import sys
 import tempfile
 from typing import Any, Callable
 import zipfile
@@ -19,13 +20,14 @@ from .common import (
     UpgradeError,
     canonical_sha256,
     content_metadata,
+    parse_starter_manifest,
+    reject_link_or_reparse_point,
     sha256_bytes,
     sha256_file,
     write_json,
 )
 from .planning import (
     merge_text_payload,
-    parse_starter_manifest,
     run_git,
     target_path,
     updated_starter_manifest,
@@ -137,8 +139,8 @@ def write_payload(path: Path, content: bytes, mode: str) -> None:
 
 
 def snapshot_file(path: Path) -> FileSnapshot | None:
-    if path.is_symlink():
-        raise UpgradeError(f"Target file is a symbolic link: {path}")
+    for ancestor in reversed((path, *path.parents)):
+        reject_link_or_reparse_point(ancestor)
     if not path.exists():
         return None
     if not path.is_file():
@@ -250,8 +252,8 @@ def apply_upgrade(
                 )
             elif entry["strategy"] == "agent-rules" and relative == PROVENANCE_PATH:
                 content = updated_agent_rules_provenance(local_content, content)
-            writer(destination, content, entry["mode"])
             originals[relative] = original
+            writer(target_path(root, relative), content, entry["mode"])
             if journal is not None:
                 written_kind, written_canonical_digest = content_metadata(content)
                 journal.write(
@@ -297,8 +299,8 @@ def apply_upgrade(
             next_adoption["starterKitSource"] = starter_manifest["source"]
         if snapshot_file(adoption_path) != adoption_snapshot:
             raise UpgradeError(f"Target changed after planning: {ADOPTION_PATH}")
-        writer(adoption_path, write_json(next_adoption), "100644")
         originals[ADOPTION_PATH] = adoption_snapshot
+        writer(target_path(root, ADOPTION_PATH), write_json(next_adoption), "100644")
         if journal is not None:
             adoption_content = adoption_path.read_bytes()
             journal.write(
@@ -311,14 +313,43 @@ def apply_upgrade(
                 ),
             )
             journal.phase("target-write", "END")
-    except Exception:
+    except BaseException as error:
         if journal is not None:
-            journal.write(
-                "ERROR",
-                "rollback",
-                "WRITE_FAILURE detected; restoring in-memory originals",
+            try:
+                journal.write(
+                    "ERROR",
+                    "rollback",
+                    "WRITE_FAILURE detected; restoring in-memory originals",
+                )
+            except BaseException as journal_error:
+                error.add_note(f"Rollback journal unavailable: {journal_error}")
+                journal = None
+        failures = _restore_originals(root, originals, writer, journal)
+        if failures:
+            diagnostic = (
+                f"Rollback incomplete; retained archive: {backup_path}\n"
+                + "\n".join(failures)
             )
-        for relative, snapshot in reversed(list(originals.items())):
+            error.add_note(diagnostic)
+            print(diagnostic, file=sys.stderr)
+            if journal is not None:
+                try:
+                    journal.write("ERROR", "rollback", diagnostic)
+                except BaseException as journal_error:
+                    error.add_note(f"Rollback journal unavailable: {journal_error}")
+        raise
+    return backup_path
+
+
+def _restore_originals(
+    root: Path,
+    originals: dict[str, FileSnapshot | None],
+    writer: Callable[[Path, bytes, str], None],
+    journal: RunJournal | None,
+) -> list[str]:
+    failures = []
+    for relative, snapshot in reversed(list(originals.items())):
+        try:
             destination = target_path(root, relative)
             if snapshot is None:
                 if destination.exists():
@@ -345,8 +376,9 @@ def apply_upgrade(
                             f"sha256={sha256_bytes(snapshot.content)}"
                         ),
                     )
-        raise
-    return backup_path
+        except BaseException as error:
+            failures.append(f"{root / relative}: {type(error).__name__}: {error}")
+    return failures
 
 
 __all__ = [

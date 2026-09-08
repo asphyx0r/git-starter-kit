@@ -115,9 +115,13 @@ def plan_or_apply(
     if journal is not None:
         journal.write("INFO", "post-verification", f"BACKUP={backup_path}")
         journal.phase("post-verification", "END")
-        journal.set_outcome("SUCCEEDED", compliance, alignment)
+        journal.set_outcome(
+            "FAILED" if compliance == "NON_COMPLIANT" else "SUCCEEDED",
+            compliance,
+            alignment,
+        )
     print_plan(result)
-    return 0
+    return 1 if compliance == "NON_COMPLIANT" else 0
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -2317,6 +2317,255 @@ class MergePullRequestTests(unittest.TestCase):
                 self.assertIn(diagnostic, error_output)
                 self.assertIn(f"Guarded merge {REQUEST_ID}", error_output)
 
+    def test_repository_resolution_binds_identity_and_default_branch(self):
+        valid = {
+            "nameWithOwner": REPOSITORY,
+            "defaultBranchRef": {"name": "main"},
+        }
+        for requested in (None, REPOSITORY.upper()):
+            with self.subTest(requested=requested):
+                with patch.object(self.module, "_run_gh_json", return_value=valid):
+                    self.assertEqual(
+                        self.module._resolve_repository(requested),
+                        (REPOSITORY, "main"),
+                    )
+        invalid = (
+            ({}, "incomplete repository identity"),
+            ({**valid, "nameWithOwner": None}, "invalid repository identity"),
+            ({**valid, "nameWithOwner": "owner/other"}, "different target repository"),
+            ({**valid, "nameWithOwner": "invalid"}, "OWNER/REPO"),
+            ({**valid, "defaultBranchRef": {"name": ""}}, "invalid default branch"),
+            (
+                {**valid, "defaultBranchRef": {"name": "main branch"}},
+                "invalid default branch",
+            ),
+        )
+        for response, diagnostic in invalid:
+            with self.subTest(response=response):
+                with (
+                    patch.object(self.module, "_run_gh_json", return_value=response),
+                    self.assertRaisesRegex(self.module.MergeRequestError, diagnostic),
+                ):
+                    self.module._resolve_repository(REPOSITORY)
+
+    def test_command_failures_distinguish_not_started_from_unknown_outcome(self):
+        cases = (
+            (OSError("cannot launch"), self.module.GitHubCommandStartError),
+            (
+                subprocess.TimeoutExpired("gh", 0.1),
+                self.module.GitHubCommandStartedError,
+            ),
+        )
+        for failure, expected_error in cases:
+            with self.subTest(failure=failure):
+                with (
+                    patch.object(self.module.shutil, "which", return_value="gh"),
+                    patch.object(
+                        self.module.subprocess, "run", side_effect=failure
+                    ) as run,
+                    self.assertRaises(expected_error),
+                ):
+                    self.module._run_gh(["api", "dispatch"], timeout_seconds=0.1)
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(run.call_args.kwargs["timeout"], 0.1)
+
+    def test_command_exit_status_preserves_diagnostics_and_allowed_codes(self):
+        for response, diagnostic in (
+            (completed([], stderr="denied", returncode=1), "denied"),
+            (completed([], stdout="failed", returncode=1), "failed"),
+            (completed([], returncode=1), "no diagnostic output"),
+        ):
+            with self.subTest(diagnostic=diagnostic):
+                with (
+                    patch.object(self.module.shutil, "which", return_value="gh"),
+                    patch.object(self.module.subprocess, "run", return_value=response),
+                    self.assertRaisesRegex(
+                        self.module.GitHubCommandStartedError, diagnostic
+                    ),
+                ):
+                    self.module._run_gh(["pr", "checks"])
+        with (
+            patch.object(self.module.shutil, "which", return_value="gh"),
+            patch.object(
+                self.module.subprocess,
+                "run",
+                return_value=completed([], stdout="[]", returncode=8),
+            ),
+        ):
+            self.assertEqual(
+                self.module._run_gh_json(["pr", "checks"], allowed_returncodes=(0, 8)),
+                [],
+            )
+        with (
+            patch.object(
+                self.module, "_run_gh", return_value=completed([], stdout="not JSON")
+            ),
+            self.assertRaisesRegex(self.module.MergeRequestError, "invalid JSON"),
+        ):
+            self.module._run_gh_json(["repo", "view"])
+
+    def test_missing_local_commands_fail_before_any_process_starts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                patch.object(self.module, "REPOSITORY_ROOT", pathlib.Path(temporary)),
+                patch.object(self.module.subprocess, "run") as run,
+                self.assertRaisesRegex(
+                    self.module.MergeRequestError, "npm ci --ignore-scripts"
+                ),
+            ):
+                self.module._validate_message_with_commitlint(
+                    pathlib.Path("message.txt")
+                )
+            run.assert_not_called()
+        with (
+            patch.object(self.module.shutil, "which", return_value=None),
+            patch.object(self.module.subprocess, "run") as run,
+            self.assertRaisesRegex(self.module.MergeRequestError, "gh is required"),
+        ):
+            self.module._run_gh(["api", "dispatch"])
+        run.assert_not_called()
+
+    def test_commitlint_requires_success_and_preserves_failure_details(self):
+        path = self.write_bytes(b"fix(git): validate exact message\n")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            command = (
+                root
+                / "tools/quality/node_modules/.bin"
+                / ("commitlint.cmd" if self.module.os.name == "nt" else "commitlint")
+            )
+            command.parent.mkdir(parents=True)
+            command.write_text("", encoding="utf-8")
+            for response, diagnostic in (
+                (completed([]), None),
+                (
+                    completed([], stderr="invalid subject", returncode=1),
+                    "invalid subject",
+                ),
+                (completed([], stdout="invalid body", returncode=1), "invalid body"),
+                (completed([], returncode=1), "no diagnostic output"),
+            ):
+                with self.subTest(diagnostic=diagnostic):
+                    with (
+                        patch.object(self.module, "REPOSITORY_ROOT", root),
+                        patch.object(
+                            self.module.subprocess, "run", return_value=response
+                        ) as run,
+                    ):
+                        if diagnostic is None:
+                            self.module._validate_message_with_commitlint(path)
+                        else:
+                            with self.assertRaisesRegex(
+                                self.module.MergeRequestError, diagnostic
+                            ):
+                                self.module._validate_message_with_commitlint(path)
+                    self.assertEqual(
+                        run.call_args.args[0][0:3], [str(command), "--edit", str(path)]
+                    )
+                    self.assertEqual(run.call_args.kwargs["timeout"], 30)
+            for failure in (
+                OSError("cannot launch"),
+                subprocess.TimeoutExpired("commitlint", 30),
+            ):
+                with self.subTest(failure=failure):
+                    with (
+                        patch.object(self.module, "REPOSITORY_ROOT", root),
+                        patch.object(
+                            self.module.subprocess, "run", side_effect=failure
+                        ),
+                        self.assertRaisesRegex(
+                            self.module.MergeRequestError, "could not validate"
+                        ),
+                    ):
+                        self.module._validate_message_with_commitlint(path)
+
+    def test_event_rejects_unreadable_or_malformed_input(self):
+        for content, diagnostic in (
+            (b"\xef\xbb\xbf{}", "UTF-8 BOM"),
+            (b"\xff", "Unable to read"),
+            (b"{", "Unable to read"),
+        ):
+            with self.subTest(content=content):
+                with self.assertRaisesRegex(self.module.MergeRequestError, diagnostic):
+                    self.module._read_dispatch_event(self.write_bytes(content))
+        missing = self.write_bytes(b"")
+        missing.unlink()
+        with self.assertRaisesRegex(self.module.MergeRequestError, "Unable to read"):
+            self.module._read_dispatch_event(missing)
+        with self.assertRaisesRegex(
+            self.module.MergeRequestError, "Unable to read message"
+        ):
+            self.module._read_merge_message(missing)
+
+    def test_event_rejects_invalid_payload_types_and_noncanonical_encodings(self):
+        cases = (
+            ("request_id", 17, "UUID is invalid"),
+            ("request_id", "invalid", "UUID is invalid"),
+            ("request_id", REQUEST_ID.upper(), "canonical lowercase"),
+            ("pull_request", True, "number is invalid"),
+            ("pull_request", 0, "number is invalid"),
+            ("expected_head_oid", 17, "head SHA is invalid"),
+            ("message_sha256", "invalid", "SHA-256 is invalid"),
+            ("message_base64", 17, "Base64 value is invalid"),
+            ("message_base64", "Zh==", "not canonical"),
+            ("message_base64", "x" * 65_535, "exceeds 65,535"),
+        )
+        for key, value, diagnostic in cases:
+            with self.subTest(key=key, value_type=type(value).__name__):
+                event = valid_event()
+                event["client_payload"][key] = value
+                with self.assertRaisesRegex(self.module.MergeRequestError, diagnostic):
+                    self.module._read_dispatch_event(self.write_event(event))
+        for repository_value, diagnostic in (
+            (None, "repository is missing"),
+            ({"full_name": 17, "default_branch": "main"}, "repository is invalid"),
+            (
+                {"full_name": REPOSITORY, "default_branch": ""},
+                "default branch is invalid",
+            ),
+        ):
+            with self.subTest(repository=repository_value):
+                event = valid_event()
+                event["repository"] = repository_value
+                with self.assertRaisesRegex(self.module.MergeRequestError, diagnostic):
+                    self.module._read_dispatch_event(self.write_event(event))
+
+    def test_postcondition_requires_valid_commit_identity_and_message(self):
+        merged = {
+            "number": 17,
+            "state": "MERGED",
+            "mergeCommit": {"oid": MERGE_OID},
+            "baseRefName": "main",
+            "headRefOid": HEAD_OID,
+        }
+        for response, diagnostic in (
+            ({**merged, "number": 18}, "conflicting pull request merge state"),
+            ({**merged, "state": "UNKNOWN"}, "conflicting pull request merge state"),
+            ({**merged, "mergeCommit": None}, "invalid merge commit SHA"),
+            ({**merged, "mergeCommit": {"oid": "invalid"}}, "invalid merge commit SHA"),
+        ):
+            with self.subTest(response=response):
+                with (
+                    patch.object(
+                        self.module, "_run_gh_json", return_value=response
+                    ) as query,
+                    self.assertRaisesRegex(self.module.MergeRequestError, diagnostic),
+                ):
+                    self.module._post_merge_message(REPOSITORY, 17, "main", HEAD_OID)
+                self.assertEqual(query.call_count, 1)
+        for commit, diagnostic in (
+            ({}, "no merge commit message"),
+            ({"commit": {"message": None}}, "invalid merge commit message"),
+        ):
+            with self.subTest(commit=commit):
+                with (
+                    patch.object(
+                        self.module, "_run_gh_json", side_effect=[merged, commit]
+                    ),
+                    self.assertRaisesRegex(self.module.MergeRequestError, diagnostic),
+                ):
+                    self.module._post_merge_message(REPOSITORY, 17, "main", HEAD_OID)
+
     def test_commitlint_failure_precedes_every_gh_call(self):
         message_path = self.write_bytes(b"fix(git): invalid for commitlint\n")
         events = []

@@ -10,7 +10,72 @@ hook_semver_tag_pattern+='[A-Za-z-][0-9A-Za-z-]*)'
 hook_semver_tag_pattern+='(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*'
 hook_semver_tag_pattern+='[A-Za-z-][0-9A-Za-z-]*))*))?'
 hook_semver_tag_pattern+='(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
-hook_test_timeout_seconds=180
+hook_test_timeout_seconds=900
+
+# Both hooks use these dynamically scoped selection variables. The index hook
+# uses the snapshot policy; the push hook uses the test and workflow selection.
+classify_hook_path() {
+  local changed_path="$1"
+  local module=''
+  case "${changed_path}" in
+  tools/backup-target-directory.py | tests/test_backup_target_directory.py)
+    module=test_backup_target_directory.py
+    ;;
+  tools/merge-pull-request.py | tests/test_merge_pull_request.py)
+    module=test_merge_pull_request.py
+    ;;
+  tools/verify-repository-audit-runs.py | tests/test_verify_repository_audit_runs.py)
+    module=test_verify_repository_audit_runs.py
+    ;;
+  tools/release-artifacts.py | tests/test_release_artifacts.py)
+    module=test_release_artifacts.py
+    ;;
+  tools/starter-kit-manifest.py | tests/test_starter_kit_manifest.py)
+    module=test_starter_kit_manifest.py
+    ;;
+  tools/starter-kit-upgrade.py | tools/starter_kit_upgrade/* | tests/test_starter_kit_upgrade.py)
+    module=test_starter_kit_upgrade.py
+    ;;
+  tools/build-release-package.ps1 | tests/test_build_release_package.py)
+    module=test_build_release_package.py
+    ;;
+  .github/workflows/* | tools/repository-audit/workflow-contracts.py | tests/test_workflow_contracts.py)
+    module=test_workflow_contracts.py
+    run_workflows=true
+    ;;
+  tools/quality/check-coverage.py | tests/test_coverage_policy.py)
+    module=test_coverage_policy.py
+    ;;
+  tools/quality/* | tools/git_objects.py | tools/process_runner.py | .codespellrc | \
+    tools/repository-audit.sh | tools/repository-audit/* | .githooks/* | \
+    .gitleaks.toml | .gitleaksignore | .betterleaks.toml | \
+    commitlint.config.cjs | .markdownlint-cli2.yaml | \
+    tools/release-artifacts-requirements.txt | VERSION | SHA256SUMS | manifest.json)
+    module='*'
+    run_shell=true
+    ;;
+  *.md)
+    ;;
+  *.sh)
+    run_shell=true
+    ;;
+  *.yml | *.yaml)
+    ;;
+  *)
+    module='*'
+    run_shell=true
+    ;;
+  esac
+  if [[ -n "${module}" ]]; then
+    run_python=true
+    full_snapshot=true
+    if [[ "${module}" == '*' || "${python_modules:-}" == '*' ]]; then
+      python_modules='*'
+    elif [[ " ${python_modules:-} " != *" ${module} "* ]]; then
+      python_modules="${python_modules:+${python_modules} }${module}"
+    fi
+  fi
+}
 
 is_hook_zero_object_id() {
   local object_id="${1:-}"
@@ -333,6 +398,9 @@ run_hook_pre_commit() (
   local staged_names="${hook_temp}/staged.names"
   local configuration_names="${hook_temp}/configuration.names"
   local release_names="${hook_temp}/release.names"
+  local run_python=false run_shell=false run_workflows=false
+  local full_snapshot=false python_modules=''
+  local selection_names="${hook_temp}/selection.names"
 
   git diff --cached --name-only -z --diff-filter=ACMR \
     >"${staged_names}" || return $?
@@ -393,25 +461,41 @@ run_hook_pre_commit() (
     release_paths+=("${staged_file}")
   done <"${release_names}"
 
-  if ((${#markdown_paths[@]} == 0 && \
-    ${#yaml_paths[@]} == 0 && \
-    ${#python_paths[@]} == 0 && \
-    ${#shell_paths[@]} == 0 && \
-    ${#javascript_paths[@]} == 0 && \
-    ${#powershell_paths[@]} == 0 && \
-    ${#release_paths[@]} == 0)) &&
-      [[ "${run_commitlint_configuration}" == false ]] &&
-      [[ "${run_markdown_configuration}" == false ]] &&
-      [[ "${run_powershell_settings}" == false ]] &&
-      [[ "${run_quality_declarations}" == false ]] &&
-      [[ "${run_spelling_configuration}" == false ]]; then
-    return
-  fi
+  git diff --cached --no-renames --name-only -z >"${selection_names}" || return
+  [[ -s "${selection_names}" ]] || return 0
+  while IFS= read -r -d '' staged_file; do
+    classify_hook_path "${staged_file}"
+  done <"${selection_names}"
 
   local staged_root="${hook_temp}/index"
-  mkdir -p "${staged_root}"
+  mkdir -p "${staged_root}" || return
+  # Bound Markdownlint ignore and Actionlint project discovery to this index.
+  mkdir -p "${staged_root}/.git" || return
   local check_status=0
-  git checkout-index -a --prefix="${staged_root}/" || check_status=$?
+  if [[ "${full_snapshot}" == true ]]; then
+    git checkout-index -a --prefix="${staged_root}/" || check_status=$?
+  else
+    local export_names="${hook_temp}/export.names"
+    cp "${staged_names}" "${export_names}" || return
+    local -a export_configs=(.gitleaks.toml .gitleaksignore tools/quality/versions.json)
+    if ((${#markdown_paths[@]} > 0)); then
+      export_configs+=(.gitignore '**/.gitignore' '.markdownlint*' '**/.markdownlint*')
+    fi
+    if ((${#yaml_paths[@]} > 0)); then
+      export_configs+=(tools/quality/yamllint.yaml)
+    fi
+    if ((${#shell_paths[@]} > 0)); then
+      export_configs+=(.shellcheckrc)
+    fi
+    git ls-files -z -- "${export_configs[@]}" \
+      >>"${export_names}" || return
+    sort -zu -o "${export_names}" "${export_names}" || return
+    git checkout-index -z --stdin --prefix="${staged_root}/" \
+      <"${export_names}" || check_status=$?
+  fi
+  if ((check_status == 0)); then
+    run_hook_secret_scan "${staged_root}" || check_status=$?
+  fi
   if ((check_status == 0)); then
     for staged_file in "${required_configuration_paths[@]}"; do
       if [[ ! -f "${staged_root}/${staged_file}" ]]; then
@@ -460,6 +544,9 @@ run_hook_pre_commit() (
   if ((check_status == 0 && ${#release_paths[@]} > 0)); then
     run_hook_release_artifacts "${staged_root}" || check_status=$?
   fi
+  if ((check_status == 0)) && [[ "${run_workflows}" == true ]]; then
+    run_hook_workflows "${staged_root}" || check_status=$?
+  fi
   return "${check_status}"
 )
 
@@ -505,27 +592,12 @@ list_hook_push_changes() {
     "${remote_object_id}..${local_object_id}" --
 }
 
-classify_hook_push_path() {
-  local changed_path="$1"
-  case "${changed_path}" in
-  *.py | *.ps1 | *.psd1 | *.psm1 | .codespellrc | \
-    tools/quality/* | tools/release-artifacts-requirements.txt)
-    run_python=true
-    ;;
-  esac
-  case "${changed_path}" in
-  *.sh | .githooks/* | tools/repository-audit/* | \
-    commitlint.config.cjs | .markdownlint-cli2.yaml | \
-    tools/quality/package.json | tools/quality/package-lock.json)
-    run_shell=true
-    ;;
-  esac
-}
-
 merge_hook_test_update() {
   local object_id="$1"
   local run_python_for_object="$2"
   local run_shell_for_object="$3"
+  local modules_for_object="${4-*}"
+  local workflows_for_object="${5:-false}"
   local object_index
 
   for ((object_index = 0; object_index < ${#test_object_ids[@]}; object_index += 1)); do
@@ -536,6 +608,14 @@ merge_hook_test_update() {
       if [[ "${run_shell_for_object}" == true ]]; then
         test_shell_flags[object_index]=true
       fi
+      if [[ "${workflows_for_object}" == true ]]; then
+        test_workflow_flags[object_index]=true
+      fi
+      if [[ "${modules_for_object}" == '*' || "${test_python_modules[object_index]:-}" == '*' ]]; then
+        test_python_modules[object_index]='*'
+      else
+        test_python_modules[object_index]+=" ${modules_for_object}"
+      fi
       return
     fi
   done
@@ -543,6 +623,8 @@ merge_hook_test_update() {
   test_object_ids+=("${object_id}")
   test_python_flags+=("${run_python_for_object}")
   test_shell_flags+=("${run_shell_for_object}")
+  test_python_modules+=("${modules_for_object}")
+  test_workflow_flags+=("${workflows_for_object}")
 }
 
 canonical_hook_directory() (
@@ -607,6 +689,8 @@ run_hook_affected_tests() {
   local pushed_root="$1"
   local run_python="$2"
   local run_shell="$3"
+  local modules="${4:-*}"
+  local run_workflows="${5:-false}"
   local python_cmd
   if [[ "${run_python}" == true ]]; then
     python_cmd="$(resolve_hook_python)" || return
@@ -615,8 +699,20 @@ run_hook_affected_tests() {
     # shellcheck disable=SC2016
     run_hook_test_family Python bash -c '
       cd -- "$1" || exit
-      exec "$2" -m unittest discover -s tests -p "test_*.py"
-    ' hook-python-family "${pushed_root}" "${python_cmd}" || return
+      python_cmd="$2"
+      modules="$3"
+      if [[ "${modules}" == "*" ]]; then
+        exec "${python_cmd}" -B -m unittest discover -s tests -p "test_*.py"
+      fi
+      read -r -a selected_modules <<<"${modules}"
+      seen_modules=" "
+      for module in "${selected_modules[@]}"; do
+        [[ "${seen_modules}" != *" ${module} "* ]] || continue
+        seen_modules+="${module} "
+        [[ -f "tests/${module}" ]] || { printf "Missing affected test: %s\n" "${module}" >&2; exit 1; }
+        "${python_cmd}" -B -m unittest discover -s tests -p "${module}" || exit $?
+      done
+    ' hook-python-family "${pushed_root}" "${python_cmd}" "${modules}" || return
   fi
   if [[ "${run_shell}" == true ]]; then
     printf '%s\n' 'pre-push: running affected shell tests.'
@@ -632,7 +728,19 @@ run_hook_affected_tests() {
       tests/test_quality_hooks.sh \
       tests/test_commit_message_validation.sh || return $?
   fi
+  if [[ "${run_workflows}" == true ]]; then
+    run_hook_workflows "${pushed_root}" || return
+  fi
 }
+
+run_hook_workflows() (
+  cd "$1" || return
+  local actionlint_cmd python_cmd
+  actionlint_cmd="$(resolve_hook_command registry actionlint actionlint.exe)" || return
+  python_cmd="$(resolve_hook_python)" || return
+  "${actionlint_cmd}" || return
+  "${python_cmd}" -B tools/repository-audit/workflow-contracts.py --repository-root .
+)
 
 run_hook_release_check() {
   local local_ref="$1"
@@ -714,6 +822,8 @@ run_hook_pre_push() (
   local -a test_object_ids=()
   local -a test_python_flags=()
   local -a test_shell_flags=()
+  local -a test_python_modules=()
+  local -a test_workflow_flags=()
   local -a release_updates=()
 
   while read -r local_ref local_object_id remote_ref remote_object_id; do
@@ -727,9 +837,12 @@ run_hook_pre_push() (
     fi
     local run_python=false
     local run_shell=false
+    local run_workflows=false full_snapshot=false python_modules=''
     if is_hook_zero_object_id "${remote_object_id}"; then
       run_python=true
       run_shell=true
+      python_modules='*'
+      run_workflows=true
     else
       local changes_path="${hook_temp}/changes.${update_index}"
       if list_hook_push_changes \
@@ -740,12 +853,13 @@ run_hook_pre_push() (
         return "${change_status}"
       fi
       while IFS= read -r -d '' changed_path; do
-        classify_hook_push_path "${changed_path}"
+        classify_hook_path "${changed_path}"
       done <"${changes_path}"
     fi
     if [[ "${run_python}" == true || "${run_shell}" == true ]]; then
       merge_hook_test_update \
-        "${local_object_id}" "${run_python}" "${run_shell}"
+        "${local_object_id}" "${run_python}" "${run_shell}" \
+        "${python_modules}" "${run_workflows}"
     fi
     update_index=$((update_index + 1))
   done
@@ -791,7 +905,9 @@ run_hook_pre_push() (
       run_hook_affected_tests \
         "${validated_hook_root}" \
         "${test_python_flags[update_index]}" \
-        "${test_shell_flags[update_index]}" || return
+        "${test_shell_flags[update_index]}" \
+        "${test_python_modules[update_index]}" \
+        "${test_workflow_flags[update_index]}" || return
     done
   fi
 

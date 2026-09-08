@@ -38,6 +38,8 @@ run_release_hook_smoke() {
   cp tools/repository-audit.sh "$fixture_root/tools/repository-audit.sh"
   cp -R tools/repository-audit "$fixture_root/tools/repository-audit"
   cp tools/release-artifacts.py "$fixture_root/tools/release-artifacts.py"
+  cp tools/git_objects.py "$fixture_root/tools/git_objects.py"
+  cp tools/process_runner.py "$fixture_root/tools/process_runner.py"
   cp templates/release/manifest.template.json \
     "$fixture_root/templates/release/manifest.template.json"
   cp templates/release/manifest.schema.json \
@@ -45,6 +47,7 @@ run_release_hook_smoke() {
   printf '# Release hook smoke\n' >"$fixture_root/README.md"
 
   git init -q "$fixture_root"
+  git -C "$fixture_root" config core.autocrlf false
   git -C "$fixture_root" config user.name "Release Hook Test"
   git -C "$fixture_root" config user.email "release-hook@example.com"
   git -C "$fixture_root" add README.md templates tools
@@ -587,6 +590,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             raise SystemExit(f"Unexpected upgrade strategy: {path}")
     expected_quality_paths = {
         "tools/quality/PSScriptAnalyzerSettings.psd1",
+        "tools/quality/check-coverage.py",
         "tools/quality/check-versions.py",
         "tools/quality/install-external-tools.py",
         "tools/quality/package-lock.json",

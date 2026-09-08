@@ -252,10 +252,13 @@ deferred, or explicitly excluded from the template.
   pull requests targeting `master`, published releases, and manual dispatch.
 - Notes: `quality-linux` runs the exhaustive profile on Ubuntu 24.04 with
   Python 3.11; `compatibility-windows` runs the fast profile, complete Python
-  suite, and PSScriptAnalyzer on Windows 2025 with Python 3.14. Both use Node.js
+  suite, focused Git Bash hook cases, and PSScriptAnalyzer on Windows 2025 with
+  Python 3.14. Both use Node.js
   24.20.0, actions pinned by SHA, locked Python and npm dependencies, and the
-  integrity-pinned external-tool installer without a generic cache or Go
-  bootstrap. Each dependency family is installed once per isolated job. The
+  integrity-pinned external-tool installer without a Go bootstrap. Download
+  caches use the dependency locks and runtime policy; installs still verify
+  hashes and disable npm lifecycle scripts. Each dependency family is installed
+  once per isolated job. Only superseded PR runs are cancelled. The
   aggregate requires both environments and uses `Repository audit` for
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
@@ -371,7 +374,9 @@ deferred, or explicitly excluded from the template.
   staged snapshot with the applicable Markdown, YAML, Python, Bash, JavaScript,
   PowerShell, quality-declaration, spelling-configuration, Commitlint-
   configuration, and release-artifact validators. It reports formatting drift
-  but never formats or installs dependencies.
+  but never formats or installs dependencies. A mandatory pinned Gitleaks scan
+  uses the index and its scanner configuration. Simple checks export only
+  required indexed paths; checks needing repository context use the full index.
 
 ### `.githooks/pre-push`
 
@@ -383,10 +388,14 @@ deferred, or explicitly excluded from the template.
 - Notes: Delegates its input and arguments to the shared `hook-pre-push`
   profile. The profile checks out each affected pushed object in a validated
   disposable local clone, assigns that clone the pushed remote URL, runs the
-  relevant Python family or the focused hook and commit-message shell suites,
+  selected Python test modules or the focused hook and commit-message shell suites,
   and validates each pushed `refs/tags/v*` tree with the tracked release
   artifact tool. The exhaustive repository-audit shell suite remains a CI
-  responsibility. Historical and non-release refs are not reclassified.
+  responsibility. Shared and unknown paths select all Python tests and the
+  existing focused shell suites; selected test families have a 900-second limit.
+  Workflow changes also run
+  Actionlint and semantic contracts. Historical and non-release refs are not
+  reclassified.
 
 ### `.gitignore`
 
@@ -712,8 +721,19 @@ deferred, or explicitly excluded from the template.
   quality checks.
 - Usage: Install the locked Python and npm environments, then use the shared
   audit and hook profiles instead of invoking divergent tool versions.
-- Notes: The component contains exactly ten maintained files. Cumulative
+- Notes: The component contains exactly eleven maintained files. Cumulative
   upgrades replace it as one repository-owned quality baseline.
+
+### `tools/quality/check-coverage.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Enforces the registry threshold separately for global and branch
+  coverage.
+- Usage: Pass a Coverage.py JSON report; the complete audit invokes it after
+  collecting measurements.
+- Notes: Rejects missing or inconsistent measurements and writes its verdict
+  to the GitHub Actions job summary when available.
 
 ### `tools/quality/check-versions.py`
 
@@ -774,8 +794,10 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines scoped Ruff, Mypy, and branch-coverage policy for maintained
   Python code.
 - Usage: Pass it explicitly to the corresponding quality commands.
-- Notes: Targets Python 3.11, lists the maintained production modules for Mypy,
-  and requires at least 85 percent branch coverage across `tools/`.
+- Notes: Targets Python 3.11 and lists maintained production modules for Mypy.
+  It enables branch measurement and the 85 percent global threshold;
+  `check-coverage.py` additionally enforces the separate 85 percent branch
+  threshold across `tools/`.
 
 ### `tools/quality/requirements.in`
 
@@ -809,7 +831,7 @@ deferred, or explicitly excluded from the template.
   the external records as installer inputs.
 - Notes: Schema 2 records supported platforms, official HTTPS artifact URLs,
   SHA-256 digests, installation contracts, and version probes for Actionlint,
-  Shfmt, PSScriptAnalyzer, and ShellCheck.
+  Shfmt, PSScriptAnalyzer, ShellCheck, and Gitleaks.
 
 ### `tools/quality/yamllint.yaml`
 
@@ -838,11 +860,13 @@ deferred, or explicitly excluded from the template.
 
 - Type: `directory`
 - Status: `optional`
-- Goal: Separates repository audit policy into focused Bash modules.
+- Goal: Separates repository audit policy into focused Bash modules and a
+  semantic workflow validator.
 - Usage: Load the six audit profile modules through `tools/repository-audit.sh`;
   the agent-rules workflow invokes the autonomous transfer module directly.
-- Notes: Contains exactly seven modules for shared infrastructure, contracts,
-  hooks, profiles, security, smoke tests, and sealed agent-rule transfer.
+- Notes: Contains seven Bash modules for shared infrastructure, contracts,
+  hooks, profiles, security, smoke tests, and sealed agent-rule transfer, plus
+  the Python workflow validator.
   Cumulative upgrades add or update the complete runtime atomically and block
   rather than overwrite downstream changes.
 
@@ -888,7 +912,8 @@ deferred, or explicitly excluded from the template.
   hook wrappers.
 - Notes: Validates staged snapshots without modifying them, resolves locked
   local tools, runs affected pushed-object tests in isolated local clones, and
-  retains release-tag artifact validation.
+  retains release-tag artifact validation. One affected-path mapping selects
+  snapshots and test modules for both hooks.
 
 ### `tools/repository-audit/profiles.sh`
 
@@ -905,10 +930,11 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Validates secret-scanner configuration and representative detection
-  behavior.
-- Usage: Full audits validate the configuration contract; read-only audits also
-  exercise scanner fixtures.
+- Goal: Validates secret-scanner configuration and runs mandatory redacted
+  scans with the registry-pinned Gitleaks version.
+- Usage: Pre-commit scans the index with indexed policy and ignore files;
+  full audits scan all Git history after checking the configuration contract.
+  Read-only audits also exercise scanner fixtures.
 - Notes: Requires byte-identical Betterleaks and Gitleaks policy, inherited
   default rules, the repository's strict additions, and verified placeholder
   exclusions.
@@ -924,6 +950,40 @@ deferred, or explicitly excluded from the template.
 - Notes: Verifies distribution strategies and package contents against the
   maintained manifests while keeping mutations inside audit-owned temporary
   directories.
+
+### `tools/repository-audit/workflow-contracts.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Checks applicable workflow structures and executable security boundaries.
+- Usage: Invoke directly with Python, or through the audit contract wrappers;
+  `--workflow` selects one contract and `--path` accepts its fixture file.
+- Notes: Uses safe YAML loading with duplicate-key rejection. Presentation
+  changes do not require policy updates; permissions, dependencies, action SHAs,
+  credential placement and executed guards remain enforced. Runtime versions
+  come from the quality registry. Default selection preserves the source-only
+  release workflow boundary; explicit workflow selection remains strict.
+
+### `tools/git_objects.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Shares bounded, incremental Git object reads between release inventory
+  tools.
+- Usage: Imported by `release-artifacts.py` and `starter-kit-manifest.py`; it
+  has no separate command-line interface.
+- Notes: Uses the Python standard library, keeps one batch process and bounds
+  diagnostics. It is distributed alongside the release artifact validator.
+
+### `tools/process_runner.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Applies one process deadline to execution, captured streams and cleanup.
+- Usage: Imported by the Git object reader and upgrade planner; no separate
+  command-line interface or third-party Python dependency.
+- Notes: Contains ordinary child processes in a Windows Job Object or a POSIX
+  process group. Distributed with the release validator and standalone toolkit.
 
 ### `tools/release-artifacts.py`
 
@@ -942,12 +1002,13 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `required`
-- Goal: Selects the shared hash-locked Python environment required for release
+- Goal: Selects the minimal hash-locked Python environment required for release
   manifest validation.
 - Usage: Install it with pip using `--require-hashes` before running the release
   artifact tool or its tests.
-- Notes: Delegates to `tools/quality/requirements.lock`, which includes the
-  exact `jsonschema[format]` dependency and all transitive artifact hashes.
+- Notes: Contains `jsonschema[format]` and its transitive dependency closure;
+  tests require identical versions and artifact hashes to the quality lock.
+  Quality linters are excluded from this release-only installation.
 
 ### `tools/merge-pull-request.py`
 
@@ -967,10 +1028,11 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `optional`
-- Goal: Waits for the exact GitHub Actions push runs required by a guarded
+- Goal: Waits for the exact GitHub Actions push or release runs required by a guarded
   release and rejects every missing, ambiguous, or unsuccessful run.
 - Usage: Supply the repository, resolved workflow ID, exact SHA, inclusive UTC
-  lower bound, and one `--ref` for every expected branch or tag.
+  lower bound, and one `--ref` for every expected branch or tag. Select
+  `--event release` for publication checks; existing callers default to `push`.
 - Notes: Uses authenticated read-only `gh api` queries, ignores manual and
   unrelated runs, bounds each subprocess by 30 seconds and the remaining
   global timeout, exposes a side-effect-free `--dry-run`, and is included in
@@ -1185,8 +1247,10 @@ deferred, or explicitly excluded from the template.
 - Notes: Covers Unicode and message boundaries, malformed event values,
   confirmation and dry-run behavior, forks, stale heads, required checks,
   merge-queue and auto-merge rejection, bounded timeout status `3`, exact merge
-  arguments, cleanup, and post-merge recovery or mismatch. GitHub operations
-  are replaced by deterministic in-memory boundaries.
+  arguments, cleanup, and post-merge recovery or mismatch. Also distinguishes
+  command start failures from uncertain outcomes and rejects malformed
+  repository identities and commit responses. GitHub operations are replaced
+  by deterministic in-memory boundaries.
 
 ### `tests/test_quality_hooks.sh`
 
@@ -1207,7 +1271,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with Bash after installing the locked quality dependencies.
 - Notes: Exercises applicable Markdown, YAML, Python, Bash, JavaScript,
   PowerShell, configuration, and release-artifact paths while proving that
-  unstaged working-tree content does not replace the staged snapshot.
+  unstaged working-tree content does not replace the staged snapshot. The
+  `--windows` subset covers Git Bash paths, staging and cleanup behavior.
 
 ### `tests/test_quality_pre_push.sh`
 
@@ -1219,7 +1284,27 @@ deferred, or explicitly excluded from the template.
   dependencies.
 - Notes: Uses disposable local repositories to cover new and updated refs,
   multiple object identities, detached pushed-object execution, tag checks,
-  failure propagation, and temporary-path cleanup.
+  failure propagation, and temporary-path cleanup. The `--windows` subset
+  verifies the pushed identity and cleanup through Git Bash on Windows.
+
+### `tests/test_coverage_policy.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects the distinct global and branch coverage thresholds.
+- Usage: Run through Python unittest discovery or select this module.
+- Notes: Covers threshold boundaries, invalid measurements, misleading global
+  scores, command exit status, and the CI summary verdict.
+
+### `tests/test_workflow_contracts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Verifies semantic workflow contracts and their security boundaries.
+- Usage: Run with Python unittest discovery and the locked quality dependencies.
+- Notes: Covers equivalent YAML presentation and negative mutations of workflow
+  fields, job dependencies, commands, privileges and duplicate keys, including
+  source and generated-consumer workflow applicability.
 
 ### `tests/test_quality_toolchain.py`
 

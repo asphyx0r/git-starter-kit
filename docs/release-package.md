@@ -112,7 +112,7 @@ explicit-repository upload and conditional promotion. This public-source
 access does not replace the repository variable and secret required by the
 common `Agent rules update` release gate.
 
-The `build` and `publish` jobs run only when `github.repository` is exactly
+The `build`, `release-checks`, and `publish` jobs run only when `github.repository` is exactly
 `asphyx0r/git-starter-kit`. Only `publish` has `contents: write` and the
 `release` environment. It does not check out the repository or execute
 downloaded artifact code. The package builder also rejects a different slug or
@@ -123,7 +123,18 @@ tracked `environment: release` boundary does not prove that the corresponding
 GitHub environment or its protection rules are configured. Verify those
 settings on GitHub after workflow publication. With the sole CODEOWNER
 `@asphyx0r`, the CODEOWNERS assignment alone does not provide an independent
-human approval.
+human approval. The maintainer explicitly accepts this residual risk under the
+single-maintainer model; automated checks and protected branches do not replace
+independent human review. Adding a second maintainer is a future governance
+decision, not a prerequisite for the current automation.
+
+Before `publish` can start, the read-only `release-checks` job requires successful
+`Repository audit` and `Agent rules update` runs from the original `release`
+event. It matches the repository, resolved workflow IDs, release SHA, tag, and
+release publication timestamp. Push or manual runs cannot substitute for this
+evidence. Both checks share a 30-minute deadline; each GitHub query is bounded
+to 30 seconds. The verifier is checked out from the workflow's immutable SHA so
+manual repair of an older release uses the current workflow's verification code.
 
 ## Automatic Release Mode
 
@@ -158,8 +169,9 @@ The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag without persisting
     credentials.
-2. Configures Python 3.11 and Node.js 24.20.0 without dependency caches, then
-    installs each locked quality environment once, including
+2. Configures Python 3.11 and Node.js 24.20.0 with download caches keyed by the
+    lockfiles and runtime policy, then installs each locked quality environment
+    once with hash verification and disabled npm lifecycle scripts, including
     `markdownlint-cli2` 0.23.2.
 3. Resolves `latest` to the latest published full `agent-coding-rules` release.
 4. Verifies that the tracked core manifest, provenance, and rule hashes match
@@ -173,11 +185,12 @@ The workflow then:
 9. Bundles the guarded updater and complete package as an upgrade toolkit.
 10. Seals both ZIPs and the exact two-line `SHA256SUMS` file as the only three
     regular files in one inter-job artifact.
-11. Downloads and revalidates those three files in `publish`, before exposing
+11. Requires both successful release-event checks for this exact release.
+12. Downloads and revalidates those three files in `publish`, before exposing
     its token.
-12. Uploads the three explicitly named release assets without overwriting an
+13. Uploads the three explicitly named release assets without overwriting an
     existing asset.
-13. For a published prerelease only, promotes it as the final command after a
+14. For a published prerelease only, promotes it as the final command after a
     successful upload.
 
 The release is complete only when this exact `release.published` workflow run
@@ -201,7 +214,8 @@ kit with agent rules already included.
 Use this mode when you need to create or recreate the enriched package for an
 existing release.
 
-The release must already exist on GitHub before running the workflow manually.
+The release must already be published on GitHub before running the workflow
+manually, with successful original `release` runs for both required workflows.
 The `tag` input must be an existing GitHub release tag that uses SemVer with a
 leading `v`, for example `v1.3.0`. The manual workflow uploads both ZIPs and
 `SHA256SUMS` to that release; it does not create the release itself.

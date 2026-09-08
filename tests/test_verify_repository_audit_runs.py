@@ -50,7 +50,7 @@ def make_run(
 
 
 class VerifyRepositoryAuditRunsTests(unittest.TestCase):
-    def wait_for(self, runs, refs=("main", "v1.1.1")):
+    def wait_for(self, runs, refs=("main", "v1.1.1"), event="push"):
         return MODULE._wait_for_runs(
             repository="owner/repository",
             workflow_id=123,
@@ -61,7 +61,109 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
             poll_seconds=0,
             verbose=False,
             query_runs=lambda _repository, _sha: runs,
+            event=event,
         )
+
+    def test_release_requires_exact_release_event_identity(self):
+        matching = make_run(1, "v1.1.1", event="release")
+        for invalid in (
+            {**matching, "event": "push"},
+            {**matching, "event": "workflow_dispatch"},
+            {**matching, "head_sha": "1" * 40},
+            {**matching, "head_branch": "v1.1.0"},
+            {**matching, "workflow_id": 456},
+            {**matching, "created_at": "2026-07-31T13:40:59Z"},
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(MODULE.VerificationError, "Timed out"):
+                    self.wait_for([invalid], refs=("v1.1.1",), event="release")
+        result = self.wait_for([matching], refs=("v1.1.1",), event="release")
+        self.assertEqual(result["v1.1.1"]["id"], 1)
+
+    def test_release_query_filters_the_requested_event(self):
+        response = MODULE.subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='[{"workflow_runs": []}]', stderr=""
+        )
+        with (
+            patch.object(MODULE.shutil, "which", return_value="gh"),
+            patch.object(MODULE.subprocess, "run", return_value=response) as command,
+        ):
+            MODULE._query_runs("owner/repository", SHA, event="release")
+        self.assertIn("event=release", command.call_args.args[0][-1])
+
+    def test_release_failure_or_cancellation_blocks_publication(self):
+        for conclusion in ("failure", "cancelled", "skipped", "timed_out"):
+            with self.subTest(conclusion=conclusion):
+                with self.assertRaisesRegex(MODULE.VerificationError, "failed"):
+                    self.wait_for(
+                        [make_run(1, "v1.1.1", conclusion=conclusion, event="release")],
+                        refs=("v1.1.1",),
+                        event="release",
+                    )
+
+    def test_release_diagnostics_identify_the_selected_workflow(self):
+        for conclusion, expected_status, expected_stream in (
+            ("success", 0, "stdout"),
+            ("failure", 1, "stderr"),
+        ):
+            with (
+                self.subTest(conclusion=conclusion),
+                patch.object(
+                    MODULE,
+                    "_query_runs",
+                    return_value=[
+                        make_run(1, "v1.1.1", event="release", conclusion=conclusion)
+                    ],
+                ),
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                status = MODULE.main(
+                    [
+                        "--repository",
+                        "owner/repository",
+                        "--workflow-id",
+                        "123",
+                        "--sha",
+                        SHA,
+                        "--ref",
+                        "v1.1.1",
+                        "--event",
+                        "release",
+                        "--created-after",
+                        "2026-07-31T13:41:00Z",
+                        "--timeout-seconds",
+                        "0",
+                    ]
+                )
+            self.assertEqual(status, expected_status)
+            output = stdout if expected_stream == "stdout" else stderr
+            self.assertIn("Workflow 123", output.getvalue())
+            self.assertNotIn("Repository audit", output.getvalue())
+
+    def test_release_cli_dry_run_and_event_validation(self):
+        arguments = [
+            "--repository",
+            "owner/repository",
+            "--workflow-id",
+            "123",
+            "--sha",
+            SHA,
+            "--ref",
+            "v1.1.1",
+            "--created-after",
+            "2026-07-31T13:41:00Z",
+            "--dry-run",
+        ]
+        for event, expected in (("release", 0), ("push", 0), ("workflow_dispatch", 1)):
+            with (
+                self.subTest(event=event),
+                redirect_stdout(io.StringIO()) as output,
+                redirect_stderr(io.StringIO()),
+            ):
+                self.assertEqual(MODULE.main([*arguments, "--event", event]), expected)
+                if expected == 0:
+                    self.assertIn(event, output.getvalue())
 
     def test_failed_branch_blocks_green_tag_and_manual_run(self):
         runs = [
@@ -125,7 +227,7 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
     def test_snapshot_query_uses_thirty_second_subprocess_timeout(self):
         observed_timeouts = []
 
-        def query_runs(_repository, _sha, timeout_seconds):
+        def query_runs(_repository, _sha, timeout_seconds, _event):
             observed_timeouts.append(timeout_seconds)
             return [make_run(1, "main"), make_run(2, "v1.1.1")]
 
@@ -150,7 +252,7 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
     def test_wait_query_caps_positive_remaining_budget_at_thirty_seconds(self):
         observed_timeouts = []
 
-        def query_runs(_repository, _sha, timeout_seconds):
+        def query_runs(_repository, _sha, timeout_seconds, _event):
             observed_timeouts.append(timeout_seconds)
             return [make_run(1, "main"), make_run(2, "v1.1.1")]
 
@@ -174,7 +276,7 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
     def test_wait_query_uses_remaining_global_timeout_when_less_than_thirty(self):
         observed_timeouts = []
 
-        def query_runs(_repository, _sha, timeout_seconds):
+        def query_runs(_repository, _sha, timeout_seconds, _event):
             observed_timeouts.append(timeout_seconds)
             return [make_run(1, "main"), make_run(2, "v1.1.1")]
 
