@@ -232,15 +232,24 @@ run_shfmt_checks() {
 
 run_python_coverage() {
   local coverage_cmd
+  local python_cmd
+  local coverage_status=0
   coverage_cmd="$(resolve_hook_command python coverage coverage.exe)" || return
+  python_cmd="$(resolve_hook_python)" || return
   ensure_audit_temp
 
   COVERAGE_FILE="${audit_temp}/.coverage" \
     "${coverage_cmd}" run \
     --rcfile=tools/quality/pyproject.toml \
-    -m unittest discover -s tests -p 'test_*.py'
+    -m unittest discover -s tests -p 'test_*.py' || coverage_status=$?
   COVERAGE_FILE="${audit_temp}/.coverage" \
-    "${coverage_cmd}" report --rcfile=tools/quality/pyproject.toml
+    "${coverage_cmd}" json --rcfile=tools/quality/pyproject.toml \
+    --fail-under=0 -o "${audit_temp}/coverage.json" || return $?
+  COVERAGE_FILE="${audit_temp}/.coverage" \
+    "${coverage_cmd}" report --rcfile=tools/quality/pyproject.toml || coverage_status=$?
+  "${python_cmd}" tools/quality/check-coverage.py \
+    "${audit_temp}/coverage.json" || coverage_status=1
+  return "${coverage_status}"
 }
 
 run_shell_behavior_tests() {
@@ -321,6 +330,7 @@ run_static() {
   check_initializer_commit_contract
   check_commit_documentation_contract
   check_secret_scanner_config_contract
+  run_full_secret_scan || return
   if [ -f .github/workflows/agent-rules-update.yml ]; then
     check_agent_rules_update_workflow_contract
   fi
@@ -406,5 +416,5 @@ run_readonly() {
   if [ -n "$betterleaks_cmd" ]; then
     check_secret_scanner_behavior "$betterleaks_cmd"
   fi
-  "$gitleaks_cmd" git --redact --no-banner --no-color .
+  run_full_secret_scan
 }

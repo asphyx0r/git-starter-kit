@@ -17,6 +17,10 @@ permissions:
 env:
   NODE_VERSION: "24.20.0"
 
+concurrency:
+  group: repository-audit-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality-linux:
     name: Quality - Ubuntu 24.04 / Python 3.11
@@ -34,11 +38,17 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: tools/quality/requirements.lock
       - name: Set up Node
         # actions/setup-node@v7.0.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            tools/quality/package-lock.json
+            tools/quality/versions.json
       - name: Install locked language toolchains
         shell: bash
         run: |
@@ -86,11 +96,17 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.14"
+          cache: pip
+          cache-dependency-path: tools/quality/requirements.lock
       - name: Set up Node
         # actions/setup-node@v7.0.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            tools/quality/package-lock.json
+            tools/quality/versions.json
       - name: Install locked language toolchains
         shell: pwsh
         run: |
@@ -113,6 +129,11 @@ jobs:
       - name: Run the complete Python suite on 3.14
         shell: pwsh
         run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Verify Git Bash hooks on Windows
+        shell: bash
+        run: |
+          bash tests/test_quality_pre_commit.sh --windows
+          bash tests/test_quality_pre_push.sh --windows
       - name: Analyze PowerShell on Windows
         shell: bash
         run: bash tools/repository-audit.sh powershell-static

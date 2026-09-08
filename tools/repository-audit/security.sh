@@ -1,4 +1,69 @@
 #!/usr/bin/env bash
+# Common globals are initialized before this module is sourced.
+# shellcheck disable=SC2154
+
+resolve_pinned_gitleaks() {
+  local config_root="$1"
+  local scanner_cmd
+  local python_cmd
+  local expected_version
+  local actual_version
+  if [[ ! -f "${config_root}/tools/quality/versions.json" ||
+    -L "${config_root}/tools/quality/versions.json" ]]; then
+    printf '%s\n' 'Gitleaks requires a regular tools/quality/versions.json file.' >&2
+    return 1
+  fi
+  scanner_cmd="$(resolve_hook_command registry gitleaks gitleaks.exe)" || return
+  python_cmd="$(resolve_hook_python)" || return
+  expected_version="$("${python_cmd}" -B -c \
+    'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["external"]["gitleaks"]["version"])' \
+    "${config_root}/tools/quality/versions.json")" || return
+  actual_version="$("${scanner_cmd}" version)" || return
+  if [[ "${actual_version%$'\r'}" != "${expected_version}" ]]; then
+    printf 'Gitleaks version mismatch: expected %s, found %s.\n' \
+      "${expected_version}" "${actual_version}" >&2
+    print_external_quality_setup gitleaks
+    return 1
+  fi
+  printf '%s\n' "${scanner_cmd}"
+}
+
+run_hook_secret_scan() {
+  local indexed_root="$1"
+  local scanner_cmd
+  scanner_cmd="$(resolve_pinned_gitleaks "${indexed_root}")" || return
+  if [[ ! -f "${indexed_root}/.gitleaks.toml" || -L "${indexed_root}/.gitleaks.toml" ]]; then
+    printf '%s\n' 'pre-commit: indexed .gitleaks.toml is required.' >&2
+    return 1
+  fi
+  local ignore_path="${indexed_root}/.gitleaksignore"
+  if [[ -L "${ignore_path}" ]]; then
+    printf '%s\n' 'pre-commit: indexed .gitleaksignore must be a regular file.' >&2
+    return 1
+  fi
+  [[ -f "${ignore_path}" ]] || : >"${ignore_path}"
+  local git_dir index_path
+  git_dir="$(git rev-parse --absolute-git-dir)" || return
+  index_path="$(git rev-parse --path-format=absolute --git-path index)" || return
+  # Gitleaks also reads source/.gitleaksignore even with an explicit ignore
+  # path. Point source at the snapshot, while Git reads the original index.
+  GIT_DIR="$(to_hook_host_path "${git_dir}")" \
+  GIT_INDEX_FILE="$(to_hook_host_path "${index_path}")" \
+  GIT_WORK_TREE="$(to_hook_host_path "${indexed_root}")" \
+    "${scanner_cmd}" git --pre-commit --staged \
+    --config "${indexed_root}/.gitleaks.toml" \
+    --gitleaks-ignore-path "${ignore_path}" \
+    --redact --no-banner --no-color --timeout 300 "${indexed_root}"
+}
+
+run_full_secret_scan() {
+  local scanner_cmd
+  scanner_cmd="$(resolve_pinned_gitleaks "${repository_root}")" || return
+  "${scanner_cmd}" git --config "${repository_root}/.gitleaks.toml" \
+    --gitleaks-ignore-path "${repository_root}/.gitleaksignore" \
+    --redact --no-banner --no-color --log-opts=--all --timeout 300 \
+    "${repository_root}"
+}
 
 check_secret_scanner_config_contract() {
   local betterleaks_config=".betterleaks.toml"

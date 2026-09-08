@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Test overrides are invoked indirectly by sourced hook functions.
-# shellcheck disable=SC2329
+# PATH changes in the focused subshell intentionally do not affect later cases.
+# shellcheck disable=SC2329,SC2031
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_root="$(git -C "${script_dir}" rev-parse --show-toplevel)"
 test_temp="$(mktemp -d "${TMPDIR:-/tmp}/quality-pre-commit.XXXXXX")"
+test_temp_parent="${TMPDIR:-/tmp}"
 
 cleanup_test() {
   case "${test_temp}" in
-  "${TMPDIR:-/tmp}"/quality-pre-commit.*)
+  "${test_temp_parent}"/quality-pre-commit.*)
     rm -rf -- "${test_temp}"
     ;;
   *)
@@ -51,6 +53,189 @@ git -C "${fixture}" commit -q -m "test: initialize pre-commit fixture"
 source "${source_root}/tools/repository-audit.sh"
 repository_root="${fixture}"
 cd "${repository_root}"
+
+run_focused_pre_commit_checks() (
+  mode="$1"
+  fixture="${test_temp}/focused repository"
+  git clone -q --no-hardlinks "${repository_root}" "${fixture}"
+  git -C "${fixture}" config user.name 'Pre-commit Test'
+  git -C "${fixture}" config user.email 'pre-commit@example.com'
+  git -C "${fixture}" config core.autocrlf false
+  # This fixture root intentionally stays inside the focused subshell.
+  # shellcheck disable=SC2030
+  repository_root="${fixture}"
+  cd "${repository_root}"
+  if [[ "${mode}" == --windows ]]; then
+    run_hook_secret_scan() {
+      [[ -f "$1/.gitleaks.toml" && -f "$1/tools/quality/versions.json" ]] ||
+        fail 'scanner did not receive indexed policy and registry'
+      printf '%s\n' "$1" >"${test_temp}/scanner-path"
+    }
+  fi
+  cp "${source_root}/.gitleaks.toml" .gitleaks.toml
+  git add .gitleaks.toml
+  git commit -q -m 'test: add indexed scanner policy'
+  mkdir -p "${test_temp}/hook temporary files"
+  export TMPDIR="${test_temp}/hook temporary files"
+  run_hook_markdown() {
+    [[ "$(cat "$1/document with spaces.md")" == '# indexed content' ]] ||
+      fail 'validator did not read indexed Markdown'
+    [[ ! -e "$1/base.txt" ]] || fail 'Markdown exported unrelated index files'
+    printf '%s\n' "$1" >"${test_temp}/snapshot-path"
+    return "${fixture_validator_status:-0}"
+  }
+  printf '# indexed content\n' >'document with spaces.md'
+  git add 'document with spaces.md'
+  printf '# unstaged content\n' >'document with spaces.md'
+  index_before="$(git hash-object "$(git rev-parse --git-path index)")"
+  run_hook_pre_commit || fail 'safe partial index rejected'
+  if [[ "${mode}" == --windows ]]; then
+    cmp -s "${test_temp}/scanner-path" "${test_temp}/snapshot-path" ||
+      fail 'scanner and validator did not receive the same indexed snapshot'
+  fi
+  [[ "$(git hash-object "$(git rev-parse --git-path index)")" == "${index_before}" ]] ||
+    fail 'pre-commit changed the source index'
+  [[ ! -e "$(cat "${test_temp}/snapshot-path")" ]] || fail 'success leaked snapshot'
+  fixture_validator_status=47
+  validator_status=0
+  run_hook_pre_commit || validator_status=$?
+  ((validator_status == 47)) || fail 'validator failure not preserved'
+  [[ ! -e "$(cat "${test_temp}/snapshot-path")" ]] || fail 'failure leaked snapshot'
+  fixture_validator_status=0
+  git reset -q --hard HEAD
+  if [[ "${mode}" != --windows ]]; then
+    secret_name='API_TO'
+    secret_name+='KEN'
+    secret_value='abcd'
+    secret_value+='efgh'
+    secret_value+='1234'
+    secret_value+='5678'
+    printf '%s="%s"\n' "${secret_name}" "${secret_value}" >'secret with spaces.txt'
+    git add 'secret with spaces.txt'
+    printf 'safe working tree\n' >'secret with spaces.txt'
+    scanner_cmd="$(resolve_pinned_gitleaks "${fixture}")"
+    scanner_status=0
+    "${scanner_cmd}" git --pre-commit --staged --config .gitleaks.toml \
+      --redact --no-banner --no-color --report-format json \
+      --report-path "${test_temp}/findings.json" . >/dev/null 2>&1 || scanner_status=$?
+    ((scanner_status == 1)) || fail 'real scanner did not produce fixture finding'
+    python -B -c 'import json, sys; print("\n".join(f["Fingerprint"] for f in json.load(open(sys.argv[1]))))' \
+      "${test_temp}/findings.json" >.gitleaksignore
+    printf '[allowlist]\nregexes = [".*"]\n' >.gitleaks.toml
+    if run_hook_pre_commit >"${test_temp}/secret.out" 2>"${test_temp}/secret.err"; then
+      fail 'staged secret accepted with safe worktree and unstaged policy'
+    fi
+    if grep -F "${secret_value}" "${test_temp}/secret.out" "${test_temp}/secret.err"; then
+      fail 'scanner output disclosed fixture secret'
+    fi
+    git add 'secret with spaces.txt'
+    printf '%s="%s"\n' "${secret_name}" "${secret_value}" >'secret with spaces.txt'
+    run_hook_pre_commit || fail 'unstaged secret confused with safe index'
+    [[ -z "$(find "${TMPDIR}" -mindepth 1 -print -quit)" ]] || fail 'scanner leaked temporary files'
+    git reset -q --hard HEAD
+  fi
+  printf '#Bad heading\n' >'invalid staged.md'
+  git add 'invalid staged.md'
+  printf '# Safe heading\n' >'invalid staged.md'
+  run_real_markdown_pre_commit() (
+    # Restore the real validator after the controlled routing fixtures above.
+    # shellcheck disable=SC1090,SC1091
+    source "${source_root}/tools/repository-audit/hooks.sh"
+    resolve_hook_node_tool() {
+      printf '%s/tools/quality/node_modules/.bin/%s\n' "${source_root}" "$1"
+    }
+    run_hook_pre_commit
+  )
+  if run_real_markdown_pre_commit \
+    >"${test_temp}/real-markdown.out" 2>"${test_temp}/real-markdown.err"; then
+    fail 'real Markdownlint skipped invalid index under ignored temporary parent'
+  fi
+  grep -F MD018 "${test_temp}/real-markdown.err" >/dev/null ||
+    fail 'real Markdown validator did not inspect indexed content'
+  git reset -q --hard HEAD
+  mkdir -p docs
+  printf '{"MD013": false}\n' >docs/.markdownlint.json
+  printf 'ignored.md\n' >docs/.gitignore
+  git add docs/.markdownlint.json docs/.gitignore
+  git commit -q -m 'test: add nested indexed Markdown policy'
+  printf '# Nested document\n\n' >docs/example.md
+  printf '%160s\n' '' | tr ' ' x >>docs/example.md
+  printf '#Bad heading\n' >docs/ignored.md
+  git add -f docs/example.md docs/ignored.md
+  printf '{"MD013": true}\n' >docs/.markdownlint.json
+  printf '' >docs/.gitignore
+  run_real_markdown_pre_commit \
+    >"${test_temp}/nested-markdown.out" 2>"${test_temp}/nested-markdown.err" || {
+    cat "${test_temp}/nested-markdown.err" >&2
+    fail 'nested indexed Markdown configuration or ignore file was omitted'
+  }
+  grep -F 'Linting: 1 file' "${test_temp}/nested-markdown.out" >/dev/null ||
+    fail 'nested Markdown fixture did not lint exactly its selected nonignored file'
+  git reset -q --hard HEAD
+  printf 'MD013: false\n' >docs/.markdownlint.yaml
+  printf '# Changed document\n' >docs/example.md
+  git add docs/.markdownlint.yaml docs/example.md
+  run_real_markdown_pre_commit \
+    >"${test_temp}/changed-config.out" 2>"${test_temp}/changed-config.err" || {
+    cat "${test_temp}/changed-config.err" >&2
+    fail 'selected Markdown configuration was exported more than once'
+  }
+  [[ -z "$(find "${TMPDIR}" -mindepth 1 -print -quit)" ]] || fail 'real Markdown check leaked snapshots'
+  printf '%s\n' 'PASS: focused staged content, spaces, indexed policy and cleanup'
+)
+
+if [[ "${1:-}" == --windows ]]; then
+  run_focused_pre_commit_checks --windows
+  exit 0
+fi
+
+run_indexed_workflow_checks() (
+  fixture="${test_temp}/workflow repository"
+  git clone -q --no-hardlinks "${repository_root}" "${fixture}"
+  git -C "${fixture}" config user.name 'Pre-commit Test'
+  git -C "${fixture}" config user.email 'pre-commit@example.com'
+  git -C "${fixture}" config core.autocrlf false
+  repository_root="${fixture}"
+  cd "${repository_root}"
+  mkdir -p .github/workflows tools/repository-audit
+  # Isolate real Actionlint discovery from unrelated scanner/YAML/semantic checks.
+  run_hook_secret_scan() { return 0; }
+  run_hook_yaml() { return 0; }
+  printf 'pass\n' >tools/repository-audit/workflow-contracts.py
+  cat >"${test_temp}/safe-workflow.yaml" <<'YAML'
+name: Snapshot fixture
+on: push
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo safe
+YAML
+  cp "${test_temp}/safe-workflow.yaml" .github/workflows/snapshot.yaml
+  git add .
+  git commit -q -m 'test: add workflow discovery fixture'
+  sed 's/ubuntu-latest/${{ imaginary.context }}/' "${test_temp}/safe-workflow.yaml" \
+    >.github/workflows/snapshot.yaml
+  git add .github/workflows/snapshot.yaml
+  cp "${test_temp}/safe-workflow.yaml" .github/workflows/snapshot.yaml
+  if run_hook_pre_commit >"${test_temp}/workflow.out" 2>"${test_temp}/workflow.err"; then
+    fail 'real Actionlint accepted invalid indexed workflow with safe worktree'
+  fi
+  grep -F 'undefined variable "imaginary"' "${test_temp}/workflow.out" >/dev/null || {
+    cat "${test_temp}/workflow.out" "${test_temp}/workflow.err" >&2
+    fail 'real Actionlint did not report the indexed workflow error'
+  }
+  printf '\n' >>.github/workflows/snapshot.yaml
+  git add .github/workflows/snapshot.yaml
+  sed 's/ubuntu-latest/${{ imaginary.context }}/' "${test_temp}/safe-workflow.yaml" \
+    >.github/workflows/snapshot.yaml
+  run_hook_pre_commit || fail 'real Actionlint read invalid worktree over safe index'
+  printf '%s\n' 'PASS: real Actionlint uses indexed workflows in both directions'
+)
+
+run_indexed_workflow_checks
+run_focused_pre_commit_checks full
+run_hook_secret_scan() { return 0; }
 
 release_fixture="${test_temp}/release-artifact-repository"
 release_metadata="${test_temp}/release-artifact-metadata.json"

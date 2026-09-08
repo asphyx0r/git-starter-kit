@@ -9,13 +9,17 @@ select = ["E4", "E7", "E9", "F"]
 python_version = "3.11"
 files = [
   "tools/backup-target-directory.py",
+  "tools/git_objects.py",
   "tools/merge-pull-request.py",
+  "tools/process_runner.py",
   "tools/release-artifacts.py",
   "tools/starter-kit-manifest.py",
   "tools/starter-kit-upgrade.py",
   "tools/starter_kit_upgrade",
   "tools/verify-repository-audit-runs.py",
   "tools/quality/check-versions.py",
+  "tools/repository-audit/workflow-contracts.py",
+  "tools/quality/check-coverage.py",
   "tools/quality/install-external-tools.py",
 ]
 check_untyped_defs = true
