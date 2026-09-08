@@ -2,6 +2,15 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.9.2
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 7867c7c | chore(tools): align codespell 2.4.3 pins | dependabot[bot] |
+| 51b37da | chore(tools): align ruff 0.16.5 pins | dependabot[bot] |
+| 3178e44 | chore(tools): align commitlint 21.2.2 pins | dependabot[bot] |
+| 483e802 | chore(ci): align checkout 7.0.1 contracts | dependabot[bot] |
+
 ## v2.9.1
 
 | References | Description | Author(s) |
