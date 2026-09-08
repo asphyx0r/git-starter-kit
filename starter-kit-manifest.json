@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.10.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.10.0",
-    "generatedAt": "2026-09-08T22:33:03Z"
+    "generatedAt": "2026-09-08T23:20:55Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.10.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.10.0",
-    "generatedAt": "2026-09-08T22:33:03Z"
+    "generatedAt": "2026-09-08T23:20:55Z"
   },
   "files": [
     {
@@ -295,8 +295,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "8d37971613a4b6b7507cee6c390080cee42785de098376015ab4a0ea7227507a",
-      "canonicalSha256": "8d37971613a4b6b7507cee6c390080cee42785de098376015ab4a0ea7227507a",
+      "sha256": "ac6184364c6411c3cea366271bc6d88f2ceb8f6b7a88b033ccf3876c6c93f085",
+      "canonicalSha256": "ac6184364c6411c3cea366271bc6d88f2ceb8f6b7a88b033ccf3876c6c93f085",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
