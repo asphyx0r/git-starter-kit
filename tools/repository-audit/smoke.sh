@@ -590,6 +590,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             raise SystemExit(f"Unexpected upgrade strategy: {path}")
     expected_quality_paths = {
         "tools/quality/PSScriptAnalyzerSettings.psd1",
+        "tools/quality/check-coverage.py",
         "tools/quality/check-versions.py",
         "tools/quality/install-external-tools.py",
         "tools/quality/package-lock.json",
