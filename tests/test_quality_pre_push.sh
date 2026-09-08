@@ -316,6 +316,11 @@ if [[ "${1:-}" == --windows ]]; then
   while IFS= read -r clone_path; do
     [[ ! -e "${clone_path}" ]] || fail 'successful Windows push leaked snapshot'
   done <"${QUALITY_CLONE_DESTINATION_TRACE}"
+  native_temp="$(cygpath -am "${test_temp}")"
+  drive_temp="/${native_temp/:/}"
+  TMPDIR="${drive_temp}" run_pre_push_bounded "${integration_timeout_seconds}" \
+    "${git_reported_root_updates}" origin local ||
+    fail 'Windows push rejected an alternate path to the same temporary directory'
   export QUALITY_AFFECTED_STATUS=47
   failed_status=0
   run_pre_push_bounded "${integration_timeout_seconds}" \

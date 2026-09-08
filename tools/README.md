@@ -1405,9 +1405,10 @@ bash tests/test_quality_pre_commit.sh --windows
 bash tests/test_quality_pre_push.sh --windows
 ```
 
-These cases cover paths containing spaces, partial staging, pushed commits
-different from the checkout, and temporary-directory cleanup. The Linux job
-retains the complete hook suites and the full-history secret scan.
+These cases cover paths containing spaces, alternate Git Bash mount paths,
+partial staging, pushed commits different from the checkout, and
+temporary-directory cleanup. The Linux job retains the complete hook suites
+and the full-history secret scan.
 
 ### Options
 
