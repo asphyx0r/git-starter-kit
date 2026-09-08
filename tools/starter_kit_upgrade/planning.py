@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import subprocess
@@ -18,30 +19,62 @@ from .common import (
     canonical_sha256,
     canonicalize_text,
     load_json_bytes,
+    parse_starter_manifest,
+    reject_link_or_reparse_point,
     sha256_bytes,
     starter_commit,
+    starter_release_from_provenance,
+    validate_relative_path,
     write_json,
 )
 
 
+_PROCESS_SPEC = importlib.util.spec_from_file_location(
+    "process_runner", Path(__file__).resolve().parents[1] / "process_runner.py"
+)
+assert _PROCESS_SPEC is not None and _PROCESS_SPEC.loader is not None
+process_runner = importlib.util.module_from_spec(_PROCESS_SPEC)
+_PROCESS_SPEC.loader.exec_module(process_runner)
+
+
 def target_path(root: Path, relative: str) -> Path:
-    path = root.joinpath(*PurePosixPath(relative).parts)
-    current = root
-    for part in PurePosixPath(relative).parts[:-1]:
+    relative = validate_relative_path(relative)
+    current = root.absolute()
+    for ancestor in reversed((current, *current.parents)):
+        reject_link_or_reparse_point(ancestor)
+    resolved_root = current.resolve()
+    for part in PurePosixPath(relative).parts:
         current = current / part
-        if current.is_symlink():
-            raise UpgradeError(f"Target path traverses a symbolic link: {relative}")
-    if path.is_symlink():
-        raise UpgradeError(f"Target file is a symbolic link: {relative}")
-    return path
+        reject_link_or_reparse_point(current)
+    if not current.resolve().is_relative_to(resolved_root):
+        raise UpgradeError(f"Target path escapes its repository: {relative}")
+    return current
 
 
 def run_git(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(root), *arguments],
-        check=False,
-        capture_output=True,
-        text=True,
+    timeout = 300 if arguments and arguments[0] == "status" else 30
+    try:
+        return process_runner.run(
+            ["git", "-C", str(root), *arguments],
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        operation = arguments[0][:80] if arguments else "query"
+        raise _git_timeout_error(error, operation, timeout) from error
+
+
+def _git_timeout_error(
+    error: subprocess.TimeoutExpired, operation: str, seconds: int
+) -> UpgradeError:
+    output = error.stderr or error.stdout or b""
+    diagnostic = (
+        output.decode("utf-8", errors="replace")
+        if isinstance(output, bytes)
+        else str(output)
+    )
+    return UpgradeError(
+        f"Git {operation} timed out after {seconds} seconds: {diagnostic[:800]}"
     )
 
 
@@ -88,63 +121,25 @@ def merge_text_payload(local: bytes, base: bytes, new: bytes) -> bytes | None:
         paths["local"].write_bytes(canonicalize_text(local))
         paths["base"].write_bytes(canonicalize_text(base))
         paths["new"].write_bytes(canonicalize_text(new))
-        result = subprocess.run(
-            [
-                "git",
-                "merge-file",
-                "-p",
-                str(paths["local"]),
-                str(paths["base"]),
-                str(paths["new"]),
-            ],
-            check=False,
-            capture_output=True,
-        )
+        try:
+            result = process_runner.run(
+                [
+                    "git",
+                    "merge-file",
+                    "-p",
+                    str(paths["local"]),
+                    str(paths["base"]),
+                    str(paths["new"]),
+                ],
+                timeout=300,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise _git_timeout_error(error, "merge-file", 300) from error
     if result.returncode == 0:
         return result.stdout
     if 1 <= result.returncode <= 127:
         return None
     raise UpgradeError("Unable to perform the three-way file merge.")
-
-
-def parse_starter_manifest(content: bytes, label: str) -> dict[str, Any]:
-    value = load_json_bytes(content, label)
-    if value.get("schemaVersion") != 1:
-        raise UpgradeError(f"Unsupported starter-kit manifest schema in {label}.")
-    if set(value) != {"schemaVersion", "source", "current", "files"}:
-        raise UpgradeError(f"Invalid starter-kit manifest fields in {label}.")
-    for release_name in ("source", "current"):
-        release = value.get(release_name)
-        if not isinstance(release, dict):
-            raise UpgradeError(f"Invalid {release_name} release in {label}.")
-        for field in ("repository", "ref", "releaseUrl", "generatedAt"):
-            if not isinstance(release.get(field), str) or not release[field]:
-                raise UpgradeError(f"Invalid {release_name}.{field} in {label}.")
-        expected_url = (
-            release["repository"].rstrip("/") + "/releases/tag/" + release["ref"]
-        )
-        if release["releaseUrl"] != expected_url:
-            raise UpgradeError(f"Invalid {release_name} release URL in {label}.")
-    if not isinstance(value.get("files"), list):
-        raise UpgradeError(f"Invalid core file inventory in {label}.")
-    return value
-
-
-def starter_release_from_provenance(provenance: dict[str, Any]) -> dict[str, str]:
-    starter = provenance.get("starterKit")
-    generated_at = provenance.get("generatedAt")
-    if not isinstance(starter, dict) or not isinstance(generated_at, str):
-        raise UpgradeError("Base package has incomplete starter-kit provenance.")
-    repository = starter.get("repository")
-    ref = starter.get("ref")
-    if not isinstance(repository, str) or not isinstance(ref, str):
-        raise UpgradeError("Base package has incomplete starter-kit provenance.")
-    return {
-        "repository": repository,
-        "ref": ref,
-        "releaseUrl": repository.rstrip("/") + "/releases/tag/" + ref,
-        "generatedAt": generated_at,
-    }
 
 
 def normalized_starter_manifest(value: dict[str, Any], source: dict[str, Any]) -> bytes:
@@ -226,7 +221,7 @@ def evaluate_target(
     if run_git(root, "rev-parse", "--show-toplevel").returncode != 0:
         raise UpgradeError(f"Target is not a Git repository: {root}")
 
-    provenance_path = root / PROVENANCE_PATH
+    provenance_path = target_path(root, PROVENANCE_PATH)
     provenance_status = "invalid"
     if provenance_path.is_file():
         try:
@@ -240,7 +235,7 @@ def evaluate_target(
             provenance_status = "base"
         elif local_starter_commit == starter_commit(manifest["target"]["provenance"]):
             provenance_status = "target"
-    adoption = validate_adoption(root, manifest, root / ADOPTION_PATH)
+    adoption = validate_adoption(root, manifest, target_path(root, ADOPTION_PATH))
     if provenance_status == "invalid" and adoption is not None:
         provenance_status = "adopted"
     if journal is not None:
@@ -251,9 +246,14 @@ def evaluate_target(
         )
 
     actions: list[dict[str, Any]] = []
+    destinations: set[str] = set()
     for entry in manifest["entries"]:
         relative = entry["path"]
         local_path = target_path(root, relative)
+        destination_key = str(local_path.resolve()).casefold()
+        if destination_key in destinations:
+            raise UpgradeError(f"Duplicate canonical destination: {relative}")
+        destinations.add(destination_key)
         local_content = local_path.read_bytes() if local_path.is_file() else None
         content_kind = str(entry.get("contentKind", "binary"))
         schema_version = int(manifest.get("schemaVersion", 1))

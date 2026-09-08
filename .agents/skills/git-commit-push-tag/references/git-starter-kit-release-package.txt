@@ -118,6 +118,7 @@ CONTRÔLES DE PACKAGE APRÈS LES RUNS OBLIGATOIRES
 [
   "README.md",
   "starter-kit-upgrade.py",
+  "process_runner.py",
   "starter_kit_upgrade/__init__.py",
   "starter_kit_upgrade/application.py",
   "starter_kit_upgrade/archive.py",

@@ -8,6 +8,13 @@ Il contient exactement :
 ```text
 README.md
 starter-kit-upgrade.py
+process_runner.py
+starter_kit_upgrade/__init__.py
+starter_kit_upgrade/application.py
+starter_kit_upgrade/archive.py
+starter_kit_upgrade/cli.py
+starter_kit_upgrade/common.py
+starter_kit_upgrade/planning.py
 packages/git-starter-kit-vX.Y.Z-with-agent-rules.zip
 ```
 
@@ -76,6 +83,11 @@ l'alignement exact avec tous les fichiers de la release cible. Le journal
 signale explicitement les revues `initialize-only` et la synchronisation
 déléguée des règles, même lorsque l'application automatisée a réussi.
 
+Un verdict final `NON_COMPLIANT` produit un code de sortie non nul et l'état
+`FAILED`. Les états `COMPLIANT_WITH_FOLLOW_UP` et `NOT_ALIGNED` restent compatibles
+avec une application réussie lorsque les stratégies sont respectées. Si une
+modification concurrente cause l'échec du contrôle final, elle reste préservée.
+
 Le mode `--dry-run` ne réalise aucune écriture et ne crée aucun journal.
 Il en va de même pour l'aide, la version, les erreurs d'arguments et les erreurs
 survenant avant que la release cible puisse être résolue. Après cette
@@ -113,8 +125,30 @@ L'application exige :
 - aucun état `conflict` ;
 - un répertoire de sauvegarde extérieur au dépôt.
 
-Le fonctionnement est tout-ou-rien. En cas d'erreur d'écriture, les fichiers déjà modifiés sont immédiatement
-restaurés. Un ZIP de rollback contient les anciennes versions.
+Les archives sont limitées à 10 000 membres, répertoires inclus, et à 256 Mio
+décompressés. Leurs chemins doivent être relatifs et uniques sans distinction
+de casse. Les chemins Windows dangereux, noms de périphériques, flux alternatifs,
+composants `.git`, liens et types ZIP spéciaux sont refusés. Les fichiers cibles
+doivent rester dans le dépôt et ne traverser aucun lien ni point de réanalyse
+Windows, notamment une jonction.
+
+Les manifestes v1, v2 et v3 sont validés avant le plan et les sauvegardes : types,
+stratégies, modes, provenance et empreintes des contenus disponibles. Les anciens
+formats restent acceptés sans leur imposer les champs apparus ensuite.
+
+En cas d'erreur ou d'interruption pendant l'écriture, l'outil tente de restaurer
+tous les fichiers modifiés et l'adoption, avec leur contenu et leur mode initial.
+Il conserve le ZIP de rollback. Si une restauration échoue, les autres sont
+encore tentées ; chaque chemin en échec est signalé et l'interruption d'origine
+est propagée. Une restauration complète n'est donc pas garantie si le système
+refuse lui-même les écritures de restauration.
+
+Les requêtes Git courtes sont limitées à 30 secondes et les fusions à 300 secondes.
+Le délai couvre aussi les flux capturés et l'arrêt des processus descendants
+ordinaires. Un dépassement devient une erreur explicite ; les fichiers
+temporaires de fusion sont nettoyés.
+Ce délai démarre après la création synchrone et la mise sous contrôle du
+processus ; ces API ne permettent pas d'annuler la création native elle-même.
 
 L'outil ne réalise aucun commit, tag, push ou accès réseau.
 
