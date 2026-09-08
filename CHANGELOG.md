@@ -6,6 +6,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| 19d84d0 | test(release): align process deadline measurement | asphyx |
 | caa282e | docs(readme): align CI validation overview | asphyx |
 | 4b381c1 | fix(hooks): accept equivalent Git Bash paths | asphyx |
 | ce35f1a | fix(audit): harden tooling and validation gates | asphyx |
