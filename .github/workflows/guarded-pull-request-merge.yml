@@ -18,7 +18,52 @@ env:
   NODE_VERSION: "24.20.0"
 
 jobs:
+  activation:
+    name: Read trusted automation configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.activation.outputs.enabled }}
+      trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}
+    steps:
+      - id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          default_branch="$(gh api "repos/$GH_REPO" --jq '.default_branch')"
+          export DEFAULT_BRANCH="$default_branch"
+          encoded_branch="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DEFAULT_BRANCH"], safe=""))')"
+          trusted_sha="$(gh api "repos/$GH_REPO/commits/$encoded_branch" --jq '.sha')"
+          [[ "$trusted_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          printf 'trusted_sha=%s\n' "$trusted_sha" >> "$GITHUB_OUTPUT"
+        name: Resolve immutable default-branch snapshot
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ steps.resolve.outputs.trusted_sha }}
+        name: Check out the immutable revision
+      - id: activation
+        shell: bash
+        env:
+          AUTOMATION: guardedMerge
+          EVENT_NAME: ${{ github.event_name }}
+          LEGACY_SYNC: ${{ vars.AGENT_RULES_SYNC_ENABLED }}
+        run: |-
+          python3 -B tools/automation_config.py \
+            --automation "$AUTOMATION" --event "$EVENT_NAME" \
+            --legacy-sync "$LEGACY_SYNC" >> "$GITHUB_OUTPUT"
+        name: Read activation before dependencies and credentials
+
   guarded-merge:
+    needs: activation
+    if: needs.activation.outputs.enabled == 'true'
     name: Validate and squash merge pull request
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -27,7 +72,7 @@ jobs:
         # actions/checkout@v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.activation.outputs.trusted_sha }}
           fetch-depth: 1
           persist-credentials: false
 

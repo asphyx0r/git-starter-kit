@@ -150,8 +150,10 @@ run_focused_pre_commit_checks() (
     >"${test_temp}/real-markdown.out" 2>"${test_temp}/real-markdown.err"; then
     fail 'real Markdownlint skipped invalid index under ignored temporary parent'
   fi
-  grep -F MD018 "${test_temp}/real-markdown.err" >/dev/null ||
+  grep -F MD018 "${test_temp}/real-markdown.err" >/dev/null || {
+    cat "${test_temp}/real-markdown.out" "${test_temp}/real-markdown.err" >&2
     fail 'real Markdown validator did not inspect indexed content'
+  }
   git reset -q --hard HEAD
   mkdir -p docs
   printf '{"MD013": false}\n' >docs/.markdownlint.json
@@ -337,9 +339,14 @@ done
 
 quality_bin="${test_temp}/bin"
 mkdir -p "${quality_bin}"
+export QUALITY_DECLARATION_REAL_PYTHON
+QUALITY_DECLARATION_REAL_PYTHON="$(command -v python)"
 cat >"${quality_bin}/python" <<'PYTHON'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${1:-}" == -B ]]; then
+  exec "${QUALITY_DECLARATION_REAL_PYTHON}" "$@"
+fi
 printf '%s\n' "$@" >"${QUALITY_DECLARATION_TRACE}.arguments"
 quality_root=""
 while (($#)); do

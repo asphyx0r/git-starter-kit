@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -840,6 +841,265 @@ class ReleaseArtifactTests(unittest.TestCase):
 
         self.assertEqual(code, 1)
         self.assertIn("SHA256SUMS", stderr)
+
+
+class RepositoryArtifactTests(unittest.TestCase):
+    run_git = ReleaseArtifactTests.run_git
+    run_main = ReleaseArtifactTests.run_main
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name) / "repository"
+        self.root.mkdir()
+        self.run_git("init")
+        self.run_git("config", "user.name", "Repository Inventory Test")
+        self.run_git("config", "user.email", "test@example.com")
+        self.run_git("config", "core.autocrlf", "false")
+        self.schema_path = (
+            self.root / "templates/release/repository-manifest.schema.json"
+        )
+        self.schema_path.parent.mkdir(parents=True)
+        shutil.copyfile(
+            SOURCE_ROOT / "templates/release/repository-manifest.schema.json",
+            self.schema_path,
+        )
+        (self.root / "tracked.txt").write_bytes(b"staged\n")
+        self.run_git("add", ".")
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def prepare(self, *options, dry_run=False):
+        try:
+            return self.run_main(
+                "--dry-run" if dry_run else "--force",
+                "prepare",
+                "--kind",
+                "repository",
+                "--release-ref",
+                "v1.0.0",
+                "--release-date",
+                "2026-09-12T12:00:00Z",
+                "--repository-root",
+                str(self.root),
+                *options,
+            )
+        except SystemExit as error:
+            return error.code, "", "CLI rejected repository preparation"
+
+    def stage_outputs(self):
+        self.run_git("add", "VERSION", "SHA256SUMS", "manifest.json")
+
+    def test_skill_repository_commands_select_runnable_format(self):
+        reference = (
+            SOURCE_ROOT
+            / ".agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt"
+        ).read_text(encoding="utf-8")
+        commands = [
+            shlex.split(
+                block.replace("\\\n", " ")
+                .replace("<tag>", "v1.0.0")
+                .replace("<date-UTC>", "2026-09-12T12:00:00Z")
+            )
+            for block in re.findall(r"```text\n(.*?)```", reference, re.DOTALL)
+            if "prepare --kind repository" in block
+        ]
+        self.assertEqual(
+            len(commands), 2, "Document repository dry-run and apply commands"
+        )
+        self.run_git("commit", "-m", "test: initial repository fixture")
+        before = (self.root / ".git/index").read_bytes()
+        for command, option in zip(commands, ("--dry-run", "--force"), strict=True):
+            self.assertEqual(command[:2], ["python", "tools/release-artifacts.py"])
+            self.assertIn(option, command)
+            self.assertNotIn("--metadata-file", command)
+            code, _, error = self.run_main(
+                *command[2:], "--repository-root", str(self.root)
+            )
+            self.assertEqual(code, 0, error)
+            if option == "--dry-run":
+                self.assertFalse((self.root / "manifest.json").exists())
+                self.assertEqual((self.root / ".git/index").read_bytes(), before)
+        self.stage_outputs()
+        self.assertEqual(self.check("--index", "--expected-ref", "v1.0.0")[0], 0)
+
+    def check(self, *options):
+        return self.run_main("check", "--repository-root", str(self.root), *options)
+
+    def test_unborn_index_prepares_inventory_and_first_tag_passes_existing_check(self):
+        (self.root / "tracked.txt").write_bytes(b"unstaged drift\n")
+        code, stdout, stderr = self.prepare("--index")
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(json.loads(stdout)["releaseRef"], "v1.0.0")
+        manifest = json.loads((self.root / "manifest.json").read_bytes())
+        self.assertEqual(
+            set(manifest),
+            {"manifest_version", "release_kind", "version", "release_date", "artifact"},
+        )
+        self.assertEqual(manifest["manifest_version"], "3.0.0")
+        inventory = manifest["artifact"]
+        tracked = next(
+            item
+            for item in inventory["files"]
+            if item["relative_path"] == "tracked.txt"
+        )
+        self.assertEqual(
+            tracked["sha256"],
+            "9ac007af3de930baf647288da0c843b26a5f046a3fe1351f1bb039b242d22cdf",
+        )
+        self.assertEqual(tracked["size_bytes"], 7)
+        self.stage_outputs()
+        self.schema_path.write_text("invalid worktree schema", encoding="utf-8")
+        for name in ("VERSION", "SHA256SUMS", "manifest.json"):
+            (self.root / name).write_bytes(b"worktree drift")
+        self.assertEqual(self.check("--index")[0], 0)
+        self.run_git("commit", "-m", "test: first repository commit")
+        self.run_git("tag", "-a", "v1.0.0", "-m", "Repository v1.0.0")
+        code, stdout, stderr = self.check(
+            "--treeish", "v1.0.0", "--expected-ref", "v1.0.0"
+        )
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(json.loads(stdout)["treeish"], "v1.0.0")
+
+    def test_repository_dry_run_does_not_write_or_change_index(self):
+        before = self.run_git("ls-files", "--stage")
+        code, stdout, stderr = self.prepare("--index", dry_run=True)
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(
+            json.loads(stdout)["changed"], ["VERSION", "SHA256SUMS", "manifest.json"]
+        )
+        self.assertEqual(self.run_git("ls-files", "--stage"), before)
+        for name in ("VERSION", "SHA256SUMS", "manifest.json"):
+            self.assertFalse((self.root / name).exists())
+
+    def test_repository_preparation_uses_selected_schema_and_requires_it(self):
+        self.schema_path.write_text(
+            '{"type":"object","properties":{"release_kind":{"const":"deployment"}}}',
+            encoding="utf-8",
+        )
+        self.run_git("add", str(self.schema_path))
+        code, _, stderr = self.prepare("--index")
+        self.assertEqual(code, 1)
+        self.assertIn("schema", stderr)
+        self.run_git("rm", "--cached", str(self.schema_path))
+        code, _, stderr = self.prepare("--index")
+        self.assertEqual(code, 1)
+        self.assertIn("schema", stderr)
+        self.assertFalse((self.root / "VERSION").exists())
+
+    def test_repository_rejects_metadata_instead_of_ignoring_it(self):
+        code, _, stderr = self.prepare(
+            "--index", "--metadata-file", str(Path(self.temporary.name) / "absent.json")
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("metadata", stderr)
+
+    def test_repository_preparation_rejects_invalid_ref_date_and_selection(self):
+        for options in (
+            ("--release-ref", "v01.0.0"),
+            ("--release-date", "2026-09-12T14:00:00+02:00"),
+            ("--release-date", "2026-02-30T12:00:00Z"),
+        ):
+            with self.subTest(options=options):
+                self.assertEqual(self.prepare("--index", *options)[0], 1)
+                self.assertFalse((self.root / "VERSION").exists())
+        self.assertEqual(self.prepare("--index", "--treeish", "HEAD")[0], 2)
+        self.assertEqual(self.prepare("--index", "--kind", "unknown")[0], 2)
+
+    def test_deployment_still_requires_explicit_metadata(self):
+        code, _, stderr = self.run_main(
+            "prepare",
+            "--release-ref",
+            "v1.0.0",
+            "--release-date",
+            "2026-09-12T12:00:00Z",
+            "--repository-root",
+            str(self.root),
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("requires --metadata-file", stderr)
+        self.assertFalse((self.root / "VERSION").exists())
+
+    def test_repository_treeish_and_default_head_remain_distinct_from_index(self):
+        self.run_git("commit", "-m", "test: repository fixture")
+        (self.root / "tracked.txt").write_bytes(b"new staged data\n")
+        self.run_git("add", "tracked.txt")
+        for options in ((), ("--treeish", "HEAD")):
+            code, _, stderr = self.prepare(*options)
+            self.assertEqual(code, 0, stderr)
+            self.assertIn(b"  tracked.txt\n", (self.root / "SHA256SUMS").read_bytes())
+            manifest = json.loads((self.root / "manifest.json").read_bytes())
+            record = next(
+                item
+                for item in manifest["artifact"]["files"]
+                if item["relative_path"] == "tracked.txt"
+            )
+            self.assertEqual(record["size_bytes"], 7)
+
+    def test_repository_check_rejects_missing_altered_controls_inventory_and_modes(
+        self,
+    ):
+        self.assertEqual(self.prepare("--index")[0], 0)
+        self.stage_outputs()
+        originals = {
+            name: (self.root / name).read_bytes()
+            for name in ("VERSION", "SHA256SUMS", "manifest.json")
+        }
+        for name in (
+            "VERSION",
+            "SHA256SUMS",
+            "templates/release/repository-manifest.schema.json",
+        ):
+            with self.subTest(missing=name):
+                self.run_git("rm", "--cached", name)
+                self.assertEqual(self.check("--index")[0], 1)
+                self.run_git("add", name)
+        for name in ("VERSION", "SHA256SUMS"):
+            with self.subTest(altered=name):
+                (self.root / name).write_bytes(b"incorrect\n")
+                self.run_git("add", name)
+                self.assertEqual(self.check("--index")[0], 1)
+                (self.root / name).write_bytes(originals[name])
+                self.run_git("add", name)
+        for name in ("VERSION", "SHA256SUMS", "manifest.json", "tracked.txt"):
+            with self.subTest(mode=name):
+                self.run_git("update-index", "--chmod=+x", name)
+                self.assertEqual(self.check("--index")[0], 1)
+                self.run_git("update-index", "--chmod=-x", name)
+        (self.root / "tracked.txt").write_bytes(b"altered inventory\n")
+        self.run_git("add", "tracked.txt")
+        self.assertEqual(self.check("--index")[0], 1)
+
+    def test_repository_check_rejects_unsupported_manifest_and_invalid_values(self):
+        self.assertEqual(self.prepare("--index")[0], 0)
+        self.stage_outputs()
+        original = json.loads((self.root / "manifest.json").read_bytes())
+        mutations = (
+            {"manifest_version": "9.0.0"},
+            {"manifest_version": "2.0.0"},
+            {"release_kind": "deployment"},
+            {"release_kind": None},
+            {"version": "01.0.0"},
+            {"release_date": "2026-09-12T14:00:00+02:00"},
+            {"release_date": "2026-02-30T12:00:00Z"},
+            {"artifact": {**original["artifact"], "total_files": 999}},
+            {"artifact": {**original["artifact"], "files": []}},
+            {"artifact": {**original["artifact"], "size_bytes": 0}},
+            {"artifact": {**original["artifact"], "sha256": "0" * 64}},
+            {"artifact": {**original["artifact"], "format": "zip"}},
+            {"metadata": {"author": "invented"}},
+            {"artifact": {**original["artifact"], "built_at": "2026-09-11T12:00:00Z"}},
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                (self.root / "manifest.json").write_text(
+                    json.dumps({**original, **mutation}), encoding="utf-8"
+                )
+                self.run_git("add", "manifest.json")
+                self.assertEqual(self.check("--index")[0], 1)
+        (self.root / "manifest.json").write_bytes(b"[]")
+        self.run_git("add", "manifest.json")
+        self.assertEqual(self.check("--index")[0], 1)
 
 
 class ReleaseDependencyTests(unittest.TestCase):

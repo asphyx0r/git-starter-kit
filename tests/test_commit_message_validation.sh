@@ -190,14 +190,38 @@ cat >"$test_bin/gh" <<'HISTORICAL_GH'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$HISTORICAL_GH_TRACE"
-exit 99
+case "$*" in
+  'repo view asphyx0r/git-starter-kit --json nameWithOwner,defaultBranchRef')
+    printf '%s\n' '{"nameWithOwner":"asphyx0r/git-starter-kit","defaultBranchRef":{"name":"main"}}'
+    ;;
+  'api repos/asphyx0r/git-starter-kit/commits/main')
+    printf '%s\n' '{"sha":"1111111111111111111111111111111111111111","commit":{"tree":{"sha":"2222222222222222222222222222222222222222"}}}'
+    ;;
+  'api repos/asphyx0r/git-starter-kit/git/trees/2222222222222222222222222222222222222222')
+    printf '%s\n' '{"sha":"2222222222222222222222222222222222222222","truncated":false,"tree":[]}'
+    ;;
+  *) exit 99 ;;
+esac
+exit 0
 HISTORICAL_GH
 chmod +x "$test_bin/gh"
+if command -v cygpath >/dev/null 2>&1; then
+  export HISTORICAL_GH_BASH HISTORICAL_GH_SCRIPT
+  HISTORICAL_GH_BASH="$(cygpath -w "$(command -v bash)")"
+  HISTORICAL_GH_SCRIPT="$(cygpath -w "$test_bin/gh")"
+  cat >"$test_bin/gh.cmd" <<'HISTORICAL_GH_CMD'
+@ECHO OFF
+"%HISTORICAL_GH_BASH%" "%HISTORICAL_GH_SCRIPT%" %*
+EXIT /B %ERRORLEVEL%
+HISTORICAL_GH_CMD
+fi
 export HISTORICAL_GH_TRACE="$historical_gh_trace"
 historical_cli_root="$test_temp/guarded-cli"
 historical_cli_bin="$historical_cli_root/tools/quality/node_modules/.bin"
 mkdir -p "$historical_cli_root/tools"
 cp "$source_root/tools/merge-pull-request.py" "$historical_cli_root/tools/"
+cp "$source_root/tools/automation_config.py" \
+  "$source_root/tools/project_config.py" "$historical_cli_root/tools/"
 cp "$source_root/commitlint.config.cjs" "$historical_cli_root/"
 
 missing_local_output="$test_temp/missing-local-commitlint.out"
@@ -244,8 +268,16 @@ if ! grep -F 'body-max-line-length' "$historical_cli_output" >/dev/null; then
   sed 's/^/  /' "$historical_cli_output" >&2
   fail "guarded merge CLI did not preserve the Commitlint diagnostic"
 fi
-if [[ -s "$historical_gh_trace" ]]; then
-  fail "guarded merge CLI called gh before rejecting the historical message"
+cat >"$test_temp/expected-historical-gh.trace" <<'EXPECTED_GH'
+repo view asphyx0r/git-starter-kit --json nameWithOwner,defaultBranchRef
+api repos/asphyx0r/git-starter-kit/commits/main
+api repos/asphyx0r/git-starter-kit/git/trees/2222222222222222222222222222222222222222
+repo view asphyx0r/git-starter-kit --json nameWithOwner,defaultBranchRef
+api repos/asphyx0r/git-starter-kit/commits/main
+api repos/asphyx0r/git-starter-kit/git/trees/2222222222222222222222222222222222222222
+EXPECTED_GH
+if ! cmp -s "$test_temp/expected-historical-gh.trace" "$historical_gh_trace"; then
+  fail "guarded merge CLI called gh beyond immutable configuration reads before rejecting the historical message"
 fi
 
 range_fixture="$test_temp/range-fixture"

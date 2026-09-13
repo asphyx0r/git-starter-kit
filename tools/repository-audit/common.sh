@@ -35,14 +35,41 @@ cleanup() {
 
 usage() {
   cat <<'USAGE'
-Usage: bash tools/repository-audit.sh [all|full|readonly|markdown|spelling|static|fast|powershell-static|hook-pre-commit|hook-commit-msg|hook-pre-push]
+Usage: bash tools/repository-audit.sh [all|full|readonly|markdown|spelling|static|fast|powershell-static|project-checks|hook-pre-commit|hook-commit-msg|hook-pre-push]
 
 Runs the same repository audit rules locally and in GitHub Actions.
 USAGE
 }
 
+resolve_validation_scope() {
+  local root="${1:-${repository_root}}"
+  local python_cmd
+  python_cmd="$(resolve_hook_python)" || return
+  "${python_cmd}" -B "${audit_script_dir}/project_validation.py" \
+    --repository-root "${root}" --scope
+}
+
+list_core_paths() {
+  local python_cmd
+  python_cmd="$(resolve_hook_python)" || return
+  "${python_cmd}" -B "${audit_script_dir}/project_validation.py" \
+    --repository-root "${repository_root}" --list-core
+}
+
+run_project_checks() {
+  local root="${1:-${repository_root}}"
+  shift || return
+  local python_cmd
+  python_cmd="$(resolve_hook_python)" || return
+  (
+    unset GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE
+    "${python_cmd}" -B "${audit_script_dir}/project_validation.py" \
+      --repository-root "${root}" --timeout "${hook_test_timeout_seconds}" "$@"
+  )
+}
+
 initialize_repository_root() {
-  repository_root="$(git -C "${audit_script_dir}" rev-parse --show-toplevel)"
+  repository_root="$(git -C "${audit_script_dir}" rev-parse --show-toplevel)" || return
   cd "${repository_root}" || return
 }
 
@@ -92,22 +119,23 @@ ensure_audit_temp() {
     command -v powershell.exe >/dev/null 2>&1; then
     audit_temp_parent="$repository_root/.tmp"
     if [ ! -d "$audit_temp_parent" ]; then
-      mkdir -p "$audit_temp_parent"
+      mkdir -p "$audit_temp_parent" || return
       audit_temp_parent_created="true"
     fi
 
-    audit_temp="$(mktemp -d "$audit_temp_parent/repository-audit.XXXXXX")"
+    audit_temp="$(mktemp -d "$audit_temp_parent/repository-audit.XXXXXX")" || return
     trap cleanup EXIT
     return
   fi
 
   audit_temp_parent="${TMPDIR:-/tmp}"
   audit_temp_parent="${audit_temp_parent%/}"
-  audit_temp="$(mktemp -d "$audit_temp_parent/repository-audit.XXXXXX")"
+  audit_temp="$(mktemp -d "$audit_temp_parent/repository-audit.XXXXXX")" || return
   trap cleanup EXIT
 }
 
 to_pwsh_path() {
+  local command_host="${2:-}"
   case "$(uname -s 2>/dev/null || true)" in
   CYGWIN* | MINGW* | MSYS*)
     cygpath -w "$1"
@@ -115,6 +143,10 @@ to_pwsh_path() {
   *)
     if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] &&
       command -v wslpath >/dev/null 2>&1; then
+      if [[ -n "${command_host}" && "${command_host}" != *.exe && "${command_host}" != *.cmd ]]; then
+        printf '%s\n' "$1"
+        return
+      fi
       wslpath -w "$1"
       return
     fi
@@ -135,18 +167,20 @@ check_git_whitespace() {
     if [ "$BEFORE_SHA" != "$zero_sha" ]; then
       git diff --check "$BEFORE_SHA..HEAD"
     else
-      from_ref="$(resolve_audit_from_ref)"
+      from_ref="$(resolve_audit_from_ref)" || return
       if [ "$from_ref" = "$audit_all_commits_marker" ]; then
+        local commits
+        commits="$(git rev-list --reverse HEAD)" || return
         while IFS= read -r commit_sha; do
-          git diff-tree --check --root --no-commit-id -r "$commit_sha"
-        done < <(git rev-list --reverse HEAD)
+          git diff-tree --check --root --no-commit-id -r "$commit_sha" || return
+        done <<<"${commits}"
       else
         git diff --check "$from_ref..HEAD"
       fi
     fi
   else
-    git diff --check
-    git diff --cached --check
+    git diff --check || return
+    git diff --cached --check || return
     git diff-tree --check --root --no-commit-id -r HEAD
   fi
 }
@@ -154,9 +188,12 @@ check_git_whitespace() {
 check_powershell_line_endings() {
   local node_cmd="$1"
   local powershell_path
+  local powershell_paths
+  powershell_paths="$(git ls-files '*.ps1')" || return
 
   while IFS= read -r powershell_path; do
-    POWERSHELL_PATH="$powershell_path" "$node_cmd" <<'JS'
+    [[ -n "${powershell_path}" ]] || continue
+    POWERSHELL_PATH="$powershell_path" "$node_cmd" <<'JS' || return
 const fs = require("fs");
 
 const filePath = process.env.POWERSHELL_PATH;
@@ -172,7 +209,7 @@ for (let index = 0; index < content.length; index += 1) {
   }
 }
 JS
-  done < <(git ls-files '*.ps1')
+  done <<<"${powershell_paths}"
 }
 
 find_highest_reachable_stable_tag() {

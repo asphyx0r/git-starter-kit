@@ -16,6 +16,15 @@ hook_test_timeout_seconds=900
 # uses the snapshot policy; the push hook uses the test and workflow selection.
 classify_hook_path() {
   local changed_path="$1"
+  if [[ "${hook_selection_scope:-source}" == project ]]; then
+    return
+  fi
+  if [[ -z "${hook_selection_scope:-}" && -n "${repository_root:-}" &&
+    -f "${repository_root}/.starter-kit-project.json" ]]; then
+    local scope
+    scope="$(resolve_validation_scope)" || return
+    [[ "${scope}" == source ]] || return 0
+  fi
   local module=''
   case "${changed_path}" in
   tools/backup-target-directory.py | tests/test_backup_target_directory.py)
@@ -156,12 +165,18 @@ resolve_hook_python() {
 
 to_hook_host_path() {
   local file_path="$1"
+  local command_path="${2:-}"
 
   if [[ "${file_path}" != /* ]]; then
     printf '%s\n' "${file_path}"
     return
   fi
   if command -v wslpath >/dev/null 2>&1; then
+    if [[ -n "${command_path}" && "${command_path}" != *.exe &&
+      "${command_path}" != *.cmd ]]; then
+      printf '%s\n' "${file_path}"
+      return
+    fi
     wslpath -w "${file_path}"
     return
   fi
@@ -255,15 +270,22 @@ run_hook_powershell_static() {
   local pwsh_cmd
   pwsh_cmd="$(resolve_powershell_command)" || return
   local settings_path
-  settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1")"
+  settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1" "${pwsh_cmd}")" || return
   local file_path
   for file_path in "$@"; do
+    if [[ "${file_path#./}" == tools/quality/PSScriptAnalyzerSettings.psd1 ]]; then
+      run_hook_powershell_settings "${staged_root}" || return
+      continue
+    fi
     local host_path
-    host_path="$(to_hook_host_path "${staged_root}/${file_path#./}")"
+    host_path="$(to_hook_host_path "${staged_root}/${file_path#./}" "${pwsh_cmd}")" || return
     # PowerShell expands its environment variables in the single-quoted script.
     # shellcheck disable=SC2016
     AUDIT_PS_PATH="${host_path}" AUDIT_PS_SETTINGS="${settings_path}" \
       "${pwsh_cmd}" -NoProfile -Command '
+$ErrorActionPreference = "Stop"
+$null = Get-Content -LiteralPath $env:AUDIT_PS_PATH -Raw
+$null = Get-Content -LiteralPath $env:AUDIT_PS_SETTINGS -Raw
 $findings = Invoke-ScriptAnalyzer `
     -Path $env:AUDIT_PS_PATH `
     -Settings $env:AUDIT_PS_SETTINGS
@@ -280,7 +302,7 @@ run_hook_powershell_settings() {
   local pwsh_cmd
   pwsh_cmd="$(resolve_powershell_command)" || return
   local settings_path
-  settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1")"
+  settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1" "${pwsh_cmd}")" || return
   # PowerShell expands its environment variables in the single-quoted script.
   # shellcheck disable=SC2016
   AUDIT_PS_SETTINGS="${settings_path}" \
@@ -382,6 +404,17 @@ run_hook_pre_commit() (
   trap 'exit 130' INT
   trap 'exit 143' TERM
 
+  local metadata_root="${hook_temp}/metadata"
+  local metadata_names="${hook_temp}/metadata.names"
+  mkdir -p "${metadata_root}" || return
+  git ls-files -z -- .starter-kit-project.json _starter-kit-files.json >"${metadata_names}" || return
+  git checkout-index -z --stdin --prefix="${metadata_root}/" <"${metadata_names}" || return
+  local hook_selection_scope
+  hook_selection_scope="$(resolve_validation_scope "${metadata_root}")" || return
+  local selection_python
+  selection_python="$(resolve_hook_python)" || return
+  printf 'Core validation scope: %s (staged configuration)\n' "${hook_selection_scope}"
+
   local -a markdown_paths=()
   local -a yaml_paths=()
   local -a python_paths=()
@@ -405,6 +438,11 @@ run_hook_pre_commit() (
   git diff --cached --name-only -z --diff-filter=ACMR \
     >"${staged_names}" || return $?
   while IFS= read -r -d '' staged_file; do
+    if [[ "${hook_selection_scope}" == project ]] &&
+      ! "${selection_python}" -B "${audit_script_dir}/project_validation.py" \
+        --repository-root "${metadata_root}" --owns "${staged_file}"; then
+      continue
+    fi
     case "${staged_file}" in
     *.md)
       markdown_paths+=("./${staged_file}")
@@ -434,6 +472,11 @@ run_hook_pre_commit() (
     tools/quality .codespellrc commitlint.config.cjs \
     .markdownlint-cli2.yaml >"${configuration_names}" || return $?
   while IFS= read -r -d '' staged_file; do
+    if [[ "${hook_selection_scope}" == project ]] &&
+      ! "${selection_python}" -B "${audit_script_dir}/project_validation.py" \
+        --repository-root "${metadata_root}" --owns "${staged_file}"; then
+      continue
+    fi
     case "${staged_file}" in
     tools/quality/PSScriptAnalyzerSettings.psd1 | tools/quality/yamllint.yaml)
       required_configuration_paths+=("${staged_file}")
@@ -472,7 +515,7 @@ run_hook_pre_commit() (
   # Bound Markdownlint ignore and Actionlint project discovery to this index.
   mkdir -p "${staged_root}/.git" || return
   local check_status=0
-  if [[ "${full_snapshot}" == true ]]; then
+  if [[ "${full_snapshot}" == true || "${hook_selection_scope}" == project ]]; then
     git checkout-index -a --prefix="${staged_root}/" || check_status=$?
   else
     local export_names="${hook_temp}/export.names"
@@ -492,6 +535,11 @@ run_hook_pre_commit() (
     sort -zu -o "${export_names}" "${export_names}" || return
     git checkout-index -z --stdin --prefix="${staged_root}/" \
       <"${export_names}" || check_status=$?
+  fi
+  if ((check_status == 0)); then
+    if [[ "${hook_selection_scope}" == project ]]; then
+      resolve_validation_scope "${staged_root}" >/dev/null || check_status=$?
+    fi
   fi
   if ((check_status == 0)); then
     run_hook_secret_scan "${staged_root}" || check_status=$?
@@ -826,6 +874,7 @@ run_hook_pre_push() (
   local -a test_python_modules=()
   local -a test_workflow_flags=()
   local -a release_updates=()
+  local hook_selection_scope=source
 
   while read -r local_ref local_object_id remote_ref remote_object_id; do
     if [[ -z "${local_ref:-}" ]] ||
@@ -834,6 +883,9 @@ run_hook_pre_push() (
     fi
     if [[ "${remote_ref}" == refs/tags/v* ]]; then
       release_updates+=("${local_object_id}" "${remote_ref}")
+      local tagged_commit_id
+      tagged_commit_id="$(git rev-parse --verify "${local_object_id}^{commit}")" || return
+      merge_hook_test_update "${tagged_commit_id}" false false '' false
       continue
     fi
     local run_python=false
@@ -857,11 +909,9 @@ run_hook_pre_push() (
         classify_hook_path "${changed_path}"
       done <"${changes_path}"
     fi
-    if [[ "${run_python}" == true || "${run_shell}" == true ]]; then
-      merge_hook_test_update \
-        "${local_object_id}" "${run_python}" "${run_shell}" \
-        "${python_modules}" "${run_workflows}"
-    fi
+    merge_hook_test_update \
+      "${local_object_id}" "${run_python}" "${run_shell}" \
+      "${python_modules}" "${run_workflows}"
     update_index=$((update_index + 1))
   done
 
@@ -903,12 +953,25 @@ run_hook_pre_push() (
         change_status=$?
         return "${change_status}"
       fi
-      run_hook_affected_tests \
-        "${validated_hook_root}" \
-        "${test_python_flags[update_index]}" \
-        "${test_shell_flags[update_index]}" \
-        "${test_python_modules[update_index]}" \
-        "${test_workflow_flags[update_index]}" || return
+      local pushed_scope
+      pushed_scope="$(resolve_validation_scope "${validated_hook_root}")" || return
+      printf 'Core validation scope: %s (pushed revision %s)\n' \
+        "${pushed_scope}" "${test_object_ids[update_index]}"
+      if [[ "${pushed_scope}" == source ]]; then
+        run_hook_affected_tests \
+          "${validated_hook_root}" \
+          "${test_python_flags[update_index]}" \
+          "${test_shell_flags[update_index]}" \
+          "${test_python_modules[update_index]}" \
+          "${test_workflow_flags[update_index]}" || return
+      else
+        (
+          repository_root="${validated_hook_root}"
+          cd "${repository_root}" || return
+          run_consumer_core fast
+        ) || return
+      fi
+      run_project_checks "${validated_hook_root}" || return
     done
   fi
 

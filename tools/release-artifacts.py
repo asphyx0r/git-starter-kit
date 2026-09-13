@@ -33,6 +33,7 @@ CHECKSUMS_PATH = "SHA256SUMS"
 MANIFEST_PATH = "manifest.json"
 TEMPLATE_PATH = "templates/release/manifest.template.json"
 SCHEMA_PATH = "templates/release/manifest.schema.json"
+REPOSITORY_SCHEMA_PATH = "templates/release/repository-manifest.schema.json"
 OUTPUT_PATHS = frozenset({CHECKSUMS_PATH, MANIFEST_PATH})
 SEMVER_TAG_PATTERN = re.compile(
     r"^v(0|[1-9][0-9]*)\."
@@ -223,6 +224,7 @@ def release_inventory(
         CHECKSUMS_PATH,
         MANIFEST_PATH,
         SCHEMA_PATH,
+        REPOSITORY_SCHEMA_PATH,
         TEMPLATE_PATH,
     }
     retained: dict[str, tuple[str, bytes]] = {}
@@ -490,6 +492,39 @@ def build_manifest(
     return manifest
 
 
+def build_repository_manifest(
+    version: str,
+    release_date: str,
+    files: list[dict[str, Any]],
+    checksums: bytes,
+) -> dict[str, Any]:
+    return {
+        "manifest_version": "3.0.0",
+        "release_kind": "repository",
+        "version": version,
+        "release_date": release_date,
+        "artifact": {
+            "format": "git-tree",
+            "files": files,
+            "total_files": len(files),
+            "size_bytes": sum(item["size_bytes"] for item in files),
+            "sha256": sha256_bytes(checksums),
+            "built_at": release_date,
+        },
+    }
+
+
+def manifest_kind(manifest: dict[str, Any]) -> str:
+    if (
+        manifest.get("manifest_version") == "3.0.0"
+        and manifest.get("release_kind") == "repository"
+    ):
+        return "repository"
+    if manifest.get("manifest_version") == "2.0.0" and "release_kind" not in manifest:
+        return "deployment"
+    raise ReleaseArtifactError("Unsupported manifest_version or release_kind")
+
+
 def validate_schema(
     root: Path,
     manifest: dict[str, Any],
@@ -603,15 +638,31 @@ def confirm_write(force: bool) -> None:
 
 def prepare_artifacts(args: argparse.Namespace) -> int:
     root = require_repository_root(args.repository_root)
-    metadata = load_metadata(root, args.metadata_file)
+    if args.kind == "deployment" and args.metadata_file is None:
+        raise ReleaseArtifactError("deployment preparation requires --metadata-file")
+    if args.kind == "repository" and args.metadata_file is not None:
+        raise ReleaseArtifactError("repository preparation rejects --metadata-file")
     version = version_from_ref(args.release_ref)
     release_date = parse_release_date(args.release_date)
-    records, retained = release_inventory(root, "HEAD")
+    treeish = None if args.index else (args.treeish or "HEAD")
+    records, retained = release_inventory(root, treeish)
     files, checksums = _payload_from_records(
         records, retained.get(VERSION_PATH), version, True
     )
-    manifest = build_manifest(root, metadata, version, release_date, files, checksums)
-    validate_schema(root, manifest)
+    if args.kind == "repository":
+        manifest = build_repository_manifest(version, release_date, files, checksums)
+        schema_entry = retained.get(REPOSITORY_SCHEMA_PATH)
+        if schema_entry is None:
+            raise ReleaseArtifactError(
+                "selected Git content does not contain the repository manifest schema"
+            )
+        validate_schema(root, manifest, schema_entry[1])
+    else:
+        metadata = load_metadata(root, args.metadata_file)
+        manifest = build_manifest(
+            root, metadata, version, release_date, files, checksums
+        )
+        validate_schema(root, manifest)
     outputs = {
         VERSION_PATH: f"{version}\n".encode("utf-8"),
         CHECKSUMS_PATH: checksums,
@@ -627,6 +678,7 @@ def prepare_artifacts(args: argparse.Namespace) -> int:
         "releaseRef": args.release_ref,
         "files": len(files),
         "changed": changed,
+        "treeish": treeish or "index",
     }
     if args.dry_run:
         print(json.dumps(report, indent=2))
@@ -660,7 +712,9 @@ def check_artifacts(args: argparse.Namespace) -> int:
         raise ReleaseArtifactError("selected manifest.json is invalid JSON") from error
     if not isinstance(manifest, dict):
         raise ReleaseArtifactError("selected manifest.json must contain an object")
-    schema_entry = entries.get(SCHEMA_PATH)
+    kind = manifest_kind(manifest)
+    schema_path = REPOSITORY_SCHEMA_PATH if kind == "repository" else SCHEMA_PATH
+    schema_entry = entries.get(schema_path)
     if schema_entry is None:
         raise ReleaseArtifactError(
             "selected Git content does not contain the manifest schema"
@@ -678,50 +732,65 @@ def check_artifacts(args: argparse.Namespace) -> int:
     checksums_entry = entries.get(CHECKSUMS_PATH)
     if checksums_entry is None or checksums_entry[1] != checksums:
         raise ReleaseArtifactError("SHA256SUMS does not match the selected Git content")
-    artifacts = manifest.get("artifacts")
-    if not isinstance(artifacts, list) or len(artifacts) != 1:
-        raise ReleaseArtifactError("manifest must contain one git-tree artifact")
-    artifact = artifacts[0]
-    template_entry = entries.get(TEMPLATE_PATH)
-    if template_entry is None:
-        raise ReleaseArtifactError(
-            "selected Git content does not contain the manifest template"
+    if kind == "repository":
+        release_date = manifest.get("release_date")
+        if not isinstance(release_date, str):
+            raise ReleaseArtifactError("manifest release_date must be a UTC timestamp")
+        parse_release_date(release_date)
+        if manifest_entry[0] != "100644" or checksums_entry[0] != "100644":
+            raise ReleaseArtifactError(
+                "repository release outputs must use Git mode 100644"
+            )
+        expected_manifest = build_repository_manifest(
+            version, release_date, files, checksums
         )
-    expected_manifest = build_manifest(
-        root,
-        {
-            "program_id": manifest["program_id"],
-            "name": manifest["name"],
-            "channel": manifest["channel"],
-            "critical_update": manifest["critical_update"],
-            "release_notes": manifest["release_notes"],
-            "update": manifest["update"],
-            "artifact": {
-                "id": artifact["id"],
-                "target": artifact["target"],
+        if manifest != expected_manifest:
+            raise ReleaseArtifactError("manifest git-tree inventory is inconsistent")
+    else:
+        artifacts = manifest.get("artifacts")
+        if not isinstance(artifacts, list) or len(artifacts) != 1:
+            raise ReleaseArtifactError("manifest must contain one git-tree artifact")
+        artifact = artifacts[0]
+        template_entry = entries.get(TEMPLATE_PATH)
+        if template_entry is None:
+            raise ReleaseArtifactError(
+                "selected Git content does not contain the manifest template"
+            )
+        expected_manifest = build_manifest(
+            root,
+            {
+                "program_id": manifest["program_id"],
+                "name": manifest["name"],
+                "channel": manifest["channel"],
+                "critical_update": manifest["critical_update"],
+                "release_notes": manifest["release_notes"],
+                "update": manifest["update"],
+                "artifact": {
+                    "id": artifact["id"],
+                    "target": artifact["target"],
+                },
+                "metadata": manifest["metadata"],
             },
-            "metadata": manifest["metadata"],
-        },
-        version,
-        manifest["release_date"],
-        files,
-        checksums,
-        template_entry[1],
-    )
-    if manifest != expected_manifest:
-        raise ReleaseArtifactError(
-            "manifest.json does not match the selected manifest template"
+            version,
+            manifest["release_date"],
+            files,
+            checksums,
+            template_entry[1],
         )
-    expected_size = sum(item["size_bytes"] for item in files)
-    if (
-        artifact.get("format") != "git-tree"
-        or artifact.get("files") != files
-        or artifact.get("total_files") != len(files)
-        or artifact.get("size_bytes") != expected_size
-        or artifact.get("sha256") != sha256_bytes(checksums)
-        or artifact.get("built_at") != manifest.get("release_date")
-    ):
-        raise ReleaseArtifactError("manifest git-tree inventory is inconsistent")
+        if manifest != expected_manifest:
+            raise ReleaseArtifactError(
+                "manifest.json does not match the selected manifest template"
+            )
+        expected_size = sum(item["size_bytes"] for item in files)
+        if (
+            artifact.get("format") != "git-tree"
+            or artifact.get("files") != files
+            or artifact.get("total_files") != len(files)
+            or artifact.get("size_bytes") != expected_size
+            or artifact.get("sha256") != sha256_bytes(checksums)
+            or artifact.get("built_at") != manifest.get("release_date")
+        ):
+            raise ReleaseArtifactError("manifest git-tree inventory is inconsistent")
     print(
         json.dumps(
             {
@@ -756,7 +825,13 @@ def build_parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare", help="prepare release artifacts")
     prepare.add_argument("--release-ref", required=True)
     prepare.add_argument("--release-date", required=True)
-    prepare.add_argument("--metadata-file", type=Path, required=True)
+    prepare.add_argument(
+        "--kind", choices=("repository", "deployment"), default="deployment"
+    )
+    prepare.add_argument("--metadata-file", type=Path)
+    prepare_selected = prepare.add_mutually_exclusive_group()
+    prepare_selected.add_argument("--treeish")
+    prepare_selected.add_argument("--index", action="store_true")
     prepare.add_argument("--repository-root", type=Path, default=Path.cwd())
 
     check = subparsers.add_parser("check", help="validate release artifacts")

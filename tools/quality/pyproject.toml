@@ -8,10 +8,13 @@ select = ["E4", "E7", "E9", "F"]
 [tool.mypy]
 python_version = "3.11"
 files = [
+  "tools/automation_config.py",
   "tools/backup-target-directory.py",
   "tools/git_objects.py",
   "tools/merge-pull-request.py",
   "tools/process_runner.py",
+  "tools/project_config.py",
+  "tools/project_validation.py",
   "tools/release-artifacts.py",
   "tools/starter-kit-manifest.py",
   "tools/starter-kit-upgrade.py",

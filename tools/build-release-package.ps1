@@ -30,6 +30,16 @@ $RequiredRuleFiles = @(
 $StarterKitManifestPath = "starter-kit-manifest.json"
 
 $StarterOnlyPaths = @(
+    "docs/repository-migration.md",
+    "templates/README.md",
+    "templates/README_TOOLS.md",
+    "templates/CONTRIBUTING.md",
+    "templates/CHANGELOG.md",
+    "templates/CODE_OF_CONDUCT.md",
+    "templates/SECURITY.md",
+    "templates/SUPPORT.md",
+    "templates/SKILLS.md",
+    "tools/quality/check-coverage.py",
     ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
     ".github/CODEOWNERS",
     ".github/workflows/release-package.yml",
@@ -52,7 +62,11 @@ $StarterOnlyPaths = @(
     "tools/starter_kit_upgrade/planning.py"
 )
 $StarterOnlyPrefixes = @(
-    "tools/starter_kit_upgrade/"
+    "tools/starter_kit_upgrade/",
+    "tests/",
+    "docs/superpowers/",
+    "templates/project/",
+    ".superpowers/"
 )
 $CanonicalRepositorySlug = "asphyx0r/git-starter-kit"
 $CanonicalRepositoryUrls = @(
@@ -413,32 +427,95 @@ function Resolve-AgentRulesRelease {
     }
 
     $normalizedRef = $RequestedRef.Trim()
-    if ($normalizedRef -ceq "latest") {
-        $latestRelease = Get-GitHubLatestRelease -Repository $Repository
-        $latestRef = [string]$latestRelease.tag_name
-        if ([string]::IsNullOrWhiteSpace($latestRef) -or
-            $latestRef -notmatch $SemVerTagPattern) {
-            throw "Latest agent rules release tag must be a SemVer tag prefixed with v."
-        }
-
-        return [ordered]@{
-            RequestedRef = $normalizedRef
-            Ref          = $latestRef
-            ReleaseUrl   = [string]$latestRelease.html_url
-            ReleaseDate  = [string]$latestRelease.published_at
-        }
-    }
-
-    if ($normalizedRef -notmatch $SemVerTagPattern) {
+    if ($normalizedRef -cne "latest" -and $normalizedRef -notmatch $SemVerTagPattern) {
         throw "AgentRulesRef must be latest or a SemVer tag prefixed with v."
     }
-
+    $latestRelease = Get-GitHubLatestRelease -Repository $Repository
+    $latestRef = [string]$latestRelease.tag_name
+    if ([string]::IsNullOrWhiteSpace($latestRef) -or $latestRef -notmatch $SemVerTagPattern) {
+        throw "Latest agent rules release tag must be a SemVer tag prefixed with v."
+    }
+    if ($normalizedRef -cne "latest" -and $normalizedRef -cne $latestRef) {
+        throw "AgentRulesRef must identify the latest published agent rules release ($latestRef)."
+    }
+    $immutableRules = Get-GitHubImmutableAgentRuleSet -Repository $Repository -Reference $latestRef
     return [ordered]@{
         RequestedRef = $normalizedRef
-        Ref          = $normalizedRef
-        ReleaseUrl   = $null
-        ReleaseDate  = $null
+        Ref          = $latestRef
+        Commit       = $immutableRules.Commit
+        Files        = $immutableRules.Files
+        ReleaseUrl   = [string]$latestRelease.html_url
+        ReleaseDate  = [string]$latestRelease.published_at
     }
+}
+
+function Get-GitHubApiResponse {
+    param([Parameter(Mandatory = $true)][string]$ApiPath)
+
+    $headers = @{ Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
+    if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
+    try {
+        Invoke-RestMethod -Uri "https://api.github.com/$ApiPath" -Headers $headers `
+            -UserAgent "git-starter-kit-release-package" -TimeoutSec $HttpTimeoutSeconds
+    }
+    catch {
+        throw "Unable to verify immutable upstream agent rules ($ApiPath): $($_.Exception.Message)"
+    }
+}
+
+function Get-GitHubImmutableAgentRuleSet {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$Reference
+    )
+
+    $tag = Get-GitHubApiResponse -ApiPath "repos/$Repository/git/ref/tags/$([Uri]::EscapeDataString($Reference))"
+    if ([string]$tag.ref -cne "refs/tags/$Reference") { throw "Upstream agent rules ref identity mismatch." }
+    $object = $tag.object
+    $seen = @{}
+    while ([string]$object.type -ceq "tag") {
+        $tagSha = [string]$object.sha
+        if ($tagSha -notmatch "^[0-9a-f]{40}$" -or $seen.ContainsKey($tagSha)) {
+            throw "Upstream agent rules tag has an invalid or cyclic object identity."
+        }
+        $seen[$tagSha] = $true
+        $peeled = Get-GitHubApiResponse -ApiPath "repos/$Repository/git/tags/$tagSha"
+        if ([string]$peeled.sha -cne $tagSha) { throw "Upstream agent rules tag identity mismatch." }
+        $object = $peeled.object
+    }
+    $commit = [string]$object.sha
+    if ([string]$object.type -cne "commit" -or $commit -notmatch "^[0-9a-f]{40}$") {
+        throw "Upstream agent rules tag must resolve to an immutable commit."
+    }
+    $verifiedCommit = Get-GitHubApiResponse -ApiPath "repos/$Repository/git/commits/$commit"
+    if ([string]$verifiedCommit.sha -cne $commit) { throw "Upstream agent rules commit identity mismatch." }
+    $treeSha = [string]$verifiedCommit.tree.sha
+    if ($treeSha -notmatch "^[0-9a-f]{40}$") { throw "Upstream agent rules tree identity is invalid." }
+    $tree = Get-GitHubApiResponse -ApiPath "repos/$Repository/git/trees/$treeSha"
+    if ([string]$tree.sha -cne $treeSha -or $tree.truncated) { throw "Upstream agent rules tree identity mismatch or truncation." }
+    $files = @{}
+    foreach ($ruleFile in $RequiredRuleFiles) {
+        $records = @($tree.tree | Where-Object { [string]$_.path -ceq $ruleFile })
+        if ($records.Count -ne 1 -or [string]$records[0].type -cne "blob" -or
+            [string]$records[0].mode -cne "100644") {
+            throw "Upstream rule must be one regular root blob: $ruleFile"
+        }
+        $blobSha = [string]$records[0].sha
+        if ($blobSha -notmatch "^[0-9a-f]{40}$") { throw "Upstream rule blob identity is invalid: $ruleFile" }
+        $blob = Get-GitHubApiResponse -ApiPath "repos/$Repository/git/blobs/$blobSha"
+        if ([string]$blob.sha -cne $blobSha -or [string]$blob.encoding -cne "base64") {
+            throw "Upstream rule blob identity or encoding mismatch: $ruleFile"
+        }
+        $bytes = [Convert]::FromBase64String([string]$blob.content)
+        $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)" + [char]0)
+        $sha1 = [Security.Cryptography.SHA1]::Create()
+        try { $digest = $sha1.ComputeHash([byte[]]($header + $bytes)) }
+        finally { $sha1.Dispose() }
+        $actualBlob = ($digest | ForEach-Object { $_.ToString("x2") }) -join ""
+        if ($actualBlob -cne $blobSha) { throw "Upstream rule Git blob digest mismatch: $ruleFile" }
+        $files[$ruleFile] = $bytes
+    }
+    return [ordered]@{ Commit = $commit; Files = $files }
 }
 
 function Copy-TrackedRepositoryFile {
@@ -589,7 +666,7 @@ function Get-Sha256 {
 }
 
 function Get-Sha256ByteArray {
-    param([Parameter(Mandatory = $true)][byte[]]$Content)
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Content)
 
     $sha256 = [System.Security.Cryptography.SHA256]::Create()
     try {
@@ -641,6 +718,7 @@ function Get-UpgradeStrategy {
     }
 
     $initializeOnly = @(
+        ".starter-kit-project.json",
         "CHANGELOG.md",
         "CODE_OF_CONDUCT.md",
         "CONTRIBUTING.md",
@@ -812,7 +890,93 @@ function Resolve-PackageFilePath {
     return $packagePath
 }
 
+function Get-PackageFileRecord {
+    param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][hashtable]$Modes)
+
+    $records = @{}
+    foreach ($file in Get-ChildItem -LiteralPath $Root -File -Recurse -Force) {
+        $relativePath = $file.FullName.Substring($Root.Length + 1) -replace "\\", "/"
+        $mode = "100644"
+        if ($Modes.ContainsKey($relativePath)) { $mode = $Modes[$relativePath] }
+        $metadata = Get-ContentMetadataRecord -Path $file.FullName
+        $records[$relativePath] = [ordered]@{
+            path = $relativePath
+            sha256 = Get-Sha256 -Path $file.FullName
+            canonicalSha256 = $metadata.canonicalSha256
+            contentKind = $metadata.contentKind
+            mode = $mode
+            strategy = Get-UpgradeStrategy -Path $relativePath
+        }
+    }
+    $paths = [string[]]@($records.Keys)
+    [Array]::Sort($paths, [StringComparer]::Ordinal)
+    foreach ($path in $paths) { $records[$path] }
+}
+
+function Assert-TrackedProjectTemplate {
+    param([Parameter(Mandatory = $true)][string]$SourceRoot,
+        [Parameter(Mandatory = $true)][string]$RepositoryReference)
+
+    if ($RepositoryReference -match $SemVerTagPattern) {
+        $trackedTemplates = @(Invoke-GitLine -Arguments @(
+            "-C", $SourceRoot, "ls-tree", "-r", "--name-only", "HEAD", "--", "templates/project/"
+        ))
+        if ($trackedTemplates.Count -eq 0) { throw "HEAD contains no consumer composition templates." }
+        foreach ($sourceRelativePath in $trackedTemplates) {
+            $sourcePath = Join-Path $SourceRoot $sourceRelativePath
+            if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+                throw "Tracked composed template is missing: $sourceRelativePath"
+            }
+        }
+    }
+}
+
+function Copy-ProjectTemplate {
+    param([Parameter(Mandatory = $true)][string]$SourceRoot, [Parameter(Mandatory = $true)][string]$TargetRoot,
+        [Parameter(Mandatory = $true)][string]$RepositoryReference)
+
+    $templatesRoot = Join-Path $SourceRoot "templates/project"
+    foreach ($file in Get-ChildItem -LiteralPath $templatesRoot -File -Recurse -Force) {
+        $relativePath = $file.FullName.Substring($templatesRoot.Length + 1)
+        if ($RepositoryReference -match $SemVerTagPattern) {
+            $sourceRelativePath = "templates/project/" + ($relativePath -replace "\\", "/")
+            $headObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "rev-parse", "HEAD:$sourceRelativePath")) -join "").Trim()
+            $worktreeObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "hash-object", "--path=$sourceRelativePath", $file.FullName)) -join "").Trim()
+            if ($headObject -cne $worktreeObject) { throw "Composed template differs from HEAD: $sourceRelativePath" }
+        }
+        $destination = Join-Path $TargetRoot $relativePath
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+    }
+    $configuration = & python -B -c "import json,sys; sys.path.insert(0,sys.argv[1]); from project_config import default_project_configuration; print(json.dumps(default_project_configuration(),indent=2))" (Join-Path $SourceRoot "tools")
+    if ($LASTEXITCODE -ne 0) { throw "Unable to compose the shared default project configuration." }
+    Write-Utf8NoBomFile -Path (Join-Path $TargetRoot ".starter-kit-project.json") `
+        -Content (($configuration -join "`n") + "`n")
+    $inventoryDocument = Join-Path $TargetRoot "docs/repository-files.md"
+    $inventoryHeader = Get-Content -LiteralPath $inventoryDocument -Raw
+    $paths = @(Get-ChildItem -LiteralPath $TargetRoot -File -Recurse -Force | ForEach-Object {
+        $_.FullName.Substring($TargetRoot.Length + 1) -replace "\\", "/"
+    }) + @("_starter-kit-files.json")
+    Write-Utf8NoBomFile -Path $inventoryDocument `
+        -Content ($inventoryHeader.TrimEnd() + "`n`n" + '```text' + "`n" + (($paths | Sort-Object -Unique) -join "`n") + "`n" + '```' + "`n")
+    foreach ($document in Get-ChildItem -LiteralPath $TargetRoot -File -Recurse -Filter "*.md") {
+        if ($RequiredRuleFiles -ccontains $document.Name) { continue }
+        $text = Get-Content -LiteralPath $document.FullName -Raw
+        foreach ($match in [regex]::Matches($text, "\[[^\]]*\]\(([^)]+)\)")) {
+            $link = $match.Groups[1].Value.Split([char]"#")[0]
+            if (-not $link -or $link -match "^[a-zA-Z][a-zA-Z0-9+.-]*:") { continue }
+            $target = [IO.Path]::GetFullPath((Join-Path $document.DirectoryName $link))
+            $rootPrefix = $TargetRoot + [IO.Path]::DirectorySeparatorChar
+            if (-not $target.StartsWith($rootPrefix, [StringComparison]::Ordinal) -or
+                -not (Test-Path -LiteralPath $target)) {
+                throw "Consumer documentation relative link does not resolve: $($document.Name): $link"
+            }
+        }
+    }
+}
+
 $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
+$repoRoot = (Get-Item -LiteralPath $repoRoot -Force).FullName
 $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
 $stagingRoot = Join-Path $tempRoot "package"
@@ -903,14 +1067,13 @@ try {
     if ($agentRulesCommit -notmatch "^[0-9a-f]{40}$") {
         throw "Tracked agent-rules provenance has an invalid commit."
     }
-    $preservedProperty = $sourceProvenance.PSObject.Properties["preservedFiles"]
-    $preservedFiles = @()
-    if ($null -ne $preservedProperty -and $null -ne $preservedProperty.Value) {
-        $preservedFiles = @($preservedProperty.Value)
+    if ($agentRulesCommit -cne [string]$resolvedAgentRules.Commit) {
+        throw "Tracked agent rules commit differs from latest immutable upstream; synchronize with the official updater."
     }
-
+    Assert-TrackedProjectTemplate -SourceRoot $repoRoot -RepositoryReference $RepositoryRef
     New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+    $stagingRoot = (Get-Item -LiteralPath $stagingRoot -Force).FullName
 
     Write-Output "Validating tracked agent rules ref $resolvedAgentRulesRef."
 
@@ -934,21 +1097,26 @@ try {
             [string]::IsNullOrWhiteSpace([string]$hashProperty.Value)) {
             throw "Tracked provenance has no canonical hash for $ruleFile."
         }
-        $actualHash = (Get-ContentMetadataRecord -Path $rulePath).canonicalSha256
-        $expectedHash = [string]$hashProperty.Value
-        if ($actualHash -cne $expectedHash) {
-            $preservedMatch = @(
-                $preservedFiles |
-                    Where-Object {
-                        [string]$_.path -ceq $ruleFile -and
-                        [string]$_.canonicalSha256 -ceq $actualHash
-                    }
-            )
-            if ($preservedMatch.Count -ne 1) {
-                throw "Tracked rule $ruleFile differs from source without a matching preservedFiles record."
-            }
+        $upstreamBytes = [byte[]]$resolvedAgentRules.Files[$ruleFile]
+        $encoding = New-Object System.Text.UTF8Encoding($false, $true)
+        $upstreamText = $encoding.GetString($upstreamBytes)
+        $localText = $encoding.GetString([IO.File]::ReadAllBytes($rulePath))
+        # Markdown Git blobs are LF; CRLF checkout conversion is the only permitted byte adaptation.
+        $localBlobBytes = $encoding.GetBytes($localText.Replace("`r`n", "`n"))
+        if ((Get-Sha256ByteArray -Content $localBlobBytes) -cne
+            (Get-Sha256ByteArray -Content $upstreamBytes)) {
+            throw "Tracked rule $ruleFile differs from immutable upstream; synchronize with the official updater."
         }
+        $canonicalText = $upstreamText -replace "`r`n?", "`n"
+        $canonicalBytes = $encoding.GetBytes($canonicalText.TrimEnd([char]"`n") + "`n")
+        if ([string]$hashProperty.Value -cne (Get-Sha256ByteArray -Content $canonicalBytes)) {
+            throw "Tracked provenance hash differs from immutable upstream: $ruleFile"
+        }
+        [IO.File]::WriteAllBytes((Join-Path $stagingRoot $ruleFile), $upstreamBytes)
     }
+
+    Copy-ProjectTemplate -SourceRoot $repoRoot -TargetRoot $stagingRoot -RepositoryReference $RepositoryRef
+    $fileModes[".starter-kit-project.json"] = "100644"
 
     $manifest = [ordered]@{
         schemaVersion = 3
@@ -975,38 +1143,36 @@ try {
             fileHashes   = $sourceProvenance.agentRules.fileHashes
         }
     }
-    if ($preservedFiles.Count -gt 0) {
-        $manifest["preservedFiles"] = $preservedFiles
-    }
 
     $manifestPath = Join-Path $stagingRoot "_agent-rules-source.json"
     Write-Utf8NoBomFile -Path $manifestPath -Content ($manifest | ConvertTo-Json -Depth 8)
     $fileModes["_agent-rules-source.json"] = "100644"
 
-    $fileManifestPath = Join-Path $stagingRoot "_starter-kit-files.json"
-    $managedFiles = @(
-        Get-ChildItem -LiteralPath $stagingRoot -File -Recurse -Force |
-            Where-Object { $_.FullName -cne $fileManifestPath } |
-            ForEach-Object {
-                $relativePath = $_.FullName.Substring($stagingRoot.Length + 1)
-                $relativePath = $relativePath -replace "\\", "/"
-                $mode = "100644"
-                if ($fileModes.ContainsKey($relativePath)) {
-                    $mode = $fileModes[$relativePath]
-                }
-                $contentMetadata = Get-ContentMetadataRecord -Path $_.FullName
+    $starterStatePath = Join-Path $stagingRoot $StarterKitManifestPath
+    $starterState = Get-Content -LiteralPath $starterStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $coreRecords = @(Get-PackageFileRecord -Root $stagingRoot -Modes $fileModes | Where-Object {
+        $_.path -cne $StarterKitManifestPath -and $_.path -cne "_starter-kit-files.json" -and
+        $_.strategy -cne "agent-rules"
+    })
+    $starterState.files = $coreRecords
+    Write-Utf8NoBomFile -Path $starterStatePath -Content ($starterState | ConvertTo-Json -Depth 8)
+    $starterStateSerializer = @'
+import json
+import pathlib
+import sys
 
-                [ordered]@{
-                    path            = $relativePath
-                    sha256          = Get-Sha256 -Path $_.FullName
-                    canonicalSha256 = $contentMetadata.canonicalSha256
-                    contentKind     = $contentMetadata.contentKind
-                    mode            = $mode
-                    strategy        = Get-UpgradeStrategy -Path $relativePath
-                }
-            } |
-            Sort-Object -Property path
-    )
+path = pathlib.Path(sys.argv[1])
+state = json.loads(path.read_text(encoding="utf-8"))
+path.write_bytes((json.dumps(state, indent=2, sort_keys=False) + "\n").encode("utf-8"))
+'@
+    $starterStateSerializer | & python -B - $starterStatePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Starter-kit state serialization failed."
+    }
+
+    $fileManifestPath = Join-Path $stagingRoot "_starter-kit-files.json"
+    $managedFiles = @(Get-PackageFileRecord -Root $stagingRoot -Modes $fileModes |
+        Where-Object { $_.path -cne "_starter-kit-files.json" })
     $fileManifest = [ordered]@{
         schemaVersion = 3
         generatedAt   = $manifest.generatedAt
@@ -1024,6 +1190,29 @@ try {
         -Content ($fileManifest | ConvertTo-Json -Depth 8)
 
     $requiredFiles = $RequiredRuleFiles + @(
+        ".githooks/commit-msg",
+        "commitlint.config.cjs",
+        ".starter-kit-project.json",
+        "tools/initialize-repository.py",
+        "tools/git-inventory-context/HEAD",
+        "tools/git-inventory-context/objects/.gitkeep",
+        "tools/git-inventory-context/refs/.gitkeep",
+        "tools/project_config.py",
+        "tools/project_validation.py",
+        "tools/automation_config.py",
+        "tools/release-artifacts.py",
+        "tools/git_objects.py",
+        "tools/process_runner.py",
+        "tools/repository-audit.sh",
+        "tools/repository-audit/common.sh",
+        "tools/repository-audit/contracts.sh",
+        "tools/repository-audit/hooks.sh",
+        "tools/repository-audit/profiles.sh",
+        "tools/repository-audit/security.sh",
+        "tools/repository-audit/smoke.sh",
+        "tools/repository-audit/agent-rules-transfer.sh",
+        "tools/repository-audit/workflow-contracts.py",
+        "templates/release/repository-manifest.schema.json",
         ".github/workflows/agent-rules-update.yml",
         "_agent-rules-source.json",
         "_starter-kit-files.json",
@@ -1037,17 +1226,31 @@ try {
     }
 
 
+    if ($fileModes[".githooks/commit-msg"] -cne "100755") {
+        throw "Packaged commit-msg hook must retain its executable Git mode."
+    }
+
     $temporaryPackagePath = Join-Path `
         $outputRoot `
         ".$([System.IO.Path]::GetFileNameWithoutExtension($packagePath)).$([guid]::NewGuid().ToString('N')).zip.tmp"
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::CreateFromDirectory(
-        $stagingRoot,
-        $temporaryPackagePath,
-        [System.IO.Compression.CompressionLevel]::Optimal,
-        $false
-    )
+    Add-Type -AssemblyName System.IO.Compression
+    $zip = [System.IO.Compression.ZipFile]::Open($temporaryPackagePath, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in Get-ChildItem -LiteralPath $stagingRoot -File -Recurse -Force) {
+            $name = $file.FullName.Substring($stagingRoot.Length + 1) -replace "\\", "/"
+            $entry = $zip.CreateEntry($name, [IO.Compression.CompressionLevel]::Optimal)
+            $unixMode = 33188
+            if ($fileModes[$name] -ceq "100755") { $unixMode = 33261 }
+            $entry.ExternalAttributes = $unixMode -shl 16
+            $source = [IO.File]::OpenRead($file.FullName)
+            $destination = $entry.Open()
+            try { $source.CopyTo($destination) }
+            finally { $source.Dispose(); $destination.Dispose() }
+        }
+    }
+    finally { $zip.Dispose() }
 
     $zip = [System.IO.Compression.ZipFile]::OpenRead($temporaryPackagePath)
     try {
@@ -1079,6 +1282,29 @@ try {
         if ($manifestDifference.Count -ne 0) {
             throw "Managed-file manifest does not cover every archive file."
         }
+        $inventoryEntry = $zip.GetEntry("_starter-kit-files.json")
+        $inventoryStream = $inventoryEntry.Open()
+        $inventoryBuffer = New-Object IO.MemoryStream
+        try { $inventoryStream.CopyTo($inventoryBuffer); $inventoryBytes = $inventoryBuffer.ToArray() }
+        finally { $inventoryStream.Dispose(); $inventoryBuffer.Dispose() }
+        if ((Get-Sha256ByteArray -Content $inventoryBytes) -cne (Get-Sha256 -Path $fileManifestPath)) {
+            throw "Composed archive inventory byte mismatch."
+        }
+        foreach ($record in $managedFiles) {
+            $entry = $zip.GetEntry($record.path)
+            $stream = $entry.Open()
+            $buffer = New-Object IO.MemoryStream
+            try { $stream.CopyTo($buffer); $bytes = $buffer.ToArray() }
+            finally { $stream.Dispose(); $buffer.Dispose() }
+            if ((Get-Sha256ByteArray -Content $bytes) -cne $record.sha256) {
+                throw "Composed archive byte mismatch: $($record.path)"
+            }
+            $expectedMode = if ($record.mode -ceq "100755") { 33261 } else { 33188 }
+            if (($entry.ExternalAttributes -shr 16 -band 65535) -ne $expectedMode) {
+                throw "Composed archive mode mismatch: $($record.path)"
+            }
+        }
+
     }
     finally {
         $zip.Dispose()

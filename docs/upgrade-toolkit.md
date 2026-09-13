@@ -46,7 +46,7 @@ Supposons que le dépôt ait été initialisé avec `v2.0.3` et doive passer à 
 4. Examiner le plan sans modifier le dépôt :
 
    ```powershell
-   python starter-kit-upgrade.py plan `
+   python starter-kit-upgrade.py --dry-run plan `
      --upgrade-package git-starter-kit-v2.0.3-to-v2.2.1-upgrade.zip `
      --target C:\codex\qmd-manager
    ```

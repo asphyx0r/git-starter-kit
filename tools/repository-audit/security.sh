@@ -47,9 +47,9 @@ run_hook_secret_scan() {
   index_path="$(git rev-parse --path-format=absolute --git-path index)" || return
   # Gitleaks also reads source/.gitleaksignore even with an explicit ignore
   # path. Point source at the snapshot, while Git reads the original index.
-  GIT_DIR="$(to_hook_host_path "${git_dir}")" \
-  GIT_INDEX_FILE="$(to_hook_host_path "${index_path}")" \
-  GIT_WORK_TREE="$(to_hook_host_path "${indexed_root}")" \
+  GIT_DIR="$(to_hook_host_path "${git_dir}" "${scanner_cmd}")" \
+  GIT_INDEX_FILE="$(to_hook_host_path "${index_path}" "${scanner_cmd}")" \
+  GIT_WORK_TREE="$(to_hook_host_path "${indexed_root}" "${scanner_cmd}")" \
     "${scanner_cmd}" git --pre-commit --staged \
     --config "${indexed_root}/.gitleaks.toml" \
     --gitleaks-ignore-path "${ignore_path}" \

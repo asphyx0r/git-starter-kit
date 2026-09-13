@@ -4,17 +4,22 @@ set -euo pipefail
 script_version="1.0.0"
 default_tag="v1.0.0"
 commit_message="chore(git): initialize repository"
-tag_message="Initial version/First commit"
+tag_message="Initialisation du repository Git"
 # Keep this pattern aligned with repository-audit SemVer smoke tests.
 semver_tag_pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
 
 show_help=0
 show_version=0
 verbose_mode=0
+dry_run=0
 target_path=""
 remote=""
 tag="$default_tag"
 commit_message_file=""
+commitlint_command=""
+python_command=""
+initializer_helper=""
+initializer_flags=()
 
 usage() {
   cat <<EOF
@@ -26,6 +31,7 @@ Usage:
 Options:
   -h, --help       Show version and help.
       --version    Show version only.
+      --dry-run    Validate and show actions without changing the target.
   -v, --verbose    Show additional execution traces.
   -p, --path       Target repository root. Required.
   -r, --remote     Optional origin remote URL.
@@ -85,15 +91,31 @@ require_commit_validation() {
   local commit_hook="$target_path/.githooks/commit-msg"
   local commitlint_config="$target_path/commitlint.config.cjs"
 
-  if [ ! -r "$commit_hook" ] || [ ! -x "$commit_hook" ]; then
-    fail "Required executable commit-msg hook is unavailable: $commit_hook"
+  if [ ! -r "$commit_hook" ]; then
+    fail "Required commit-msg hook is unavailable: $commit_hook"
   fi
   if [ ! -r "$commitlint_config" ]; then
     fail "Required Commitlint configuration is unavailable: $commitlint_config"
   fi
-  if ! command -v commitlint >/dev/null 2>&1; then
+  if [ -f "$target_path/tools/quality/node_modules/.bin/commitlint" ]; then
+    commitlint_command="$target_path/tools/quality/node_modules/.bin/commitlint"
+  elif ! commitlint_command="$(command -v commitlint)"; then
     fail "commitlint is required to validate the initial commit message."
   fi
+}
+
+require_initializer() {
+  local initializer_script="${BASH_SOURCE[0]//\\//}"
+  local initializer_directory="${initializer_script%/*}"
+  if [ "$initializer_directory" = "$initializer_script" ]; then
+    initializer_directory="."
+  fi
+  initializer_helper="$(cd -- "$initializer_directory" && pwd -P)/initialize-repository.py"
+  if ! python_command="$(command -v python)" &&
+    ! python_command="$(command -v python3)"; then
+    fail "Python is required to initialize a composed release ZIP."
+  fi
+  "$python_command" -B "$initializer_helper" validate --path "$target_path" "${initializer_flags[@]}"
 }
 
 validate_commit_message() {
@@ -102,7 +124,7 @@ validate_commit_message() {
   trace "commitlint --edit $commit_message_file --config $commitlint_config"
   if ! (
     cd "$target_path"
-    commitlint \
+    "$commitlint_command" \
       --edit "$commit_message_file" \
       --config "$commitlint_config"
   ); then
@@ -153,7 +175,7 @@ git_status_files() {
     assert_readable_git_metadata "$target_path" "$target_path/.git"
   else
     preview_git_dir="$(mktemp -d)"
-    run_git init --bare "$preview_git_dir" >/dev/null
+    run_git init --bare --initial-branch=main "$preview_git_dir" >/dev/null
     status_args=(
       --git-dir="$preview_git_dir"
       --work-tree="$target_path"
@@ -230,6 +252,10 @@ while [ "$#" -gt 0 ]; do
     show_version=1
     shift
     ;;
+  --dry-run)
+    dry_run=1
+    shift
+    ;;
   -v | --verbose)
     verbose_mode=1
     shift
@@ -254,6 +280,10 @@ while [ "$#" -gt 0 ]; do
     ;;
   esac
 done
+
+if [ "$verbose_mode" -eq 1 ]; then
+  initializer_flags+=(--verbose)
+fi
 
 if [ "$show_version" -eq 1 ]; then
   printf '%s\n' "$script_version"
@@ -300,7 +330,8 @@ fi
 if [ -e "$target_path/.git" ]; then
   assert_readable_git_metadata "$target_path" "$target_path/.git"
 
-  if git_success -C "$target_path" rev-parse --verify HEAD; then
+  reachable_commit="$(run_git -C "$target_path" rev-list --all --max-count=1)"
+  if [ -n "$reachable_commit" ]; then
     fail "Target repository already has commits: $target_path"
   fi
 
@@ -312,6 +343,16 @@ fi
 remote_display="$remote"
 if [ -z "$remote_display" ]; then
   remote_display="(none)"
+fi
+
+if [ "$dry_run" -eq 1 ]; then
+  require_initializer
+  require_commit_validation
+  printf 'Dry run: initialize main; prepare system CHANGELOG and staged release artifacts; validate; create the first commit and annotated %s tag.\n' "$tag"
+  if [ -n "$remote" ]; then
+    printf 'Dry run: add origin and push main and tags to %s.\n' "$remote"
+  fi
+  exit 0
 fi
 
 printf 'Initialize Git using this information? [y/N]\n'
@@ -368,20 +409,22 @@ if [ "${#risky_files[@]}" -gt 0 ]; then
   fi
 fi
 
+require_initializer
 require_commit_validation
 commit_message_file="$(
   mktemp "${TMPDIR:-/tmp}/git-init-commit-message.XXXXXX"
 )"
 printf '%s\n' "$commit_message" >"$commit_message_file"
 
-run_git init "$target_path" >/dev/null
+run_git init --initial-branch=main "$target_path" >/dev/null
+run_git -C "$target_path" symbolic-ref HEAD refs/heads/main
 run_git -C "$target_path" config core.hooksPath .githooks
 
 if git_success -C "$target_path" rev-parse --verify "refs/tags/$tag"; then
   fail "Tag already exists in target repository: $tag"
 fi
 
-run_git -C "$target_path" add --all >/dev/null
+"$python_command" -B "$initializer_helper" prepare --path "$target_path" --tag "$tag" "${initializer_flags[@]}"
 validate_commit_message
 run_git -C "$target_path" \
   -c core.hooksPath=.githooks \
@@ -396,7 +439,6 @@ fi
 
 cleanup_commit_message_file
 commit_message_file=""
-run_git -C "$target_path" branch -M main
 run_git -C "$target_path" tag -a "$tag" -m "$tag_message"
 
 if [ -n "$remote" ]; then

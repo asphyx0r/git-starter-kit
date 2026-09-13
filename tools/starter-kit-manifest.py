@@ -52,6 +52,16 @@ AGENT_RULE_PATHS = frozenset(
 )
 SOURCE_ONLY_PATHS = frozenset(
     {
+        "docs/repository-migration.md",
+        "templates/README.md",
+        "templates/README_TOOLS.md",
+        "templates/CONTRIBUTING.md",
+        "templates/CHANGELOG.md",
+        "templates/CODE_OF_CONDUCT.md",
+        "templates/SECURITY.md",
+        "templates/SUPPORT.md",
+        "templates/SKILLS.md",
+        "tools/quality/check-coverage.py",
         (
             ".agents/skills/git-commit-push-tag/references/"
             "git-starter-kit-release-package.txt"
@@ -77,12 +87,19 @@ SOURCE_ONLY_PATHS = frozenset(
         "tools/starter_kit_upgrade/planning.py",
     }
 )
-SOURCE_ONLY_PREFIXES = ("tools/starter_kit_upgrade/",)
+SOURCE_ONLY_PREFIXES = (
+    "tools/starter_kit_upgrade/",
+    "tests/",
+    "docs/superpowers/",
+    "templates/project/",
+    ".superpowers/",
+)
 RESERVED_STATE_PATHS = frozenset(
     {".starter-kit-adoption.json", "_starter-kit-files.json", MANIFEST_PATH}
 )
 INITIALIZE_ONLY_PATHS = frozenset(
     {
+        ".starter-kit-project.json",
         "CHANGELOG.md",
         "CODE_OF_CONDUCT.md",
         "CONTRIBUTING.md",

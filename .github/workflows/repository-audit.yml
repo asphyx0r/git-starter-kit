@@ -5,10 +5,10 @@ name: Repository audit
   release:
     types: [published]
   push:
-    branches: [master, "codex/release-preflight-*"]
+    branches: [main, master, "codex/release-preflight-*"]
     tags: ["v*"]
   pull_request:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -22,7 +22,58 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  activation:
+    name: Read trusted automation configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.resolve.outputs.enabled || steps.activation.outputs.enabled }}
+      trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}
+    steps:
+      - id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != push || "$REF_NAME" != codex/release-preflight-* ]]; then
+            printf 'enabled=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set -euo pipefail
+          default_branch="$(gh api "repos/$GH_REPO" --jq '.default_branch')"
+          export DEFAULT_BRANCH="$default_branch"
+          encoded_branch="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DEFAULT_BRANCH"], safe=""))')"
+          trusted_sha="$(gh api "repos/$GH_REPO/commits/$encoded_branch" --jq '.sha')"
+          [[ "$trusted_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          printf 'trusted_sha=%s\n' "$trusted_sha" >> "$GITHUB_OUTPUT"
+        name: Resolve immutable default-branch snapshot
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ steps.resolve.outputs.trusted_sha }}
+        if: steps.resolve.outputs.trusted_sha != ''
+        name: Check out the immutable revision
+      - id: activation
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |-
+          python3 -B tools/automation_config.py \
+            --automation releasePreflight --event "$EVENT_NAME" >> "$GITHUB_OUTPUT"
+        if: steps.resolve.outputs.trusted_sha != ''
+        name: Read activation before dependencies and credentials
+
   quality-linux:
+    needs: activation
+    if: needs.activation.outputs.enabled == 'true'
     name: Quality - Ubuntu 24.04 / Python 3.11
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -31,8 +82,14 @@ jobs:
         # actions/checkout@v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify exact audit revision
+        shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
         # actions/setup-python@v7.0.0
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -81,6 +138,8 @@ jobs:
         run: bash tools/repository-audit.sh full
 
   compatibility-windows:
+    needs: activation
+    if: needs.activation.outputs.enabled == 'true'
     name: Compatibility - Windows 2025 / Python 3.14
     runs-on: windows-2025
     timeout-minutes: 25
@@ -89,8 +148,14 @@ jobs:
         # actions/checkout@v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify exact audit revision
+        shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
         # actions/setup-python@v7.0.0
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -98,6 +163,12 @@ jobs:
           python-version: "3.14"
           cache: pip
           cache-dependency-path: tools/quality/requirements.lock
+      - name: scope
+        id: scope
+        shell: bash
+        run: |-
+          scope="$(python -B tools/project_validation.py --scope)"
+          printf "scope=%s\n" "$scope" >> "$GITHUB_OUTPUT"
       - name: Set up Node
         # actions/setup-node@v7.0.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -127,9 +198,11 @@ jobs:
         shell: bash
         run: bash tools/repository-audit.sh fast
       - name: Run the complete Python suite on 3.14
+        if: steps.scope.outputs.scope == 'source'
         shell: pwsh
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Verify Git Bash hooks on Windows
+        if: steps.scope.outputs.scope == 'source'
         shell: bash
         run: |
           bash tests/test_quality_pre_commit.sh --windows
@@ -138,18 +211,82 @@ jobs:
         shell: bash
         run: bash tools/repository-audit.sh powershell-static
 
+  project-linux:
+    name: Project checks - linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: activation
+    if: needs.activation.outputs.enabled == 'true'
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        name: Check out the immutable revision
+      - shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
+        name: Verify exact audit revision
+      # actions/setup-python@v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.11'
+        name: Set up Python
+      - shell: bash
+        run: python -B tools/project_validation.py --repository-root . --timeout 900
+        name: Require selected checks to succeed
+
+  project-windows:
+    name: Project checks - windows
+    runs-on: windows-2025
+    timeout-minutes: 20
+    needs: activation
+    if: needs.activation.outputs.enabled == 'true'
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        name: Check out the immutable revision
+      - shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
+        name: Verify exact audit revision
+      # actions/setup-python@v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.14'
+        name: Set up Python
+      - shell: bash
+        run: python -B tools/project_validation.py --repository-root . --timeout 900
+        name: Require selected checks to succeed
+
   repository-audit:
-    name: >-
-      ${{ github.event_name == 'workflow_dispatch' &&
-      'Repository audit (manual)' || 'Repository audit' }}
-    needs: [quality-linux, compatibility-windows]
-    if: ${{ always() }}
+    name: ${{ github.event_name == 'workflow_dispatch' && 'Repository audit (manual)' || 'Repository audit' }}
+    needs:
+      - activation
+      - quality-linux
+      - compatibility-windows
+      - project-linux
+      - project-windows
+    if: ${{ always() && needs.activation.outputs.enabled != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require both supported environments
-        env:
+      - env:
           LINUX_RESULT: ${{ needs.quality-linux.result }}
           WINDOWS_RESULT: ${{ needs.compatibility-windows.result }}
+          ACTIVATION_RESULT: ${{ needs.activation.result }}
+          PROJECT_LINUX_RESULT: ${{ needs.project-linux.result }}
+          PROJECT_WINDOWS_RESULT: ${{ needs.project-windows.result }}
         run: |
-          test "$LINUX_RESULT" = success && test "$WINDOWS_RESULT" = success
+          test "$ACTIVATION_RESULT" = success &&
+          test "$LINUX_RESULT" = success && test "$WINDOWS_RESULT" = success &&
+          test "$PROJECT_LINUX_RESULT" = success && test "$PROJECT_WINDOWS_RESULT" = success
+        name: Require selected checks to succeed

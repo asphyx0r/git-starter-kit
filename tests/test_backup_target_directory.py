@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -174,10 +175,11 @@ class BackupTargetDirectoryTest(unittest.TestCase):
             source = Path(temp_dir) / "repository"
             source.mkdir()
 
-            self.assertEqual(
-                self.script.resolve_git_identity(source),
-                (self.script.DEFAULT_HEAD, self.script.DEFAULT_SEMVER_TAG),
-            )
+            with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": temp_dir}):
+                self.assertEqual(
+                    self.script.resolve_git_identity(source),
+                    (self.script.DEFAULT_HEAD, self.script.DEFAULT_SEMVER_TAG),
+                )
 
             self.run_git(source, "init", "--quiet")
             self.assertEqual(

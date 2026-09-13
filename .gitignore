@@ -1,144 +1,145 @@
-# Operating system files
-.DS_Store
-.DS_Store?
-.Spotlight-V100
-.Trashes
-._*
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Conservative root policy: comment headings do not scope Git patterns.
+# A leading / anchors a rule to this file's repository root.
+# Activate optional rules only after identifying project-owned generated paths.
+# Prefer exact rooted paths or an application-local .gitignore over broad rules.
+# Keep source files, test/binary/archive fixtures and dependency lockfiles tracked.
 
-# Editor and IDE metadata
-.idea/
-.fleet/
-.zed/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/*.code-snippets
-*.code-workspace
-*.swp
-*.swo
-*~
-.history/
+# Known operating system metadata at the repository root
+/.DS_Store
+/Thumbs.db
+/ehthumbs.db
+/Desktop.ini
 
-# Environment files and local secrets
-.env
-.env.*
-.envrc
-*.env
-*.env.*
-!.env.example
-!.env.sample
-!.env.template
-!.env.dist
-*.secret
-*.secrets
-*.key
-*.pem
-*.p12
-*.pfx
-.npmrc
-.pypirc
-.netrc
-.aws/
-.kube/
-.ssh/
-id_rsa
-id_rsa.*
-id_ed25519
-id_ed25519.*
-*.jks
-*.keystore
+# Optional editor exclusions: shared project configuration remains trackable.
+# Root anchoring identifies location, not ownership. Activate only for verified
+# local outputs; prefer exact paths that preserve shared project configuration.
+# /.idea/
+# /.fleet/
+# /.zed/
+# /.vscode/*
+# !/.vscode/extensions.json
+# !/.vscode/launch.json
+# !/.vscode/settings.json
+# !/.vscode/tasks.json
+# !/.vscode/*.code-snippets
+# Optional editor backups: use exact local output paths if needed.
+# *.swp
+# *.swo
+# *~
+# *.code-workspace
 
-# Logs and runtime files
-*.log
-*.err
-*.out
-logs/
-log/
-var/
-pids/
-*.pid
-*.pid.lock
-nohup.out
+# Explicit local outputs used by starter tooling and documented setup
+/.tmp/
+/.venv/
+/tools/quality/node_modules/
+/tools/quality/external/
 
-# Temporary files
-*.bak
-*.old
-*.tmp
-*.temp
-.tmp/
-tmp/
-temp/
+# Root local environment secret; nested applications own their secret policy
+/.env
+# Optional local secrets: scope to known locations, preserving sanitized fixtures.
+# /.env.local
+# /.envrc
+# /.npmrc
+# /.pypirc
+# /.netrc
+# /.aws/
+# /.kube/
+# /.ssh/
+# *.env
+# *.key
+# *.pem
+# *.p12
+# *.pfx
 
-# Build, coverage, and reports
-build/
-dist/
-out/
-target/
-coverage/
-htmlcov/
-reports/
-test-output/
-test-results/
-.coverage
-.coverage.*
-.nyc_output/
-junit.xml
+# Bash
+# Optional shell runtime outputs: activate only at verified generated locations.
+# /nohup.out
+# /logs/
+# /tmp/
 
-# Dependency directories
-node_modules/
-vendor/
-.venv/
-venv/
-env/
-ENV/
+# PowerShell
+# Optional transcripts or generated module artifacts; keep .ps1/.psm1 sources.
+# /transcripts/
+# /out/
 
-# Tool caches
-.cache/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.tox/
-.nox/
-.pyre/
-.hypothesis/
-.ipynb_checkpoints/
-.phpunit.result.cache
-.phpunit.cache/
-.php-cs-fixer.cache
+# Perl
+# Optional distribution build outputs; keep scripts and fixture archives.
+# /blib/
+# /MYMETA.json
+# /MYMETA.yml
 
-# Language and platform artifacts
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.eggs/
-*.class
-*.ctxt
-*.ear
-*.hprof
-*.nar
-*.war
-*.test
-*.coverprofile
-*.pprof
-coverage.out
-cover.out
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Python
+# /.venv/ above is the starter's explicit local environment, not all env folders.
+# Optional caches/build outputs: scope to your Python application's directory.
+# __pycache__/
+# *.py[cod]
+# *.egg-info/
+# /.pytest_cache/
+# /.mypy_cache/
+# /.ruff_cache/
+# /.coverage
+# /htmlcov/
+# /build/
+# /dist/
 
-# Archives and exported bundles
-*.7z
-*.gz
-*.rar
-*.tar
-*.tar.gz
-*.tgz
-*.zip
+# Java
+# Optional compiler/package outputs; keep Java sources and binary fixtures.
+# *.class
+# *.jar
+# *.war
+# /target/
+# /build/
+
+# Rust
+# Optional Cargo output: activate /target/ only for a root Cargo application.
+# /target/
+# Cargo.lock remains trackable; decide library/application lock policy explicitly.
+
+# Go
+# Optional generated executables/profiles: use exact output names or directories.
+# /bin/
+# /coverage.out
+# *.test
+# *.coverprofile
+# go.mod and go.sum remain trackable.
+
+# Laravel
+# Keep laravel/app, laravel/tests and laravel/public sources trackable.
+# The generated laravel/.gitignore owns its secrets, dependencies and outputs.
+# Do not ignore laravel/ or copy its patterns into the generic root policy.
+# Optional examples belong in that local file after checking the actual app:
+# /.env
+# /vendor/
+# /node_modules/
+# /public/build/
+# Composer and frontend lockfiles remain trackable.
+
+# JavaScript
+# The starter's Node tools have the explicit /tools/quality/node_modules/ above.
+# Optional application dependencies/build outputs: use an application-local file.
+# /node_modules/
+# /dist/
+# /coverage/
+# /.nyc_output/
+# package-lock.json, yarn.lock and pnpm-lock.yaml remain trackable.
+
+# C/C++
+# Optional compiler outputs: avoid hiding binary fixtures with global extensions.
+# /build/
+# *.o
+# *.a
+# *.exe
+# *.dll
+# *.so
+# *.dylib
+
+# Other contextual outputs: identify a generated root before activating a rule.
+# /logs/
+# /reports/
+# /test-results/
+# *.log
+# *.out
+# *.zip
+# *.tar.gz
+# *.bak
+# *.tmp

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "repositoryRole": "source",
+  "releaseKind": "deployment",
+  "automations": {
+    "agentRulesSync": true,
+    "guardedMerge": true,
+    "releasePreflight": true
+  },
+  "checks": []
+}

@@ -468,7 +468,7 @@ python starter-kit-upgrade.py build --base-package BASE.zip --new-package packag
 Inspect a target before writing:
 
 ```text
-python starter-kit-upgrade.py plan --upgrade-package UPGRADE.zip --target REPOSITORY
+python starter-kit-upgrade.py --dry-run plan --upgrade-package UPGRADE.zip --target REPOSITORY
 ```
 
 Application additionally requires a clean repository, valid provenance, no
