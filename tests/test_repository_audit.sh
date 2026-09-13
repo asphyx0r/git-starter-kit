@@ -209,11 +209,73 @@ run_profile_failure_checks() (
   printf '%s\n' 'PASS: actual source profile failure propagation and successful composition'
 )
 
+run_manifest_smoke_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  local python_cmd historical_tag='' tag
+  python_cmd="$(resolve_command python python3 python.exe)"
+  while IFS= read -r tag; do
+    if git -C "${source_root}" cat-file -e "${tag}:starter-kit-manifest.json" 2>/dev/null; then
+      historical_tag="${tag}"
+      break
+    fi
+  done < <(git -C "${source_root}" for-each-ref --sort=-version:refname --format='%(refname)' refs/tags)
+  [[ -n "${historical_tag}" ]] || fail 'manifest smoke requires a released manifest fixture'
+  repository_root="${test_temp}/manifest source with spaces"
+  git clone --quiet --local --no-hardlinks --no-checkout -- "${source_root}" "${repository_root}"
+  git -C "${repository_root}" -c core.autocrlf=false checkout --quiet --detach "${historical_tag}"
+  git -C "${repository_root}" config core.autocrlf false
+  git -C "${repository_root}" remote set-url origin https://github.com/asphyx0r/git-starter-kit.git
+  cp "${source_root}/tools/starter-kit-manifest.py" "${source_root}/tools/git_objects.py" \
+    "${source_root}/tools/process_runner.py" "${repository_root}/tools/"
+  cd "${repository_root}"
+  audit_temp="${test_temp}/manifest-valid"
+  mkdir -p "${audit_temp}"
+  run_starter_manifest_smoke "${python_cmd}" >"${test_temp}/manifest-valid.out" || fail 'historical manifest failed its release policy'
+  "${python_cmd}" -B - <<'PY'
+import json
+from pathlib import Path
+
+path = Path("starter-kit-manifest.json")
+value = json.loads(path.read_text(encoding="utf-8"))
+value["files"][0]["sha256"] = "0" * 64
+path.write_text(json.dumps(value), encoding="utf-8")
+PY
+  audit_temp="${test_temp}/manifest-altered"
+  mkdir -p "${audit_temp}"
+  if run_starter_manifest_smoke "${python_cmd}" >"${test_temp}/manifest-altered.out" 2>&1; then
+    fail 'historical smoke accepted altered source JSON'
+  fi
+  grep -F 'does not match its release tag' "${test_temp}/manifest-altered.out" >/dev/null || fail 'altered manifest lost authentication diagnostic'
+  [[ ! -e "${audit_temp}/starter-manifest-release" ]] || fail 'altered manifest reached release execution'
+  git -C "${repository_root}" add -- tools/starter-kit-manifest.py tools/git_objects.py tools/process_runner.py
+  local candidate_ref="v0.0.0-manifest-smoke.${BASHPID}"
+  "${python_cmd}" -B tools/starter-kit-manifest.py prepare --release-ref "${candidate_ref}" >/dev/null
+  audit_temp="${test_temp}/manifest-candidate"
+  mkdir -p "${audit_temp}"
+  run_starter_manifest_smoke "${python_cmd}" >"${test_temp}/manifest-candidate.out" || fail 'untagged candidate failed current strict check'
+  [[ ! -e "${audit_temp}/starter-manifest-release" ]] || fail 'untagged candidate executed historical policy'
+  printf '# Changed candidate\n' >README.md
+  git -C "${repository_root}" add -- README.md
+  if run_starter_manifest_smoke "${python_cmd}" >"${test_temp}/manifest-candidate-drift.out" 2>&1; then
+    fail 'untagged candidate accepted indexed inventory drift'
+  fi
+  grep -F 'inventory does not match' "${test_temp}/manifest-candidate-drift.out" >/dev/null || fail 'candidate lost strict inventory diagnostic'
+  printf '%s\n' 'PASS: historical manifest authentication and release policy; strict untagged candidate'
+)
+
+if [[ "${1:-}" == --manifest-smoke ]]; then
+  run_manifest_smoke_checks
+  exit
+fi
+
 if [[ "${1:-}" == --profile-failures ]]; then
   run_nested_failure_checks
   run_profile_failure_checks
   exit
 fi
+
+run_manifest_smoke_checks
 
 run_powershell_host_checks() (
   # shellcheck disable=SC1090

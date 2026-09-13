@@ -153,6 +153,51 @@ require_smoke_python_dependencies() {
   fi
 }
 
+run_starter_manifest_smoke() (
+  local python_cmd="$1" release_ref release_commit tag_status
+  unset GIT_COMMON_DIR GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE
+  export PYTHONDONTWRITEBYTECODE=1
+  release_ref="$(
+    "$python_cmd" -B - "$repository_root/starter-kit-manifest.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(value["current"]["ref"])
+PY
+  )" || return
+  if [[ ! "$release_ref" =~ $hook_semver_tag_pattern ]]; then
+    "$python_cmd" -B tools/starter-kit-manifest.py check
+    return
+  fi
+  if release_commit="$(git -C "$repository_root" rev-parse --verify --quiet "refs/tags/$release_ref^{commit}")"; then
+    :
+  else
+    tag_status=$?
+    if ((tag_status != 1)); then return "$tag_status"; fi
+    "$python_cmd" -B tools/starter-kit-manifest.py check
+    return
+  fi
+  local tagged_manifest="$audit_temp/starter-manifest-tagged.json"
+  git -C "$repository_root" show "$release_commit:starter-kit-manifest.json" >"$tagged_manifest" || return
+  "$python_cmd" -B - "$repository_root/starter-kit-manifest.json" "$tagged_manifest" <<'PY' || return
+import json
+import sys
+from pathlib import Path
+
+source, tagged = [json.loads(Path(path).read_text(encoding="utf-8")) for path in sys.argv[1:]]
+if source != tagged:
+    raise SystemExit("Tracked starter-kit manifest does not match its release tag.")
+PY
+  local release_root="$audit_temp/starter-manifest-release"
+  env GIT_ALLOW_PROTOCOL=file git clone --quiet --local --no-hardlinks --no-checkout -- \
+    "$repository_root" "$release_root" || return
+  git -C "$release_root" -c core.autocrlf=false checkout --quiet --detach "$release_commit" || return
+  "$python_cmd" -B "$release_root/tools/starter-kit-manifest.py" check \
+    --expected-ref "$release_ref" --repository-root "$release_root" --treeish "$release_commit"
+)
+
 run_script_smoke() {
   require_command bash || return
   require_command git || return
@@ -184,7 +229,7 @@ COMMITLINT
 
   "$python_cmd" tools/starter-kit-manifest.py --help || return
   "$python_cmd" tools/starter-kit-manifest.py --version || return
-  "$python_cmd" tools/starter-kit-manifest.py check || return
+  run_starter_manifest_smoke "$python_cmd" || return
   "$python_cmd" tools/release-artifacts.py --help || return
   "$python_cmd" tools/release-artifacts.py --version || return
   run_release_hook_smoke "$python_cmd" || return
