@@ -831,7 +831,21 @@ def _request(args: argparse.Namespace) -> int:
     if args.dry_run:
         _validate_message_with_commitlint(args.message_file)
         try:
-            unchanged = args.message_file.stat() == message_identity
+            current_identity = args.message_file.stat()
+            unchanged = all(
+                getattr(current_identity, field) == getattr(message_identity, field)
+                for field in (
+                    "st_mode",
+                    "st_ino",
+                    "st_dev",
+                    "st_nlink",
+                    "st_uid",
+                    "st_gid",
+                    "st_size",
+                    "st_mtime_ns",
+                    "st_ctime_ns",
+                )
+            )
         except OSError as error:
             raise MergeRequestError(
                 f"Unable to recheck merge message: {error}"
