@@ -810,8 +810,13 @@ def agent_rules_update_contract(node_version: str) -> dict:
                             "GH_TOKEN": "${{ github.token }}",
                             "TARGET_REPOSITORY": "${{ github.repository }}",
                             "TARGET_DEFAULT_BRANCH": "${{ github.event.repository.default_branch }}",
+                            "TRUSTED_SHA": "${{ needs.activation.outputs.trusted_sha }}",
                         },
-                        "run": "bash tools/repository-audit/agent-rules-transfer.sh resolve",
+                        "run": textwrap.dedent(r"""
+                            set -euo pipefail
+                            git switch --create "$TARGET_DEFAULT_BRANCH" "$TRUSTED_SHA"
+                            bash tools/repository-audit/agent-rules-transfer.sh resolve
+                        """).strip(),
                     },
                     {
                         "working-directory": "target",
