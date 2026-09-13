@@ -10,6 +10,7 @@ import tempfile
 import unittest
 import uuid
 from contextlib import redirect_stderr, redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -327,6 +328,51 @@ class MergePullRequestTests(unittest.TestCase):
         self.assertEqual(code, 1, error)
         self.assertIn("changed", error)
         dispatch.assert_not_called()
+
+    def test_request_dry_run_ignores_access_time_but_rejects_identity_changes(self):
+        message = self.write_bytes(b"fix(git): stable merge plan\n")
+        identity = message.stat()
+        fields = {
+            name: getattr(identity, name)
+            for name in dir(identity)
+            if name.startswith("st_")
+        }
+        for field, expected_code in (("st_atime", 0), ("st_mtime", 1), ("st_ino", 1)):
+            before = SimpleNamespace(**fields)
+            after = SimpleNamespace(**fields)
+            setattr(after, field, getattr(after, field) + 1)
+            if field in {"st_atime", "st_mtime"}:
+                setattr(after, f"{field}_ns", getattr(after, f"{field}_ns") + 10**9)
+            with (
+                self.subTest(changed_field=field),
+                patch.object(pathlib.Path, "stat", side_effect=[before, after]),
+                patch.object(
+                    self.module,
+                    "_resolve_repository",
+                    return_value=(REPOSITORY, "main"),
+                ),
+                patch.object(self.module, "_validate_message_with_commitlint"),
+                patch.object(
+                    self.module,
+                    "_validate_pull_request",
+                    return_value=valid_pull_request(),
+                ),
+                patch.object(self.module, "_dispatch_request") as dispatch,
+            ):
+                code, _, error = self.run_main(
+                    [
+                        "--dry-run",
+                        "request",
+                        "--repository",
+                        REPOSITORY,
+                        "--pull-request",
+                        "17",
+                        "--message-file",
+                        str(message),
+                    ]
+                )
+                self.assertEqual(code, expected_code, error)
+                dispatch.assert_not_called()
 
     def write_bytes(self, value):
         temporary = tempfile.NamedTemporaryFile(delete=False)
