@@ -33,6 +33,7 @@ run_nested_failure_checks() (
   initialize_repository_root
   local trace="${test_temp}/nested.trace" status=0
   (
+    unset GITHUB_EVENT_NAME GITHUB_BASE_REF BEFORE_SHA
     git() {
       printf 'git\n' >>"${trace}"
       return 23
