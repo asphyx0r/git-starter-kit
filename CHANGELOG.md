@@ -6,6 +6,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| 7b197bd | fix(validation): preserve audit and merge checks | asphyx |
 | bdf23f6 | feat(templates): support universal projects | asphyx |
 
 ## v2.10.0
