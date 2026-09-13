@@ -667,8 +667,90 @@ def release_package_contract(node_version: str) -> dict:
     }
 
 
-def agent_rules_update_contract(node_version: str) -> dict:
+BOOTSTRAP = textwrap.dedent(r"""
+    set -euo pipefail
+    default_branch="$(gh api "repos/$GH_REPO" --jq '.default_branch')"
+    export DEFAULT_BRANCH="$default_branch"
+    encoded_branch="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DEFAULT_BRANCH"], safe=""))')"
+    trusted_sha="$(gh api "repos/$GH_REPO/commits/$encoded_branch" --jq '.sha')"
+    [[ "$trusted_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+    printf 'trusted_sha=%s\n' "$trusted_sha" >> "$GITHUB_OUTPUT"
+    """).strip()
+AUTOMATION_RUN = textwrap.dedent(r"""
+    python3 -B tools/automation_config.py \
+      --automation "$AUTOMATION" --event "$EVENT_NAME" \
+      --legacy-sync "$LEGACY_SYNC" >> "$GITHUB_OUTPUT"
+    """).strip()
+REVISION_RUN = 'test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"'
+AUDIT_ACTIVATION_RUN = textwrap.dedent(r"""
+    python3 -B tools/automation_config.py \
+      --automation releasePreflight --event "$EVENT_NAME" >> "$GITHUB_OUTPUT"
+    """).strip()
+AUDIT_BOOTSTRAP = textwrap.dedent(r"""
+    set -euo pipefail
+    if [[ "$EVENT_NAME" != push || "$REF_NAME" != codex/release-preflight-* ]]; then
+      printf 'enabled=true\n' >> "$GITHUB_OUTPUT"
+      exit 0
+    fi
+    set -euo pipefail
+    default_branch="$(gh api "repos/$GH_REPO" --jq '.default_branch')"
+    export DEFAULT_BRANCH="$default_branch"
+    encoded_branch="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DEFAULT_BRANCH"], safe=""))')"
+    trusted_sha="$(gh api "repos/$GH_REPO/commits/$encoded_branch" --jq '.sha')"
+    [[ "$trusted_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+    printf 'trusted_sha=%s\n' "$trusted_sha" >> "$GITHUB_OUTPUT"
+    """).strip()
+
+
+def activation_contract(automation: str) -> dict:
     return {
+        "name": "Read trusted automation configuration",
+        "runs-on": "ubuntu-24.04",
+        "timeout-minutes": 5,
+        "permissions": {"contents": "read"},
+        "outputs": {
+            "enabled": "${{ steps.activation.outputs.enabled }}",
+            "trusted_sha": "${{ steps.resolve.outputs.trusted_sha }}",
+        },
+        "steps": [
+            {
+                "id": "resolve",
+                "shell": "bash",
+                "env": {
+                    "GH_TOKEN": "${{ github.token }}",
+                    "GH_REPO": "${{ github.repository }}",
+                },
+                "run": BOOTSTRAP,
+            },
+            checkout(
+                ref="${{ steps.resolve.outputs.trusted_sha }}", **{"fetch-depth": 1}
+            ),
+            {
+                "id": "activation",
+                "shell": "bash",
+                "env": {
+                    "AUTOMATION": automation,
+                    "EVENT_NAME": "${{ github.event_name }}",
+                    "LEGACY_SYNC": "${{ vars.AGENT_RULES_SYNC_ENABLED }}",
+                },
+                "run": AUTOMATION_RUN,
+            },
+        ],
+    }
+
+
+def audit_revision_step() -> dict:
+    return {
+        "shell": "bash",
+        "env": {
+            "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"
+        },
+        "run": REVISION_RUN,
+    }
+
+
+def agent_rules_update_contract(node_version: str) -> dict:
+    result: dict[str, Any] = {
         "name": "Agent rules update",
         "on": {
             "release": {
@@ -869,9 +951,18 @@ def agent_rules_update_contract(node_version: str) -> dict:
         },
     }
 
+    result["jobs"]["activation"] = activation_contract("agentRulesSync")
+    prepare = result["jobs"]["prepare"]
+    prepare["needs"] = "activation"
+    prepare["if"] = (
+        "needs.activation.outputs.enabled == 'true' && (github.event_name != 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch)"
+    )
+    prepare["steps"][0]["with"]["ref"] = "${{ needs.activation.outputs.trusted_sha }}"
+    return result
+
 
 def repository_audit_contract(node_version: str) -> dict:
-    return {
+    result: dict[str, Any] = {
         "name": "Repository audit",
         "on": {
             "release": {
@@ -1019,9 +1110,89 @@ def repository_audit_contract(node_version: str) -> dict:
         },
     }
 
+    result["on"]["push"]["branches"].insert(0, "main")
+    result["on"]["pull_request"]["branches"].insert(0, "main")
+    jobs = result["jobs"]
+    jobs["activation"] = activation_contract("releasePreflight")
+    jobs["activation"]["outputs"]["enabled"] = (
+        "${{ steps.resolve.outputs.enabled || steps.activation.outputs.enabled }}"
+    )
+    resolve = jobs["activation"]["steps"][0]
+    resolve["env"].update(
+        {"EVENT_NAME": "${{ github.event_name }}", "REF_NAME": "${{ github.ref_name }}"}
+    )
+    resolve["run"] = AUDIT_BOOTSTRAP
+    for step in jobs["activation"]["steps"][1:]:
+        step["if"] = "steps.resolve.outputs.trusted_sha != ''"
+    activation = jobs["activation"]["steps"][-1]
+    activation["env"] = {"EVENT_NAME": "${{ github.event_name }}"}
+    activation["run"] = AUDIT_ACTIVATION_RUN
+    for job_id in ("quality-linux", "compatibility-windows"):
+        job = jobs[job_id]
+        job["needs"] = "activation"
+        job["if"] = "needs.activation.outputs.enabled == 'true'"
+        job["steps"][0]["with"]["ref"] = (
+            "${{ github.event.pull_request.head.sha || github.sha }}"
+        )
+        job["steps"].insert(1, audit_revision_step())
+    windows = jobs["compatibility-windows"]["steps"]
+    windows.insert(
+        3,
+        {
+            "id": "scope",
+            "shell": "bash",
+            "run": 'scope="$(python -B tools/project_validation.py --scope)"\nprintf "scope=%s\\n" "$scope" >> "$GITHUB_OUTPUT"',
+        },
+    )
+    for step in windows:
+        if step.get("run", "").startswith(
+            ("python -m unittest", "bash tests/test_quality_pre_commit.sh")
+        ):
+            step["if"] = "steps.scope.outputs.scope == 'source'"
+    for platform, runner, version in (
+        ("linux", "ubuntu-24.04", "3.11"),
+        ("windows", "windows-2025", "3.14"),
+    ):
+        jobs[f"project-{platform}"] = {
+            "name": f"Project checks - {platform}",
+            "runs-on": runner,
+            "timeout-minutes": 20,
+            "needs": "activation",
+            "if": "needs.activation.outputs.enabled == 'true'",
+            "steps": [
+                checkout(ref="${{ github.event.pull_request.head.sha || github.sha }}"),
+                audit_revision_step(),
+                setup_python(version, None),
+                {
+                    "shell": "bash",
+                    "run": "python -B tools/project_validation.py --repository-root . --timeout 900",
+                },
+            ],
+        }
+    aggregate = jobs["repository-audit"]
+    aggregate["needs"] = [
+        "activation",
+        "quality-linux",
+        "compatibility-windows",
+        "project-linux",
+        "project-windows",
+    ]
+    aggregate["if"] = "${{ always() && needs.activation.outputs.enabled != 'false' }}"
+    aggregate["steps"][0]["env"].update(
+        {
+            "ACTIVATION_RESULT": "${{ needs.activation.result }}",
+            "PROJECT_LINUX_RESULT": "${{ needs.project-linux.result }}",
+            "PROJECT_WINDOWS_RESULT": "${{ needs.project-windows.result }}",
+        }
+    )
+    aggregate["steps"][0]["run"] = (
+        'test "$ACTIVATION_RESULT" = success &&\ntest "$LINUX_RESULT" = success && test "$WINDOWS_RESULT" = success &&\ntest "$PROJECT_LINUX_RESULT" = success && test "$PROJECT_WINDOWS_RESULT" = success\n'
+    )
+    return result
+
 
 def guarded_pull_request_merge_contract(node_version: str) -> dict:
-    return {
+    result: dict[str, Any] = {
         "name": "Guarded pull request merge",
         "run-name": "Guarded merge ${{ github.event.client_payload.request_id }}",
         "on": {
@@ -1086,6 +1257,13 @@ def guarded_pull_request_merge_contract(node_version: str) -> dict:
             },
         },
     }
+
+    result["jobs"]["activation"] = activation_contract("guardedMerge")
+    merge = result["jobs"]["guarded-merge"]
+    merge["needs"] = "activation"
+    merge["if"] = "needs.activation.outputs.enabled == 'true'"
+    merge["steps"][0]["with"]["ref"] = "${{ needs.activation.outputs.trusted_sha }}"
+    return result
 
 
 def release_artifacts_contract(node_version: str) -> dict:

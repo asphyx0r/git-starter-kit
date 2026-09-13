@@ -28,6 +28,23 @@
       "probe": {
         "arguments": ["version"],
         "expectedLine": "8.30.1"
+      },
+      "variants": {
+        "windows-x64": {
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip",
+          "sha256": "d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e",
+          "artifactType": "zip",
+          "install": {
+            "kind": "executable",
+            "target": "bin/gitleaks.exe",
+            "member": "gitleaks.exe",
+            "allowedEntries": [
+              "LICENSE",
+              "README.md",
+              "gitleaks.exe"
+            ]
+          }
+        }
       }
     },
     "actionlint": {
@@ -44,6 +61,31 @@
       "probe": {
         "arguments": ["-version"],
         "expectedLine": "1.7.12"
+      },
+      "variants": {
+        "windows-x64": {
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip",
+          "sha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+          "artifactType": "zip",
+          "install": {
+            "kind": "executable",
+            "target": "bin/actionlint.exe",
+            "member": "actionlint.exe",
+            "allowedEntries": [
+              "LICENSE.txt",
+              "README.md",
+              "docs/README.md",
+              "docs/api.md",
+              "docs/checks.md",
+              "docs/config.md",
+              "docs/install.md",
+              "docs/reference.md",
+              "docs/usage.md",
+              "man/actionlint.1",
+              "actionlint.exe"
+            ]
+          }
+        }
       }
     },
     "shfmt": {
@@ -59,6 +101,17 @@
       "probe": {
         "arguments": ["--version"],
         "expectedLine": "v3.14.0"
+      },
+      "variants": {
+        "windows-x64": {
+          "url": "https://github.com/mvdan/sh/releases/download/v3.14.0/shfmt_v3.14.0_windows_amd64.exe",
+          "sha256": "6738a3e155fbfec3bedc70962f9cd1610197587a43b5d7100f405239d8e11375",
+          "artifactType": "binary",
+          "install": {
+            "kind": "executable",
+            "target": "bin/shfmt.exe"
+          }
+        }
       }
     },
     "PSScriptAnalyzer": {
@@ -93,6 +146,23 @@
       "probe": {
         "arguments": ["--version"],
         "expectedLine": "version: 0.11.0"
+      },
+      "variants": {
+        "windows-x64": {
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip",
+          "sha256": "8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e",
+          "artifactType": "zip",
+          "install": {
+            "kind": "executable",
+            "target": "bin/shellcheck.exe",
+            "member": "shellcheck.exe",
+            "allowedEntries": [
+              "LICENSE.txt",
+              "README.txt",
+              "shellcheck.exe"
+            ]
+          }
+        }
       }
     }
   },

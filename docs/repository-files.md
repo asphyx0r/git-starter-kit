@@ -754,10 +754,13 @@ deferred, or explicitly excluded from the template.
 - Goal: Installs non-package-manager quality tools from integrity-pinned
   artifacts.
 - Usage: Select the declared platform and a new installation root strictly
-  below `RUNNER_TEMP`; optionally select individual supported tools.
+  below `RUNNER_TEMP`; optionally select individual supported tools. Explicit
+  `--local` accepts an absent root with an existing safe parent and requires
+  selected `--tool` capabilities without `RUNNER_TEMP`.
 - Notes: Requires HTTPS, verifies SHA-256 before extraction, rejects unsafe
-  archive layouts and links, probes staged tools, and publishes the completed
-  installation only after every selected tool passes.
+  bounded archive layouts, links and junctions, probes staged native tools with
+  contained process deadlines, and atomically publishes without overwrite only
+  after every selected tool passes. `--dry-run` downloads/writes nothing.
 
 ### `tools/quality/package-lock.json`
 
@@ -832,7 +835,10 @@ deferred, or explicitly excluded from the template.
   the external records as installer inputs.
 - Notes: Schema 2 records supported platforms, official HTTPS artifact URLs,
   SHA-256 digests, installation contracts, and version probes for Actionlint,
-  Shfmt, PSScriptAnalyzer, ShellCheck, and Gitleaks.
+  Shfmt, PSScriptAnalyzer, ShellCheck, and Gitleaks. Optional platform `variants`
+  override only artifact fields; version/probe pins remain shared. The updated
+  reader accepts old records without variants; distribute reader and registry
+  together. Windows executable ZIP variants declare exact allowed payloads.
 
 ### `tools/quality/yamllint.yaml`
 
@@ -1617,3 +1623,15 @@ deferred, or explicitly excluded from the template.
 - Goal: Provides a reusable support policy structure for future projects.
 - Usage: Replace placeholders with project-specific support channels.
 - Notes: Keep the root file concrete and this file generic.
+
+## Consumer package composition
+
+`templates/project/` contains source-owned consumer README, community documents,
+tool documentation and project configuration guidance. These inputs replace
+source maintenance prose in the initialization ZIP and are themselves excluded.
+The builder generates `.starter-kit-project.json` from the shared default reader
+as initialize-only, and composes Commitlint without the canonical scope enum.
+It computes exact inventories and checksums after all substitutions and verifies
+ZIP bytes and modes. `tests/`, `docs/superpowers/`, migration journals and source
+manufacturing commands remain source-only. Runtime ownership follows exact
+inventory entries rather than every file under `tools/` or `tests/`.

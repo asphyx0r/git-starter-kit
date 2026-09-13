@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Common globals are initialized by the common module.
+# shellcheck disable=SC2154
 
 audit_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 audit_module_dir="${audit_script_dir}/repository-audit"
@@ -124,7 +126,7 @@ main() {
     return
     ;;
   all | full | readonly | markdown | spelling | static | fast | \
-    powershell-static | \
+    powershell-static | project-checks | \
     hook-pre-commit | hook-commit-msg | hook-pre-push) ;;
 
   *)
@@ -137,26 +139,55 @@ main() {
     export GIT_OPTIONAL_LOCKS=0
   fi
 
-  initialize_repository_root
+  initialize_repository_root || return
+
+  local validation_scope
+  if [[ "${mode}" == hook-pre-push ]]; then
+    run_hook_pre_push "$@"
+    return
+  fi
+  if [[ "${mode}" == hook-pre-commit ]]; then
+    run_hook_pre_commit "$@"
+    return
+  fi
+  if [[ "${mode}" == hook-commit-msg ]]; then
+    run_hook_commit_msg "$@"
+    return
+  fi
+  validation_scope="$(resolve_validation_scope)" || return
+  printf 'Core validation scope: %s\n' "${validation_scope}"
+
+  if [[ "${validation_scope}" == project ]]; then
+    case "${mode}" in
+    all | full | static | fast | readonly | markdown | spelling | powershell-static)
+      run_consumer_core "${mode}" || return
+      run_project_checks "${repository_root}" --dry-run
+      return
+      ;;
+    esac
+  fi
 
   case "${mode}" in
+  project-checks)
+    run_project_checks "${repository_root}" "$@"
+    ;;
   readonly)
-    run_readonly
+    run_readonly || return
     ;;
   full | all | static)
-    run_static
+    run_static || return
     ;;
   markdown)
-    run_markdown
+    run_markdown || return
     ;;
   spelling)
-    run_spelling
+    run_spelling || return
     ;;
   fast)
-    run_fast
+    run_fast || return
     ;;
   powershell-static)
-    run_powershell_static
+    run_powershell_static || return
     ;;
   hook-pre-commit)
     run_hook_pre_commit "$@"
@@ -166,6 +197,12 @@ main() {
     ;;
   hook-pre-push)
     run_hook_pre_push "$@"
+    ;;
+  esac
+  case "${mode}" in
+  all | full | static | fast | readonly | markdown | spelling | powershell-static)
+    printf 'Core validation: passed (%s source scope).\n' "${mode}"
+    run_project_checks "${repository_root}" --dry-run
     ;;
   esac
 }

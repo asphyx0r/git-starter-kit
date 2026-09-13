@@ -105,6 +105,9 @@ def valid_policy():
 
 
 def load_module(test_case):
+    tools_path = str(MODULE_PATH.parent)
+    if tools_path not in sys.path:
+        sys.path.insert(0, tools_path)
     test_case.assertTrue(MODULE_PATH.is_file(), "Guarded merge CLI is missing.")
     spec = importlib.util.spec_from_file_location("merge_pull_request", MODULE_PATH)
     test_case.assertIsNotNone(spec)
@@ -118,6 +121,212 @@ def load_module(test_case):
 class MergePullRequestTests(unittest.TestCase):
     def setUp(self):
         self.module = load_module(self)
+        # Network activation has its own immutable-snapshot integration tests.
+        if not self._testMethodName.startswith("test_automation_"):
+            self.activation = patch.object(
+                self.module, "_require_guarded_merge_enabled", create=True
+            )
+            self.activation.start()
+            self.addCleanup(self.activation.stop)
+
+    def test_automation_disabled_request_stops_before_commitlint_or_dispatch(self):
+        message_path = self.write_bytes(b"fix(git): explicit message\n")
+        with (
+            patch.object(
+                self.module, "_resolve_repository", return_value=(REPOSITORY, "main")
+            ),
+            patch.object(
+                self.module,
+                "_require_guarded_merge_enabled",
+                create=True,
+                side_effect=self.module.MergeRequestError("guardedMerge is disabled"),
+            ) as activation,
+            patch.object(
+                self.module, "_validate_message_with_commitlint"
+            ) as commitlint,
+            patch.object(self.module, "_validate_pull_request") as validate,
+            patch.object(self.module, "_dispatch_request") as dispatch,
+        ):
+            code, _, error = self.run_main(
+                [
+                    "--dry-run",
+                    "request",
+                    "--force",
+                    "--repository",
+                    REPOSITORY,
+                    "--pull-request",
+                    "17",
+                    "--message-file",
+                    str(message_path),
+                ]
+            )
+        self.assertEqual(code, 1, error)
+        activation.assert_called_once_with(REPOSITORY, "main")
+        commitlint.assert_not_called()
+        validate.assert_not_called()
+        dispatch.assert_not_called()
+
+    def test_automation_disabled_execute_stops_before_commitlint_or_merge(self):
+        with (
+            patch.object(
+                self.module,
+                "_require_guarded_merge_enabled",
+                create=True,
+                side_effect=self.module.MergeRequestError("guardedMerge is disabled"),
+            ) as activation,
+            patch.object(
+                self.module, "_validate_message_with_commitlint"
+            ) as commitlint,
+            patch.object(
+                self.module, "_validate_pull_request", return_value=valid_pull_request()
+            ),
+            patch.object(self.module, "_run_gh") as gh,
+        ):
+            code, _, error = self.run_main(
+                [
+                    "--dry-run",
+                    "execute",
+                    "--event-file",
+                    str(self.write_event(valid_event())),
+                ]
+            )
+        self.assertEqual(code, 1, error)
+        activation.assert_called_once_with(REPOSITORY, "main")
+        commitlint.assert_not_called()
+        gh.assert_not_called()
+
+    def test_automation_actual_trusted_reader_rejects_disabled_and_invalid_configuration(
+        self,
+    ):
+        for value in (
+            {"schemaVersion": 1},
+            {
+                "schemaVersion": 1,
+                "repositoryRole": "project",
+                "releaseKind": "repository",
+                "automations": {
+                    "agentRulesSync": False,
+                    "guardedMerge": False,
+                    "releasePreflight": False,
+                },
+                "checks": [],
+            },
+        ):
+            sha, tree, blob = "a" * 40, "b" * 40, "c" * 40
+            responses = [
+                {"sha": sha, "commit": {"tree": {"sha": tree}}},
+                {
+                    "sha": tree,
+                    "truncated": False,
+                    "tree": [
+                        {
+                            "path": ".starter-kit-project.json",
+                            "mode": "100644",
+                            "type": "blob",
+                            "sha": blob,
+                        }
+                    ],
+                },
+                {
+                    "sha": blob,
+                    "encoding": "base64",
+                    "content": base64.b64encode(json.dumps(value).encode()).decode(),
+                },
+            ]
+            with (
+                self.subTest(value=value),
+                patch.object(
+                    self.module, "_run_gh_json", side_effect=responses
+                ) as read,
+            ):
+                with self.assertRaises(self.module.MergeRequestError):
+                    self.module._require_guarded_merge_enabled(REPOSITORY, "main")
+                self.assertEqual(read.call_count, 3)
+
+    def test_automation_request_dry_run_creates_no_temp_and_rechecks_original_message(
+        self,
+    ):
+        message = self.write_bytes(b"fix(git): read only plan\n")
+
+        def validate(path):
+            self.assertEqual(path, message)
+
+        with (
+            patch.object(
+                self.module, "_resolve_repository", return_value=(REPOSITORY, "main")
+            ),
+            patch.object(
+                self.module,
+                "_run_gh_json",
+                side_effect=[
+                    {"sha": "a" * 40, "commit": {"tree": {"sha": "b" * 40}}},
+                    {"sha": "b" * 40, "truncated": False, "tree": []},
+                ],
+            ),
+            patch.object(
+                self.module, "_validate_pull_request", return_value=valid_pull_request()
+            ),
+            patch.object(
+                self.module, "_validate_message_with_commitlint", side_effect=validate
+            ),
+            patch(
+                "tempfile.TemporaryDirectory",
+                side_effect=AssertionError("dry-run must not create temp"),
+            ),
+            patch.object(
+                pathlib.Path,
+                "write_bytes",
+                side_effect=AssertionError("dry-run must not write"),
+            ),
+        ):
+            code, _, error = self.run_main(
+                [
+                    "--dry-run",
+                    "request",
+                    "--repository",
+                    REPOSITORY,
+                    "--pull-request",
+                    "17",
+                    "--message-file",
+                    str(message),
+                ]
+            )
+        self.assertEqual(code, 0, error)
+
+    def test_automation_request_dry_run_rejects_changed_message_before_dispatch(self):
+        message = self.write_bytes(b"fix(git): initial plan\n")
+
+        def change(path):
+            message.write_bytes(b"fix(git): changed during check\n")
+
+        with (
+            patch.object(
+                self.module, "_resolve_repository", return_value=(REPOSITORY, "main")
+            ),
+            patch.object(self.module, "_require_guarded_merge_enabled"),
+            patch.object(
+                self.module, "_validate_pull_request", return_value=valid_pull_request()
+            ),
+            patch.object(
+                self.module, "_validate_message_with_commitlint", side_effect=change
+            ),
+            patch.object(self.module, "_dispatch_request") as dispatch,
+        ):
+            code, _, error = self.run_main(
+                [
+                    "--dry-run",
+                    "request",
+                    "--repository",
+                    REPOSITORY,
+                    "--pull-request",
+                    "17",
+                    "--message-file",
+                    str(message),
+                ]
+            )
+        self.assertEqual(code, 1, error)
+        self.assertIn("changed", error)
+        dispatch.assert_not_called()
 
     def write_bytes(self, value):
         temporary = tempfile.NamedTemporaryFile(delete=False)
@@ -2566,7 +2775,7 @@ class MergePullRequestTests(unittest.TestCase):
                 ):
                     self.module._post_merge_message(REPOSITORY, 17, "main", HEAD_OID)
 
-    def test_commitlint_failure_precedes_every_gh_call(self):
+    def test_commitlint_failure_after_read_only_activation_precedes_pr_validation(self):
         message_path = self.write_bytes(b"fix(git): invalid for commitlint\n")
         events = []
 
@@ -2583,7 +2792,9 @@ class MergePullRequestTests(unittest.TestCase):
             patch.object(
                 self.module,
                 "_resolve_repository",
-                side_effect=lambda _repository: events.append("gh"),
+                side_effect=lambda _repository: (
+                    events.append("gh") or (REPOSITORY, "main")
+                ),
             ),
         ):
             code, _, error_output = self.run_main(
@@ -2600,7 +2811,7 @@ class MergePullRequestTests(unittest.TestCase):
             )
 
         self.assertEqual(code, 1)
-        self.assertEqual(events, ["commitlint"])
+        self.assertEqual(events, ["gh", "commitlint"])
         self.assertIn("Commitlint", error_output)
 
 

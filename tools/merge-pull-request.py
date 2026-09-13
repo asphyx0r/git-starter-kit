@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from automation_config import remote_guarded_merge_enabled
+from project_config import ConfigurationError
+
 
 VERSION = "v0.1.0"
 EVENT_TYPE = "guarded-squash-merge"
@@ -384,6 +387,19 @@ def _require_repository_auto_merge_disabled(repository: str) -> None:
     if repository_value["autoMergeAllowed"]:
         raise MergeRequestError(
             "Repository auto-merge must be disabled before guarded merges."
+        )
+
+
+def _require_guarded_merge_enabled(repository: str, default_branch: str) -> None:
+    try:
+        enabled = remote_guarded_merge_enabled(repository, default_branch, _run_gh_json)
+    except ConfigurationError as error:
+        raise MergeRequestError(str(error)) from error
+    if not enabled:
+        raise MergeRequestError(
+            "guardedMerge is disabled in the trusted default-branch configuration. "
+            "Use the repository's ordinary authorized PR review and merge path; "
+            "required checks, branch protections and commit rules still apply."
         )
 
 
@@ -805,12 +821,28 @@ def _validate_request_arguments(args: argparse.Namespace) -> float:
 
 def _request(args: argparse.Namespace) -> int:
     timeout_seconds = _validate_request_arguments(args)
+    try:
+        message_identity = args.message_file.stat()
+    except OSError as error:
+        raise MergeRequestError(f"Unable to inspect merge message: {error}") from error
     message = _read_merge_message(args.message_file)
-    with tempfile.TemporaryDirectory(prefix="guarded-merge-request-") as temporary:
-        candidate_path = Path(temporary) / "candidate-message.txt"
-        candidate_path.write_bytes(message.raw)
-        _validate_message_with_commitlint(candidate_path)
     repository, default_branch = _resolve_repository(args.repository)
+    _require_guarded_merge_enabled(repository, default_branch)
+    if args.dry_run:
+        _validate_message_with_commitlint(args.message_file)
+        try:
+            unchanged = args.message_file.stat() == message_identity
+        except OSError as error:
+            raise MergeRequestError(
+                f"Unable to recheck merge message: {error}"
+            ) from error
+        if not unchanged or _read_merge_message(args.message_file).raw != message.raw:
+            raise MergeRequestError("Merge message changed during dry-run validation.")
+    else:
+        with tempfile.TemporaryDirectory(prefix="guarded-merge-request-") as temporary:
+            candidate_path = Path(temporary) / "candidate-message.txt"
+            candidate_path.write_bytes(message.raw)
+            _validate_message_with_commitlint(candidate_path)
     pull_request = _validate_pull_request(
         repository,
         default_branch,
@@ -1078,6 +1110,7 @@ def _verify_postcondition(request: DispatchRequest, actual_path: Path) -> None:
 
 def _execute(args: argparse.Namespace) -> int:
     request = _read_dispatch_event(args.event_file)
+    _require_guarded_merge_enabled(request.repository, request.default_branch)
     with tempfile.TemporaryDirectory(prefix="guarded-merge-") as temporary_directory:
         temporary_root = Path(temporary_directory)
         candidate_path = temporary_root / "candidate-message.txt"

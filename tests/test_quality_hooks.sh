@@ -523,8 +523,8 @@ empty_error="${test_temp}/empty.err"
 if ! run_hook_pre_commit >"${empty_output}" 2>"${empty_error}"; then
   fail "pre-commit no-change fast path failed"
 fi
-if [[ -s "${empty_output}" || -s "${empty_error}" ]]; then
-  fail "pre-commit no-change fast path emitted output"
+if [[ "$(cat "${empty_output}")" != "Core validation scope: source (staged configuration)" || -s "${empty_error}" ]]; then
+  fail "pre-commit no-change fast path emitted unexpected output"
 fi
 
 quality_bin="${test_temp}/quality-bin"
@@ -588,7 +588,7 @@ assert_file_contains "${QUALITY_MYPY_TRACE}" \
 git -C "${staged_fixture}" reset -q --hard HEAD
 printf 'staged value\n' >"${staged_fixture}/document.md"
 git -C "${staged_fixture}" add document.md
-minimal_path="$(dirname "$(command -v git)"):/usr/bin:/bin"
+minimal_path="$(dirname "$(command -v python)"):$(dirname "$(command -v git)"):/usr/bin:/bin"
 missing_error="${test_temp}/missing.err"
 if PATH="${minimal_path}" run_hook_pre_commit \
   >"${test_temp}/missing.out" 2>"${missing_error}"; then
@@ -642,9 +642,14 @@ git -C "${staged_fixture}" reset -q --hard HEAD
 cat >"${quality_bin}/python" <<'PYTHON'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "$*" == *project_validation.py* ]]; then
+  exec "$QUALITY_REAL_PYTHON" "$@"
+fi
 printf '%s\n' "$@" >"${QUALITY_DECLARATION_TRACE}.arguments"
 PYTHON
 chmod +x "${quality_bin}/python"
+export QUALITY_REAL_PYTHON
+QUALITY_REAL_PYTHON="$(command -v python)"
 git -C "${staged_fixture}" rm -q tools/quality/requirements.lock
 export QUALITY_DECLARATION_TRACE="${test_temp}/declarations"
 PATH="${quality_bin}:${PATH}" run_hook_pre_commit
@@ -663,8 +668,10 @@ if ! printf 'refs/heads/main %s refs/heads/main %s\n' \
   >"${test_temp}/push-no-change.out" 2>"${test_temp}/push-no-change.err"; then
   fail "pre-push no-change fast path failed"
 fi
-[[ ! -s "${test_temp}/push-no-change.out" ]] ||
-  fail "pre-push no-change fast path emitted stdout"
+assert_file_contains "${test_temp}/push-no-change.out" \
+  "Core validation scope: source (pushed revision ${local_object_id})"
+assert_file_contains "${test_temp}/push-no-change.out" \
+  'Project validation WARNING: legacy configuration; application validation was not run (no declared checks).'
 [[ ! -s "${test_temp}/push-no-change.err" ]] ||
   fail "pre-push no-change fast path emitted stderr"
 
@@ -675,6 +682,9 @@ python_object_id="$(git -C "${staged_fixture}" rev-parse HEAD)"
 python_parent_id="$(git -C "${staged_fixture}" rev-parse HEAD^)"
 cat >"${quality_bin}/python" <<'PYTHON'
 #!/usr/bin/env bash
+if [[ "$*" == *project_validation.py* ]]; then
+  exec "$QUALITY_REAL_PYTHON" "$@"
+fi
 exit 41
 PYTHON
 chmod +x "${quality_bin}/python"

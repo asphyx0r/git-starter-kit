@@ -192,15 +192,46 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
 
 - N'applique cette section qu'après la validation de BUMP au point 14 et avant
   toute modification du working tree, du staging, des commits ou des refs.
+- Résous le nom de la branche par défaut avec les métadonnées GitHub, puis
+  son commit exact. Lis les trois flags avec le lecteur strict suivi
+  `tools/project_config.py`, depuis un snapshot immuable de la branche par défaut.
+  Le lecteur et sa configuration doivent provenir du même commit de confiance,
+  comme dans les workflows ; une PR ne peut pas activer un automatisme privilégié.
+  Enregistre le nom de la branche par défaut, son commit, le mode et les trois
+  valeurs `automations`. Une configuration présente invalide bloque le parcours.
+  Une configuration absente conserve le mode legacy et les anciens automatismes,
+  notamment le sync de release même si la variable legacy vaut false. Si ce
+  snapshot doit contenir le nouveau lecteur mais ne le contient pas, arrête-toi ;
+  ne transforme pas une erreur de runtime en mode legacy.
+- Résous séparément le snapshot immuable de la cible pour `releaseKind` et les
+  métadonnées de release. Lis-les avec le lecteur strict et les fichiers suivis
+  de ce même snapshot cible, puis enregistre son commit, son mode et ses valeurs.
+  Les flags de la cible ne sélectionnent aucun automatisme. Une cible distincte
+  de la branche par défaut peut donc fournir d'autres métadonnées sans changer
+  l'autorité d'activation. Une configuration cible invalide ou un lecteur requis
+  manquant bloque également le parcours.
+- Pour le mode configuré, le JSON de la branche par défaut est l'unique autorité
+  d'activation. Après chaque intégration, résous et relis les deux autorités.
+  Refais cette résolution et cette validation avant chaque opération dépendante :
+  fusion guarded ou ordinaire, prévalidation, génération d'artefacts, création de
+  tag, push atomique et publication de GitHub Release. Utilise les flags du
+  snapshot par défaut pour la sélection et les valeurs du snapshot cible pour
+  les métadonnées. Un changement de branche par défaut, de mode, de valeurs ou
+  de prérequis impose l'arrêt et un nouvel examen du parcours ; ne modifie pas
+  silencieusement la liste des workflows attendus. Enregistre les nouveaux SHA
+  validés même lorsque les valeurs restent identiques.
+  Les flags avancés ne désactivent ni les contrôles core, ni les commandes
+  projet déclarées, ni les hooks, protections et règles de commit/release.
 - Exige que `.github/workflows/repository-audit.yml` soit suivi et lisible,
   porte exactement le nom `Repository audit`, soit déclenché par `push` et
   publie pour les pushes non manuels un job agrégateur nommé exactement
   `Repository audit`, qui réussit uniquement si tous ses jobs enfants
   réussissent.
-- Vérifie que le filtre `push.branches` couvre `codex/release-preflight-*`,
-  sans exclusion de ce préfixe, et que le workflow audite aussi les pushes de
-  la branche cible et du tag prévu. Un événement `push` présent mais filtré
-  hors du ref de prévalidation ne satisfait pas cette précondition.
+- Exige sans condition que le workflow audite les pushes de la branche cible et du tag prévu.
+  Vérifie leurs filtres avant toute mutation, même lorsque `releasePreflight=false`.
+- Lorsque `releasePreflight=true`, vérifie que le filtre `push.branches` couvre `codex/release-preflight-*`,
+  sans exclusion de ce préfixe. Un événement `push` présent mais filtré hors du
+  ref de prévalidation ne satisfait pas cette précondition dédiée.
 - Exige que `tools/verify-repository-audit-runs.py` soit suivi et lisible, puis
   vérifie que son aide et sa version peuvent être exécutées. Utilise uniquement
   cet outil suivi pour sélectionner et attendre les runs d'audit obligatoires.
@@ -224,24 +255,32 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
   par intention ; ne crée et ne pousse aucun nouveau commit directement sur
   cette cible. N'utilise le parcours direct que sur une branche non protégée
   et non partagée lorsque les instructions du repository l'autorisent.
-- Pour le parcours par PR, exige que `tools/merge-pull-request.py`, sa
+- Pour le parcours par PR lorsque `guardedMerge=true`, exige que `tools/merge-pull-request.py`, sa
   configuration Commitlint épinglée et le workflow
   `.github/workflows/guarded-pull-request-merge.yml` soient déjà installés sur
   la branche cible. Vérifie l'aide de l'outil, l'état actif du workflow et les
   prérequis décrits dans `docs/guarded-pull-request-merges.md`. En cas
   d'absence, arrête-toi : n'improvise aucun amorçage, merge manuel, bypass,
   changement de protection, auto-merge ou merge queue.
+- Lorsque `guardedMerge=false`, utilise le parcours ordinaire de revue et
+  fusion explicitement autorisé par le repository : PR non draft, base et
+  tête exactes, contrôles requis réussis et protections conservées. Ne demande
+  aucun secret App et ne dispatch pas le workflow désactivé. Si des règles
+  locales imposent malgré tout le parcours guarded, arrête-toi et expose ce
+  conflit avant toute mutation. L'intégration ordinaire doit conserver la
+  validation Commitlint du message exact, la correspondance de tête au moment
+  de la fusion et la vérification du squash, parent, arbre et message.
 - Si `CREATE_GITHUB_RELEASE=true` :
   - exige que `.github/workflows/repository-audit.yml` écoute aussi l'événement
     `release` avec le type `published`, audite la plage complète depuis le tag
     stable précédent et conserve le même job agrégateur obligatoire ;
-  - exige que `.github/workflows/agent-rules-update.yml` soit suivi et lisible,
+  - uniquement lorsque `agentRulesSync=true`, exige que `.github/workflows/agent-rules-update.yml` soit suivi et lisible,
     porte exactement le nom `Agent rules update`, écoute l'événement `release`
-    avec le type `published` et exécute son job lors d'une release même si
-    `AGENT_RULES_SYNC_ENABLED=false` ;
-  - résous avec l'API GitHub l'identité exacte et l'état actif du workflow
+    avec le type `published` et évalue le JSON de confiance avant dépendances,
+    synchronisation externe et création du token App ;
+  - uniquement lorsque `agentRulesSync=true`, résous avec l'API GitHub l'identité exacte et l'état actif du workflow
     `Agent rules update` ;
-  - vérifie en lecture seule que la variable Actions de repository
+  - uniquement lorsque `agentRulesSync=true`, vérifie en lecture seule que la variable Actions de repository
     `AGENT_RULES_APP_CLIENT_ID` existe avec une valeur non vide et que le secret
     Actions de repository `AGENT_RULES_APP_PRIVATE_KEY` existe. L'existence du
     secret ne prouve ni sa valeur ni l'accès de l'installation GitHub App ; seul
@@ -250,11 +289,18 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
     requis est absent, désactivé, illisible ou non conforme ;
   - si l'extension conditionnelle du starter kit s'applique, exécute maintenant
     ses préconditions de workflow ;
-  - enregistre `Agent rules update` et `Repository audit` comme workflows de
-    release obligatoires. L'extension conditionnelle du starter kit peut
-    ajouter ses propres workflows à cette liste, sans remplacer les deux
-    workflows communs.
-- Résous toutes les valeurs suivantes pour la release courante avant toute
+  - enregistre toujours `Repository audit` comme workflow de release
+    obligatoire et ajoute `Agent rules update` uniquement lorsque
+    `agentRulesSync=true`. Un flag false n'est pas un run échoué ou manquant.
+    Une mise à jour manuelle explicite des règles demeure possible en mode
+    configuré lorsque le sync automatique est désactivé, sur la branche par
+    défaut ; elle ne prouve jamais un événement de release sélectionné.
+    L'extension conditionnelle du starter kit peut ajouter ses workflows.
+- Pour `releaseKind=repository`, prépare l'inventaire Git avec le schéma
+  `templates/release/repository-manifest.schema.json`, sans métadonnées de
+  déploiement ni fichier JSON metadata. Les anciens manifests de déploiement
+  restent validés selon leur propre format, sans conversion incidente.
+- Pour `releaseKind=deployment` uniquement, résous toutes les valeurs suivantes pour la release courante avant toute
   mutation :
   - `program_id`, `name`, `channel`, `critical_update` et `release_notes` ;
   - `update.min_source_version`, `update.strategy`,
@@ -438,7 +484,7 @@ INTÉGRATION CONTRÔLÉE DE CHAQUE INTENTION
 - Relis `COMMIT_RULES.md`, effectue le fetch unique requis avant le commit
   squash et les contrôles d'intégrité, puis revalide le fichier de message
   final exact avec Commitlint. Ne reconstruis pas son corps depuis la PR.
-- Utilise l'outil déjà installé sur la cible, d'abord sans écriture :
+- Lorsque `guardedMerge=true`, utilise l'outil déjà installé sur la cible, d'abord sans écriture :
 
   ```text
   python tools/merge-pull-request.py --dry-run request \
@@ -462,6 +508,15 @@ INTÉGRATION CONTRÔLÉE DE CHAQUE INTENTION
   commit squash, parent, arbre et message. Un code de sortie 3 signifie un
   résultat indéterminé : diagnostic en lecture seule et arrêt, sans nouvelle
   demande automatique. N'utilise jamais `gh pr merge` comme remplacement.
+- Lorsque `guardedMerge=false`, les deux commandes guarded et leur attente
+  ci-dessus ne sont pas sélectionnées. Applique le parcours ordinaire déjà
+  autorisé : revalide la tête et le message exact, puis utilise une fusion
+  squash avec correspondance obligatoire de tête (`--match-head-commit` si
+  le repository autorise GitHub CLI), sujet et corps issus du fichier validé.
+  Vérifie ensuite le commit squash, son unique parent cible, l'arbre et le
+  message exacts avant de continuer. Aucun bypass, auto-merge ou merge queue
+  ne peut servir de remplacement. Le contrôle push cible ci-dessous reste
+  obligatoire avec le SHA réel du squash.
 - Attends ensuite le run `Repository audit` de l'événement `push` sur la
   branche cible, au SHA exact du squash et après cet horodatage, avec l'outil
   suivi `tools/verify-repository-audit-runs.py`, `--timeout-seconds 3600` et
@@ -524,6 +579,28 @@ PRÉPARATION DES ARTEFACTS D'IDENTIFICATION DE RELEASE
   fichiers non suivis, ignorés ou absents du commit candidat sont exclus.
 - Réutilise exclusivement le fichier JSON temporaire validé avant toute
   mutation. Ne redemande, ne déduis et ne remplace aucune de ses valeurs.
+- Cette exigence du JSON metadata et l'option `--metadata-file` ci-dessous
+  s'appliquent uniquement à `releaseKind=deployment`.
+- Pour `releaseKind=repository`, enregistre une seule date UTC au format
+  `YYYY-MM-DDTHH:MM:SSZ`. Réutilise exactement cette date et le tag calculé
+  dans les deux commandes suivantes, sans fichier metadata. Vérifie d'abord
+  la simulation et le schéma d'inventaire :
+
+  ```text
+  python tools/release-artifacts.py --dry-run prepare --kind repository \
+    --release-ref <tag> \
+    --release-date <date-UTC>
+  ```
+
+  Puis applique cette même préparation :
+
+  ```text
+  python tools/release-artifacts.py --force prepare --kind repository \
+    --release-ref <tag> \
+    --release-date <date-UTC>
+  ```
+
+- Pour `releaseKind=deployment`, conserve le parcours avec metadata suivant.
 - Enregistre une seule date UTC courante au format `YYYY-MM-DDTHH:MM:SSZ`, puis
   utilise exactement le tag calculé, cette date et le fichier temporaire pour
   exécuter d'abord sans écriture :
@@ -587,6 +664,16 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
 
 - Applique cette section avant toute création de tag, avec ou sans GitHub
   Release demandée.
+- Lorsque `releasePreflight=false`, ne crée et ne pousse aucun ref de
+  prévalidation et ne sélectionne aucun run de ce ref. Exige la cible propre
+  et synchronisée au SHA exact, enregistre son SHA distant, exécute les
+  contrôles core applicables et `python -B tools/project_validation.py
+  --repository-root . --timeout 900` sur cette révision exacte. Vérifie les
+  artefacts avec `--expected-ref <tag> --treeish HEAD`. Les protections,
+  autorisations et contrôles CI finaux sur le tag restent obligatoires.
+  Les étapes distantes suivantes sont sélectionnées uniquement lorsque
+  `releasePreflight=true` ; aucune erreur de run sélectionné ne peut être
+  ignorée ni remplacée par un succès local.
 - Réutilise les identifiants exacts des workflows `Repository audit` et
   `Release artifacts` résolus avant toute mutation. Relis leur état et la
   protection de branche en lecture seule et exige que les préconditions soient
@@ -624,6 +711,7 @@ PRÉVALIDATION DISTANTE OBLIGATOIRE
     --timeout-seconds 3600 \
     --poll-seconds 5
   ```
+
 - Après le succès, relis `origin/<branche>` sans le modifier et exige qu'il
   corresponde encore au SHA distant enregistré. Relis aussi les tags distants
   et exige que le tag calculé soit toujours absent. Toute évolution ou
@@ -708,7 +796,8 @@ CONTRÔLE CI FINAL OBLIGATOIRE
   les métadonnées et logs utiles en lecture seule et arrête le workflow sans
   créer de GitHub Release. Un autre run vert du même SHA ne compense jamais cet
   échec.
-- Après le succès exact de tous les runs, supprime uniquement le ref de
+- Après le succès exact de tous les runs, si un ref de prévalidation a été
+  créé par cette exécution, supprime uniquement le ref de
   prévalidation créé par cette exécution avec
   `git push origin --delete <branche-preflight>`, puis vérifie son absence sur
   `origin`. Une suppression impossible ou ambiguë arrête les mutations et est
@@ -744,7 +833,8 @@ CONTRÔLE CONDITIONNEL DE LA GITHUB RELEASE
 - N'applique cette section que si `CREATE_GITHUB_RELEASE=true` et que la
   GitHub Release vient d'être créée au point 40.
 - Utilise la liste des workflows de release obligatoires validée avant toute
-  mutation. Elle contient toujours `Agent rules update` et `Repository audit` ;
+  mutation. Elle contient toujours `Repository audit` ; `Agent rules update`
+  est ajouté uniquement lorsque `agentRulesSync=true` ;
   l'extension conditionnelle du starter kit y ajoute `Release package`.
 - Pour chaque workflow attendu, recherche toutes les cinq secondes, pendant
   dix minutes au maximum, le run unique qui respecte simultanément :

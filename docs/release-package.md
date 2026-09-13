@@ -99,10 +99,22 @@ identifies repository-owned content that maintainers should review separately.
 
 ## Rule Freshness Gate
 
-The package builder resolves the requested public `agent-coding-rules` release
-and compares it with the tracked `_agent-rules-source.json`. It then verifies
-the canonical hash of every tracked rule. A customized file is accepted only
-when provenance schema 3 contains its matching `preservedFiles` record.
+The package builder resolves the latest published public `agent-coding-rules`
+release exactly once per build. An explicit tag must identify that same latest
+release. The immutable upstream tag, commit, tree and seven root blobs are
+verified, including Git blob digests. Canonical tracked provenance and rule
+bytes must match it; preserved local customizations cannot be packaged as
+upstream truth. Declared Markdown CRLF checkout conversion is accepted; the ZIP
+stores the exact upstream blob bytes. Offline or unverifiable latest fails.
+Synchronize stale canonical rules with the official updater before packaging;
+the builder never modifies canonical rule files.
+
+`templates/project/` supplies consumer documentation and Commitlint without the
+canonical-only scope whitelist. The shared default project configuration is
+initialize-only. Final core state and managed inventories are recomputed after
+composition, and the archive's bytes and executable modes are verified. Source
+maintenance tests, manufacturing files, migration journals and template inputs
+are excluded; required runtime modules and release schemas remain distributed.
 
 No source-repository GitHub App token is required. The read-only `build` job
 exposes the built-in workflow token only to the package-builder step, which
@@ -230,11 +242,11 @@ Do not substitute a `workflow_dispatch` run for the automatic completion gate.
 4. Click **Run workflow**.
 5. Fill in `tag` with the release tag to package, for example `v1.3.0`.
 6. Fill `agent_rules_ref` with `latest` or a SemVer `agent-coding-rules` tag,
-    for example `v1.36.1`.
+    matching the latest published upstream release.
 7. Click **Run workflow**.
 
-Manual release packages accept `latest` or an explicit SemVer tag. Use a SemVer
-tag when you need to recreate a package from a known agent-rules release.
+Manual release packages accept `latest` or the same latest published SemVer tag.
+Explicit older rules tags are rejected; old published assets stay immutable.
 Branch names are still rejected so the generated asset stays reproducible.
 
 When the workflow finishes, open the GitHub release page for the tag and check
@@ -276,8 +288,8 @@ tar -xOf .tmp\release-package-test\test-release-package.zip _starter-kit-files.j
 
 The local test creates a ZIP only. It does not upload anything to GitHub.
 `AgentRulesRef` defaults to `latest`; pass a SemVer tag only when you need to
-assert a known agent-rules release. The argument validates tracked content; it
-does not overlay files from the source repository. The repository root must use
+assert the same latest published agent-rules release. The argument validates
+tracked content against immutable upstream bytes before composing the archive. The repository root must use
 the canonical `git-starter-kit` HTTPS `origin`.
 
 The script copies files reported by `git ls-files`, except the explicit
@@ -302,5 +314,6 @@ If the final promotion command fails, inspect the `publish` job of that same
 automatic run. Do not substitute a manual run for the automatic completion
 gate.
 
-If the package must use a specific agent rules version, run the manual
-workflow again with an explicit SemVer `agent_rules_ref` value.
+To assert the latest upstream version explicitly, use its SemVer
+`agent_rules_ref` value. Older versions and unverifiable latest metadata fail
+the build; existing published assets must remain immutable.

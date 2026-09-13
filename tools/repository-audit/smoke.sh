@@ -6,15 +6,15 @@ prepare_initializer_validation_fixture() {
   local fixture_root="$1"
   local strict_header_length="${2:-false}"
 
-  mkdir -p "$fixture_root/.githooks"
-  cp .githooks/commit-msg "$fixture_root/.githooks/commit-msg"
-  mkdir -p "$fixture_root/tools"
-  cp tools/repository-audit.sh "$fixture_root/tools/repository-audit.sh"
-  cp -R tools/repository-audit "$fixture_root/tools/repository-audit"
-  chmod +x "$fixture_root/.githooks/commit-msg"
+  mkdir -p "$fixture_root/.githooks" || return
+  cp .githooks/commit-msg "$fixture_root/.githooks/commit-msg" || return
+  mkdir -p "$fixture_root/tools" || return
+  cp tools/repository-audit.sh "$fixture_root/tools/repository-audit.sh" || return
+  cp -R tools/repository-audit "$fixture_root/tools/repository-audit" || return
+  chmod +x "$fixture_root/.githooks/commit-msg" || return
 
   if [ "$strict_header_length" = "true" ]; then
-    cat >"$fixture_root/commitlint.config.cjs" <<'COMMITLINT'
+    cat >"$fixture_root/commitlint.config.cjs" <<'COMMITLINT' || return
 module.exports = {
   rules: {
     "header-max-length": [2, "always", 10],
@@ -22,8 +22,39 @@ module.exports = {
 };
 COMMITLINT
   else
-    cp commitlint.config.cjs "$fixture_root/commitlint.config.cjs"
+    cp commitlint.config.cjs "$fixture_root/commitlint.config.cjs" || return
   fi
+
+  # Model an extracted release inventory, including exact source index modes.
+  cp tools/release-artifacts.py tools/git_objects.py tools/process_runner.py "$fixture_root/tools/" || return
+  cp -R tools/git-inventory-context "$fixture_root/tools/" || return
+  mkdir -p "$fixture_root/templates/release" || return
+  cp templates/release/repository-manifest.schema.json "$fixture_root/templates/release/" || return
+  printf 'hello\n' >"$fixture_root/README.md" || return
+  printf 'hello spaces\n' >"$fixture_root/notes with spaces.txt" || return
+  local fixture_python
+  fixture_python="$(resolve_command python python3 python.exe)" || return
+  "$fixture_python" -B - "$fixture_root" <<'PY' || return
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+modes = {}
+for record in subprocess.check_output(["git", "ls-files", "--stage", "-z"]).split(b"\0"):
+    if record:
+        metadata, name = record.split(b"\t", 1)
+        modes[name.decode("utf-8")] = metadata.split()[0].decode("ascii")
+entries = [
+    {"path": path.relative_to(root).as_posix(),
+     "mode": modes.get(path.relative_to(root).as_posix(), "100644")}
+    for path in sorted(root.rglob("*")) if path.is_file()
+]
+(root / "_starter-kit-files.json").write_text(
+    json.dumps({"schemaVersion": 3, "files": entries}), encoding="utf-8"
+)
+PY
 }
 
 run_release_hook_smoke() {
@@ -33,27 +64,29 @@ run_release_hook_smoke() {
   local tag_object_id
 
   mkdir -p "$fixture_root/.githooks" "$fixture_root/templates/release" \
-    "$fixture_root/tools"
-  cp .githooks/pre-push "$fixture_root/.githooks/pre-push"
-  cp tools/repository-audit.sh "$fixture_root/tools/repository-audit.sh"
-  cp -R tools/repository-audit "$fixture_root/tools/repository-audit"
-  cp tools/release-artifacts.py "$fixture_root/tools/release-artifacts.py"
-  cp tools/git_objects.py "$fixture_root/tools/git_objects.py"
-  cp tools/process_runner.py "$fixture_root/tools/process_runner.py"
+    "$fixture_root/tools" || return
+  cp .githooks/pre-push "$fixture_root/.githooks/pre-push" || return
+  cp tools/repository-audit.sh "$fixture_root/tools/repository-audit.sh" || return
+  cp -R tools/repository-audit "$fixture_root/tools/repository-audit" || return
+  cp tools/release-artifacts.py "$fixture_root/tools/release-artifacts.py" || return
+  cp tools/git_objects.py "$fixture_root/tools/git_objects.py" || return
+  cp tools/process_runner.py "$fixture_root/tools/process_runner.py" || return
+  cp tools/project_validation.py "$fixture_root/tools/project_validation.py" || return
+  cp tools/project_config.py "$fixture_root/tools/project_config.py" || return
   cp templates/release/manifest.template.json \
-    "$fixture_root/templates/release/manifest.template.json"
+    "$fixture_root/templates/release/manifest.template.json" || return
   cp templates/release/manifest.schema.json \
-    "$fixture_root/templates/release/manifest.schema.json"
-  printf '# Release hook smoke\n' >"$fixture_root/README.md"
+    "$fixture_root/templates/release/manifest.schema.json" || return
+  printf '# Release hook smoke\n' >"$fixture_root/README.md" || return
 
-  git init -q "$fixture_root"
-  git -C "$fixture_root" config core.autocrlf false
-  git -C "$fixture_root" config user.name "Release Hook Test"
-  git -C "$fixture_root" config user.email "release-hook@example.com"
-  git -C "$fixture_root" add README.md templates tools
-  git -C "$fixture_root" commit -q -m "test: create release hook fixture"
+  git init -q "$fixture_root" || return
+  git -C "$fixture_root" config core.autocrlf false || return
+  git -C "$fixture_root" config user.name "Release Hook Test" || return
+  git -C "$fixture_root" config user.email "release-hook@example.com" || return
+  git -C "$fixture_root" add README.md templates tools || return
+  git -C "$fixture_root" commit -q -m "test: create release hook fixture" || return
 
-  cat >"$metadata_path" <<'JSON'
+  cat >"$metadata_path" <<'JSON' || return
 {
   "program_id": "release-hook-smoke",
   "name": "Release Hook Smoke",
@@ -90,19 +123,19 @@ JSON
     --release-ref v1.0.0 \
     --release-date 2026-08-18T12:00:00Z \
     --metadata-file "$metadata_path" \
-    --repository-root "$fixture_root" >/dev/null
-  git -C "$fixture_root" add VERSION SHA256SUMS manifest.json
-  git -C "$fixture_root" commit -q -m "chore: prepare release artifacts"
-  git -C "$fixture_root" tag -a v1.0.0 -m "Release v1.0.0"
-  tag_object_id="$(git -C "$fixture_root" rev-parse refs/tags/v1.0.0)"
+    --repository-root "$fixture_root" >/dev/null || return
+  git -C "$fixture_root" add VERSION SHA256SUMS manifest.json || return
+  git -C "$fixture_root" commit -q -m "chore: prepare release artifacts" || return
+  git -C "$fixture_root" tag -a v1.0.0 -m "Release v1.0.0" || return
+  tag_object_id="$(git -C "$fixture_root" rev-parse refs/tags/v1.0.0)" || return
 
   printf 'refs/tags/v1.0.0 %s refs/tags/v1.0.0 %s\n' \
     "$tag_object_id" \
     '0000000000000000000000000000000000000000' |
     (
       cd "$fixture_root" || exit
-      bash .githooks/pre-push origin example
-    )
+      bash .githooks/pre-push origin example || return
+    ) || return
 }
 
 require_smoke_python_dependencies() {
@@ -121,26 +154,26 @@ require_smoke_python_dependencies() {
 }
 
 run_script_smoke() {
-  require_command bash
-  require_command git
+  require_command bash || return
+  require_command git || return
   local commitlint_cmd
   local python_cmd
   local pwsh_cmd
-  python_cmd="$(resolve_command python python3 python.exe)"
+  python_cmd="$(resolve_command python python3 python.exe)" || return
   require_smoke_python_dependencies "$python_cmd" || return
-  commitlint_cmd="$(resolve_hook_node_tool commitlint)"
-  pwsh_cmd="$(resolve_powershell_command)"
+  commitlint_cmd="$(resolve_hook_node_tool commitlint)" || return
+  pwsh_cmd="$(resolve_powershell_command)" || return
 
-  ensure_audit_temp
+  ensure_audit_temp || return
 
   local initializer_bin="$audit_temp/initializer-bin"
-  mkdir -p "$initializer_bin"
-  cat >"$initializer_bin/commitlint" <<'COMMITLINT'
+  mkdir -p "$initializer_bin" || return
+  cat >"$initializer_bin/commitlint" <<'COMMITLINT' || return
 #!/usr/bin/env bash
 set -euo pipefail
 exec "$AUDIT_COMMITLINT_COMMAND" "$@"
 COMMITLINT
-  chmod +x "$initializer_bin/commitlint"
+  chmod +x "$initializer_bin/commitlint" || return
   export AUDIT_COMMITLINT_COMMAND="$commitlint_cmd"
   export PATH="$initializer_bin:$PATH"
 
@@ -149,24 +182,24 @@ COMMITLINT
   export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-Codex}"
   export GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-codex@example.com}"
 
-  "$python_cmd" tools/starter-kit-manifest.py --help
-  "$python_cmd" tools/starter-kit-manifest.py --version
-  "$python_cmd" tools/starter-kit-manifest.py check
-  "$python_cmd" tools/release-artifacts.py --help
-  "$python_cmd" tools/release-artifacts.py --version
-  run_release_hook_smoke "$python_cmd"
+  "$python_cmd" tools/starter-kit-manifest.py --help || return
+  "$python_cmd" tools/starter-kit-manifest.py --version || return
+  "$python_cmd" tools/starter-kit-manifest.py check || return
+  "$python_cmd" tools/release-artifacts.py --help || return
+  "$python_cmd" tools/release-artifacts.py --version || return
+  run_release_hook_smoke "$python_cmd" || return
 
   local complex_semver_tag="v1.0.0-rc.1+build.1"
   local git_init_ps1
-  git_init_ps1="$(to_pwsh_path "$repository_root/tools/git-init.ps1")"
+  git_init_ps1="$(to_pwsh_path "$repository_root/tools/git-init.ps1" "$pwsh_cmd")" || return
   local build_release_package_ps1=""
   if [ -f "$repository_root/tools/build-release-package.ps1" ]; then
     build_release_package_ps1="$(
-      to_pwsh_path "$repository_root/tools/build-release-package.ps1"
-    )"
+      to_pwsh_path "$repository_root/tools/build-release-package.ps1" "$pwsh_cmd"
+    )" || return
   fi
 
-  bash tools/git-init.sh --help
+  bash tools/git-init.sh --help || return
   if bash tools/git-init.sh --path "$audit_temp" --tag invalid; then
     echo "Bash init accepted an invalid tag." >&2
     exit 1
@@ -174,8 +207,8 @@ COMMITLINT
 
   local bash_invalid_git_target="$audit_temp/git-init-bash-invalid-git"
   local bash_invalid_git_output="$audit_temp/git-init-bash-invalid-git.out"
-  mkdir -p "$bash_invalid_git_target/.git"
-  printf 'hello\n' >"$bash_invalid_git_target/README.md"
+  mkdir -p "$bash_invalid_git_target/.git" || return
+  printf 'hello\n' >"$bash_invalid_git_target/README.md" || return
   if printf 'y\n' | bash tools/git-init.sh \
     --path "$bash_invalid_git_target" \
     --tag v1.0.0 >"$bash_invalid_git_output" 2>&1; then
@@ -188,11 +221,11 @@ COMMITLINT
   fi
 
   local bash_cancel_target="$audit_temp/git-init-bash-cancel"
-  mkdir -p "$bash_cancel_target"
-  printf 'hello\n' >"$bash_cancel_target/README.md"
+  mkdir -p "$bash_cancel_target" || return
+  printf 'hello\n' >"$bash_cancel_target/README.md" || return
   printf 'y\nn\n' | bash tools/git-init.sh \
     --path "$bash_cancel_target" \
-    --tag v1.0.0
+    --tag v1.0.0 || return
   if [ -e "$bash_cancel_target/.git" ]; then
     echo "Bash init created .git before commit confirmation." >&2
     exit 1
@@ -202,14 +235,14 @@ COMMITLINT
   local bash_target_argument="$bash_target/"
   local bash_verbose_output="$audit_temp/git-init-bash-smoke.out"
   local bash_verbose_error="$audit_temp/git-init-bash-smoke.err"
-  mkdir -p "$bash_target"
-  prepare_initializer_validation_fixture "$bash_target"
-  printf 'hello\n' >"$bash_target/README.md"
-  printf 'hello spaces\n' >"$bash_target/notes with spaces.txt"
+  mkdir -p "$bash_target" || return
+  prepare_initializer_validation_fixture "$bash_target" || return
+  printf 'hello\n' >"$bash_target/README.md" || return
+  printf 'hello spaces\n' >"$bash_target/notes with spaces.txt" || return
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_target_argument" \
     --tag v1.0.0 \
-    --verbose >"$bash_verbose_output" 2>"$bash_verbose_error"
+    --verbose >"$bash_verbose_output" 2>"$bash_verbose_error" || return
   if grep -F "git " "$bash_verbose_output" >/dev/null; then
     echo "Bash verbose init wrote Git traces to standard output." >&2
     exit 1
@@ -219,8 +252,8 @@ COMMITLINT
     echo "Bash verbose init corrupted the committable file preview." >&2
     exit 1
   fi
-  if ! grep -Fx "git init $bash_target_argument" "$bash_verbose_error" >/dev/null ||
-    ! grep -Fx "git -C $bash_target_argument add --all" "$bash_verbose_error" >/dev/null ||
+  if ! grep -Fx "git init --initial-branch=main $bash_target_argument" "$bash_verbose_error" >/dev/null ||
+    ! grep -Fx "git -C $bash_target_argument symbolic-ref HEAD refs/heads/main" "$bash_verbose_error" >/dev/null ||
     ! grep -F "commitlint --edit " "$bash_verbose_error" >/dev/null ||
     ! grep -F \
       "git -C $bash_target_argument -c core.hooksPath=.githooks commit --file=" \
@@ -247,13 +280,13 @@ COMMITLINT
   local bash_semver_target="$audit_temp/git-init-bash-semver-smoke"
   local bash_semver_output="$audit_temp/git-init-bash-semver-smoke.out"
   local bash_semver_error="$audit_temp/git-init-bash-semver-smoke.err"
-  mkdir -p "$bash_semver_target"
-  prepare_initializer_validation_fixture "$bash_semver_target"
-  printf 'hello\n' >"$bash_semver_target/README.md"
+  mkdir -p "$bash_semver_target" || return
+  prepare_initializer_validation_fixture "$bash_semver_target" || return
+  printf 'hello\n' >"$bash_semver_target/README.md" || return
   printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_semver_target" \
     --tag "$complex_semver_tag" \
-    >"$bash_semver_output" 2>"$bash_semver_error"
+    >"$bash_semver_output" 2>"$bash_semver_error" || return
   if grep -h -E '^git ' "$bash_semver_output" "$bash_semver_error" >/dev/null; then
     echo "Bash init wrote Git traces without --verbose." >&2
     exit 1
@@ -265,10 +298,10 @@ COMMITLINT
 
   local bash_commitlint_failure_target="$audit_temp/git-init-bash-commitlint-failure"
   local bash_commitlint_failure_output="$audit_temp/git-init-bash-commitlint-failure.out"
-  mkdir -p "$bash_commitlint_failure_target"
+  mkdir -p "$bash_commitlint_failure_target" || return
   prepare_initializer_validation_fixture \
-    "$bash_commitlint_failure_target" true
-  printf 'hello\n' >"$bash_commitlint_failure_target/README.md"
+    "$bash_commitlint_failure_target" true || return
+  printf 'hello\n' >"$bash_commitlint_failure_target/README.md" || return
   if printf 'y\ny\n' | bash tools/git-init.sh \
     --path "$bash_commitlint_failure_target" \
     --tag v1.0.0 >"$bash_commitlint_failure_output" 2>&1; then
@@ -286,9 +319,9 @@ COMMITLINT
     exit 1
   fi
 
-  "$pwsh_cmd" -NoProfile -File "$git_init_ps1" --help
+  "$pwsh_cmd" -NoProfile -File "$git_init_ps1" --help || return
   if "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
-    --path "$(to_pwsh_path "$audit_temp")" \
+    --path "$(to_pwsh_path "$audit_temp" "$pwsh_cmd")" \
     --tag invalid; then
     echo "PowerShell init accepted an invalid tag." >&2
     exit 1
@@ -296,10 +329,10 @@ COMMITLINT
 
   local pwsh_invalid_git_target="$audit_temp/git-init-pwsh-invalid-git"
   local pwsh_invalid_git_output="$audit_temp/git-init-pwsh-invalid-git.out"
-  mkdir -p "$pwsh_invalid_git_target/.git"
-  printf 'hello\n' >"$pwsh_invalid_git_target/README.md"
+  mkdir -p "$pwsh_invalid_git_target/.git" || return
+  printf 'hello\n' >"$pwsh_invalid_git_target/README.md" || return
   if printf 'y\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
-    --path "$(to_pwsh_path "$pwsh_invalid_git_target")" \
+    --path "$(to_pwsh_path "$pwsh_invalid_git_target" "$pwsh_cmd")" \
     --tag v1.0.0 >"$pwsh_invalid_git_output" 2>&1; then
     echo "PowerShell init accepted invalid .git metadata." >&2
     exit 1
@@ -310,11 +343,11 @@ COMMITLINT
   fi
 
   local pwsh_cancel_target="$audit_temp/git-init-pwsh-cancel"
-  mkdir -p "$pwsh_cancel_target"
-  printf 'hello\n' >"$pwsh_cancel_target/README.md"
+  mkdir -p "$pwsh_cancel_target" || return
+  printf 'hello\n' >"$pwsh_cancel_target/README.md" || return
   printf 'y\nn\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
-    --path "$(to_pwsh_path "$pwsh_cancel_target")" \
-    --tag v1.0.0
+    --path "$(to_pwsh_path "$pwsh_cancel_target" "$pwsh_cmd")" \
+    --tag v1.0.0 || return
   if [ -e "$pwsh_cancel_target/.git" ]; then
     echo "PowerShell init created .git before commit confirmation." >&2
     exit 1
@@ -325,16 +358,16 @@ COMMITLINT
   local pwsh_target_path
   local pwsh_verbose_output="$audit_temp/git-init-pwsh-smoke.out"
   local pwsh_verbose_error="$audit_temp/git-init-pwsh-smoke.err"
-  mkdir -p "$pwsh_target"
-  prepare_initializer_validation_fixture "$pwsh_target"
-  printf 'hello\n' >"$pwsh_target/README.md"
-  printf 'hello spaces\n' >"$pwsh_target/notes with spaces.txt"
-  pwsh_expected_target_path="$(to_pwsh_path "$pwsh_target")"
-  pwsh_target_path="$(to_pwsh_path "$pwsh_target/")"
+  mkdir -p "$pwsh_target" || return
+  prepare_initializer_validation_fixture "$pwsh_target" || return
+  printf 'hello\n' >"$pwsh_target/README.md" || return
+  printf 'hello spaces\n' >"$pwsh_target/notes with spaces.txt" || return
+  pwsh_expected_target_path="$(to_pwsh_path "$pwsh_target" "$pwsh_cmd")" || return
+  pwsh_target_path="$(to_pwsh_path "$pwsh_target/" "$pwsh_cmd")" || return
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
     --path "$pwsh_target_path" \
     --tag v1.0.0 \
-    --verbose >"$pwsh_verbose_output" 2>"$pwsh_verbose_error"
+    --verbose >"$pwsh_verbose_output" 2>"$pwsh_verbose_error" || return
   if ! tr -d '\r' <"$pwsh_verbose_output" |
     grep -E \
       '^git --git-dir=.* --work-tree=.* status --porcelain=v1 -z --untracked-files=all$' \
@@ -383,13 +416,13 @@ COMMITLINT
   local pwsh_semver_target="$audit_temp/git-init-pwsh-semver-smoke"
   local pwsh_semver_output="$audit_temp/git-init-pwsh-semver-smoke.out"
   local pwsh_semver_error="$audit_temp/git-init-pwsh-semver-smoke.err"
-  mkdir -p "$pwsh_semver_target"
-  prepare_initializer_validation_fixture "$pwsh_semver_target"
-  printf 'hello\n' >"$pwsh_semver_target/README.md"
+  mkdir -p "$pwsh_semver_target" || return
+  prepare_initializer_validation_fixture "$pwsh_semver_target" || return
+  printf 'hello\n' >"$pwsh_semver_target/README.md" || return
   printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
-    --path "$(to_pwsh_path "$pwsh_semver_target")" \
+    --path "$(to_pwsh_path "$pwsh_semver_target" "$pwsh_cmd")" \
     --tag "$complex_semver_tag" \
-    >"$pwsh_semver_output" 2>"$pwsh_semver_error"
+    >"$pwsh_semver_output" 2>"$pwsh_semver_error" || return
   if tr -d '\r' <"$pwsh_semver_output" |
     grep -E '^git ' >/dev/null ||
     tr -d '\r' <"$pwsh_semver_error" |
@@ -404,12 +437,12 @@ COMMITLINT
 
   local pwsh_commitlint_failure_target="$audit_temp/git-init-pwsh-commitlint-failure"
   local pwsh_commitlint_failure_output="$audit_temp/git-init-pwsh-commitlint-failure.out"
-  mkdir -p "$pwsh_commitlint_failure_target"
+  mkdir -p "$pwsh_commitlint_failure_target" || return
   prepare_initializer_validation_fixture \
-    "$pwsh_commitlint_failure_target" true
-  printf 'hello\n' >"$pwsh_commitlint_failure_target/README.md"
+    "$pwsh_commitlint_failure_target" true || return
+  printf 'hello\n' >"$pwsh_commitlint_failure_target/README.md" || return
   if printf 'y\ny\n' | "$pwsh_cmd" -NoProfile -File "$git_init_ps1" \
-    --path "$(to_pwsh_path "$pwsh_commitlint_failure_target")" \
+    --path "$(to_pwsh_path "$pwsh_commitlint_failure_target" "$pwsh_cmd")" \
     --tag v1.0.0 >"$pwsh_commitlint_failure_output" 2>&1; then
     echo "PowerShell init ignored a Commitlint failure." >&2
     exit 1
@@ -436,12 +469,12 @@ COMMITLINT
     -RepositoryRef local-test \
     -RepositorySlug asphyx0r/git-starter-kit \
     -AgentRulesRef latest \
-    -OutputDirectory "$(to_pwsh_path "$release_output")" \
-    -PackageName latest-release-package.zip
+    -OutputDirectory "$(to_pwsh_path "$release_output" "$pwsh_cmd")" \
+    -PackageName latest-release-package.zip || return
 
   local manifest_ref
   manifest_ref="$(
-    "$python_cmd" - "$latest_package" <<'PY'
+    "$python_cmd" - "$latest_package" <<'PY' || return
 import json
 import sys
 import zipfile
@@ -450,11 +483,11 @@ archive = zipfile.ZipFile(sys.argv[1])
 manifest = json.load(archive.open("_agent-rules-source.json"))
 print(manifest["agentRules"]["ref"])
 PY
-  )"
+  )" || return
 
   local manifest_requested_ref
   manifest_requested_ref="$(
-    "$python_cmd" - "$latest_package" <<'PY'
+    "$python_cmd" - "$latest_package" <<'PY' || return
 import json
 import sys
 import zipfile
@@ -463,7 +496,7 @@ archive = zipfile.ZipFile(sys.argv[1])
 manifest = json.load(archive.open("_agent-rules-source.json"))
 print(manifest["agentRules"]["requestedRef"])
 PY
-  )"
+  )" || return
 
   if [ "$manifest_requested_ref" != "latest" ]; then
     echo "Release package did not record requested latest ref." >&2
@@ -478,7 +511,7 @@ PY
     exit 1
   fi
 
-  "$python_cmd" - "$latest_package" <<'PY'
+  "$python_cmd" - "$latest_package" <<'PY' || return
 import hashlib
 import json
 import sys
@@ -508,6 +541,16 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "VERSION",
         "docs/release-package.md",
         "docs/upgrade-toolkit.md",
+        "docs/repository-migration.md",
+        "templates/README.md",
+        "templates/README_TOOLS.md",
+        "templates/CONTRIBUTING.md",
+        "templates/CHANGELOG.md",
+        "templates/CODE_OF_CONDUCT.md",
+        "templates/SECURITY.md",
+        "templates/SUPPORT.md",
+        "templates/SKILLS.md",
+        "tools/quality/check-coverage.py",
         "tests/test_build_release_package.py",
         "tests/test_starter_kit_manifest.py",
         "tests/test_starter_kit_upgrade.py",
@@ -522,7 +565,10 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "tools/starter_kit_upgrade/planning.py",
         "manifest.json",
     }
-    forbidden_prefixes = ("tools/starter_kit_upgrade/",)
+    forbidden_prefixes = (
+        "tools/starter_kit_upgrade/", "tests/", "docs/superpowers/",
+        "templates/project/", ".superpowers/",
+    )
     present_forbidden = sorted(
         name
         for name in names
@@ -590,7 +636,6 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             raise SystemExit(f"Unexpected upgrade strategy: {path}")
     expected_quality_paths = {
         "tools/quality/PSScriptAnalyzerSettings.psd1",
-        "tools/quality/check-coverage.py",
         "tools/quality/check-versions.py",
         "tools/quality/install-external-tools.py",
         "tools/quality/package-lock.json",
@@ -635,6 +680,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "agent-rules": expected_agent_rule_files | {"_agent-rules-source.json"},
         "merge": expected_merge_paths,
         "initialize-only": {
+            ".starter-kit-project.json",
             "CHANGELOG.md",
             "CODE_OF_CONDUCT.md",
             "CONTRIBUTING.md",
@@ -644,7 +690,6 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
             "SUPPORT.md",
             "docs/SKILLS.md",
             "docs/repository-files.md",
-            "docs/repository-migration.md",
             "tools/README.md",
         },
         "starter-kit-state": {"starter-kit-manifest.json"},
@@ -658,13 +703,19 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         "tools/repository-audit/profiles.sh",
         "tools/repository-audit/security.sh",
         "tools/repository-audit/smoke.sh",
+        "tools/repository-audit/workflow-contracts.py",
     }
-    if any(strategies.get(path) != "replace" for path in audit_runtime_paths):
-        raise SystemExit("Repository audit runtime must use the replace strategy")
-    if strategies.get("tests/test_agent_rules_transfer.sh") != "replace":
-        raise SystemExit(
-            "Agent rules transfer test must use the replace strategy"
-        )
+    required_replace_paths = audit_runtime_paths | {
+        "tools/initialize-repository.py", "tools/release-artifacts.py",
+        "tools/git_objects.py", "tools/process_runner.py",
+        "tools/project_config.py", "tools/project_validation.py",
+        "tools/automation_config.py", "docs/project-configuration.md",
+        "templates/release/repository-manifest.schema.json",
+        "templates/GITHUB_RELEASE_NOTES.md", "commitlint.config.cjs",
+    }
+    for path in required_replace_paths:
+        if strategies.get(path) != "replace":
+            raise SystemExit(f"Required consumer runtime/resource must use replace: {path}")
     for strategy, expected_paths in expected_strategy_paths.items():
         actual_paths = {
             path for path, actual_strategy in strategies.items()
@@ -678,23 +729,23 @@ PY
     -RepositoryRef local-test \
     -RepositorySlug example/downstream \
     -AgentRulesRef "$manifest_ref" \
-    -OutputDirectory "$(to_pwsh_path "$release_output")" \
+    -OutputDirectory "$(to_pwsh_path "$release_output" "$pwsh_cmd")" \
     -PackageName rejected-downstream-package.zip; then
     echo "Release package accepted a downstream repository slug." >&2
     exit 1
   fi
 
   local downstream_root="$audit_temp/downstream-package-repository"
-  mkdir -p "$downstream_root"
-  git init -q "$downstream_root"
+  mkdir -p "$downstream_root" || return
+  git init -q "$downstream_root" || return
   git -C "$downstream_root" remote add origin \
-    https://github.com/example/downstream.git
+    https://github.com/example/downstream.git || return
   if "$pwsh_cmd" -NoProfile -File "$build_release_package_ps1" \
-    -RepositoryRoot "$(to_pwsh_path "$downstream_root")" \
+    -RepositoryRoot "$(to_pwsh_path "$downstream_root" "$pwsh_cmd")" \
     -RepositoryRef local-test \
     -RepositorySlug asphyx0r/git-starter-kit \
     -AgentRulesRef "$manifest_ref" \
-    -OutputDirectory "$(to_pwsh_path "$release_output")" \
+    -OutputDirectory "$(to_pwsh_path "$release_output" "$pwsh_cmd")" \
     -PackageName rejected-downstream-origin-package.zip; then
     echo "Release package accepted a downstream repository origin." >&2
     exit 1
@@ -704,7 +755,7 @@ PY
     -RepositoryRef local-test \
     -RepositorySlug asphyx0r/git-starter-kit \
     -AgentRulesRef invalid \
-    -OutputDirectory "$(to_pwsh_path "$release_output")"; then
+    -OutputDirectory "$(to_pwsh_path "$release_output" "$pwsh_cmd")"; then
     echo "Release package accepted an invalid agent rules ref." >&2
     exit 1
   fi

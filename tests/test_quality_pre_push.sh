@@ -606,9 +606,15 @@ lightweight_oid="$(git -C "${fixture}" rev-parse v1.2.3)"
 annotated_oid="$(git -C "${fixture}" rev-parse v1.2.4)"
 release_bin="${test_temp}/release-bin"
 mkdir -p "${release_bin}"
+export QUALITY_RELEASE_REAL_PYTHON
+QUALITY_RELEASE_REAL_PYTHON="$(command -v python)"
 cat >"${release_bin}/python" <<'RELEASE_PYTHON'
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ "${1:-}" == -B ]]; then
+  exec "${QUALITY_RELEASE_REAL_PYTHON}" "$@"
+fi
 
 expected_ref=''
 repository_root=''
@@ -661,5 +667,6 @@ if ! cmp -s "${test_temp}/release.expected" "${QUALITY_RELEASE_TRACE}"; then
   diff -u "${test_temp}/release.expected" "${QUALITY_RELEASE_TRACE}" >&2 || true
   fail "lightweight or annotated tag validation changed"
 fi
+unset QUALITY_RELEASE_REAL_PYTHON
 
 printf '%s\n' 'PASS: exact pushed OID hook behavior'

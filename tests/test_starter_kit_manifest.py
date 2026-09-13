@@ -24,6 +24,33 @@ SPEC.loader.exec_module(MANIFEST)
 
 
 class StarterKitManifestTests(unittest.TestCase):
+    def test_package_and_manifest_source_filters_have_exact_parity(self):
+        import re
+
+        builder = (SOURCE_ROOT / "tools/build-release-package.ps1").read_text()
+        paths = re.search(r"\$StarterOnlyPaths = @\((.*?)\n\)", builder, re.S).group(1)
+        prefixes = re.search(
+            r"\$StarterOnlyPrefixes = @\((.*?)\n\)", builder, re.S
+        ).group(1)
+        self.assertEqual(
+            set(re.findall(r'"([^"\n]+)"', paths)), set(MANIFEST.SOURCE_ONLY_PATHS)
+        )
+        self.assertEqual(
+            tuple(re.findall(r'"([^"\n]+)"', prefixes)), MANIFEST.SOURCE_ONLY_PREFIXES
+        )
+        self.assertTrue(MANIFEST.is_core_path("templates/GITHUB_RELEASE_NOTES.md"))
+        for path in (
+            "tests/application.py",
+            "docs/superpowers/plans/implementation.md",
+            "templates/project/README.md",
+            ".superpowers/sdd/old.json",
+        ):
+            self.assertFalse(MANIFEST.is_core_path(path))
+        self.assertTrue(MANIFEST.is_core_path("tools/application.py"))
+        self.assertEqual(
+            MANIFEST.strategy_for(".starter-kit-project.json"), "initialize-only"
+        )
+
     def test_streamed_metadata_preserves_bytes_modes_and_index_selection(self):
         content = {
             "empty.txt": b"",
@@ -336,10 +363,7 @@ class StarterKitManifestTests(unittest.TestCase):
             MANIFEST.strategy_for("tools/repository-audit.sh"),
             "initialize-only",
         )
-        self.assertEqual(
-            strategies["tests/test_agent_rules_transfer.sh"],
-            "replace",
-        )
+        self.assertNotIn("tests/test_agent_rules_transfer.sh", strategies)
 
     def test_prepare_classifies_quality_configuration_as_replace(self):
         quality_directory = self.root / "tools" / "quality"
@@ -646,6 +670,16 @@ class StarterKitManifestTests(unittest.TestCase):
                         ".agents/skills/git-commit-push-tag/references/"
                         "git-starter-kit-release-package.txt"
                     ),
+                    "docs/repository-migration.md",
+                    "templates/README.md",
+                    "templates/README_TOOLS.md",
+                    "templates/CONTRIBUTING.md",
+                    "templates/CHANGELOG.md",
+                    "templates/CODE_OF_CONDUCT.md",
+                    "templates/SECURITY.md",
+                    "templates/SUPPORT.md",
+                    "templates/SKILLS.md",
+                    "tools/quality/check-coverage.py",
                     ".github/CODEOWNERS",
                     ".github/workflows/release-package.yml",
                     "SHA256SUMS",
@@ -670,7 +704,13 @@ class StarterKitManifestTests(unittest.TestCase):
         )
         self.assertEqual(
             MANIFEST.SOURCE_ONLY_PREFIXES,
-            ("tools/starter_kit_upgrade/",),
+            (
+                "tools/starter_kit_upgrade/",
+                "tests/",
+                "docs/superpowers/",
+                "templates/project/",
+                ".superpowers/",
+            ),
         )
         self.assertEqual(
             MANIFEST.AGENT_RULE_PATHS,
@@ -691,6 +731,7 @@ class StarterKitManifestTests(unittest.TestCase):
             MANIFEST.INITIALIZE_ONLY_PATHS,
             frozenset(
                 {
+                    ".starter-kit-project.json",
                     "CHANGELOG.md",
                     "CODE_OF_CONDUCT.md",
                     "CONTRIBUTING.md",

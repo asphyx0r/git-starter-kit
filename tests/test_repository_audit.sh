@@ -27,6 +27,302 @@ fail() {
   exit 1
 }
 
+run_nested_failure_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  initialize_repository_root
+  local trace="${test_temp}/nested.trace" status=0
+  (
+    git() {
+      printf 'git\n' >>"${trace}"
+      return 23
+    }
+    check_git_whitespace || status=$?
+    ((status == 23)) || fail 'actual whitespace helper ignored its first Git failure'
+    [[ "$(wc -l <"${trace}")" == 1 ]] || fail 'whitespace helper continued after failure'
+  )
+  : >"${trace}"
+  (
+    git() { printf '%s\n' first.ps1 second.ps1; }
+    failing_node() {
+      printf 'node\n' >>"${trace}"
+      return 23
+    }
+    check_powershell_line_endings failing_node || status=$?
+    ((status == 23)) || fail 'actual line-ending helper ignored its intermediate Node failure'
+    [[ "$(wc -l <"${trace}")" == 1 ]] || fail 'line-ending helper continued after failure'
+  )
+  (
+    resolve_command() { return 23; }
+    check_workflow_contract repository-audit .github/workflows/repository-audit.yml || status=$?
+    ((status == 23)) || fail 'workflow helper ignored its Python resolution failure'
+  )
+  (
+    resolve_hook_command() { printf '%s\n' coverage_stage; }
+    resolve_hook_python() { printf '%s\n' coverage_python; }
+    ensure_audit_temp() { audit_temp="${test_temp}"; }
+    coverage_python() { return 0; }
+    coverage_stage() { [[ "$1" != "${failed_coverage_stage}" ]] || return 23; }
+    local failed_coverage_stage
+    for failed_coverage_stage in run json report; do
+      status=0
+      run_python_coverage || status=$?
+      ((status == 23)) || fail "coverage orchestration swallowed ${failed_coverage_stage} failure"
+    done
+  )
+  (
+    git() { return 23; }
+    local helper
+    for helper in run_powershell_static run_powershell_parse_readonly; do
+      status=0
+      "${helper}" || status=$?
+      ((status == 23)) || fail "${helper} ignored its Git path listing failure"
+    done
+  )
+  : >"${trace}"
+  (
+    require_command() { return 0; }
+    resolve_command() { printf '%s\n' smoke_python; }
+    resolve_hook_node_tool() { printf '%s\n' true; }
+    resolve_powershell_command() { printf '%s\n' true; }
+    ensure_audit_temp() {
+      audit_temp="${test_temp}/smoke-stage"
+      mkdir -p "${audit_temp}"
+    }
+    smoke_python() {
+      printf '%s\n' "$*" >>"${trace}"
+      [[ "$*" != 'tools/starter-kit-manifest.py --version' ]] || return 23
+    }
+    run_script_smoke || status=$?
+    ((status == 23)) || fail 'actual smoke orchestration swallowed intermediate CLI failure'
+    [[ "$(tail -n 1 "${trace}")" == 'tools/starter-kit-manifest.py --version' ]] || fail 'smoke continued after failed CLI'
+  )
+  printf '%s\n' 'PASS: actual nested whitespace, line-ending, workflow, coverage and smoke failure propagation'
+)
+
+run_profile_failure_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  initialize_repository_root
+  resolve_validation_scope() { printf '%s\n' source; }
+  profile_stage() {
+    printf '%s\n' "$1" >>"${profile_trace}"
+    [[ "$1" != "${failed_profile_stage}" ]] || return 23
+  }
+  require_command() { profile_stage "require-$1"; }
+  resolve_command() {
+    profile_stage "resolve-$1" || return
+    printf 'profile_%s\n' "$1"
+  }
+  resolve_hook_command() { resolve_command "$2"; }
+  resolve_hook_python() { resolve_command python; }
+  resolve_hook_node_tool() {
+    profile_stage "resolve-$1" || return
+    case "$1" in
+    markdownlint-cli2) printf '%s\n' profile_markdown ;;
+    *) printf 'profile_%s\n' "$1" ;;
+    esac
+  }
+  profile_node() { profile_stage node; }
+  profile_python() { profile_stage versions; }
+  profile_ruff() { profile_stage "ruff-$1"; }
+  profile_mypy() { profile_stage mypy; }
+  profile_markdown() { profile_stage markdown; }
+  profile_codespell() { profile_stage spelling; }
+  profile_yamllint() { profile_stage yaml; }
+  profile_actionlint() { profile_stage actionlint; }
+  profile_gitleaks() { profile_stage gitleaks; }
+  profile_shellcheck() { profile_stage "shellcheck-$1"; }
+  profile_shfmt() { profile_stage "shfmt-${4:-version}"; }
+  profile_commitlint() {
+    if (($# == 2)); then cat >/dev/null; fi
+    profile_stage "commitlint-${3:-root}"
+  }
+  resolve_audit_to_ref() { printf '%s\n' HEAD; }
+  # The marker is initialized by sourced common.sh.
+  # shellcheck disable=SC2154
+  resolve_audit_from_ref() { printf '%s\n' "${audit_all_commits_marker}"; }
+  check_git_whitespace() { profile_stage whitespace; }
+  check_powershell_line_endings() { profile_stage powershell-eol; }
+  bash() { profile_stage "bash-${2:-$1}"; }
+  run_markdown() { profile_stage markdown; }
+  run_spelling() { profile_stage spelling; }
+  run_yamllint() { profile_stage yaml; }
+  run_actionlint() { profile_stage actionlint; }
+  run_powershell_static() { profile_stage powershell-static; }
+  check_semver_pattern_drift() { profile_stage semver; }
+  check_initializer_commit_contract() { profile_stage initializer; }
+  check_commit_documentation_contract() { profile_stage commit-contract; }
+  check_secret_scanner_config_contract() { profile_stage scanner-contract; }
+  run_full_secret_scan() { profile_stage security; }
+  check_agent_rules_update_workflow_contract() { profile_stage workflow; }
+  check_repository_audit_workflow_contract() { profile_stage workflow; }
+  check_guarded_pull_request_merge_workflow_contract() { profile_stage workflow; }
+  check_release_artifact_contract() { profile_stage artifacts; }
+  check_release_skill_contract() { profile_stage release-skill; }
+  check_release_package_portability() { profile_stage portability; }
+  check_release_guard_contract() { profile_stage release-guard; }
+  run_python_coverage() { profile_stage coverage; }
+  run_script_smoke() { profile_stage smoke; }
+  run_powershell_parse_readonly() { profile_stage powershell-parse; }
+  check_secret_scanner_behavior() { profile_stage scanner-behavior; }
+  run_project_checks() { profile_stage project-plan; }
+
+  local mode stage profile_status
+  for mode in fast static full all readonly; do
+    local -a stages=(require-git resolve-node whitespace powershell-eol bash-.githooks/pre-commit node)
+    if [[ "${mode}" != readonly ]]; then
+      stages+=(versions ruff-check ruff-format mypy)
+    fi
+    if [[ "${mode}" != fast ]]; then
+      stages+=(markdown shellcheck-.githooks/pre-commit shfmt-tests/test_commit_message_validation.sh semver workflow artifacts commitlint-root)
+      if [[ "${mode}" != readonly ]]; then
+        stages+=(coverage bash-tests/test_repository_audit.sh smoke)
+      else
+        stages+=(powershell-parse scanner-behavior security)
+      fi
+    fi
+    for stage in "${stages[@]}"; do
+      profile_trace="${test_temp}/profile-${mode}-${stage//\//-}.trace"
+      failed_profile_stage="${stage}"
+      profile_status=0
+      main "${mode}" >"${test_temp}/profile-failure.out" 2>"${test_temp}/profile-failure.err" || profile_status=$?
+      if ((profile_status != 23)); then
+        cat "${test_temp}/profile-failure.out" "${test_temp}/profile-failure.err" >&2
+        fail "actual ${mode} orchestration ignored ${stage}: status ${profile_status}"
+      fi
+      [[ "$(tail -n 1 "${profile_trace}")" == "${stage}" ]] || fail "${mode} continued after ${stage}"
+      if grep -F 'Core validation: passed' "${test_temp}/profile-failure.out" >/dev/null ||
+        grep -Fx project-plan "${profile_trace}" >/dev/null; then
+        fail "${mode} reported passing validation after ${stage}"
+      fi
+    done
+    profile_trace="${test_temp}/profile-${mode}-success.trace"
+    failed_profile_stage=''
+    main "${mode}" >"${test_temp}/profile-success.out" || {
+      cat "${profile_trace}" >&2
+      fail "${mode} success composition failed"
+    }
+    [[ "$(tail -n 1 "${profile_trace}")" == project-plan ]] || fail "${mode} omitted its final project plan"
+    grep -F 'Core validation: passed' "${test_temp}/profile-success.out" >/dev/null || fail "${mode} omitted passing core state"
+  done
+  printf '%s\n' 'PASS: actual source profile failure propagation and successful composition'
+)
+
+if [[ "${1:-}" == --profile-failures ]]; then
+  run_nested_failure_checks
+  run_profile_failure_checks
+  exit
+fi
+
+run_powershell_host_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  initialize_repository_root
+  (
+    uname() { printf '%s\n' Linux; }
+    wslpath() { printf 'windows:%s\n' "$2"; }
+    export WSL_DISTRO_NAME=regression
+    local path='/tmp/path with spaces/valid.ps1'
+    [[ "$(to_pwsh_path "${path}" /opt/pwsh)" == "${path}" ]] || fail 'native pwsh path was converted to Windows'
+    [[ "$(to_hook_host_path "${path}" /opt/pwsh)" == "${path}" ]] || fail 'native analyzer path was converted to Windows'
+    [[ "$(to_pwsh_path "${path}" /mnt/c/pwsh.exe)" == "windows:${path}" ]] || fail 'Windows pwsh path was not converted'
+    [[ "$(to_hook_host_path "${path}" /mnt/c/pwsh.exe)" == "windows:${path}" ]] || fail 'Windows analyzer path was not converted'
+    [[ "$(to_pwsh_path "${path}")" == "windows:${path}" ]] || fail 'legacy converter behavior changed'
+  )
+  local fixture="${test_temp}/PowerShell host fixture"
+  mkdir -p "${fixture}/tools/quality"
+  # This writes literal PowerShell source.
+  # shellcheck disable=SC2016
+  printf '$null = "valid"\n' >"${fixture}/valid.ps1"
+  printf 'function Broken {\n' >"${fixture}/invalid.psm1"
+  printf '@{ Rules = @{} }\n' >"${fixture}/tools/quality/PSScriptAnalyzerSettings.psd1"
+  repository_root="${fixture}"
+  run_powershell_parse_paths valid.ps1 tools/quality/PSScriptAnalyzerSettings.psd1 || fail 'native valid PowerShell parsing failed'
+  if run_powershell_parse_paths invalid.psm1 >"${test_temp}/ps-invalid.out" 2>&1; then fail 'invalid PowerShell parsed successfully'; fi
+  if run_powershell_parse_paths missing.ps1 >"${test_temp}/ps-missing.out" 2>&1; then fail 'missing PowerShell parsed successfully'; fi
+  run_hook_powershell_static "${fixture}" valid.ps1 || fail 'native analyzer rejected valid input/settings'
+  run_hook_powershell_settings "${fixture}" || fail 'native analyzer settings failed'
+  printf '@{}\n' >"${fixture}/tools/quality/PSScriptAnalyzerSettings.psd1"
+  run_hook_powershell_static "${fixture}" tools/quality/PSScriptAnalyzerSettings.psd1 || fail 'settings data was treated as a module manifest'
+  rm "${fixture}/invalid.psm1"
+  git init -q "${fixture}"
+  cp "${source_root}/.gitattributes" "${fixture}/.gitattributes"
+  git -C "${fixture}" add valid.ps1 tools/quality/PSScriptAnalyzerSettings.psd1
+  git -C "${fixture}" check-attr eol -- valid.ps1 tools/quality/PSScriptAnalyzerSettings.psd1 >"${test_temp}/ps-real-attributes.out"
+  grep -F 'valid.ps1: eol: crlf' "${test_temp}/ps-real-attributes.out" >/dev/null || fail 'real Git attributes did not select CRLF for ps1'
+  grep -F 'PSScriptAnalyzerSettings.psd1: eol: lf' "${test_temp}/ps-real-attributes.out" >/dev/null || fail 'real Git attributes did not preserve LF settings'
+  # These variables contain literal PowerShell source.
+  # shellcheck disable=SC2016
+  local valid_powershell='$null = "valid"' mixed_powershell='$null = "mixed"'
+  printf '%s\r\n' "${valid_powershell}" >"${fixture}/valid.ps1"
+  (
+    cd "${fixture}"
+    check_powershell_line_endings "$(command -v node)"
+  ) || fail 'CRLF ps1 and LF settings did not pass'
+  printf '%s\n' "${valid_powershell}" >"${fixture}/valid.ps1"
+  if (
+    cd "${fixture}"
+    check_powershell_line_endings "$(command -v node)"
+  ) >"${test_temp}/ps-lf.out" 2>&1; then fail 'LF ps1 passed CRLF guard'; fi
+  printf '%s\r\n%s\n' "${valid_powershell}" "${mixed_powershell}" >"${fixture}/valid.ps1"
+  if (
+    cd "${fixture}"
+    check_powershell_line_endings "$(command -v node)"
+  ) >"${test_temp}/ps-mixed.out" 2>&1; then fail 'mixed ps1 passed CRLF guard'; fi
+  printf '%s\r\n' "${valid_powershell}" >"${fixture}/valid.ps1"
+  [[ "$(git -C "${fixture}" hash-object tools/quality/PSScriptAnalyzerSettings.psd1)" == "$(git -C "${fixture}" rev-parse :tools/quality/PSScriptAnalyzerSettings.psd1)" ]] || fail 'settings LF bytes changed during line-ending checks'
+  (
+    cd "${fixture}"
+    run_powershell_static
+  ) || fail 'full source analyzer rejected settings data'
+  printf '@{}\n' >"${fixture}/invalid-manifest.psd1"
+  if run_hook_powershell_static "${fixture}" invalid-manifest.psd1 >"${test_temp}/ps-invalid-manifest.out" 2>&1; then fail 'analyzer accepted a real invalid manifest'; fi
+  grep -F PSMissingModuleManifestField "${test_temp}/ps-invalid-manifest.out" >/dev/null || fail 'invalid manifest lost its analyzer diagnostic'
+  git -C "${fixture}" add invalid-manifest.psd1
+  if (
+    cd "${fixture}"
+    run_powershell_static
+  ) >"${test_temp}/ps-invalid-manifest-full.out" 2>&1; then fail 'full source analyzer accepted a real invalid manifest'; fi
+  git -C "${fixture}" rm -q --cached invalid-manifest.psd1
+  rm "${fixture}/invalid-manifest.psd1"
+  if run_hook_powershell_static "${fixture}" missing.ps1 >"${test_temp}/ps-analyzer-missing.out" 2>&1; then fail 'analyzer accepted missing input'; fi
+  printf 'Write-Host "finding"\n' >"${fixture}/finding.ps1"
+  printf "@{ IncludeRules = @('PSAvoidUsingWriteHost') }\n" >"${fixture}/tools/quality/PSScriptAnalyzerSettings.psd1"
+  if run_hook_powershell_static "${fixture}" finding.ps1 >"${test_temp}/ps-analyzer-finding.out" 2>&1; then fail 'analyzer findings passed'; fi
+  printf '@{ invalid\n' >"${fixture}/tools/quality/PSScriptAnalyzerSettings.psd1"
+  if run_hook_powershell_static "${fixture}" tools/quality/PSScriptAnalyzerSettings.psd1 >"${test_temp}/ps-malformed-settings-route.out" 2>&1; then fail 'routed analyzer accepted malformed settings'; fi
+  if (
+    cd "${fixture}"
+    run_powershell_static
+  ) >"${test_temp}/ps-malformed-settings-full.out" 2>&1; then fail 'full source analyzer accepted malformed settings'; fi
+  if run_hook_powershell_static "${fixture}" valid.ps1 >"${test_temp}/ps-malformed-settings.out" 2>&1; then fail 'analyzer accepted malformed settings'; fi
+  rm "${fixture}/tools/quality/PSScriptAnalyzerSettings.psd1"
+  if run_hook_powershell_static "${fixture}" valid.ps1 >"${test_temp}/ps-analyzer-settings.out" 2>&1; then fail 'analyzer accepted missing settings'; fi
+  if run_hook_powershell_settings "${fixture}" >"${test_temp}/ps-settings-missing.out" 2>&1; then fail 'settings validator accepted missing settings'; fi
+  printf '@{ Rules = @{} }\n' >"${fixture}/tools/quality/PSScriptAnalyzerSettings.psd1"
+  local analyzer_host
+  analyzer_host="$(resolve_powershell_command)" || fail 'actual analyzer host unavailable'
+  (
+    export PSModulePath="${test_temp}/no-analyzer-module"
+    # PowerShell adds default module paths during startup; isolate after startup.
+    unavailable_analyzer_host() {
+      # PowerShell evaluates the environment variables after startup.
+      # shellcheck disable=SC2016
+      "${analyzer_host}" -NoProfile -Command '$env:PSModulePath = $env:AUDIT_NO_MODULE_PATH;' "$3"
+    }
+    resolve_powershell_command() { printf '%s\n' unavailable_analyzer_host; }
+    export AUDIT_NO_MODULE_PATH="${PSModulePath}"
+    if run_hook_powershell_static "${fixture}" valid.ps1 >"${test_temp}/ps-analyzer-module.out" 2>&1; then fail 'unavailable analyzer passed'; fi
+  )
+  printf '%s\n' 'PASS: actual PowerShell parsing, analyzer failure propagation and executable host paths'
+)
+
+if [[ "${1:-}" == --powershell-host ]]; then
+  run_powershell_host_checks
+  exit
+fi
+
 assert_file_contains() {
   local file_path="$1"
   local expected="$2"
@@ -36,6 +332,9 @@ assert_file_contains() {
     fail "expected output not found: ${expected}"
   fi
 }
+
+run_nested_failure_checks
+run_profile_failure_checks
 
 quality_python_cmd=""
 for quality_python_candidate in python python3 python.exe; do
@@ -158,6 +457,7 @@ route_output="${test_temp}/route.out"
   run_static() { printf '%s\n' static; }
   run_powershell_static() { printf '%s\n' powershell-static; }
   run_readonly() { printf '%s\n' readonly; }
+  run_project_checks() { printf '%s\n' project-plan; }
 
   for mode in all full readonly markdown spelling static powershell-static; do
     printf '%s:' "${mode}"
@@ -165,13 +465,13 @@ route_output="${test_temp}/route.out"
   done
 ) >"${route_output}"
 cat >"${test_temp}/route.expected" <<'ROUTES'
-all:static
-full:static
-readonly:readonly
-markdown:markdown
-spelling:spelling
-static:static
-powershell-static:powershell-static
+all:Core validation scope: source,static,Core validation: passed (all source scope).,project-plan
+full:Core validation scope: source,static,Core validation: passed (full source scope).,project-plan
+readonly:Core validation scope: source,readonly,Core validation: passed (readonly source scope).,project-plan
+markdown:Core validation scope: source,markdown,Core validation: passed (markdown source scope).,project-plan
+spelling:Core validation scope: source,spelling,Core validation: passed (spelling source scope).,project-plan
+static:Core validation scope: source,static,Core validation: passed (static source scope).,project-plan
+powershell-static:Core validation scope: source,powershell-static,Core validation: passed (powershell-static source scope).,project-plan
 ROUTES
 if ! cmp -s "${test_temp}/route.expected" "${route_output}"; then
   diff -u "${test_temp}/route.expected" "${route_output}" >&2 || true
@@ -180,6 +480,7 @@ fi
 
 profile_bin="${test_temp}/profile-bin"
 mkdir -p "${profile_bin}"
+export QUALITY_PROFILE_REAL_PYTHON="${quality_python_cmd}"
 cat >"${profile_bin}/node" <<'PROFILE_NODE'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -194,6 +495,10 @@ PROFILE_NODE
 cat >"${profile_bin}/python" <<'PROFILE_PYTHON'
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ "${1:-}" == -B ]]; then
+  exec "${QUALITY_PROFILE_REAL_PYTHON}" "$@"
+fi
 
 if [[ "$#" -eq 1 && "$1" == "tools/quality/check-versions.py" ]]; then
   printf '%s\n' versions:declarations >>"${QUALITY_PROFILE_TRACE}"
@@ -315,9 +620,10 @@ powershell_static_trace="${test_temp}/powershell-static.trace"
   repository_root="${source_root}"
   cd "${repository_root}"
   run_hook_powershell_static() {
-    if [[ "$#" -ne 3 || "$1" != "${source_root}" ||
+    if [[ "$#" -ne 4 || "$1" != "${source_root}" ||
       "$2" != "tools/build-release-package.ps1" ||
-      "$3" != "tools/git-init.ps1" ]]; then
+      "$3" != "tools/git-init.ps1" ||
+      "$4" != "tools/quality/PSScriptAnalyzerSettings.psd1" ]]; then
       printf 'Unexpected PowerShell static arguments: %s\n' "$*" >&2
       return 1
     fi
@@ -1113,6 +1419,63 @@ if [ -f "${source_root}/.github/workflows/release-package.yml" ]; then
   release_package_reference="git-starter-kit-release-package.txt"
   release_branch_diagnostic='Release guard omits protected-branch integration gates.'
   release_payload_diagnostic='Release guard omits the sealed publication boundary.'
+  release_activation_diagnostic='Universal release guard omits common provisioning or completion gates.'
+  # codespell:ignore-next-line branche
+  release_trusted_activation_phrase='snapshot immuable de la branche par défaut'
+  # codespell:ignore-next-line branche
+  release_untrusted_activation_phrase='snapshot immuable de la branche cible'
+  # codespell:ignore-next-line branche
+  release_target_tag_audit_phrase='Exige sans condition que le workflow audite les pushes de la branche cible et du tag prévu.'
+  assert_file_contains "${source_root}/${release_skill_reference_dir}/${release_main_reference}" \
+    "${release_trusted_activation_phrase}"
+  assert_file_contains "${source_root}/${release_skill_reference_dir}/${release_main_reference}" \
+    "${release_target_tag_audit_phrase}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    missing-trusted-activation "${release_main_reference}" \
+    "${release_trusted_activation_phrase}" "${release_untrusted_activation_phrase}" \
+    "${release_activation_diagnostic}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    missing-target-release-authority "${release_main_reference}" \
+    'snapshot immuable de la cible pour `releaseKind`' 'Use default-branch release metadata' \
+    "${release_activation_diagnostic}"
+  assert_release_skill_guard_mutation \
+    target-flags-activation "${release_main_reference}" \
+    'Les flags de la cible ne sélectionnent aucun automatisme.' 'Use target flags for automation.' \
+    "${release_activation_diagnostic}"
+  assert_release_skill_guard_mutation \
+    stale-release-authorities "${release_main_reference}" \
+    'validation avant chaque opération dépendante' 'validation only at the beginning' \
+    "${release_activation_diagnostic}"
+  assert_release_skill_guard_mutation \
+    conditional-target-tag-audit "${release_main_reference}" \
+    "${release_target_tag_audit_phrase}" \
+    'When preflight is enabled, require target/tag push audits.' \
+    "${release_activation_diagnostic}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    forced-guarded-automation "${release_main_reference}" \
+    'Lorsque `guardedMerge=false`' 'Always require App credentials' \
+    "${release_activation_diagnostic}" 2
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    forced-preflight-automation "${release_main_reference}" \
+    'Lorsque `releasePreflight=false`' 'Always dispatch preflight' \
+    "${release_activation_diagnostic}"
+  # shellcheck disable=SC2016
+  assert_release_skill_guard_mutation \
+    forced-deployment-metadata "${release_main_reference}" \
+    'Pour `releaseKind=repository`' 'Always require deployment metadata' \
+    "${release_activation_diagnostic}"
+  assert_release_skill_guard_mutation \
+    missing-repository-dry-run-kind "${release_main_reference}" \
+    '--dry-run prepare --kind repository' '--dry-run prepare' \
+    "${release_activation_diagnostic}"
+  assert_release_skill_guard_mutation \
+    missing-repository-apply-kind "${release_main_reference}" \
+    '--force prepare --kind repository' '--force prepare' \
+    "${release_activation_diagnostic}"
   assert_release_skill_guard_mutation \
     multi-commit-pr "${release_main_reference}" \
     'Limite chaque PR à un commit candidat' \
@@ -1351,7 +1714,7 @@ if ((failure_status != 23)); then
   sed 's/^/  /' "${failure_error}" >&2
   fail "legacy all mode returned ${failure_status} instead of 23"
 fi
-if [[ -s "${failure_output}" || -s "${failure_error}" ]]; then
+if [[ "$(cat "${failure_output}")" != 'Core validation scope: source' || -s "${failure_error}" ]]; then
   sed 's/^/  /' "${failure_output}" >&2
   sed 's/^/  /' "${failure_error}" >&2
   fail "mocked legacy failure emitted unexpected output"
@@ -1649,6 +2012,9 @@ git init -q "${space_fixture_root}"
 cp "${dispatcher}" "${space_dispatcher}"
 cp -R "${source_root}/tools/repository-audit" \
   "${space_tools}/repository-audit"
+cp "${source_root}/tools/project_config.py" \
+  "${source_root}/tools/project_validation.py" \
+  "${source_root}/tools/process_runner.py" "${space_tools}/"
 cat >>"${space_tools}/repository-audit/profiles.sh" <<'SPACE_PROFILE'
 
 run_fast() {
@@ -1699,10 +2065,9 @@ if [[ "${space_profile_actual}" != "${space_profile_expected}" ]]; then
   sed 's/^/  /' "${test_temp}/space-profile.out" >&2
   fail "path-with-spaces profile did not preserve arguments"
 fi
-if [[ "$(cat "${test_temp}/space-fast.out")" != "space-fast|strict" ]]; then
-  sed 's/^/  /' "${test_temp}/space-fast.out" >&2
-  fail "executed dispatcher did not enable strict mode before its profile"
-fi
+assert_file_contains "${test_temp}/space-fast.out" 'space-fast|strict'
+assert_file_contains "${test_temp}/space-fast.out" 'Core validation scope: source'
+assert_file_contains "${test_temp}/space-fast.out" 'Project validation WARNING:'
 expected_space_fixture="${test_temp}/copied repository with spaces"
 if [[ "${space_fixture_root}" != "${expected_space_fixture}" ]]; then
   fail "refusing to remove unexpected path-with-spaces fixture"

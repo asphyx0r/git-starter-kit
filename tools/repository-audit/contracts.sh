@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
+# Common globals are initialized before this module is sourced.
+# shellcheck disable=SC2154
 
 check_semver_pattern_drift() {
   local node_cmd="$1"
+  local scope
+  scope="$(resolve_validation_scope)" || return
 
-  "$node_cmd" <<'JS'
+  AUDIT_VALIDATION_SCOPE="${scope}" "$node_cmd" <<'JS'
 const fs = require("fs");
 
 function readFile(path) {
@@ -85,6 +89,7 @@ const patterns = new Map([
   ],
 ]);
 
+if (fs.existsSync("tools/starter-kit-manifest.py") && process.env.AUDIT_VALIDATION_SCOPE !== "project") {
 patterns.set(
   "tools/starter-kit-manifest.py",
   extractPythonPattern(
@@ -92,6 +97,7 @@ patterns.set(
     "starter manifest"
   )
 );
+}
 patterns.set(
   "tools/release-artifacts.py",
   extractPythonPattern("tools/release-artifacts.py", "release artifacts")
@@ -105,7 +111,7 @@ patterns.set(
   )
 );
 
-if (fs.existsSync("tools/build-release-package.ps1")) {
+if (fs.existsSync("tools/build-release-package.ps1") && process.env.AUDIT_VALIDATION_SCOPE !== "project") {
   patterns.set(
     "tools/build-release-package.ps1",
     extractSingle(
@@ -115,7 +121,7 @@ if (fs.existsSync("tools/build-release-package.ps1")) {
     )
   );
 }
-if (fs.existsSync(".github/workflows/release-package.yml")) {
+if (fs.existsSync(".github/workflows/release-package.yml") && process.env.AUDIT_VALIDATION_SCOPE !== "project") {
   patterns.set(
     ".github/workflows/release-package.yml",
     extractFragmentedShellPattern(
@@ -141,7 +147,7 @@ check_workflow_contract() {
   local versions_path="${3:-tools/quality/versions.json}"
   local python_cmd
 
-  python_cmd="$(resolve_command python python3 python.exe)"
+  python_cmd="$(resolve_command python python3 python.exe)" || return
   "$python_cmd" -B tools/repository-audit/workflow-contracts.py \
     --workflow "$workflow_name" --path "$workflow_path" \
     --versions "$versions_path"
@@ -335,7 +341,7 @@ check_release_skill_contract() {
     "$reference_path" >/dev/null ||
     ! grep -F 'AGENT_RULES_APP_CLIENT_ID' "$reference_path" >/dev/null ||
     ! grep -F 'AGENT_RULES_APP_PRIVATE_KEY' "$reference_path" >/dev/null ||
-    ! grep -F 'Elle contient toujours `Agent rules update` et `Repository audit`' \
+    ! grep -F 'Elle contient toujours `Repository audit`' \
       "$reference_path" >/dev/null ||
     ! grep -F 'Fixe `RELEASE_STATUS=complete` uniquement après la réussite' \
       "$reference_path" >/dev/null; then
@@ -343,6 +349,31 @@ check_release_skill_contract() {
       'Universal release guard omits common provisioning or completion gates.' \
       >&2
     exit 1
+  fi
+  check_release_automation_contract "$reference_path" || return
+}
+
+check_release_automation_contract() {
+  local reference_path="$1"
+  # codespell:ignore-next-line branche
+  local trusted_activation_phrase='snapshot immuable de la branche par défaut'
+  # codespell:ignore-next-line branche
+  local target_tag_audit_phrase='Exige sans condition que le workflow audite les pushes de la branche cible et du tag prévu.'
+  # shellcheck disable=SC2016
+  if ! grep -F "${trusted_activation_phrase}" "$reference_path" >/dev/null ||
+    ! grep -F 'snapshot immuable de la cible pour `releaseKind`' "$reference_path" >/dev/null ||
+    ! grep -F 'Les flags de la cible ne sélectionnent aucun automatisme.' "$reference_path" >/dev/null ||
+    ! grep -F 'validation avant chaque opération dépendante' "$reference_path" >/dev/null ||
+    ! grep -F "${target_tag_audit_phrase}" \
+      "$reference_path" >/dev/null ||
+    ! grep -F 'Lorsque `guardedMerge=false`' "$reference_path" >/dev/null ||
+    ! grep -F 'Lorsque `releasePreflight=false`' "$reference_path" >/dev/null ||
+    ! grep -F 'Pour `releaseKind=repository`' "$reference_path" >/dev/null ||
+    ! grep -F -- '--dry-run prepare --kind repository' "$reference_path" >/dev/null ||
+    ! grep -F -- '--force prepare --kind repository' "$reference_path" >/dev/null; then
+    printf '%s\n' \
+      'Universal release guard omits common provisioning or completion gates.' >&2
+    return 1
   fi
 }
 
@@ -370,17 +401,16 @@ check_initializer_commit_contract() {
 }
 
 check_commit_documentation_contract() {
-  # shellcheck disable=SC2016
-  if ! grep -F 'commitlint --edit /path/to/commit-message.txt' \
-    CONTRIBUTING.md >/dev/null ||
-    ! grep -F 'git -c core.hooksPath=.githooks commit' \
-      CONTRIBUTING.md >/dev/null ||
-    ! grep -F 'Never use `-m` or `--no-verify`' \
-      CONTRIBUTING.md >/dev/null; then
+  local commitlint_cmd
+  commitlint_cmd="$(resolve_hook_node_tool commitlint)" || return
+  if printf '%s\n' 'not a conventional commit message' |
+    "${commitlint_cmd}" --config "${repository_root}/commitlint.config.cjs" >/dev/null 2>&1; then
     printf '%s\n' \
-      "Contributing guide omits blocking exact-file commit validation." >&2
-    exit 1
+      'Commit-message configuration accepted an invalid conventional message.' >&2
+    return 1
   fi
+  printf '%s\n' 'chore(git): validate commit message' |
+    "${commitlint_cmd}" --config "${repository_root}/commitlint.config.cjs"
 }
 
 check_release_guard_contract() {
@@ -391,6 +421,7 @@ check_release_guard_contract() {
     printf '%s\n' "Starter release guard extension is missing." >&2
     exit 1
   fi
+  check_release_automation_contract "$reference_path" || return
 
   if grep -F "token d'installation de la GitHub App" \
     "$reference_path" >/dev/null; then

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -25,7 +26,71 @@ WORKFLOWS = (
 )
 
 
+def resolve_bash():
+    if sys.platform == "win32":
+        git = shutil.which("git")
+        if git:
+            for parent in Path(git).parents:
+                candidate = parent / "bin/bash.exe"
+                if candidate.is_file():
+                    return str(candidate)
+        raise FileNotFoundError(
+            "Git Bash executable was not found in the Git installation."
+        )
+    return shutil.which("bash") or "bash"
+
+
+BASH = resolve_bash()
+
+
 class WorkflowContractTests(unittest.TestCase):
+    def test_bash_resolution_uses_path_and_verified_git_layout_fallback(self):
+        with (
+            mock.patch.object(sys, "platform", "linux"),
+            mock.patch.object(shutil, "which", return_value="/chosen/bash"),
+        ):
+            self.assertEqual(resolve_bash(), "/chosen/bash")
+        with tempfile.TemporaryDirectory() as temporary:
+            installation = Path(temporary) / "Git"
+            executable = installation / "bin/bash.exe"
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(b"owned resolver fixture")
+            for layout in (
+                "cmd/git.exe",
+                "mingw64/bin/git.exe",
+                "mingw64/libexec/git-core/git.exe",
+            ):
+                with (
+                    self.subTest(layout=layout),
+                    mock.patch.object(sys, "platform", "win32"),
+                    mock.patch.object(
+                        shutil,
+                        "which",
+                        side_effect={
+                            "git": str(installation / layout),
+                            "bash": "C:/Windows/System32/bash.exe",
+                        }.get,
+                    ),
+                ):
+                    self.assertEqual(resolve_bash(), str(executable))
+            executable.unlink()
+            with (
+                mock.patch.object(sys, "platform", "win32"),
+                mock.patch.object(
+                    shutil,
+                    "which",
+                    return_value=str(installation / "mingw64/bin/git.exe"),
+                ),
+                self.assertRaises(FileNotFoundError),
+            ):
+                resolve_bash()
+        with (
+            mock.patch.object(sys, "platform", "linux"),
+            mock.patch.object(shutil, "which", return_value=None) as lookup,
+        ):
+            self.assertEqual(resolve_bash(), "bash")
+            lookup.assert_called_once_with("bash")
+
     def test_cli_accepts_current_workflows(self):
         result = subprocess.run(
             [sys.executable, "-B", str(VALIDATOR)],
@@ -69,6 +134,197 @@ class WorkflowContractTests(unittest.TestCase):
 
     def validate(self, name, workflow):
         self.validator.validate_workflow(name, workflow, self.registry)
+
+    def test_audit_checks_exact_actual_head_and_distinct_project_results(self):
+        workflow = self.read_workflow("repository-audit")
+        for event in ("push", "pull_request"):
+            self.assertIn("main", workflow["on"][event]["branches"])
+            self.assertIn("master", workflow["on"][event]["branches"])
+        for job_id in (
+            "quality-linux",
+            "compatibility-windows",
+            "project-linux",
+            "project-windows",
+        ):
+            job = workflow["jobs"][job_id]
+            checkout = next(
+                step
+                for step in job["steps"]
+                if "actions/checkout@" in step.get("uses", "")
+            )
+            self.assertEqual(
+                checkout["with"]["ref"],
+                "${{ github.event.pull_request.head.sha || github.sha }}",
+            )
+            self.assertIn(
+                "Verify exact audit revision",
+                [step.get("name") for step in job["steps"]],
+            )
+        self.assertIn("project-linux", workflow["jobs"]["repository-audit"]["needs"])
+        self.assertIn("project-windows", workflow["jobs"]["repository-audit"]["needs"])
+        self.validate("repository-audit", workflow)
+
+    def test_optional_automation_jobs_gate_before_install_or_credentials(self):
+        for name, job_id in (
+            ("agent-rules-update", "prepare"),
+            ("guarded-pull-request-merge", "guarded-merge"),
+        ):
+            workflow = self.read_workflow(name)
+            gate = workflow["jobs"]["activation"]
+            self.assertEqual(gate["permissions"], {"contents": "read"})
+            self.assertNotIn("setup-", json.dumps(gate))
+            self.assertNotIn("secrets.", json.dumps(gate))
+            self.assertNotIn("npm ci", json.dumps(gate))
+            job = workflow["jobs"][job_id]
+            self.assertEqual(job["needs"], "activation")
+            self.assertIn("needs.activation.outputs.enabled == 'true'", job["if"])
+            self.assertEqual(
+                job["steps"][0]["with"]["ref"],
+                "${{ needs.activation.outputs.trusted_sha }}",
+            )
+            self.validate(name, workflow)
+
+    def test_ordinary_audit_bootstraps_without_new_default_branch_runtime(self):
+        gate = self.read_workflow("repository-audit")["jobs"]["activation"]
+        resolve = gate["steps"][0]
+        for event, ref in (
+            ("pull_request", "feature/bootstrap"),
+            ("push", "main"),
+            ("push", "master"),
+            ("push", "v1.0.0"),
+            ("release", "v1.0.0"),
+            ("workflow_dispatch", "main"),
+        ):
+            with (
+                self.subTest(event=event, ref=ref),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                output = Path(temporary) / "outputs"
+                marker = Path(temporary) / "forbidden-access"
+                for name in ("gh", "python3"):
+                    shim = Path(temporary) / name
+                    shim.write_text(
+                        '#!/usr/bin/env bash\nprintf access >> "$ACCESS_MARKER"\nexit 99\n'
+                    )
+                    shim.chmod(0o755)
+                result = subprocess.run(
+                    [BASH, "-c", resolve["run"]],
+                    cwd=temporary,
+                    env={
+                        **os.environ,
+                        "EVENT_NAME": event,
+                        "REF_NAME": ref,
+                        "GITHUB_OUTPUT": str(output),
+                        "GH_REPO": "invalid/no-metadata",
+                        "ACCESS_MARKER": str(marker),
+                        "PATH": temporary + os.pathsep + os.environ["PATH"],
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(), "enabled=true\n")
+                self.assertFalse((Path(temporary) / "tools").exists())
+                self.assertFalse(marker.exists())
+        for step in gate["steps"][1:]:
+            self.assertEqual(step["if"], "steps.resolve.outputs.trusted_sha != ''")
+
+    def test_selected_preflight_missing_trusted_runtime_fails_without_enabled_output(
+        self,
+    ):
+        gate = self.read_workflow("repository-audit")["jobs"]["activation"]
+        step = gate["steps"][-1]
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "outputs"
+            command = step["run"].replace(
+                "python3", '"' + sys.executable.replace("\\", "/") + '"', 1
+            )
+            result = subprocess.run(
+                [BASH, "-c", command],
+                cwd=temporary,
+                env={**os.environ, "EVENT_NAME": "push", "GITHUB_OUTPUT": str(output)},
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("automation_config.py", result.stderr)
+            self.assertEqual(output.read_text(), "")
+
+    def test_consumer_does_not_select_source_maintenance_tests(self):
+        steps = self.read_workflow("repository-audit")["jobs"]["compatibility-windows"][
+            "steps"
+        ]
+        for step in steps:
+            if step.get("run", "").startswith(
+                ("python -m unittest", "bash tests/test_quality_pre_commit.sh")
+            ):
+                self.assertEqual(step["if"], "steps.scope.outputs.scope == 'source'")
+
+    def test_aggregate_rejects_each_selected_failed_cancelled_or_skipped_result(self):
+        step = self.read_workflow("repository-audit")["jobs"]["repository-audit"][
+            "steps"
+        ][0]
+        for selected in step["env"]:
+            for failure in ("failure", "cancelled", "skipped", ""):
+                with self.subTest(selected=selected, failure=failure):
+                    environment = dict.fromkeys(step["env"], "success")
+                    environment[selected] = failure
+                    result = subprocess.run(
+                        [BASH, "-c", step["run"]],
+                        env={**os.environ, **environment},
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+        result = subprocess.run(
+            [BASH, "-c", step["run"]],
+            env={**os.environ, **dict.fromkeys(step["env"], "success")},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_exact_revision_guard_rejects_merge_or_wrong_head(self):
+        step = self.read_workflow("repository-audit")["jobs"]["project-linux"]["steps"][
+            1
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            subprocess.run(["git", "init", "--quiet", temporary], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "-c",
+                    "core.hooksPath=",
+                    "commit",
+                    "--quiet",
+                    "--allow-empty",
+                    "-m",
+                    "fixture",
+                ],
+                cwd=temporary,
+                check=True,
+            )
+            head = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=temporary, text=True
+            ).strip()
+            for expected, success in (("0" * 40, False), (head, True)):
+                result = subprocess.run(
+                    [BASH, "-c", step["run"]],
+                    cwd=temporary,
+                    env={**os.environ, "AUDIT_COMMIT_SHA": expected},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode == 0, success, result.stderr)
 
     def test_mapping_order_indentation_comments_and_step_names_are_irrelevant(self):
         def reorder(value):
@@ -547,26 +803,17 @@ class ConsumerWorkflowContractTests(unittest.TestCase):
         result = self.run_validator("--repository-root", ".")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_shipped_selected_suite_passes_in_consumer_layout(self):
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-B",
-                "-m",
-                "unittest",
-                "discover",
-                "-s",
-                "tests",
-                "-p",
-                "test_workflow_contracts.py",
-            ],
-            cwd=self.consumer,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
-        )
+    def test_consumer_validator_runs_without_source_tests_and_blocks_invalid_jobs(self):
+        self.assertFalse((self.consumer / "tests").exists())
+        result = self.run_validator("--repository-root", ".")
         self.assertEqual(result.returncode, 0, result.stderr)
+        workflow_path = self.consumer / ".github/workflows/repository-audit.yml"
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        del workflow["jobs"]["project-linux"]
+        workflow_path.write_text(yaml.safe_dump(workflow), encoding="utf-8")
+        result = self.run_validator("--repository-root", ".")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("project-linux", result.stderr)
 
     def test_each_core_workflow_remains_mandatory_in_consumer(self):
         for name in (

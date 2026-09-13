@@ -1131,6 +1131,9 @@ class ExternalInstallerTests(unittest.TestCase):
                 "pythonRequireHashes": True,
             },
         }
+        # Preserve the original schema-2 fixture and its CI compatibility cases.
+        for record in self.registry["external"].values():
+            record.pop("variants", None)
 
     def artifact_for(self, tool_name: str) -> tuple[bytes, bytes, str]:
         if tool_name == "gitleaks":
@@ -1647,6 +1650,7 @@ class ExternalInstallerTests(unittest.TestCase):
                 install_root=runner_temp / "quality-tools",
                 runner_temp=runner_temp,
                 tool_names=["shfmt"],
+                open_url=self.installer._safe_urlopen,
                 run_command=self.successful_runner(),
             )
 

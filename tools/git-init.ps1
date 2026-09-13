@@ -1,7 +1,7 @@
 $ScriptVersion = "1.0.0"
 $DefaultTag = "v1.0.0"
 $CommitMessage = "chore(git): initialize repository"
-$TagMessage = "Initial version/First commit"
+$TagMessage = "Initialisation du repository Git"
 # Keep this pattern aligned with repository-audit SemVer smoke tests.
 $SemVerTagPattern = "^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$"
 
@@ -11,6 +11,7 @@ $ErrorActionPreference = "Stop"
 $showHelp = $false
 $showVersion = $false
 $verboseMode = $false
+$dryRun = $false
 $path = ""
 $remote = ""
 $tag = $DefaultTag
@@ -24,6 +25,7 @@ function Write-Usage {
     Write-Output "Options:"
     Write-Output "  -h, --help       Show version and help."
     Write-Output "      --version    Show version only."
+    Write-Output "      --dry-run    Validate and show actions without changing the target."
     Write-Output "  -v, --verbose    Show additional execution traces."
     Write-Output "  -p, --path       Target repository root. Required."
     Write-Output "  -r, --remote     Optional origin remote URL."
@@ -141,6 +143,14 @@ function Invoke-Commitlint {
 }
 
 function Resolve-CommitlintCommand {
+    $localBin = Join-Path $targetPath "tools\quality\node_modules\.bin"
+    foreach ($commandName in @("commitlint.cmd", "commitlint.ps1", "commitlint")) {
+        $localCommand = Join-Path $localBin $commandName
+        if (Test-Path -LiteralPath $localCommand -PathType Leaf) {
+            return $localCommand
+        }
+    }
+
     foreach ($commandName in @("commitlint.cmd", "commitlint")) {
         $command = Get-Command $commandName -ErrorAction SilentlyContinue
         if ($null -ne $command) {
@@ -149,6 +159,30 @@ function Resolve-CommitlintCommand {
     }
 
     throw "commitlint is required to validate the initial commit message."
+}
+
+function Invoke-Initializer {
+    param([Parameter(Mandatory = $true)][string]$Operation)
+
+    $helper = Join-Path $PSScriptRoot "initialize-repository.py"
+    $helperArguments = @("-B", $helper, $Operation, "--path", $targetPath, "--tag", $tag)
+    if ($verboseMode) {
+        $helperArguments += "--verbose"
+    }
+    & $pythonCommand @helperArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "System initialization $Operation failed."
+    }
+}
+
+function Resolve-PythonCommand {
+    foreach ($commandName in @("python", "python3")) {
+        $command = Get-Command $commandName -ErrorAction SilentlyContinue
+        if ($null -ne $command) {
+            return $command.Source
+        }
+    }
+    throw "Python is required to initialize a composed release ZIP."
 }
 
 function Test-GitSuccess {
@@ -210,7 +244,7 @@ function Get-CommittableFile {
             $previewGitDirectory = Join-Path `
                 ([System.IO.Path]::GetTempPath()) `
                 "git-init-preview-$([guid]::NewGuid().ToString('N'))"
-            Invoke-Git -Arguments @("init", "--bare", $previewGitDirectory) | Out-Null
+            Invoke-Git -Arguments @("init", "--bare", "--initial-branch=main", $previewGitDirectory) | Out-Null
             $statusArguments = @(
                 "--git-dir=$previewGitDirectory",
                 "--work-tree=$RepositoryPath",
@@ -316,6 +350,7 @@ for ($index = 0; $index -lt $args.Count; $index++) {
         "-h" { $showHelp = $true }
         "--help" { $showHelp = $true }
         "--version" { $showVersion = $true }
+        "--dry-run" { $dryRun = $true }
         "-v" { $verboseMode = $true }
         "--verbose" { $verboseMode = $true }
         "-p" {
@@ -384,7 +419,8 @@ if ($targetEntries.Count -eq 0) {
 if (Test-Path -LiteralPath $gitMetadataPath) {
     Assert-ReadableGitMetadataPath -RepositoryPath $targetPath -GitMetadataPath $gitMetadataPath
 
-    if (Test-GitSuccess -Arguments @("-C", $targetPath, "rev-parse", "--verify", "HEAD")) {
+    $reachableCommits = @(Invoke-Git -Arguments @("-C", $targetPath, "rev-list", "--all", "--max-count=1"))
+    if ($reachableCommits.Count -gt 0) {
         throw "Target repository already has commits: $targetPath"
     }
 
@@ -394,6 +430,18 @@ if (Test-Path -LiteralPath $gitMetadataPath) {
 }
 
 $remoteDisplay = if ([string]::IsNullOrWhiteSpace($remote)) { "(none)" } else { $remote }
+
+if ($dryRun) {
+    $pythonCommand = Resolve-PythonCommand
+    Invoke-Initializer -Operation "validate"
+    Assert-CommitValidationPrerequisite -RepositoryPath $targetPath
+    Resolve-CommitlintCommand | Out-Null
+    Write-Output "Dry run: initialize main; prepare system CHANGELOG and staged release artifacts; validate; create the first commit and annotated $tag tag."
+    if (-not [string]::IsNullOrWhiteSpace($remote)) {
+        Write-Output "Dry run: add origin and push main and tags to $remote."
+    }
+    exit 0
+}
 
 Write-Output "Initialize Git using this information? [y/N]"
 Write-Output "Path: $targetPath"
@@ -434,6 +482,8 @@ if ($riskyFiles.Count -gt 0) {
     }
 }
 
+$pythonCommand = Resolve-PythonCommand
+Invoke-Initializer -Operation "validate"
 Assert-CommitValidationPrerequisite -RepositoryPath $targetPath
 $commitlintCommand = Resolve-CommitlintCommand
 $commitlintConfig = Join-Path $targetPath "commitlint.config.cjs"
@@ -448,7 +498,8 @@ $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
 )
 
 try {
-    Invoke-Git -Arguments @("init", $targetPath) | Out-Null
+    Invoke-Git -Arguments @("init", "--initial-branch=main", $targetPath) | Out-Null
+    Invoke-Git -Arguments @("-C", $targetPath, "symbolic-ref", "HEAD", "refs/heads/main") | Out-Null
     Invoke-Git -Arguments @(
         "-C", $targetPath, "config", "core.hooksPath", ".githooks"
     ) | Out-Null
@@ -457,7 +508,7 @@ try {
         throw "Tag already exists in target repository: $tag"
     }
 
-    Invoke-Git -Arguments @("-C", $targetPath, "add", "--all") | Out-Null
+    Invoke-Initializer -Operation "prepare"
     Invoke-Commitlint `
         -CommandPath $commitlintCommand `
         -MessagePath $commitMessagePath `
@@ -483,7 +534,6 @@ finally {
     }
 }
 
-Invoke-Git -Arguments @("-C", $targetPath, "branch", "-M", "main") | Out-Null
 Invoke-Git -Arguments @("-C", $targetPath, "tag", "-a", $tag, "-m", $TagMessage) | Out-Null
 
 if (-not [string]::IsNullOrWhiteSpace($remote)) {

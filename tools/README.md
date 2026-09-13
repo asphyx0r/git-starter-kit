@@ -436,8 +436,9 @@ blob. The builder accepts only the exact canonical starter repository slug and
 HTTPS `origin`; derived repositories cannot use it to create their own release
 package.
 
-The script resolves `-AgentRulesRef latest` through the GitHub releases API.
-An explicit `-AgentRulesRef` must be a SemVer tag prefixed with `v`.
+The script resolves the latest published agent-rules release once through the
+GitHub releases API for every build. An explicit `-AgentRulesRef` must identify
+that same latest SemVer tag; an older release is rejected.
 Branch names and other refs are rejected to keep package inputs reproducible.
 The latest-release HTTP request has a 60-second limit. Git requests have a
 30-second limit, or 300 seconds for inventory listings. The deadline includes
@@ -467,7 +468,7 @@ Create a package with a specific agent-rules release:
 powershell -NoProfile -File tools\build-release-package.ps1 `
   -RepositoryRef v1.5.0 `
   -RepositorySlug asphyx0r/git-starter-kit `
-  -AgentRulesRef v1.36.1 `
+  -AgentRulesRef latest `
   -OutputDirectory dist
 ```
 
@@ -506,10 +507,10 @@ tar -xOf .tmp\release-package-test\test-release-package.zip `
 - `-AgentRulesRepository NAME`: GitHub `owner/name` repository used as the
   agent-rules source. Defaults to `asphyx0r/agent-coding-rules`.
 - `-AgentRulesRef REF`: agent-rules reference to package. Defaults to
-  `latest`. Accepted values are `latest` or a SemVer tag prefixed with `v`.
+  `latest`. Accepted values are `latest` or the same latest published SemVer tag.
 - `GITHUB_TOKEN`: optional environment variable used as a bearer token for the
-  public GitHub releases API when resolving `latest`; no token is required for
-  the canonical public source.
+  public GitHub release and immutable Git-object APIs on every build; no token
+  is required for the canonical public source.
 - `GITHUB_OUTPUT`: optional environment variable used by GitHub Actions. When
   set, the script writes `package_path`, `package_name`, `agent_rules_ref`,
   and `agent_rules_commit`.
@@ -521,6 +522,24 @@ tar -xOf .tmp\release-package-test\test-release-package.zip `
   required rule files were missing, archive verification failed, or another
   terminating PowerShell error occurred.
 
+### Consumer composition
+
+The builder overlays `templates/project/`, calls the shared
+`default_project_configuration()` and generates inventories afterward.
+Consumer Commitlint retains mandatory syntax, type and length checks while
+omitting the source-only scope whitelist. `.starter-kit-project.json` is
+initialize-only; existing configuration and missing-file legacy mode require
+review rather than automatic activation. Source tests, manufacturing commands,
+migration journals and template source inputs are excluded. Audit runtime
+modules and release schemas remain managed; ZIP bytes and Unix executable modes
+are verified against the final inventory. The upgrade toolkit embeds this exact
+ZIP and keeps the existing updater strategies.
+
+Packaging is verification, not rule synchronization: the canonical checkout
+must already match the latest immutable upstream rules. Modified preserved-rule
+customizations cannot be exported as upstream truth. Markdown CRLF checkout
+conversion is accepted, but the ZIP stores the exact authenticated LF blobs.
+
 ### Appendix
 
 Use this script from a clean, committed repository when preparing release
@@ -529,11 +548,11 @@ content comes from `git ls-files`.
 
 Use `latest` for normal release automation so packaging fails if tracked rules
 lag behind the latest full `agent-coding-rules` release. Use an explicit SemVer
-tag only when recreating a package from a known rules release.
+tag only to assert the same latest published release.
 
 Treat failures as release blockers. The script verifies the resolved
-agent-rules tag, tracked rule hashes, preserved customization records, and the
-generated archive so that a broken package is not uploaded silently.
+agent-rules tag, immutable commit/tree/blob identities, faithful rule bytes and
+provenance hashes, and the generated archive so that a broken package is not uploaded silently.
 
 ## starter-kit-upgrade.py
 
@@ -1176,9 +1195,10 @@ not install missing tools.
 ## quality/install-external-tools.py
 
 `quality/install-external-tools.py` installs registry-pinned external quality
-tools for one supported runner platform. It uses only the Python standard
-library. `RUNNER_TEMP` must name an existing directory without symbolic links,
-and the new installation root must be strictly below it.
+tools for native Windows x64 or Linux x64; macOS is unsupported. It uses only
+the Python standard library and the distributed `process_runner.py` helper.
+Default CI mode requires an existing safe `RUNNER_TEMP` and an absent root
+strictly below it. Explicit local mode uses a chosen root without `RUNNER_TEMP`.
 
 ### Synopsis
 
@@ -1186,25 +1206,90 @@ and the new installation root must be strictly below it.
 usage: python tools/quality/install-external-tools.py \
   --platform {linux-x64,windows-x64} \
   --install-root PATH \
+  [--local] [--dry-run] [-v|--verbose] \
   [--tool {actionlint,shfmt,PSScriptAnalyzer,shellcheck,gitleaks}]
 ```
 
 Repeat `--tool` to select multiple compatible tools. When it is omitted, the
-installer selects every registry tool available for the chosen platform. It
+CI installer selects every registry tool available for the chosen platform. It
 downloads only from credential-free HTTPS locations, verifies the declared
 SHA-256 digest before extraction, rejects unsafe archive layouts, stages all
 selected tools, and runs their exact version probes. The final installation
-root is published only after every probe succeeds.
+root is atomically published without overwrite only after every probe succeeds.
+Subprocess deadlines contain child trees. Network downloads run in contained
+Python children with a 60-second deadline covering headers and body reads,
+a socket timeout and a 128 MiB size limit.
+Archives allow at most 10,000 entries and 512 MiB of expanded file data.
 
 Selecting PSScriptAnalyzer, including through the default compatible-tool
 selection on either platform, requires `pwsh` with PowerShell 7.4.6 or newer.
-The installer stages and publishes to a new destination only below
-`RUNNER_TEMP` and does not invoke Git. Callers must keep `RUNNER_TEMP` and
-`--install-root` outside tracked repository content.
+CI callers keep `RUNNER_TEMP` and the installation root outside tracked content.
+`--dry-run` validates the registry, root and selection without downloads, probes,
+directories or files. `--verbose` shows platform, selection and destination;
+`--help` and `--version` are read-only. The installer does not invoke Git.
+
+### Local provisioning
+
+Use explicit `--local`, `--platform`, `--install-root` and repeated `--tool`
+selections. The requested platform must match the native x64 host. The root
+must be absent with an existing directory parent; unsafe components, symbolic
+links and Windows junctions anywhere in its path are rejected. There is no
+implicit local root. `tools/quality/external` is an explicitly ignored example;
+other destinations require a project-owned ignore decision. Existing roots
+are never overwritten or extended, so use a different absent root when changing
+the selected tool set.
+
+For example, install two selected capabilities on Linux:
+
+```bash
+python -B tools/quality/install-external-tools.py --local --dry-run \
+  --platform linux-x64 --install-root tools/quality/external \
+  --tool shfmt --tool gitleaks
+python -B tools/quality/install-external-tools.py --local \
+  --platform linux-x64 --install-root tools/quality/external \
+  --tool shfmt --tool gitleaks
+export PATH="$PWD/tools/quality/external/bin:$PATH"
+export PSModulePath="$PWD/tools/quality/external/Modules${PSModulePath:+:$PSModulePath}"
+```
+
+For PSScriptAnalyzer on Windows, choose a short installation root when the
+repository path is deep: long nested module paths can cause `PathTooLongException`.
+Use the same absent root for `--install-root` and the session paths below.
+
+On Windows PowerShell, the equivalent selected install and session paths are:
+
+```powershell
+$installerArguments = @(
+    '--local', '--platform', 'windows-x64',
+    '--install-root', 'tools/quality/external',
+    '--tool', 'shfmt', '--tool', 'gitleaks'
+)
+python -B tools/quality/install-external-tools.py @installerArguments
+$externalRoot = (Resolve-Path tools/quality/external).Path
+$env:PATH = (Join-Path $externalRoot 'bin') + [IO.Path]::PathSeparator + $env:PATH
+$env:PSModulePath = (Join-Path $externalRoot 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
+```
+
+Add `--tool actionlint`, `--tool shellcheck` and `--tool PSScriptAnalyzer` to the
+same invocation when preparing all external full-audit tools. Selecting the
+module requires the PowerShell runtime stated above. These path assignments
+affect only the current session and its children; no global environment or
+package manager is modified. Keep using the existing locked Python and Node
+setup. Application runtimes and dependencies remain project-owned.
+
+`check-versions.py --runtime` checks the complete toolchain, including missing
+unselected tools. A partial install proves only its selected capabilities;
+missing required tools still block their checks. Installer and checker share
+one schema-2 registry. Optional `variants` add platform-specific artifact URLs,
+digests, install contracts and ZIP `allowedEntries`, retaining shared version
+and probe pins. The updated reader accepts old schema-2 records without
+variants. Ship the updated registry and reader together; old readers do not
+understand new variant records.
 
 ### Exit Status
 
-- `0`: every selected tool was verified and installed.
+- `0`: every selected tool was verified and installed, or dry-run validation
+  succeeded without writes.
 - `1`: registry, path, download, digest, archive, installation, or probe
   validation failed.
 - `2`: command-line argument parsing failed.

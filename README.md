@@ -5,8 +5,8 @@ A minimal, reusable starter repository for Git and GitHub projects.
 ## Features
 
 - Git and editor conventions for repository consistency.
-- Generic ignore rules for local files, secrets, direnv files, runtime
-  storage, caches, and build outputs.
+- Conservative ignore rules for explicit local outputs and root secrets, with
+  optional language patterns that preserve application sources and fixtures.
 - Commit message guidance with a reusable Git commit template, strict scoped
   Commitlint rules, and blocking validation for guarded commits.
 - Versioned staged-only pre-commit, commit-message, and affected-test pre-push
@@ -37,18 +37,36 @@ A minimal, reusable starter repository for Git and GitHub projects.
 
 ## Installation
 
-Use this repository as a starting point for a new project.
+For a new project, download the `with-agent-rules.zip` asset from a published
+[release](https://github.com/asphyx0r/git-starter-kit/releases), extract it into
+a new empty directory and follow the project README composed inside that ZIP.
+Install its locked Node hook dependencies and run the real initializer:
 
 ```bash
-git clone https://github.com/asphyx0r/git-starter-kit.git <new-project-name>
-cd <new-project-name>
+npm ci --ignore-scripts --prefix tools/quality
+bash tools/git-init.sh --path .
 ```
 
-`starter-kit-manifest.json` records the published starter-kit release used as
-the repository's initial baseline and the most recent cumulative core upgrade.
-For a default-branch clone containing unreleased commits, it identifies the
-latest published baseline; clone an exact tag or use its release package when
-byte-identical release contents are required.
+An optional `bash tools/git-init.sh --path . --dry-run` inspects the actions
+before initialization. Windows users may run the equivalent
+`powershell -NoProfile -File tools/git-init.ps1 --path .`.
+Prerequisites are Git, Bash, Python 3.11+, Node.js 24 and npm; `.ps1` tools use
+Windows PowerShell 5.1/PowerShell 7 on Windows and PowerShell 7 on Linux.
+Provision selected pinned external tools with the
+[explicit local installer](tools/README.md#local-provisioning) before checks
+that require them; audits never install these tools automatically.
+
+Clone this source repository only to maintain the starter itself. Raw source
+archives do not contain the composed consumer inventory or project defaults.
+The companion `upgrade-toolkit.zip` embeds the exact initialization ZIP for
+reviewed updates to existing projects; see [Upgrade toolkit](docs/upgrade-toolkit.md).
+
+New consumer settings use project/repository mode with optional automations
+disabled and an empty explicit check list. Ordinary mandatory rules, hooks,
+core audits and release-artifact verification remain active. Empty checks warn;
+application validation must be adopted explicitly and actually executed in CI.
+`starter-kit-manifest.json` retains the original and current published core
+baselines, with the consumer file inventory recomputed after composition.
 
 ## Usage
 
@@ -68,8 +86,19 @@ them; guarded repository tools force `.githooks` independently. See
 [Contributing](CONTRIBUTING.md) for the hook policy and [Tools](tools/README.md)
 for the exact profiles and prerequisites.
 
-Copy files from `templates/` when starting a new project and replace the
-placeholder values with project-specific content.
+Source templates under `templates/project/` are composed into the consumer ZIP.
+Complete its identified project name, application commands and contact fields
+before publishing an application.
+
+The `.gitignore` language headings are comments; they do not scope patterns.
+Keep contextual exclusions commented until a project identifies exact generated
+locations, and preserve sources, test/archive/binary fixtures and lockfiles.
+The consumer [ignore policy](templates/project/docs/project-configuration.md#ignore-policy)
+explains the explicit local tooling paths. Its
+[Laravel onboarding](templates/project/docs/project-configuration.md#laravel-onboarding)
+creates the application in an absent or empty `laravel/` only after the initial
+system-only annotated `v1.0.0`; application configuration stays inside that
+directory and the root remains the single Git repository.
 
 Use the GitHub templates in `.github/` to keep issues and pull requests
 reviewable with minimal process.
