@@ -783,9 +783,20 @@ if ($latestCalls -ne 1) { throw 'latest must resolve exactly once' }
                     )
                 config = root / "project-commitlint.config.cjs"
                 config.write_bytes(archive.read("commitlint.config.cjs"))
+            node = shutil.which("node") or "node"
+            commitlint_cli = subprocess.check_output(
+                [
+                    node,
+                    "-p",
+                    "require.resolve('@commitlint/cli/cli.js', {paths: "
+                    "[process.argv[1], ...process.env.PATH.split(require('node:path').delimiter)]})",
+                    str(SOURCE_ROOT / "tools/quality"),
+                ],
+                text=True,
+            ).strip()
             command = [
-                shutil.which("node") or "node",
-                str(SOURCE_ROOT / "tools/quality/node_modules/@commitlint/cli/cli.js"),
+                node,
+                commitlint_cli,
                 "--config",
                 str(config),
             ]
