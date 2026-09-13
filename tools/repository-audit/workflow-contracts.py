@@ -1030,6 +1030,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "env": {
                             "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
                             "BEFORE_SHA": "${{ github.event_name == 'release' && '0000000000000000000000000000000000000000' || github.event.before }}",
+                            "GITHUB_TOKEN": "${{ github.token }}",
                             "GIT_AUTHOR_NAME": "Codex",
                             "GIT_AUTHOR_EMAIL": "codex@example.com",
                             "GIT_COMMITTER_NAME": "Codex",
