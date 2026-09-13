@@ -1467,7 +1467,7 @@ if [ -f "${source_root}/.github/workflows/release-package.yml" ]; then
   assert_release_skill_guard_mutation \
     forced-deployment-metadata "${release_main_reference}" \
     'Pour `releaseKind=repository`' 'Always require deployment metadata' \
-    "${release_activation_diagnostic}"
+    "${release_activation_diagnostic}" 2
   assert_release_skill_guard_mutation \
     missing-repository-dry-run-kind "${release_main_reference}" \
     '--dry-run prepare --kind repository' '--dry-run prepare' \

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
+import ctypes
 import importlib.util
 import io
 import json
@@ -64,6 +65,50 @@ class PackageInitializerTests(unittest.TestCase):
                 self.assertEqual(modes["runner"], "100755")
                 self.assertTrue(INITIALIZER.REQUIRED.issubset(modes))
                 self.assertFalse((self.root / ".git").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows short paths are required")
+    def test_short_alias_inventory_stays_confined(self):
+        api = ctypes.WinDLL("kernel32", use_last_error=True)
+        api.GetShortPathNameW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_wchar_p,
+            ctypes.c_uint32,
+        ]
+        buffer = ctypes.create_unicode_buffer(32768)
+        self.assertGreater(
+            api.GetShortPathNameW(str(self.root), buffer, len(buffer)), 0
+        )
+        short_root = Path(buffer.value)
+        if short_root == self.root.resolve():
+            self.skipTest("The fixture volume does not provide a short alias")
+        self.assertEqual(short_root.resolve(), self.root.resolve())
+        for schema in (1, 2, 3):
+            with self.subTest(schema=schema):
+                self.inventory["schemaVersion"] = schema
+                self.fixture.write(
+                    "_starter-kit-files.json", json.dumps(self.inventory)
+                )
+                self.assertTrue(
+                    INITIALIZER.REQUIRED.issubset(INITIALIZER.validate(short_root))
+                )
+        outside = self.root.parent / "outside-inventory"
+        outside.mkdir()
+        (outside / "value.txt").write_text("outside\n", encoding="utf-8")
+        link = self.root / "escape"
+        import _winapi
+
+        _winapi.CreateJunction(str(outside), str(link))
+        try:
+            self.inventory["files"].append(
+                {"path": "escape/value.txt", "mode": "100644"}
+            )
+            self.fixture.write("_starter-kit-files.json", json.dumps(self.inventory))
+            with self.assertRaisesRegex(
+                INITIALIZER.InitializationError, "outside target"
+            ):
+                INITIALIZER.load_inventory(short_root)
+        finally:
+            link.rmdir()
 
     def test_malformed_and_unsafe_inventory_rejects_without_writes(self):
         cases = (

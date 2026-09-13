@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import ctypes
 import hashlib
 import json
 import re
@@ -837,6 +838,44 @@ if ($latestCalls -ne 1) { throw 'latest must resolve exactly once' }
                     command, input=message, text=True, capture_output=True
                 )
                 self.assertNotEqual(result.returncode, 0, message)
+
+    @unittest.skipUnless(os.name == "nt", "Windows short paths are required")
+    def test_short_alias_roots_preserve_composition_paths(self):
+        hosts = [host for host in ("pwsh", "powershell.exe") if shutil.which(host)]
+        if not hosts:
+            self.skipTest("PowerShell is required")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_package_repository(root)
+            api = ctypes.WinDLL("kernel32", use_last_error=True)
+            api.GetShortPathNameW.argtypes = [
+                ctypes.c_wchar_p,
+                ctypes.c_wchar_p,
+                ctypes.c_uint32,
+            ]
+            buffer = ctypes.create_unicode_buffer(32768)
+            self.assertGreater(api.GetShortPathNameW(str(root), buffer, len(buffer)), 0)
+            short_root = Path(buffer.value)
+            if short_root == root.resolve():
+                self.skipTest("The fixture volume does not provide a short alias")
+            self.assertEqual(short_root.resolve(), root.resolve())
+            environment = os.environ.copy()
+            environment.update(TEMP=buffer.value, TMP=buffer.value, TMPDIR=buffer.value)
+            for host in hosts:
+                with self.subTest(host=host):
+                    output = root / host
+                    result = self.run_package(
+                        SCRIPT_PATH,
+                        output,
+                        environment,
+                        repository_root=short_root / "git-starter-kit",
+                        repository_ref="alias-regression",
+                        powershell_executable=host,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    with zipfile.ZipFile(output / "existing.zip") as archive:
+                        self.assertIn("CHANGELOG.md", archive.namelist())
+                        self.assertIn("docs/repository-files.md", archive.namelist())
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
     def test_companion_toolkit_embeds_exact_composed_zip_and_legacy_config_is_reviewed(

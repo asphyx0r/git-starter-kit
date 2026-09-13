@@ -61,6 +61,7 @@ def run(command: list[str]) -> bytes:
 
 
 def load_inventory(root: Path) -> dict[str, str]:
+    resolved_root = root.resolve()
     inventory_path = root / INVENTORY
     if inventory_path.is_symlink() or not inventory_path.is_file():
         raise InitializationError(
@@ -112,7 +113,7 @@ def load_inventory(root: Path) -> dict[str, str]:
                 f"Unsafe package path or mode: {name!r} / {mode!r}"
             )
         path = root / name
-        if not path.resolve().is_relative_to(root):
+        if not path.resolve().is_relative_to(resolved_root):
             raise InitializationError(f"Package path resolves outside target: {name}")
         if (
             any(parent.is_symlink() for parent in (path, *path.parents))

@@ -976,6 +976,7 @@ function Copy-ProjectTemplate {
 }
 
 $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
+$repoRoot = (Get-Item -LiteralPath $repoRoot -Force).FullName
 $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
 $stagingRoot = Join-Path $tempRoot "package"
@@ -1072,6 +1073,7 @@ try {
     Assert-TrackedProjectTemplate -SourceRoot $repoRoot -RepositoryReference $RepositoryRef
     New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+    $stagingRoot = (Get-Item -LiteralPath $stagingRoot -Force).FullName
 
     Write-Output "Validating tracked agent rules ref $resolvedAgentRulesRef."
 
