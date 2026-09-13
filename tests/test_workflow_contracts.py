@@ -184,6 +184,73 @@ class WorkflowContractTests(unittest.TestCase):
             )
             self.validate(name, workflow)
 
+    def test_agent_sync_attaches_default_branch_at_the_trusted_commit(self):
+        workflow = self.read_workflow("agent-rules-update")
+        step = next(
+            item
+            for item in workflow["jobs"]["prepare"]["steps"]
+            if item.get("id") == "resolve"
+        )
+        for branch in ("main", "master"):
+            with (
+                self.subTest(branch=branch),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+
+                def git(*args):
+                    return subprocess.check_output(
+                        ["git", *args], cwd=root, text=True, stderr=subprocess.PIPE
+                    ).strip()
+
+                git("init", "--quiet", "--initial-branch=fixture")
+                commit = (
+                    "-c",
+                    "user.name=Test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "-c",
+                    "core.hooksPath=",
+                    "commit",
+                    "--quiet",
+                    "--allow-empty",
+                    "-m",
+                    "fixture",
+                )
+                git(*commit)
+                trusted = git("rev-parse", "HEAD")
+                git(*commit)
+                git("update-ref", f"refs/remotes/origin/{branch}", "HEAD")
+                git("checkout", "--quiet", "--detach", trusted)
+                resolver = root / "tools/repository-audit/agent-rules-transfer.sh"
+                resolver.parent.mkdir(parents=True)
+                resolver.write_text(
+                    "#!/bin/bash\nset -euo pipefail\n"
+                    'test "$(git symbolic-ref --short HEAD)" = "$TARGET_DEFAULT_BRANCH"\n'
+                    'test "$(git rev-parse HEAD)" = "$TRUSTED_SHA"\n',
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                for expected, success in (("0" * 40, False), (trusted, True)):
+                    result = subprocess.run(
+                        [BASH, "-c", step["run"]],
+                        cwd=root,
+                        env={
+                            **os.environ,
+                            "TARGET_DEFAULT_BRANCH": branch,
+                            "TRUSTED_SHA": expected,
+                        },
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode == 0, success, result.stderr)
+                    self.assertEqual(git("rev-parse", "HEAD"), trusted)
+                self.assertEqual(git("symbolic-ref", "--short", "HEAD"), branch)
+        self.assertEqual(
+            step["env"]["TRUSTED_SHA"], "${{ needs.activation.outputs.trusted_sha }}"
+        )
+
     def test_ordinary_audit_bootstraps_without_new_default_branch_runtime(self):
         gate = self.read_workflow("repository-audit")["jobs"]["activation"]
         resolve = gate["steps"][0]
