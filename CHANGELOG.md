@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| bdf23f6 | feat(templates): support universal projects | asphyx |
+
 ## v2.10.0
 
 | References | Description | Author(s) |
