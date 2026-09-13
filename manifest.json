@@ -2,16 +2,12 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.11.0",
-    "release_date": "2026-09-13T17:44:01Z",
+    "version": "2.11.1",
+    "release_date": "2026-09-13T20:57:31Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Initialize release ZIP projects on main with an annotated system-only v1.0.0 release.",
-        "Separate core checks from project validation and explicitly enabled automations.",
-        "Preserve latest agent-rule provenance and cumulative upgrade compatibility.",
-        "Refine language-specific exclusions and document Laravel setup in laravel/.",
-        "Provide verified local quality-tool installation for Windows and Linux."
+        "Attach the trusted agent-rule synchronization checkout to its declared main or master branch without changing the validated commit."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -25,7 +21,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.11.0-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.11.1-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -33,9 +29,9 @@
             },
             "format": "git-tree",
             "total_files": 149,
-            "size_bytes": 2463029,
-            "built_at": "2026-09-13T17:44:01Z",
-            "sha256": "34c47453bb100353751857a98ad6cc210f94fe85309a5cce783290385e7efb14",
+            "size_bytes": 2466490,
+            "built_at": "2026-09-13T20:57:31Z",
+            "sha256": "48d33364a87640caa9aa595915dda8aa50202aa453700511d59e3436f4ce2c67",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -192,11 +188,11 @@
                 },
                 {
                     "relative_path": ".github/workflows/agent-rules-update.yml",
-                    "size_bytes": 10034,
+                    "size_bytes": 10211,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "94278f0dc6e5152a07bd51d4ef73cf81e930807ce26ff18a8e5dcf8636e634d7",
+                    "sha256": "0e2cf2c3745da6cda502e817da75a49711c153bc4e1d377d4ef0ef90ea450e03",
                     "mode": "644"
                 },
                 {
@@ -318,11 +314,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 13769,
+                    "size_bytes": 13914,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "91d699e55e2441071285f018401319c1da9ec4a414feea3f4eb39d415e2d6bb4",
+                    "sha256": "ead62a25d3113acac3ab504d9ca557b2fd9d21dbe7aaaa4c078e62fba871bd46",
                     "mode": "644"
                 },
                 {
@@ -430,7 +426,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f526f5e7f214e4916c51e16a61fb1be5d530d67e44c65d86db25b8416463b10c",
+                    "sha256": "08d071a29abd5fc47f53eb5b5d89c7a154cbf0171e05b122edfb2dc24b7017c6",
                     "mode": "644"
                 },
                 {
@@ -520,7 +516,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1c9f8fcd7da8c6e65786daf2890100edfc95120f144eafbb84a50409d27f5671",
+                    "sha256": "ca247fa953a3a8fb993135421c915852983a8d84cf87223a218f5f1838ddb914",
                     "mode": "644"
                 },
                 {
@@ -957,11 +953,11 @@
                 },
                 {
                     "relative_path": "tests/test_workflow_contracts.py",
-                    "size_bytes": 38043,
+                    "size_bytes": 40874,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4af4a4559cbff74b27257ab6208130971ff522eec119aea5bb2b1e29584618e0",
+                    "sha256": "f262e120aa7d9b73d2004f1d6c623560ebe68edd0eb951b8b8ff7943a89ef9fa",
                     "mode": "644"
                 },
                 {
@@ -1290,11 +1286,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/workflow-contracts.py",
-                    "size_bytes": 63888,
+                    "size_bytes": 64196,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7b55fe558e9e93d87689ffa1c9ee127931137c3774b5670473ca77d0cf8ed7f5",
+                    "sha256": "e73a4c77eac8fb9e4604a65e82cf91d10bfcb093ea770e1ed50f5a56d71b75a7",
                     "mode": "644"
                 },
                 {

@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| edcfa6f | fix(ci): attach the trusted agent sync checkout | asphyx |
+
 ## v2.11.0
 
 | References | Description | Author(s) |
