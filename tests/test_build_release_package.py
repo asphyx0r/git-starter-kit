@@ -1619,7 +1619,7 @@ for name in ('initialize-repository.py', 'release-artifacts.py', 'repository-aud
             environment["GIT_OBJECT_DIRECTORY"] = str(alternate_objects)
             environment["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = str(git_objects)
             subprocess.run(
-                ["git", "add", "--", "tools/quality"],
+                ["git", "add", "--", *sorted(quality_paths)],
                 cwd=SOURCE_ROOT,
                 env=environment,
                 capture_output=True,
