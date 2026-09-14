@@ -2,12 +2,13 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.11.1",
-    "release_date": "2026-09-13T20:57:31Z",
+    "version": "2.11.2",
+    "release_date": "2026-09-14T18:49:04Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Attach the trusted agent-rule synchronization checkout to its declared main or master branch without changing the validated commit."
+        "Correct consumer guidance, guarded-merge activation, and packaged documentation links.",
+        "Apply approved local ignore defaults while preserving shared configuration and sanitized fixtures."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -21,7 +22,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.11.1-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.11.2-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -29,9 +30,9 @@
             },
             "format": "git-tree",
             "total_files": 149,
-            "size_bytes": 2466490,
-            "built_at": "2026-09-13T20:57:31Z",
-            "sha256": "48d33364a87640caa9aa595915dda8aa50202aa453700511d59e3436f4ce2c67",
+            "size_bytes": 2468875,
+            "built_at": "2026-09-14T18:49:04Z",
+            "sha256": "6af03e68b9527374271b406ee91a201f57109a6454c87580df9acf5111fb1aa7",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -233,11 +234,11 @@
                 },
                 {
                     "relative_path": ".gitignore",
-                    "size_bytes": 3617,
+                    "size_bytes": 3732,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "88243c8598cde39ddde9a8217a2153f02ba8386f4e47dc4c0344e0f139469a85",
+                    "sha256": "84b2db6e695cf783afc5e7a31f3934afd607dfbc82ae9a8fafabd1d5b9dde481",
                     "mode": "644"
                 },
                 {
@@ -314,11 +315,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 13914,
+                    "size_bytes": 14057,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "ead62a25d3113acac3ab504d9ca557b2fd9d21dbe7aaaa4c078e62fba871bd46",
+                    "sha256": "5b1e8fc83c94d20fa521c1d57caf2ded4f3552ce05f77da4b75da067628ff80d",
                     "mode": "644"
                 },
                 {
@@ -350,11 +351,11 @@
                 },
                 {
                     "relative_path": "CONTRIBUTING.md",
-                    "size_bytes": 5679,
+                    "size_bytes": 5770,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6fc37d0ae6480d61acdc387cb2bd634f1ea27c2fdbd0c00af7af4f73c0754313",
+                    "sha256": "74437ab7123ceb738b9570290802edfe02a4eaf9a5027aa2c7d739948452863f",
                     "mode": "644"
                 },
                 {
@@ -426,7 +427,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "08d071a29abd5fc47f53eb5b5d89c7a154cbf0171e05b122edfb2dc24b7017c6",
+                    "sha256": "ca3ba4bf209a23260981c86921fa2fbe8e273792702a03b25c132b00ef90273c",
                     "mode": "644"
                 },
                 {
@@ -458,11 +459,11 @@
                 },
                 {
                     "relative_path": "docs/guarded-pull-request-merges.md",
-                    "size_bytes": 8766,
+                    "size_bytes": 9075,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "68ebdf751927e028bb19f0721d09de38eb00b945b68c8326d00715f0be286521",
+                    "sha256": "b461fc90ea341c00cac8912ff24920cb753864d32e820d73f3bc181460551874",
                     "mode": "644"
                 },
                 {
@@ -476,11 +477,11 @@
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 68928,
+                    "size_bytes": 69083,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "2eac3c51ff2d364808c29e5682be5dc63c907abd8212ce0c548d5b6b663c8566",
+                    "sha256": "db325fa256d46864d85e0b49203c40a1744dec8c6b310eb0fdd826d219d0a4db",
                     "mode": "644"
                 },
                 {
@@ -516,7 +517,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "ca247fa953a3a8fb993135421c915852983a8d84cf87223a218f5f1838ddb914",
+                    "sha256": "f81a72d198c8ed6d868ff45328438a28657b393d00a1065a8d33e68a572c7c0b",
                     "mode": "644"
                 },
                 {
@@ -701,11 +702,11 @@
                 },
                 {
                     "relative_path": "templates/project/docs/project-configuration.md",
-                    "size_bytes": 9018,
+                    "size_bytes": 9434,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f1400f357984014d85b5cfc4495d4eda771f2777f29979eb9e5115106bee09d3",
+                    "sha256": "6ce5b2fc96d440b0073e6b832e64ec13f637213fc46684979c0f1257a50d257a",
                     "mode": "644"
                 },
                 {
@@ -827,11 +828,11 @@
                 },
                 {
                     "relative_path": "tests/test_gitignore.py",
-                    "size_bytes": 6835,
+                    "size_bytes": 7991,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e288c264e629f8b357dc894945715338fd67a95f52333058e76e19e01413ef51",
+                    "sha256": "a5f216a5db2d0c7e3ee0c7e3e6ced29a59d3d02d4d06998e6e7d9b8c97c2fec6",
                     "mode": "644"
                 },
                 {
