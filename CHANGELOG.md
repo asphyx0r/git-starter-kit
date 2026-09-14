@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.2
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 5f66340 | fix(templates): correct docs and ignore rules | asphyx |
+
 ## v2.11.1
 
 | References | Description | Author(s) |
