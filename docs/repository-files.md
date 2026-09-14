@@ -403,9 +403,11 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Prevents common local files and generated artifacts from commits.
 - Usage: Git excludes matching paths from normal version control.
-- Notes: Covers common credential stores, direnv files, runtime storage, and
-  generated files while avoiding source files, tests, lock files, or project
-  config.
+- Notes: Excludes active local defaults (editor recovery files, root local
+  credentials, and root IntelliJ state) and starter runtime storage. Optional
+  project-owned credential, IDE, and generated paths stay commented so shared
+  configuration, sanitized fixtures, sources, tests, and lock files remain
+  trackable.
 
 ### `.gitmessage`
 

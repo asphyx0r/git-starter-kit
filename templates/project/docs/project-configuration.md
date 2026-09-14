@@ -49,12 +49,18 @@ environment, `/.tmp/` for local audit/package scratch files,
 `/tools/quality/external/` for an explicitly chosen local external-tool root.
 That last path is an example installation destination, not an implicit default
 or an automatic installation. Other files in `tools/quality/` remain trackable.
-Use the [local external installer](../tools/README.md#local-external-tools) with
+Use the [local external installer](../tools/README.md) with
 explicit `--local`, platform, absent root and selected `--tool` capabilities.
 Its session-only search paths supplement the existing locked Python/Node setup;
 application runtimes and dependencies remain project-owned.
-`/.env` protects the root local environment secret; nested applications must
-define their own local secret policy before generating credentials.
+Active local defaults also exclude editor recovery files (`*.swp`, `*.swo`, and
+`*~`) at every depth, plus root-only `/.env`, `/.env.local`, `/.netrc`,
+`/.pypirc`, and local IntelliJ state under `/.idea/`. Root-only rules do not
+apply to nested applications, which must define their own local secret policy
+before generating credentials. Shared IDE configuration, `.vscode/mcp.json`,
+`*.code-workspace`, `/.envrc`, `/.npmrc`, certificate and environment fixtures,
+and optional project-owned credential paths remain trackable unless a project
+explicitly activates a contextual rule.
 
 Contextual exclusions stay commented. Activate them only after identifying
 generated outputs in your project, preferably as exact rooted paths or in the
