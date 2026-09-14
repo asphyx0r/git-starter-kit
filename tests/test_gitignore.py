@@ -1,12 +1,11 @@
 """Protect new application sources and fixtures from generic ignore rules."""
 
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
-
+from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -130,7 +129,43 @@ class GitIgnoreTests(unittest.TestCase):
                 ".fleet/settings.json",
                 ".zed/settings.json",
                 ".vscode/custom.json",
+                ".vscode/mcp.json",
                 ".vscode/settings.json",
+                "workspace.code-workspace",
+                ".npmrc",
+                ".envrc",
+                "tests/fixtures/sanitized.env",
+                "tests/fixtures/sanitized-certificate.pem",
+            ),
+            ignored=False,
+        )
+
+    def test_local_defaults_are_ignored_only_at_the_root(self):
+        self.assert_paths_ignored(
+            (
+                "swap.swp",
+                "nested/swap.swp",
+                "swap.swo",
+                "nested/swap.swo",
+                "notes~",
+                "nested/notes~",
+                ".env.local",
+                ".netrc",
+                ".pypirc",
+                ".idea/workspace.xml",
+                ".idea/usage.statistics.xml",
+                ".idea/shelf/change.patch",
+            ),
+            ignored=True,
+        )
+        self.assert_paths_ignored(
+            (
+                "nested/.env.local",
+                "nested/.netrc",
+                "nested/.pypirc",
+                "nested/.idea/workspace.xml",
+                "nested/.idea/usage.statistics.xml",
+                "nested/.idea/shelf/change.patch",
             ),
             ignored=False,
         )

@@ -10,9 +10,12 @@
 /ehthumbs.db
 /Desktop.ini
 
-# Optional editor exclusions: shared project configuration remains trackable.
-# Root anchoring identifies location, not ownership. Activate only for verified
-# local outputs; prefer exact paths that preserve shared project configuration.
+# Local editor recovery files are safe defaults; shared project configuration
+# remains trackable. Optional project-owned paths stay commented below.
+*.swp
+*.swo
+*~
+# Optional editor exclusions: activate only for verified project-owned paths.
 # /.idea/
 # /.fleet/
 # /.zed/
@@ -22,10 +25,6 @@
 # !/.vscode/settings.json
 # !/.vscode/tasks.json
 # !/.vscode/*.code-snippets
-# Optional editor backups: use exact local output paths if needed.
-# *.swp
-# *.swo
-# *~
 # *.code-workspace
 
 # Explicit local outputs used by starter tooling and documented setup
@@ -34,14 +33,15 @@
 /tools/quality/node_modules/
 /tools/quality/external/
 
-# Root local environment secret; nested applications own their secret policy
+# Root local environment defaults; nested applications own their secret policy.
 /.env
-# Optional local secrets: scope to known locations, preserving sanitized fixtures.
-# /.env.local
+# /.env.local and credential files are root-local defaults. Optional
+# project-owned credential paths stay commented to preserve sanitized fixtures.
+/.env.local
 # /.envrc
 # /.npmrc
-# /.pypirc
-# /.netrc
+/.pypirc
+/.netrc
 # /.aws/
 # /.kube/
 # /.ssh/
@@ -50,6 +50,11 @@
 # *.pem
 # *.p12
 # *.pfx
+
+# Root IDE state is local; shared IDE configuration remains trackable.
+/.idea/workspace.xml
+/.idea/usage.statistics.xml
+/.idea/shelf/
 
 # Bash
 # Optional shell runtime outputs: activate only at verified generated locations.
