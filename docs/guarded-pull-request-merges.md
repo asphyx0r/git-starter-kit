@@ -160,13 +160,16 @@ authorized publication and GitHub configuration change must complete all of
 the following steps for each target repository:
 
 1. Publish a release or cumulative package containing the workflow, CLI,
-   tests, audit contract, and this guide.
+   audit contract, and this guide. The tests remain source-maintenance assets
+   and are not distributed to consumer repositories.
 2. Install that package on the repository's default branch and require its
    normal `Repository audit` pull request check.
-3. Create a distinct default-branch ruleset that enables only the GitHub
-   `Restrict updates` rule and grants bypass only to the configured App.
-4. Keep the existing `Protect master` ruleset without any bypass actor so the
-   App remains subject to its required checks and review controls.
+3. Set `automations.guardedMerge` to `true` in `.starter-kit-project.json` on
+   the default branch, then create a distinct default-branch ruleset that
+   enables only the GitHub `Restrict updates` rule and grants bypass only to
+   the configured App.
+4. Keep the default branch's existing protections without a bypass actor for
+   the App, so it remains subject to required checks and review controls.
 5. Disable repository auto-merge and ensure that no repository or organization
    ruleset applying to the default branch enables a merge queue. GitHub CLI can
    otherwise implicitly enable auto-merge or enqueue a pull request, as
@@ -183,7 +186,8 @@ exists.
 
 ## Distribution
 
-The workflow, CLI, this guide, and their tests use the starter kit's default
-`replace` package strategy. Release-identification artifacts are intentionally
-unchanged by this implementation and are regenerated only in a future,
-separately authorized release.
+The workflow, CLI, and this guide use the starter kit's default `replace`
+package strategy; source-maintenance tests are excluded from consumer packages.
+This guide is replace-managed, but a customized consumer copy is protected from
+replacement. Cumulative upgrades apply the current distribution policy without
+changing generated release-identification artifacts.

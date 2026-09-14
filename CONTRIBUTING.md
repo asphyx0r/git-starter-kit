@@ -109,12 +109,13 @@ message contract, dry-run procedure, exit statuses, indeterminate-result
 handling, and activation proof.
 
 This path is not enforced merely because the files are present. Publication
-and GitHub activation require separate authorization. Activation creates a
-distinct default-branch `Restrict updates` ruleset with only the existing App
-as bypass, retains `Protect master` without bypass, disables auto-merge and
-every applicable merge queue, disables merge-commit and rebase methods, and
-uses a disposable pull request to prove that manual merge is blocked while the
-App remains subject to required checks.
+and GitHub activation require separate authorization. On the default branch,
+set `automations.guardedMerge` to `true` in `.starter-kit-project.json`, create
+a distinct `Restrict updates` ruleset with only the existing App as bypass, and
+keep the branch's existing protections without an App bypass. Disable
+auto-merge and every applicable merge queue, disable merge-commit and rebase
+methods, and use a disposable pull request to prove that manual merge is
+blocked while the App remains subject to required checks.
 
 ## Verification
 
