@@ -1421,6 +1421,16 @@ deferred, or explicitly excluded from the template.
   fork safety, distinct rulesets, merge-method settings, and disposable pull
   request proof. Cumulative packages use the default `replace` strategy.
 
+### `docs/quick-start.md`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Provides a concise English checklist for starting a new project.
+- Usage: Follow the Windows PowerShell steps from release ZIP extraction to
+  Git initialization, validation and optional GitHub publication.
+- Notes: Links to the existing tool reference and explains how to disable
+  GitHub Actions while preserving workflow files and local checks.
+
 ### `docs/repository-files.md`
 
 - Type: `file`
