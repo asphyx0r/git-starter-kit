@@ -37,6 +37,9 @@ A minimal, reusable starter repository for Git and GitHub projects.
 
 ## Installation
 
+For a numbered Windows walkthrough, follow the
+[quick-start cheat sheet](docs/quick-start.md).
+
 For a new project, download the `with-agent-rules.zip` asset from a published
 [release](https://github.com/asphyx0r/git-starter-kit/releases), extract it into
 a new empty directory and follow the project README composed inside that ZIP.
