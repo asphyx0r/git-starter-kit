@@ -195,7 +195,7 @@ class QualityToolchainTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("markdownlint-cli2", result.stderr)
-        self.assertIn("expected 0.23.2", result.stderr)
+        self.assertIn("expected 0.23.3", result.stderr)
 
     def test_declaration_checker_rejects_node_runtime_drift(self) -> None:
         def mutate_engine(quality_root: Path) -> None:
@@ -537,7 +537,7 @@ class QualityToolchainTests(unittest.TestCase):
                 "requirements.in: unexpected expected None, found 9.9.9",
                 "package-lock.json: node engine expected >=22.12.0",
                 "package-lock.json: root dependencies differ from versions.json",
-                ("package-lock.json: markdownlint-cli2 expected 0.23.2, found 0.0.0"),
+                ("package-lock.json: markdownlint-cli2 expected 0.23.3, found 0.0.0"),
                 "pyproject.toml: coverage threshold expected 85, found 84",
             ],
         )
@@ -691,7 +691,7 @@ class QualityToolchainTests(unittest.TestCase):
                 ("runtime: node expected >=22.12.0, found None (command not found)"),
                 "runtime: codespell expected 2.4.3, found None",
                 "runtime: @commitlint/cli expected 21.2.2, found None",
-                "runtime: markdownlint-cli2 expected 0.23.2, found 0.0.0",
+                "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],
         )
