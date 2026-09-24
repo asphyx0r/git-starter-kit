@@ -1576,7 +1576,7 @@ if [ -f "${source_root}/.github/workflows/release-package.yml" ]; then
   # shellcheck disable=SC2016
   assert_release_skill_guard_mutation \
     missing-preflight-trigger "${release_main_reference}" \
-    'le filtre `push.branches` couvre `codex/release-preflight-*`' \
+    'la couverture effective de `push` inclut `codex/release-preflight-*`' \
     'le workflow écoute seulement les pushes de master' \
     "${release_branch_diagnostic}"
   assert_release_skill_guard_mutation \

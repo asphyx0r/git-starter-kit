@@ -688,7 +688,13 @@ AUDIT_ACTIVATION_RUN = textwrap.dedent(r"""
     """).strip()
 AUDIT_BOOTSTRAP = textwrap.dedent(r"""
     set -euo pipefail
-    if [[ "$EVENT_NAME" != push || "$REF_NAME" != codex/release-preflight-* ]]; then
+    if [[ "$EVENT_NAME" == push && "$EVENT_DELETED" == true ]]; then
+      printf 'enabled=false\n' >> "$GITHUB_OUTPUT"
+      printf '%s\n' 'Reference deletion: no new commit to audit.'
+      exit 0
+    fi
+    if [[ "$EVENT_NAME" != push || "$REF_TYPE" != branch ||
+      "$REF_NAME" != codex/release-preflight-* ]]; then
       printf 'enabled=true\n' >> "$GITHUB_OUTPUT"
       exit 0
     fi
@@ -975,15 +981,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     "published",
                 ],
             },
-            "push": {
-                "branches": [
-                    "master",
-                    "codex/release-preflight-*",
-                ],
-                "tags": [
-                    "v*",
-                ],
-            },
+            "push": None,
             "pull_request": {
                 "branches": [
                     "master",
@@ -1018,6 +1016,10 @@ def repository_audit_contract(node_version: str) -> dict:
                               --requirement tools/quality/requirements.lock
                             npm ci --ignore-scripts --prefix tools/quality
                             """).strip(),
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "npm audit --audit-level=high --include=dev --prefix tools/quality",
                     },
                     {
                         "shell": "bash",
@@ -1116,7 +1118,6 @@ def repository_audit_contract(node_version: str) -> dict:
         },
     }
 
-    result["on"]["push"]["branches"].insert(0, "main")
     result["on"]["pull_request"]["branches"].insert(0, "main")
     jobs = result["jobs"]
     jobs["activation"] = activation_contract("releasePreflight")
@@ -1125,7 +1126,12 @@ def repository_audit_contract(node_version: str) -> dict:
     )
     resolve = jobs["activation"]["steps"][0]
     resolve["env"].update(
-        {"EVENT_NAME": "${{ github.event_name }}", "REF_NAME": "${{ github.ref_name }}"}
+        {
+            "EVENT_NAME": "${{ github.event_name }}",
+            "EVENT_DELETED": "${{ github.event.deleted }}",
+            "REF_NAME": "${{ github.ref_name }}",
+            "REF_TYPE": "${{ github.ref_type }}",
+        }
     )
     resolve["run"] = AUDIT_BOOTSTRAP
     for step in jobs["activation"]["steps"][1:]:
