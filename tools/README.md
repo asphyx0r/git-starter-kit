@@ -1192,6 +1192,36 @@ not install missing tools.
   not match.
 - `2`: command-line argument parsing failed.
 
+### Updating dependency pins
+
+Prepare Dependabot proposals as complete changes before merging: update each
+direct requirement and its entry in `quality/versions.json` together, then
+regenerate the affected lock. The version checker deliberately rejects an
+incomplete proposal; keep that blocking check enabled.
+
+For Python, use Python 3.11 and the existing locked environment, retain other
+pinned versions, and run the command recorded in the lock header:
+
+```bash
+pip-compile --generate-hashes \
+  --output-file=tools/quality/requirements.lock --strip-extras \
+  tools/quality/requirements.in
+python tools/quality/check-versions.py
+```
+
+For npm, update the selected exact version in `quality/package.json` and the
+registry, regenerate `quality/package-lock.json` without a general dependency
+upgrade, then verify a clean installation and its advisories:
+
+```bash
+npm ci --ignore-scripts --prefix tools/quality
+npm audit --audit-level=high --include=dev --prefix tools/quality
+python tools/quality/check-versions.py
+```
+
+The Linux CI job requires the npm audit to succeed; high or critical
+vulnerabilities and errors preventing verification block integration.
+
 ## quality/install-external-tools.py
 
 `quality/install-external-tools.py` installs registry-pinned external quality

@@ -248,8 +248,9 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Runs the shared repository audit and publishes one aggregate required
   check on GitHub Actions.
-- Usage: Executes on `master`, `codex/release-preflight-*`, and `v*` pushes,
-  pull requests targeting `master`, published releases, and manual dispatch.
+- Usage: Executes on every branch and tag push without path filters, pull
+  requests targeting `main` or `master`, published releases, and manual dispatch.
+  Reference deletions report that no new commit exists and skip content checks.
 - Notes: `quality-linux` runs the exhaustive profile on Ubuntu 24.04 with
   Python 3.11; `compatibility-windows` runs the fast profile, complete Python
   suite, focused Git Bash hook cases, and PSScriptAnalyzer on Windows 2025 with
@@ -262,11 +263,14 @@ deferred, or explicitly excluded from the template.
   aggregate requires both environments and uses `Repository audit` for
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
-  forwarded workflow token keep checked-out audit code unprivileged. Filtering
-  ordinary task-branch pushes avoids duplicating pull-request runs while the
-  dedicated release-preflight prefix remains auditable. Pull requests,
-  `master` updates, preflight pushes, and release tags validate the complete
-  commit range since the highest reachable stable tag.
+  forwarded workflow token keep checked-out audit code unprivileged. Linux also
+  runs `npm audit --audit-level=high --include=dev --prefix tools/quality`:
+  high or critical advisories and verification errors block the job. Ordinary
+  branch pushes and PRs have separate runs. Existing branch pushes validate
+  the pushed commit range; new refs and stable tags use the highest reachable
+  stable tag as their baseline. The release-preflight activation guard remains
+  limited to preflight branches; other tags are audited without publishing a
+  release unless they satisfy the release workflow's SemVer contract.
 
 ### `.github/workflows/guarded-pull-request-merge.yml`
 
@@ -811,8 +815,8 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Declares the exact direct Python dependencies used by quality and
   manifest validation.
-- Usage: Change this input first when deliberately updating a direct Python
-  quality dependency, then regenerate the lock.
+- Usage: Update this input and the version registry together when changing a
+  direct Python quality dependency, then regenerate the lock with Python 3.11.
 - Notes: Contains only exact direct requirements; transitive integrity data
   belongs in `requirements.lock`.
 

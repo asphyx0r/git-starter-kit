@@ -135,6 +135,16 @@ or skipped. Only the exhaustive profile's release-package smoke check uses the
 network: it queries GitHub for the latest `agent-coding-rules` release metadata
 without downloading release assets or dependencies.
 
+The Repository audit workflow covers all branch and tag pushes, pull requests
+targeting `main` or `master`, published releases, and manual runs. Reference
+deletions report that there is no new commit and skip the content suites.
+Linux runs a blocking npm audit of development dependencies at the high
+severity threshold; registry errors also fail the job. Tags outside the release
+SemVer contract trigger an audit without creating a release.
+
+The source repository's `checks: []` declares no additional application checks.
+The repository quality checks and test suites still run in both CI environments.
+
 The Repository audit workflow installs each declared dependency family once
 per isolated job and caches pip and npm downloads using the tracked dependency
 locks and tool versions. `quality-linux` runs the exhaustive profile on
@@ -278,8 +288,9 @@ each derived repository creates release identification for itself.
 
 Before creating a tag, the guarded workflow pushes the candidate SHA to a
 unique `codex/release-preflight-*` branch and requires the aggregate
-`Repository audit` check to succeed. The workflow's push filter must explicitly
-cover that prefix. After the final atomic branch-and-tag
+`Repository audit` check to succeed. The workflow must cover that prefix,
+either through unfiltered pushes or matching branch filters, without path
+filters that could suppress the required run. After the final atomic branch-and-tag
 push, every expected branch and tag audit run must succeed; a manual or
 scheduled green run cannot replace a failed push run. Protect the default
 branch with this GitHub Actions check and apply the rule to administrators when
