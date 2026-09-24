@@ -827,6 +827,13 @@ run_hook_test_family() {
 }
 
 run_hook_pre_push() (
+  local git_local_variables git_variable
+  git_local_variables="$(git rev-parse --local-env-vars)" || return
+  # Clone and test commands must discover their own repository from cwd.
+  # This subshell keeps the calling push environment unchanged.
+  while IFS= read -r git_variable; do
+    unset "${git_variable}"
+  done <<<"${git_local_variables}"
   local remote_url="${2:-}"
   local local_ref
   local local_object_id

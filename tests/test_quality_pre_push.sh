@@ -173,6 +173,16 @@ if [[ -n "${QUALITY_DISCOVERY_STATUS:-}" ]]; then
 fi
 if [[ "${QUALITY_STUB_AFFECTED_TESTS:-false}" == true ]]; then
   run_hook_affected_tests() {
+    if [[ "${QUALITY_REQUIRE_CLEAN_GIT_ENV:-false}" == true ]]; then
+      local git_variable
+      for git_variable in GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE; do
+        [[ ! -v "${git_variable}" ]] || {
+          printf 'Inherited Git context: %s\n' "${git_variable}" >&2
+          return 88
+        }
+      done
+      git -C "$1" config audit.fixture isolated
+    fi
     local pushed_oid
     pushed_oid="$(git -C "$1" rev-parse HEAD)"
     git -C "$1" remote get-url origin >>"${QUALITY_REMOTE_TRACE}"
@@ -307,6 +317,19 @@ if [[ "${QUALITY_GIT_REPORTED_ROOT_ONLY:-false}" == true ]]; then
   printf '%s\n' 'PASS: Git-reported root resolves source-local dependencies'
   exit
 fi
+
+source_config_before="$(git hash-object "${fixture}/.git/config")"
+(
+  export GIT_DIR="${fixture}/.git"
+  export GIT_COMMON_DIR="${fixture}/.git"
+  export GIT_WORK_TREE="${fixture}"
+  export GIT_INDEX_FILE="${fixture}/.git/index"
+  QUALITY_REQUIRE_CLEAN_GIT_ENV=true \
+    run_pre_push_bounded "${integration_timeout_seconds}" \
+    "${git_reported_root_updates}" origin local
+) || fail 'pushed checks inherited the source Git context'
+[[ "$(git hash-object "${fixture}/.git/config")" == "${source_config_before}" ]] ||
+  fail 'pushed checks modified source Git configuration'
 
 if [[ "${1:-}" == --windows ]]; then
   [[ "$(git -C "${fixture}" rev-parse HEAD)" == "${base_oid}" ]] ||
