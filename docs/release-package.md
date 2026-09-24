@@ -184,7 +184,7 @@ The workflow then:
 2. Configures Python 3.11 and Node.js 24.20.0 with download caches keyed by the
     lockfiles and runtime policy, then installs each locked quality environment
     once with hash verification and disabled npm lifecycle scripts, including
-    `markdownlint-cli2` 0.23.2.
+    `markdownlint-cli2` 0.23.3.
 3. Resolves `latest` to the latest published full `agent-coding-rules` release.
 4. Verifies that the tracked core manifest, provenance, and rule hashes match
     the resolved tag.

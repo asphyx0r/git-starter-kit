@@ -137,9 +137,9 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_audit_checks_exact_actual_head_and_distinct_project_results(self):
         workflow = self.read_workflow("repository-audit")
-        for event in ("push", "pull_request"):
-            self.assertIn("main", workflow["on"][event]["branches"])
-            self.assertIn("master", workflow["on"][event]["branches"])
+        self.assertIsNone(workflow["on"]["push"])
+        self.assertIn("main", workflow["on"]["pull_request"]["branches"])
+        self.assertIn("master", workflow["on"]["pull_request"]["branches"])
         for job_id in (
             "quality-linux",
             "compatibility-windows",
@@ -251,16 +251,103 @@ class WorkflowContractTests(unittest.TestCase):
             step["env"]["TRUSTED_SHA"], "${{ needs.activation.outputs.trusted_sha }}"
         )
 
+    def test_push_audit_has_no_branch_tag_or_path_filters(self):
+        workflow = self.read_workflow("repository-audit")
+        self.assertIsNone(workflow["on"]["push"])
+        self.assertEqual(workflow["on"]["pull_request"]["branches"], ["main", "master"])
+        self.assertEqual(workflow["on"]["release"]["types"], ["published"])
+
+    def test_reference_deletion_stops_before_metadata_or_checkout(self):
+        resolve = self.read_workflow("repository-audit")["jobs"]["activation"]["steps"][
+            0
+        ]
+        for ref_type, ref in (
+            ("branch", "feature/finished"),
+            ("branch", "codex/release-preflight-v1.0.0"),
+            ("tag", "snapshot/finished"),
+        ):
+            with self.subTest(ref=ref), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary) / "outputs"
+                marker = Path(temporary) / "forbidden-access"
+                for name in ("gh", "python3"):
+                    shim = Path(temporary) / name
+                    shim.write_text(
+                        '#!/usr/bin/env bash\nprintf access >> "$ACCESS_MARKER"\nexit 99\n'
+                    )
+                    shim.chmod(0o755)
+                result = subprocess.run(
+                    [BASH, "-c", resolve["run"]],
+                    cwd=temporary,
+                    env={
+                        **os.environ,
+                        "EVENT_NAME": "push",
+                        "EVENT_DELETED": "true",
+                        "REF_NAME": ref,
+                        "REF_TYPE": ref_type,
+                        "GITHUB_OUTPUT": str(output),
+                        "GH_REPO": "invalid/no-metadata",
+                        "ACCESS_MARKER": str(marker),
+                        "PATH": temporary + os.pathsep + os.environ["PATH"],
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(), "enabled=false\n")
+                self.assertIn("no new commit", result.stdout)
+                self.assertFalse(marker.exists())
+
+    def test_dependency_audit_blocks_advisories_and_registry_errors(self):
+        steps = self.read_workflow("repository-audit")["jobs"]["quality-linux"]["steps"]
+        audits = [step for step in steps if step.get("run", "").startswith("npm audit")]
+        self.assertEqual(
+            len(audits), 1, "the locked npm toolchain needs a blocking audit"
+        )
+        step = audits[0]
+        self.assertNotIn("continue-on-error", step)
+        self.assertNotIn("if", step)
+        for status in (0, 1, 42):
+            with (
+                self.subTest(status=status),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                arguments = Path(temporary) / "arguments"
+                result = subprocess.run(
+                    [
+                        BASH,
+                        "-c",
+                        'npm() { printf "%s\\n" "$*" > "$AUDIT_ARGUMENTS"; '
+                        'return "$AUDIT_EXIT"; }\n' + step["run"],
+                    ],
+                    env={
+                        **os.environ,
+                        "AUDIT_ARGUMENTS": str(arguments),
+                        "AUDIT_EXIT": str(status),
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assertEqual(
+                    arguments.read_text().strip(),
+                    "audit --audit-level=high --include=dev --prefix tools/quality",
+                )
+
     def test_ordinary_audit_bootstraps_without_new_default_branch_runtime(self):
         gate = self.read_workflow("repository-audit")["jobs"]["activation"]
         resolve = gate["steps"][0]
-        for event, ref in (
-            ("pull_request", "feature/bootstrap"),
-            ("push", "main"),
-            ("push", "master"),
-            ("push", "v1.0.0"),
-            ("release", "v1.0.0"),
-            ("workflow_dispatch", "main"),
+        for event, ref, ref_type in (
+            ("pull_request", "feature/bootstrap", "branch"),
+            ("push", "main", "branch"),
+            ("push", "master", "branch"),
+            ("push", "feature/nested/name", "branch"),
+            ("push", "v1.0.0", "tag"),
+            ("push", "snapshot/nightly", "tag"),
+            ("push", "codex/release-preflight-v1.0.0", "tag"),
+            ("release", "v1.0.0", "tag"),
+            ("workflow_dispatch", "main", "branch"),
         ):
             with (
                 self.subTest(event=event, ref=ref),
@@ -280,7 +367,9 @@ class WorkflowContractTests(unittest.TestCase):
                     env={
                         **os.environ,
                         "EVENT_NAME": event,
+                        "EVENT_DELETED": "true" if event != "push" else "false",
                         "REF_NAME": ref,
+                        "REF_TYPE": ref_type,
                         "GITHUB_OUTPUT": str(output),
                         "GH_REPO": "invalid/no-metadata",
                         "ACCESS_MARKER": str(marker),

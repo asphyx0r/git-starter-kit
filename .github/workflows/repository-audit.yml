@@ -5,8 +5,6 @@ name: Repository audit
   release:
     types: [published]
   push:
-    branches: [main, master, "codex/release-preflight-*"]
-    tags: ["v*"]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -38,10 +36,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_DELETED: ${{ github.event.deleted }}
           REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" != push || "$REF_NAME" != codex/release-preflight-* ]]; then
+          if [[ "$EVENT_NAME" == push && "$EVENT_DELETED" == true ]]; then
+            printf 'enabled=false\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' 'Reference deletion: no new commit to audit.'
+            exit 0
+          fi
+          if [[ "$EVENT_NAME" != push || "$REF_TYPE" != branch ||
+            "$REF_NAME" != codex/release-preflight-* ]]; then
             printf 'enabled=true\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -113,6 +119,9 @@ jobs:
             --require-hashes \
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
+      - name: Audit locked npm tool dependencies
+        shell: bash
+        run: npm audit --audit-level=high --include=dev --prefix tools/quality
       - name: Install verified external tools
         shell: bash
         run: |

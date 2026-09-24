@@ -229,9 +229,13 @@ PRÉCONDITIONS AVANT TOUTE MUTATION
   réussissent.
 - Exige sans condition que le workflow audite les pushes de la branche cible et du tag prévu.
   Vérifie leurs filtres avant toute mutation, même lorsque `releasePreflight=false`.
-- Lorsque `releasePreflight=true`, vérifie que le filtre `push.branches` couvre `codex/release-preflight-*`,
-  sans exclusion de ce préfixe. Un événement `push` présent mais filtré hors du
-  ref de prévalidation ne satisfait pas cette précondition dédiée.
+- Lorsque `releasePreflight=true`, vérifie que la couverture effective de `push` inclut `codex/release-preflight-*`.
+  Un événement `push` sans filtres de branches ni de tags satisfait cette
+  précondition. Si des filtres sont déclarés, exige que les branches de
+  prévalidation soient incluses sans exclusion. Une configuration limitée aux
+  tags ne couvre pas les branches. Refuse également `paths` et `paths-ignore`
+  lorsqu'ils peuvent supprimer un run obligatoire. La branche cible et le tag
+  prévu doivent eux aussi rester couverts.
 - Exige que `tools/verify-repository-audit-runs.py` soit suivi et lisible, puis
   vérifie que son aide et sa version peuvent être exécutées. Utilise uniquement
   cet outil suivi pour sélectionner et attendre les runs d'audit obligatoires.

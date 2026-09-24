@@ -69,7 +69,7 @@ run_project_checks() {
 }
 
 initialize_repository_root() {
-  repository_root="$(git -C "${audit_script_dir}" rev-parse --show-toplevel)" || return
+  repository_root="$(git -C "${audit_script_dir}/.." rev-parse --show-toplevel)" || return
   cd "${repository_root}" || return
 }
 

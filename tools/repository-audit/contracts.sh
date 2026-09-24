@@ -560,7 +560,7 @@ check_release_guard_contract() {
       "$reference_path" >/dev/null ||
     ! grep -F 'revalide les artefacts contre le véritable arbre fusionné' \
       "$reference_path" >/dev/null ||
-    ! grep -F 'le filtre `push.branches` couvre `codex/release-preflight-*`' \
+    ! grep -F 'la couverture effective de `push` inclut `codex/release-preflight-*`' \
       "$reference_path" >/dev/null; then
     printf '%s\n' \
       'Release guard omits protected-branch integration gates.' >&2

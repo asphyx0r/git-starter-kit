@@ -57,3 +57,21 @@ for Git object, reference, index, and lock-file operations.
   while zero data loss remains a requirement.
 - Treat GitHub Release publication as a separate action that requires explicit
   user approval after branch and tag synchronization checks.
+
+## Historical audit exceptions
+
+The 2026-09-24 audit identified historical records that remain preserved:
+
+- 82 older commit messages predate the current message contract. New changes
+  must pass the current checks; existing commits are not rewritten.
+- `v1.2.1`, `v1.2.2`, and `v1.3.0` are lightweight tags. New releases use
+  annotated tags without replacing those historical references.
+- `v1.7.3` and `v2.2.0` have tags without GitHub Releases. No retrospective
+  publication is required.
+- The `v2.8.0` draft and `v2.11.0` prerelease are incomplete historical
+  publications superseded by later releases. Preserve their notes, tags, and
+  publication states when adding the historical annotation.
+- Dangling objects reported by a successful `git fsck --full --strict` are
+  informational recovery data, not evidence of corruption.
+- Failed historical CI runs remain available as evidence. Corrected revisions
+  require new successful runs; the historical runs are not removed.

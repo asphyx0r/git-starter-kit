@@ -54,6 +54,23 @@ source "${source_root}/tools/repository-audit.sh"
 repository_root="${fixture}"
 cd "${repository_root}"
 
+# Git exposes a relative worktree in hooks from a linked checkout.
+linked_fixture="${test_temp}/linked worktree"
+git worktree add -q --detach "${linked_fixture}" HEAD
+(
+  # Used by initialize_repository_root from the sourced common module.
+  # shellcheck disable=SC2034
+  audit_script_dir="${linked_fixture}/tools"
+  GIT_DIR="$(git -C "${linked_fixture}" rev-parse --absolute-git-dir)"
+  export GIT_DIR
+  export GIT_WORK_TREE=.
+  cd "${linked_fixture}"
+  initialize_repository_root
+  [[ "${repository_root}" -ef "${linked_fixture}" ]] ||
+    fail 'linked-worktree hook resolved the tools directory as repository root'
+)
+git worktree remove "${linked_fixture}"
+
 run_focused_pre_commit_checks() (
   mode="$1"
   fixture="${test_temp}/focused repository"
