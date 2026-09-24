@@ -1199,10 +1199,13 @@ direct requirement and its entry in `quality/versions.json` together, then
 regenerate the affected lock. The version checker deliberately rejects an
 incomplete proposal; keep that blocking check enabled.
 
-For Python, use Python 3.11 and the existing locked environment, retain other
-pinned versions, and run the command recorded in the lock header:
+For Python, activate a disposable Python 3.11 virtual environment outside the
+checkout and install the pinned lock generator shown below. Keep the existing
+lock file to retain other pinned versions, then run its recorded command. The
+generator environment is separate from the locked quality runtime:
 
 ```bash
+python -m pip install "pip-tools==7.6.1"
 pip-compile --generate-hashes \
   --output-file=tools/quality/requirements.lock --strip-extras \
   tools/quality/requirements.in
