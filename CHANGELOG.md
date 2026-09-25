@@ -6,6 +6,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| 4485ff8 | build(tools): update commitlint to 21.2.3 | dependabot[bot] |
 | 6903479 | build(tools): update ruff and lock generation | dependabot[bot] |
 | ab8224e | fix(audit): update coverage and push history | dependabot[bot] |
 | 7a7cfab | fix(audit): secure CI, dependencies and hooks | asphyx |
