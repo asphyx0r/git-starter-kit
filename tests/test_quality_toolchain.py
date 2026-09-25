@@ -690,7 +690,7 @@ class QualityToolchainTests(unittest.TestCase):
             [
                 ("runtime: node expected >=22.12.0, found None (command not found)"),
                 "runtime: codespell expected 2.4.3, found None",
-                "runtime: @commitlint/cli expected 21.2.2, found None",
+                "runtime: @commitlint/cli expected 21.2.3, found None",
                 "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],
