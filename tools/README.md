@@ -1202,10 +1202,12 @@ incomplete proposal; keep that blocking check enabled.
 For Python, activate a disposable Python 3.11 virtual environment outside the
 checkout and install the pinned lock generator shown below. Keep the existing
 lock file to retain other pinned versions, then run its recorded command. The
-generator environment is separate from the locked quality runtime:
+generator environment is separate from the locked quality runtime. Keep Click
+pinned with the generator so its recorded command does not add an unused
+`--no-index` option:
 
 ```bash
-python -m pip install "pip-tools==7.6.1"
+python -m pip install "pip-tools==7.6.1" "click==8.2.1"
 pip-compile --generate-hashes \
   --output-file=tools/quality/requirements.lock --strip-extras \
   tools/quality/requirements.in
