@@ -335,6 +335,131 @@ class WorkflowContractTests(unittest.TestCase):
                     "audit --audit-level=high --include=dev --prefix tools/quality",
                 )
 
+    def test_push_history_restores_missing_commit_without_moving_refs(self):
+        step = self.read_workflow("repository-audit")["jobs"]["quality-linux"]["steps"][
+            2
+        ]
+        self.assertEqual(step.get("timeout-minutes"), 2)
+        with tempfile.TemporaryDirectory() as temporary:
+            origin = Path(temporary) / "origin"
+            checkout = Path(temporary) / "checkout"
+            origin.mkdir()
+
+            def git(root, *arguments):
+                return subprocess.check_output(
+                    ["git", *arguments], cwd=root, text=True, stderr=subprocess.PIPE
+                ).strip()
+
+            git(origin, "init", "--quiet", "--initial-branch=main")
+            commit = (
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "core.hooksPath=",
+                "commit",
+                "--quiet",
+                "--allow-empty",
+            )
+            git(origin, *commit, "-m", "base")
+            git(origin, "switch", "--quiet", "-c", "old")
+            git(origin, *commit, "-m", "previous push")
+            before = git(origin, "rev-parse", "HEAD")
+            git(origin, "switch", "--quiet", "main")
+            git(origin, *commit, "-m", "rewritten push")
+            git(
+                origin,
+                "clone",
+                "--quiet",
+                "--no-local",
+                "--single-branch",
+                "--branch=main",
+                str(origin),
+                str(checkout),
+            )
+            missing = subprocess.run(
+                ["git", "cat-file", "-e", before],
+                cwd=checkout,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(missing.returncode, 0)
+            head = git(checkout, "rev-parse", "HEAD")
+            refs = git(checkout, "show-ref")
+            config = (checkout / ".git/config").read_bytes()
+            fetch_head = checkout / ".git/FETCH_HEAD"
+            fetch_head.write_bytes(b"preserved previous fetch\n")
+            previous_fetch = fetch_head.read_bytes()
+
+            def run_step(sha):
+                return subprocess.run(
+                    [BASH, "-c", step["run"]],
+                    cwd=checkout,
+                    env={
+                        **os.environ,
+                        "EVENT_NAME": "push",
+                        "BEFORE_SHA": sha,
+                        "GH_TOKEN": "",
+                        "GH_PROMPT_DISABLED": "1",
+                        "GIT_TERMINAL_PROMPT": "0",
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=15,
+                )
+
+            restored = run_step(before)
+            self.assertEqual(restored.returncode, 0, restored.stderr)
+            git(checkout, "cat-file", "-e", before + "^{commit}")
+            git(checkout, "diff", "--check", before + "..HEAD")
+            self.assertEqual(git(checkout, "rev-parse", "HEAD"), head)
+            self.assertEqual(git(checkout, "show-ref"), refs)
+            self.assertEqual((checkout / ".git/config").read_bytes(), config)
+            self.assertEqual(
+                fetch_head.read_bytes() if fetch_head.exists() else None,
+                previous_fetch,
+            )
+            git(
+                checkout, "remote", "set-url", "origin", str(Path(temporary) / "absent")
+            )
+            self.assertEqual(run_step(before).returncode, 0)
+            unavailable = run_step("f" * 40)
+            self.assertNotEqual(unavailable.returncode, 0)
+            self.assertEqual(git(checkout, "rev-parse", "HEAD"), head)
+            self.assertEqual(git(checkout, "show-ref"), refs)
+
+    def test_push_history_skips_other_events_and_rejects_invalid_sha(self):
+        step = self.read_workflow("repository-audit")["jobs"]["quality-linux"]["steps"][
+            2
+        ]
+        self.assertIn("run", step, "push history needs an explicit preparation step")
+        for event, sha, success in (
+            ("pull_request", "invalid", True),
+            ("release", "invalid", True),
+            ("workflow_dispatch", "invalid", True),
+            ("push", "0" * 40, True),
+            ("push", "", False),
+            ("push", "--invalid-option", False),
+            ("push", "main", False),
+        ):
+            with self.subTest(event=event, sha=sha):
+                result = subprocess.run(
+                    [
+                        BASH,
+                        "-c",
+                        "git() { echo unexpected-git-access >&2; return 99; }\n"
+                        + step["run"],
+                    ],
+                    env={**os.environ, "EVENT_NAME": event, "BEFORE_SHA": sha},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode == 0, success, result.stderr)
+                self.assertNotIn("unexpected-git-access", result.stderr)
+
     def test_ordinary_audit_bootstraps_without_new_default_branch_runtime(self):
         gate = self.read_workflow("repository-audit")["jobs"]["activation"]
         resolve = gate["steps"][0]

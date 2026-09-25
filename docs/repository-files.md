@@ -267,7 +267,9 @@ deferred, or explicitly excluded from the template.
   runs `npm audit --audit-level=high --include=dev --prefix tools/quality`:
   high or critical advisories and verification errors block the job. Ordinary
   branch pushes and PRs have separate runs. Existing branch pushes validate
-  the pushed commit range; new refs and stable tags use the highest reachable
+  the pushed commit range. CI retrieves the exact previous commit if a rewritten
+  push left it outside the checkout; retrieval failures block the audit. Local
+  profiles remain read-only. New refs and stable tags use the highest reachable
   stable tag as their baseline. The release-preflight activation guard remains
   limited to preflight branches; other tags are audited without publishing a
   release unless they satisfy the release workflow's SemVer contract.
