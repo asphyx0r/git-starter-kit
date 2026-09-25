@@ -2,6 +2,15 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.3
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 6903479 | build(tools): update ruff and lock generation | dependabot[bot] |
+| ab8224e | fix(audit): update coverage and push history | dependabot[bot] |
+| 7a7cfab | fix(audit): secure CI, dependencies and hooks | asphyx |
+| a97dad4 | docs(docs): add project quick-start guide | asphyx |
+
 ## v2.11.2
 
 | References | Description | Author(s) |
