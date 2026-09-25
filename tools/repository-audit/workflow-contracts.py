@@ -1006,6 +1006,35 @@ def repository_audit_contract(node_version: str) -> dict:
                 "timeout-minutes": 25,
                 "steps": [
                     checkout(**{}),
+                    {
+                        "shell": "bash",
+                        "timeout-minutes": 2,
+                        "env": {
+                            "EVENT_NAME": "${{ github.event_name }}",
+                            "BEFORE_SHA": "${{ github.event.before }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                            "GIT_TERMINAL_PROMPT": "0",
+                            "GH_PROMPT_DISABLED": "1",
+                        },
+                        "run": textwrap.dedent(r"""
+                            set -euo pipefail
+                            if [[ "$EVENT_NAME" != push ||
+                              "$BEFORE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+                              exit 0
+                            fi
+                            [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                              echo 'Previous push SHA must be a full commit SHA.' >&2
+                              exit 1
+                            }
+                            if ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+                              git -c credential.helper= \
+                                -c 'credential.helper=!gh auth git-credential' \
+                                fetch --no-tags --no-write-fetch-head --no-recurse-submodules \
+                                --refmap= origin "$BEFORE_SHA"
+                            fi
+                            git cat-file -e "$BEFORE_SHA^{commit}"
+                            """).strip(),
+                    },
                     setup_python("3.11", "tools/quality/requirements.lock"),
                     setup_node("${{ env.NODE_VERSION }}"),
                     {

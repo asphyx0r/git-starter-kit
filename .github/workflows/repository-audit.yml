@@ -96,6 +96,32 @@ jobs:
         env:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
+      - name: Prepare previous push commit
+        shell: bash
+        timeout-minutes: 2
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: "0"
+          GH_PROMPT_DISABLED: "1"
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != push ||
+            "$BEFORE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+            exit 0
+          fi
+          [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo 'Previous push SHA must be a full commit SHA.' >&2
+            exit 1
+          }
+          if ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            git -c credential.helper= \
+              -c 'credential.helper=!gh auth git-credential' \
+              fetch --no-tags --no-write-fetch-head --no-recurse-submodules \
+              --refmap= origin "$BEFORE_SHA"
+          fi
+          git cat-file -e "$BEFORE_SHA^{commit}"
       - name: Set up Python
         # actions/setup-python@v7.0.0
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
