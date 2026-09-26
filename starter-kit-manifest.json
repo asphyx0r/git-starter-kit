@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.11.3",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.3",
-    "generatedAt": "2026-09-25T08:17:46Z"
+    "ref": "v2.11.4",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.4",
+    "generatedAt": "2026-09-26T10:56:59Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.11.3",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.3",
-    "generatedAt": "2026-09-25T08:17:46Z"
+    "ref": "v2.11.4",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.4",
+    "generatedAt": "2026-09-26T10:56:59Z"
   },
   "files": [
     {
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "b3a8ca0005e3755fc1649a2e1f22318ea8d07f7831c34528d1287dca1d7357f4",
-      "canonicalSha256": "b3a8ca0005e3755fc1649a2e1f22318ea8d07f7831c34528d1287dca1d7357f4",
+      "sha256": "dd269730e153ffac61bb4a91142d734b6461f3de2e4421236b99c3cc35d3d9e9",
+      "canonicalSha256": "dd269730e153ffac61bb4a91142d734b6461f3de2e4421236b99c3cc35d3d9e9",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -255,8 +255,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "c8f4b7924e63a094ae6300e722fb14fc92f783ca5ab0a1abc29ca2660e8bd561",
-      "canonicalSha256": "c8f4b7924e63a094ae6300e722fb14fc92f783ca5ab0a1abc29ca2660e8bd561",
+      "sha256": "e452a9e36def349f3b4ffca8c54b158f6cae8edbd32db8b251c9928c444d02e2",
+      "canonicalSha256": "e452a9e36def349f3b4ffca8c54b158f6cae8edbd32db8b251c9928c444d02e2",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -311,8 +311,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "f91aa06f4df20051d5d4657ea5487e6841c89614bd9001cbe1ca2fd44a0fef80",
-      "canonicalSha256": "f91aa06f4df20051d5d4657ea5487e6841c89614bd9001cbe1ca2fd44a0fef80",
+      "sha256": "7ab55778c707482ed7605340345405115a91feee7396de14d9ae6034bcd5c26b",
+      "canonicalSha256": "7ab55778c707482ed7605340345405115a91feee7396de14d9ae6034bcd5c26b",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
