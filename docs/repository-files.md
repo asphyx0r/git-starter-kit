@@ -296,17 +296,22 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Keeps each initialized repository aligned with the latest canonical
   agent-rule release without a central repository registry.
-- Usage: Runs daily, on every published release, or by manual dispatch and
-  opens a repository-local pull request when the seven rule files change.
+- Usage: Runs daily and on published releases when automatic synchronization
+  is enabled, or by an allowed manual dispatch on the default branch. Opens a
+  repository-local pull request when the seven rule files change.
 - Notes: Resolves and seals the exact canonical rule transfer before minting
   the target-repository GitHub App token in the publishing job. The publishing
   phase revalidates source, base, transfer hashes, and the target ref before a
   lease-protected push and pull request update. It restricts changes to the
   seven rules and provenance, preserves customized rule files, and runs in the
-  starter kit as well as downstream repositories. Set
-  `AGENT_RULES_SYNC_ENABLED=false` to suspend scheduled and manual jobs;
-  published releases always run the job. Cumulative upgrades replace this
-  universal workflow. The guarded release flow requires the repository
+  starter kit as well as downstream repositories. When
+  `.starter-kit-project.json` exists, `automations.agentRulesSync` controls
+  scheduled and release-triggered synchronization; manual synchronization
+  remains available on the default branch even when that flag is `false`.
+  Only without this configuration file does `AGENT_RULES_SYNC_ENABLED=false`
+  suspend scheduled and manual jobs while published releases still synchronize.
+  Cumulative upgrades replace this universal workflow. The guarded release flow
+  requires the repository
   variable `AGENT_RULES_APP_CLIENT_ID` and secret
   `AGENT_RULES_APP_PRIVATE_KEY` before publication, then requires the exact
   automatic release run to succeed.

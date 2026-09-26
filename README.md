@@ -210,11 +210,15 @@ workflow. Configure
 `AGENT_RULES_APP_CLIENT_ID` as a repository variable and
 `AGENT_RULES_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App
 on the target repository with **Contents** and **Pull requests** write access.
-Set `AGENT_RULES_SYNC_ENABLED=false` as a repository Actions variable to
-suspend scheduled and manual synchronization. A published release always runs
-the synchronization job so release validation cannot be disabled. The workflow
-also runs in `git-starter-kit`, so its tracked rule files remain current instead
-of being injected only during package generation.
+Repositories with `.starter-kit-project.json` use its
+`automations.agentRulesSync` flag from an immutable default-branch snapshot.
+Set it to `false` to disable scheduled and release-triggered synchronization.
+Intentional manual synchronization remains available on the default branch.
+The `AGENT_RULES_SYNC_ENABLED` repository Actions variable applies only when
+that configuration file is absent: `false` disables scheduled and manual
+synchronization, while published releases still synchronize. The workflow also
+runs in `git-starter-kit`, so its tracked rule files remain current instead of
+being injected only during package generation.
 
 Initialize a target repository with an explicit confirmation prompt:
 
