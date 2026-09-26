@@ -2,14 +2,13 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.11.3",
-    "release_date": "2026-09-25T08:35:17Z",
+    "version": "2.11.4",
+    "release_date": "2026-09-26T10:58:30Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Audit every content push and block high or critical npm vulnerabilities.",
-        "Update the locked Markdownlint, Commitlint, Coverage and Ruff toolchains consistently.",
-        "Isolate linked-worktree hooks and clarify initialization, dependency and release guidance."
+        "Correct agent-rule synchronization guidance for configured and legacy repositories.",
+        "Clarify automatic activation and intentional manual updates on the default branch."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -23,7 +22,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.11.3-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.11.4-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -31,9 +30,9 @@
             },
             "format": "git-tree",
             "total_files": 150,
-            "size_bytes": 2493986,
-            "built_at": "2026-09-25T08:35:17Z",
-            "sha256": "c54a3700c4929e331c341c5b478645551f168285d44563279baa8b18aeff60cd",
+            "size_bytes": 2494749,
+            "built_at": "2026-09-26T10:58:30Z",
+            "sha256": "f5dcfe18b79c033f2bdcd5e6a722324ad4e0c3357b987cdc1d5e522ca7489e31",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -316,11 +315,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 14494,
+                    "size_bytes": 14636,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "b3a8ca0005e3755fc1649a2e1f22318ea8d07f7831c34528d1287dca1d7357f4",
+                    "sha256": "dd269730e153ffac61bb4a91142d734b6461f3de2e4421236b99c3cc35d3d9e9",
                     "mode": "644"
                 },
                 {
@@ -388,11 +387,11 @@
                 },
                 {
                     "relative_path": "README.md",
-                    "size_bytes": 16459,
+                    "size_bytes": 16738,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c8f4b7924e63a094ae6300e722fb14fc92f783ca5ab0a1abc29ca2660e8bd561",
+                    "sha256": "e452a9e36def349f3b4ffca8c54b158f6cae8edbd32db8b251c9928c444d02e2",
                     "mode": "644"
                 },
                 {
@@ -428,7 +427,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f3b7e57bf498318bd1d5da88dfa954ec7e6fc5e89744f0c26d02c4e1de61dd8b",
+                    "sha256": "25956dbd3c19bcab764baf6269f2850a2a062b3876132ff5311338ce1bf6b345",
                     "mode": "644"
                 },
                 {
@@ -487,11 +486,11 @@
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 70034,
+                    "size_bytes": 70376,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f91aa06f4df20051d5d4657ea5487e6841c89614bd9001cbe1ca2fd44a0fef80",
+                    "sha256": "7ab55778c707482ed7605340345405115a91feee7396de14d9ae6034bcd5c26b",
                     "mode": "644"
                 },
                 {
@@ -527,7 +526,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6490a0b770d0bd6e245c578713ef15722070e507b6e14a4c933f5e78bf3ba85a",
+                    "sha256": "deebc9ef276a1e1a249bb6fd9b82cce5fcfe1ec36505f500b593e024d1170236",
                     "mode": "644"
                 },
                 {
