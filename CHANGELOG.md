@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.4
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 138f757 | docs(ci): clarify agent-rule sync activation | asphyx |
+
 ## v2.11.3
 
 | References | Description | Author(s) |
