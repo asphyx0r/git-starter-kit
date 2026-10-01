@@ -1286,6 +1286,21 @@ class LocalBufferClassificationTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.script = load_script_module()
 
+    def test_windows_volume_classification_refuses_other_platforms(self) -> None:
+        directory = Path("buffer")
+        for platform in ("linux", "darwin"):
+            with (
+                self.subTest(platform=platform),
+                mock.patch.object(self.script.sys, "platform", platform),
+                mock.patch.object(
+                    self.script.ctypes,
+                    "WinDLL",
+                    create=True,
+                    side_effect=AssertionError("Windows API loaded outside Windows"),
+                ),
+            ):
+                self.assertFalse(self.script._windows_directory_is_local(directory))
+
     def test_windows_volume_classification_uses_mount_root_and_remote_storage_flag(
         self,
     ) -> None:
@@ -1336,8 +1351,11 @@ class LocalBufferClassificationTest(unittest.TestCase):
                 kernel.GetVolumePathNameW.side_effect = get_volume_path
                 kernel.GetDriveTypeW.side_effect = get_drive_type
                 kernel.GetVolumeInformationW.side_effect = get_volume_information
-                with mock.patch.object(
-                    self.script.ctypes, "WinDLL", create=True, return_value=kernel
+                with (
+                    mock.patch.object(self.script.sys, "platform", "win32"),
+                    mock.patch.object(
+                        self.script.ctypes, "WinDLL", create=True, return_value=kernel
+                    ),
                 ):
                     result = self.script._windows_directory_is_local(Path("buffer"))
                 self.assertEqual(result, expected)

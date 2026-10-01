@@ -578,6 +578,8 @@ def _is_local_directory(directory: Path) -> bool:
 
 
 def _windows_directory_is_local(directory: Path) -> bool:
+    if sys.platform != "win32":
+        return False
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.GetVolumePathNameW.argtypes = [
         wintypes.LPCWSTR,
