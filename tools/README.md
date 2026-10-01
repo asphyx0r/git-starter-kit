@@ -11,14 +11,15 @@ safe.
 
 ### Features
 
-- Copies an entire source directory tree into a temporary staging directory.
+- Copies an entire source directory tree into a local temporary staging directory.
 - Includes Git metadata, hidden files, and tracked, untracked, or ignored files
   that are present during the copy.
-- Creates a compressed ZIP archive in a separate existing target directory.
-- Rejects symbolic links in the source tree.
+- Creates and closes a compressed ZIP locally before transferring it to an
+  existing target directory and publishing it without overwriting an archive.
+- Rejects symbolic links and Windows junctions in the source tree by default.
 - Names archives with the source directory, timestamp, Git `HEAD`, and an exact
   matching SemVer tag.
-- Supports a side-effect-free dry run and an optional staging parent directory.
+- Supports a side-effect-free dry run and an optional local staging parent.
 
 ### Synopsis
 
@@ -32,7 +33,7 @@ options:
   -v, --verbose                    enable DEBUG logs
   -d, --source-directory BASEDIR   existing source directory tree to back up
   -t, --target-directory TARGETDIR existing directory for the ZIP archive
-  -b, --buffer-directory BUFFERDIR existing staging parent directory
+  -b, --buffer-directory BUFFERDIR existing local staging parent directory
 ```
 
 ### Description
@@ -40,8 +41,23 @@ options:
 `backup-target-directory.py` creates a staged ZIP backup of an existing
 directory tree. The target and staging directories must remain outside the
 source so the generated data cannot enter the backup. The script copies the
-source to temporary staging before creating a same-directory temporary ZIP and
-publishing the final archive.
+source to local temporary staging, creates and closes the ZIP beside the staged
+source, then copies it to an exclusively created temporary file in the target
+directory. Once the transfer is closed, Windows publishes it with a rename
+that refuses an existing destination. Linux uses a hard link for the same
+no-overwrite guarantee because POSIX rename can replace an existing file.
+
+The local ZIP stays outside the staged source and cannot include itself. Local
+storage must accommodate both the staged tree and its compressed ZIP; the
+target must accommodate the transferred ZIP. Ordinary failures clean up the
+execution's temporary files. A cleanup failure reports the affected path and
+returns an error. An abrupt process termination can leave temporary files.
+
+The source root is inspected before path resolution, and tree entries are
+inspected before descent. A symbolic link or Windows junction aborts the whole
+backup, including in dry-run mode; it is neither skipped nor followed. The
+checks recognize symbolic-link and mount-point reparse tags, rather than
+rejecting every Windows reparse point.
 
 When the source belongs to a readable Git repository, the archive name records
 the 12-character abbreviated `HEAD`. It includes a SemVer tag only when that
@@ -85,7 +101,7 @@ python tools/backup-target-directory.py \
   --target-directory ../backups
 ```
 
-Use an existing staging parent on another volume:
+Use an existing local staging parent on another volume:
 
 ```bash
 python tools/backup-target-directory.py \
@@ -98,26 +114,114 @@ python tools/backup-target-directory.py \
 
 - `-h`, `--help`: prints the version and usage information, then exits.
 - `--version`: prints script version `0.1.0`, then exits.
-- `--dry-run`: validates the source, target, staging location, symbolic-link
-  policy, Git identity, and final name without creating staging data or a ZIP.
+- `--dry-run`: validates the source, target, local staging location, symbolic-link
+  and junction policy, Git identity, and final name without creating files or
+  directories, including temporary-directory probes.
 - `-v`, `--verbose`: prints DEBUG logs in addition to normal status messages.
 - `-d PATH`, `--source-directory PATH`: existing directory tree to back up.
   This option is required.
 - `-t PATH`, `--target-directory PATH`: existing directory where the ZIP is
   created. This option is required and must not be inside the source.
-- `-b PATH`, `--buffer-directory PATH`: optional existing staging parent. An
-  unusable value produces a warning and falls back to the user temporary
-  directory.
+- `-b PATH`, `--buffer-directory PATH`: optional existing local staging parent
+  for both the source copy and ZIP creation. An unusable, remote, or unclassified
+  filesystem produces a warning and falls back to a verified local temporary
+  directory. If none is available outside the source, the backup fails before
+  copying data.
+
+Temporary candidates are existing directories from `TMPDIR`, `TEMP`, and `TMP`,
+in that order, followed by `LOCALAPPDATA/Temp` and `SystemRoot/Temp` on Windows,
+or `/tmp`, `/var/tmp`, and `/usr/tmp` on Linux. Selection checks accessibility
+and locality without creating candidates or write probes. Actual allocation or
+write errors can still occur during execution.
+
+On Windows, locality uses the directory's containing volume, its drive type,
+and its remote-storage flag. Fixed, removable, and RAM drives are accepted
+unless remote storage is advertised; network or unknown volumes are refused.
+A fixed drive type alone does not establish locality: a cloud filesystem can
+report that type. On Linux, `/proc/self/mountinfo` identifies the most specific
+mount. Accepted local types are `ext2`, `ext3`, `ext4`, `xfs`, `btrfs`, `zfs`,
+`tmpfs`, `ramfs`, `overlay`, `vfat`, `exfat`, `ntfs`, and `ntfs3`. Network, FUSE,
+unknown types, or unavailable mount information are not assumed local.
 
 ### Exit Status
 
 - `0`: help or version was shown, the dry run completed, or the archive was
   created successfully.
-- `1`: path or filesystem validation failed, a symbolic link was found, the
-  Git identity changed during staging, or staging/archive creation failed.
+- `1`: path or filesystem validation failed, a symbolic link or junction was
+  found, the Git identity changed during staging, an archive already exists,
+  or staging, ZIP creation, transfer, publication, or cleanup failed.
 - `2`: command-line argument parsing failed.
 
 The script also refuses to run with effective user ID `0` on Linux.
+
+### Publication regression and correction
+
+Commit `36a2ced76898f631184664f65d61510336f0a317` replaced an existence check
+followed by `Path.replace()` with `os.link()`. The intent was to prevent a
+concurrent backup from being overwritten between the check and publication.
+The accompanying collision test protects that behavior.
+
+That safeguard was present in starter kit v2.11.2 and propagated to
+`vendor-interface-validation` by migration commit
+`b139262313d3c84b8bd7139859fb21cb6098e671` on September 23, 2026. It remains
+in the unpatched v2.11.4 backup script. The affected Google Drive mount reports
+a FAT32 filesystem without hard-link support, so publication fails after ZIP
+creation. The arrow in the exception identifies the two paths passed to
+`os.link()`; it does not prove a rename was attempted.
+
+The reported failure starts with this verbatim French message:
+
+`[FATAL] Filesystem error: [WinError 1] Fonction incorrecte:` <!-- codespell:ignore fonction -->
+
+It then identifies the two paths, illustrated here with anonymized values:
+
+```text
+'G:\Backup\.example.00000000000000000000000000000001.zip.tmp'
+-> 'G:\Backup\example.zip'
+```
+
+Creating the ZIP locally reduces cloud writes during compression, but does not
+by itself fix the unsupported hard-link operation. The corrected Windows flow
+copies the completed ZIP to a temporary file on the destination volume and
+then renames it without replacing an existing archive. This preserves the
+concurrency safeguard without requiring hard links on Windows. See the
+[Python rename contract](https://docs.python.org/3/library/os.html#os.rename).
+
+Linux publication still requires destination hard-link support and fails
+without publishing a final archive when it is unavailable. Success on a
+mounted cloud drive confirms local filesystem publication, not completion of
+the provider's remote synchronization or durability after a power failure.
+
+The default junction checks were ported from `vendor-interface-validation`
+commit `487a41ce6bccddfcd1e83e5a53cd981805472e9e`. This correction changes only
+starter kit files; dependent repositories need a separate future migration.
+
+### Testing
+
+Run the focused regression suite from the repository root:
+
+```bash
+python -B -m unittest discover -s tests -p test_backup_target_directory.py -v
+```
+
+It covers local ZIP creation, incomplete transfers, concurrent publication,
+cleanup, local-buffer selection, and source link rejection. Real junction
+fixtures run on Windows; real symbolic-link fixtures require link privileges.
+
+To additionally test a mounted cloud destination on Windows, set an existing
+parent directory explicitly (this example path is illustrative):
+
+```powershell
+$env:BACKUP_TEST_CLOUD_TARGET = 'G:\Backup'
+python -B -m unittest discover -s tests -p test_backup_target_directory.py -v
+Remove-Item Env:BACKUP_TEST_CLOUD_TARGET
+```
+
+The opt-in test creates synthetic local data and its own randomly named target
+subdirectory. It compares the local and published ZIP SHA256 values, checks
+ZIP integrity and contents, verifies collision refusal, and removes its
+fixtures. Existing backups are not used. Leave the variable unset to skip the
+cloud test in normal development and CI.
 
 ### Appendix
 
