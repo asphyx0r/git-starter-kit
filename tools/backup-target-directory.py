@@ -4,18 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import unicodedata
-import uuid
 import zipfile
+from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Never, Optional, TextIO
 
 SCRIPT_NAME = "backup-target-directory.py"
@@ -73,6 +75,25 @@ SEMVER_TAG_PATTERN = re.compile(
     r"(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$"
 )
 HEAD_PATTERN = re.compile(r"^[0-9a-f]{12}$")
+LOCAL_WINDOWS_DRIVE_TYPES = frozenset((2, 3, 6))  # Removable, fixed, RAM disk.
+FILE_SUPPORTS_REMOTE_STORAGE = 0x00000100
+LOCAL_LINUX_FILESYSTEMS = frozenset(
+    (
+        "ext2",
+        "ext3",
+        "ext4",
+        "xfs",
+        "btrfs",
+        "zfs",
+        "tmpfs",
+        "ramfs",
+        "overlay",
+        "vfat",
+        "exfat",
+        "ntfs",
+        "ntfs3",
+    )
+)
 
 
 class BackupError(Exception):
@@ -171,7 +192,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-b",
         "--buffer-directory",
         metavar="BUFFERDIR",
-        help="existing staging parent directory; defaults to the user temp directory",
+        help="existing local staging parent; defaults to a local user temp directory",
     )
     return parser
 
@@ -323,7 +344,7 @@ def run_backup(
 
         logger.debug("Creating Zip archive from staged data.")
         create_archive(staged_source, archive_path)
-        logger.info(f"Created Zip archive: {archive_path}")
+    logger.info(f"Created Zip archive: {archive_path}")
 
 
 def resolve_directory(
@@ -334,23 +355,41 @@ def resolve_directory(
     expanded_directory = directory.expanduser()
     if not expanded_directory.exists():
         raise BackupError(f"{label} does not exist: {expanded_directory}")
-    if reject_symlink and expanded_directory.is_symlink():
-        raise BackupError(f"{label} must not be a symbolic link: {expanded_directory}")
+    if reject_symlink:
+        link_kind = source_link_kind(expanded_directory)
+        if link_kind:
+            raise BackupError(
+                f"{label} must not be a {link_kind}: {expanded_directory}"
+            )
     if not expanded_directory.is_dir():
         raise BackupError(f"{label} is not a directory: {expanded_directory}")
     return expanded_directory.resolve(strict=True)
 
 
+def source_link_kind(path: Path) -> Optional[str]:
+    entry_stat = path.lstat()
+    if stat.S_ISLNK(entry_stat.st_mode):
+        return "symbolic link"
+    reparse_tag = getattr(entry_stat, "st_reparse_tag", None)
+    if reparse_tag == getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003):
+        return "junction"
+    if reparse_tag == getattr(stat, "IO_REPARSE_TAG_SYMLINK", 0xA000000C):
+        return "symbolic link"
+    return None
+
+
 def validate_source_tree(source: Path) -> None:
-    if source.is_symlink():
-        raise BackupError(f"Source directory must not be a symbolic link: {source}")
+    link_kind = source_link_kind(source)
+    if link_kind:
+        raise BackupError(f"Source directory must not be a {link_kind}: {source}")
 
     for root_name, directory_names, file_names in os.walk(source):
         root = Path(root_name)
         for entry_name in [*directory_names, *file_names]:
             entry = root / entry_name
-            if entry.is_symlink():
-                raise BackupError(f"Source tree contains a symbolic link: {entry}")
+            link_kind = source_link_kind(entry)
+            if link_kind:
+                raise BackupError(f"Source tree contains a {link_kind}: {entry}")
 
 
 def validate_target_location(source: Path, target: Path) -> None:
@@ -461,14 +500,19 @@ def select_buffer_parent(
         if buffer_parent is not None:
             return buffer_parent
 
-    default_parent = Path(tempfile.gettempdir()).resolve(strict=True)
-    if is_relative_to(default_parent, resolved_source):
-        raise BackupError("Default temporary directory is inside the source directory.")
-    if not is_accessible_directory(default_parent):
-        raise BackupError(
-            f"Default temporary directory is not accessible: {default_parent}"
-        )
-    return default_parent
+    for candidate in _default_buffer_candidates():
+        try:
+            default_parent = candidate.expanduser().resolve(strict=True)
+        except (OSError, RuntimeError):
+            continue
+        if (
+            default_parent.is_dir()
+            and not is_relative_to(default_parent, resolved_source)
+            and is_accessible_directory(default_parent)
+            and _is_local_directory(default_parent)
+        ):
+            return default_parent
+    raise BackupError("No accessible local temporary directory outside the source.")
 
 
 def resolve_optional_buffer(
@@ -499,7 +543,99 @@ def resolve_optional_buffer(
             f"Buffer directory is not accessible; using default temporary directory: {buffer_parent}"
         )
         return None
+    if not _is_local_directory(buffer_parent):
+        logger.warn(
+            "Buffer directory is not on a verified local filesystem; "
+            f"using default temporary directory: {buffer_parent}"
+        )
+        return None
     return buffer_parent
+
+
+def _default_buffer_candidates() -> list[Path]:
+    candidates = [
+        Path(value)
+        for name in ("TMPDIR", "TEMP", "TMP")
+        if (value := os.environ.get(name))
+    ]
+    if sys.platform == "win32":
+        candidates.extend(
+            Path(value) / "Temp"
+            for name in ("LOCALAPPDATA", "SystemRoot")
+            if (value := os.environ.get(name))
+        )
+    else:
+        candidates.extend(Path(value) for value in ("/tmp", "/var/tmp", "/usr/tmp"))
+    return candidates
+
+
+def _is_local_directory(directory: Path) -> bool:
+    if sys.platform == "win32":
+        return _windows_directory_is_local(directory)
+    if sys.platform.startswith("linux"):
+        return _linux_directory_is_local(directory)
+    return False
+
+
+def _windows_directory_is_local(directory: Path) -> bool:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetVolumePathNameW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+    ]
+    kernel32.GetVolumePathNameW.restype = wintypes.BOOL
+    kernel32.GetDriveTypeW.argtypes = [wintypes.LPCWSTR]
+    kernel32.GetDriveTypeW.restype = wintypes.UINT
+    kernel32.GetVolumeInformationW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+    ]
+    kernel32.GetVolumeInformationW.restype = wintypes.BOOL
+    volume_path = ctypes.create_unicode_buffer(32768)
+    if not kernel32.GetVolumePathNameW(str(directory), volume_path, len(volume_path)):
+        return False
+    if kernel32.GetDriveTypeW(volume_path.value) not in LOCAL_WINDOWS_DRIVE_TYPES:
+        return False
+    flags = wintypes.DWORD()
+    if not kernel32.GetVolumeInformationW(
+        volume_path.value, None, 0, None, None, ctypes.byref(flags), None, 0
+    ):
+        return False
+    return not bool(flags.value & FILE_SUPPORTS_REMOTE_STORAGE)
+
+
+def _linux_directory_is_local(directory: Path) -> bool:
+    try:
+        mountinfo = Path("/proc/self/mountinfo").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    resolved_path = PurePosixPath(directory.as_posix())
+    mount_depth = -1
+    filesystem = None
+    for line in mountinfo.splitlines():
+        mount_fields, separator, filesystem_fields = line.partition(" - ")
+        fields = mount_fields.split()
+        types = filesystem_fields.split()
+        if not separator or len(fields) < 5 or not types:
+            continue
+        mount_name = re.sub(
+            r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), fields[4]
+        )
+        mount_path = PurePosixPath(mount_name)
+        if (
+            resolved_path.is_relative_to(mount_path)
+            and len(mount_path.parts) >= mount_depth
+        ):
+            mount_depth = len(mount_path.parts)
+            filesystem = types[0]
+    return filesystem in LOCAL_LINUX_FILESYSTEMS
 
 
 def is_accessible_directory(directory: Path) -> bool:
@@ -507,17 +643,47 @@ def is_accessible_directory(directory: Path) -> bool:
 
 
 def create_archive(staged_source: Path, archive_path: Path) -> None:
-    temp_archive = archive_path.with_name(
-        f".{archive_path.stem}.{uuid.uuid4().hex}.zip.tmp"
-    )
+    with tempfile.TemporaryDirectory(
+        prefix="archive-", dir=staged_source.parent
+    ) as local:
+        local_archive = Path(local) / "backup.zip"
+        write_zip_from_staged_tree(staged_source, local_archive)
+        _transfer_archive(local_archive, archive_path)
+
+
+def _transfer_archive(local_archive: Path, archive_path: Path) -> None:
+    temp_archive = None
     try:
-        write_zip_from_staged_tree(staged_source, temp_archive)
-        try:
-            os.link(temp_archive, archive_path)
-        except FileExistsError as exc:
-            raise BackupError(f"Target archive already exists: {archive_path}") from exc
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{archive_path.stem}.",
+            suffix=".zip.tmp",
+            dir=archive_path.parent,
+            delete=False,
+        ) as destination:
+            temp_archive = Path(destination.name)
+            with local_archive.open("rb") as source:
+                shutil.copyfileobj(source, destination)
+        _publish_archive(temp_archive, archive_path)
     finally:
-        temp_archive.unlink(missing_ok=True)
+        if temp_archive is not None:
+            try:
+                temp_archive.unlink(missing_ok=True)
+            except OSError as exc:
+                raise BackupError(
+                    f"Could not remove temporary archive {temp_archive}: {exc}"
+                ) from exc
+
+
+def _publish_archive(temp_archive: Path, archive_path: Path) -> None:
+    try:
+        if sys.platform == "win32":
+            # Windows rename refuses an existing destination, without requiring hard links.
+            os.rename(temp_archive, archive_path)
+        else:
+            # POSIX rename can overwrite a concurrent archive; keep no-clobber publication.
+            os.link(temp_archive, archive_path)
+    except FileExistsError as exc:
+        raise BackupError(f"Target archive already exists: {archive_path}") from exc
 
 
 def write_zip_from_staged_tree(staged_source: Path, archive_path: Path) -> None:

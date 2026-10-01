@@ -679,9 +679,14 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with an existing source and external target directory; use
   `--dry-run` before creating the archive.
 - Notes: Uses only the Python standard library, includes `.git` and all files
-  present during staging, rejects symbolic links, and accepts an optional
-  staging parent. The archive name contains the captured 12-character `HEAD`
-  and only a SemVer tag that points to that commit. The copy is not
+  present during staging, and rejects symbolic links and Windows junctions.
+  Source staging and ZIP creation use a verified local buffer. The closed ZIP
+  is transferred to a temporary target file and published without overwriting
+  an existing archive; Windows uses rename, while Linux requires hard-link
+  support. See the [backup tool reference](../tools/README.md#backup-target-directorypy)
+  for the v2.11.2 publication regression, buffer policy, and integration tests.
+  The archive name contains the captured 12-character `HEAD` and only a SemVer
+  tag that points to that commit. The copy is not
   transactional and does not preserve every NTFS metadata class or add a
   cryptographic manifest.
 
