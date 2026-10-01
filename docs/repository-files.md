@@ -418,7 +418,8 @@ deferred, or explicitly excluded from the template.
   credentials, and root IntelliJ state) and starter runtime storage. Optional
   project-owned credential, IDE, and generated paths stay commented so shared
   configuration, sanitized fixtures, sources, tests, and lock files remain
-  trackable.
+  trackable. Generated audit reports and subdirectories under `audits/` are
+  ignored; only `audits/.gitkeep` is tracked.
 
 ### `.gitmessage`
 
@@ -661,6 +662,23 @@ deferred, or explicitly excluded from the template.
 - Goal: Explains where users can get help for this repository.
 - Usage: Read before opening support questions or asking for help.
 - Notes: Keep support scope distinct from security reporting.
+
+### `audits/`
+
+- Type: `directory`
+- Status: `required`
+- Goal: Stores locally generated audit reports, including Codex usage audits.
+- Usage: Save audit results here for local review.
+- Notes: Reports and nested directories are ignored by Git and excluded from
+  tracked release inventories. Only the empty marker is versioned.
+
+### `audits/.gitkeep`
+
+- Type: `file`
+- Status: `required`
+- Goal: Preserves the audit directory in Git without versioning its reports.
+- Usage: Keep this marker empty so a checkout includes the directory.
+- Notes: Explicitly allowed by the root `.gitignore` audit exclusion rules.
 
 ### `tools/`
 
