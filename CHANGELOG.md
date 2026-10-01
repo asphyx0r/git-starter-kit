@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.6
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 39916a0 | fix(git): keep generated audit reports local | asphyx |
+
 ## v2.11.5
 
 | References | Description | Author(s) |

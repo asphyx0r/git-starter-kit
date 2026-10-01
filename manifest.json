@@ -2,15 +2,14 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.11.5",
-    "release_date": "2026-10-01T09:31:38Z",
+    "version": "2.11.6",
+    "release_date": "2026-10-01T23:00:37Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Fix Windows cloud backup publication without requiring destination hard links.",
-        "Create archives in verified local temporary storage before destination transfer.",
-        "Reject Windows source junctions by default and strengthen failure cleanup.",
-        "Update the locked fast-uri dependency to 3.1.8 to clear the security audit."
+        "Keep the audit directory in Git with an empty marker.",
+        "Exclude generated audit reports and nested content from version control.",
+        "Document local audit storage and preserve the historical package test fixture."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -24,17 +23,17 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.11.5-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.11.6-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
                 "min_os_version": "not-applicable"
             },
             "format": "git-tree",
-            "total_files": 150,
-            "size_bytes": 2532043,
-            "built_at": "2026-10-01T09:31:38Z",
-            "sha256": "870f299a689dfbc76e80f765a55c30ab48517b696bd991af347a746b1b08c92c",
+            "total_files": 151,
+            "size_bytes": 2533466,
+            "built_at": "2026-10-01T23:00:37Z",
+            "sha256": "d0ec6550dd629c2976c2b966d71866940cb3c4f6034637376694fb8f26b949b4",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -236,11 +235,11 @@
                 },
                 {
                     "relative_path": ".gitignore",
-                    "size_bytes": 3732,
+                    "size_bytes": 3835,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "84b2db6e695cf783afc5e7a31f3934afd607dfbc82ae9a8fafabd1d5b9dde481",
+                    "sha256": "af63801cdfe286488b8faa5e7f3f922a1989b890fc8809141b738407458ef238",
                     "mode": "644"
                 },
                 {
@@ -317,11 +316,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 14777,
+                    "size_bytes": 14919,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c1ec5c2449a1846a4f51b6a10cbf667dad16a2b5fb520865526b1c3516626917",
+                    "sha256": "aaac948539950eac7591193c5e4a4205d4e8d874a824bb08b97a6f97db3b3909",
                     "mode": "644"
                 },
                 {
@@ -429,7 +428,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4acd6cfe941f55d387aa8aeb31cfd6b3850b4f1dc34e00efd48ab7efb0793813",
+                    "sha256": "bbc4d5a6bd04152427509aa402cda29b527a7624283c444b660f15b79fd332c2",
                     "mode": "644"
                 },
                 {
@@ -439,6 +438,15 @@
                     "line_ending": "LF",
                     "encoding": "UTF-8",
                     "sha256": "9d3b7e09345aa14ca634f633108d275958f4e3467b05481835a9558362196885",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "audits/.gitkeep",
+                    "size_bytes": 0,
+                    "file_type": "text",
+                    "line_ending": null,
+                    "encoding": "UTF-8",
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                     "mode": "644"
                 },
                 {
@@ -488,11 +496,11 @@
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 70762,
+                    "size_bytes": 71547,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c95afc5df1ceb84abde5739cb0355650609d450c8c65085e2c3439da0362854d",
+                    "sha256": "46c13d43ed2fa3d249658dda0c35f7ebcd441f0c57aff1237d66e9cc590eb7fd",
                     "mode": "644"
                 },
                 {
@@ -524,11 +532,11 @@
                 },
                 {
                     "relative_path": "starter-kit-manifest.json",
-                    "size_bytes": 26261,
+                    "size_bytes": 26565,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4c9fe58e23b17698215604dc0e8f6d493b02146a5eba85cc427771fdbc5807ee",
+                    "sha256": "a670063eafff0c800d7bbae23d8389c9922130cc070ef568a74c490517fd90bf",
                     "mode": "644"
                 },
                 {
@@ -794,11 +802,11 @@
                 },
                 {
                     "relative_path": "tests/test_build_release_package.py",
-                    "size_bytes": 82819,
+                    "size_bytes": 82908,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1701db30df3dd1d5783d85bfe51feb6b648fef6d781de2f5f4397f243b0ab5de",
+                    "sha256": "cd05181b9bba339725e8d5ff9d6f71a27d23bcc0f544bc6346073e4d89813725",
                     "mode": "644"
                 },
                 {
