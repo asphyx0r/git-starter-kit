@@ -1728,8 +1728,10 @@ for name in ('initialize-repository.py', 'release-artifacts.py', 'repository-aud
                 check=True,
                 timeout=30,
             )
-            # The unchanged historical builder predates the static Git context.
+            # The historical builder predates the static Git context and
+            # rejects empty markers added by later releases.
             context_paths = (
+                "audits/.gitkeep",
                 "tools/git-inventory-context/HEAD",
                 "tools/git-inventory-context/objects/.gitkeep",
                 "tools/git-inventory-context/refs/.gitkeep",

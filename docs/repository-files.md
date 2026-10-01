@@ -1266,7 +1266,8 @@ deferred, or explicitly excluded from the template.
   merge, initialize-only, and replace perimeters, and proves that build,
   validation, or replacement failures preserve an existing destination. This
   canonical-repository test is source-only. Measures inherited-pipe deadlines
-  after synchronous process startup.
+  after synchronous process startup. The historical-builder fixture
+  excludes newer empty markers.
 
 ### `tests/test_commit_message_validation.sh`
 
