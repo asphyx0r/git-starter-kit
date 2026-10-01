@@ -33,6 +33,10 @@
 /tools/quality/node_modules/
 /tools/quality/external/
 
+# Keep the audit directory; exclude generated reports and subdirectories.
+/audits/*
+!/audits/.gitkeep
+
 # Root local environment defaults; nested applications own their secret policy.
 /.env
 # /.env.local and credential files are root-local defaults. Optional
