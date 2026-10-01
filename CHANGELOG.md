@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.5
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 7562142 | fix(tools): harden local backup publication | asphyx |
+
 ## v2.11.4
 
 | References | Description | Author(s) |
