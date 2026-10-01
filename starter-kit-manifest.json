@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.11.5",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.5",
-    "generatedAt": "2026-10-01T09:30:32Z"
+    "ref": "v2.11.6",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.6",
+    "generatedAt": "2026-10-01T23:00:36Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.11.5",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.5",
-    "generatedAt": "2026-10-01T09:30:32Z"
+    "ref": "v2.11.6",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.6",
+    "generatedAt": "2026-10-01T23:00:36Z"
   },
   "files": [
     {
@@ -167,8 +167,8 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "84b2db6e695cf783afc5e7a31f3934afd607dfbc82ae9a8fafabd1d5b9dde481",
-      "canonicalSha256": "84b2db6e695cf783afc5e7a31f3934afd607dfbc82ae9a8fafabd1d5b9dde481",
+      "sha256": "af63801cdfe286488b8faa5e7f3f922a1989b890fc8809141b738407458ef238",
+      "canonicalSha256": "af63801cdfe286488b8faa5e7f3f922a1989b890fc8809141b738407458ef238",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "merge"
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "c1ec5c2449a1846a4f51b6a10cbf667dad16a2b5fb520865526b1c3516626917",
-      "canonicalSha256": "c1ec5c2449a1846a4f51b6a10cbf667dad16a2b5fb520865526b1c3516626917",
+      "sha256": "aaac948539950eac7591193c5e4a4205d4e8d874a824bb08b97a6f97db3b3909",
+      "canonicalSha256": "aaac948539950eac7591193c5e4a4205d4e8d874a824bb08b97a6f97db3b3909",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -278,6 +278,14 @@
       "strategy": "initialize-only"
     },
     {
+      "path": "audits/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonicalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "contentKind": "text",
+      "mode": "100644",
+      "strategy": "replace"
+    },
+    {
       "path": "commitlint.config.cjs",
       "sha256": "d03eb3b1c71e66da721e24e68f22f96db3184cb91f7d862dc7f0d17855c81c38",
       "canonicalSha256": "d03eb3b1c71e66da721e24e68f22f96db3184cb91f7d862dc7f0d17855c81c38",
@@ -311,8 +319,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "c95afc5df1ceb84abde5739cb0355650609d450c8c65085e2c3439da0362854d",
-      "canonicalSha256": "c95afc5df1ceb84abde5739cb0355650609d450c8c65085e2c3439da0362854d",
+      "sha256": "46c13d43ed2fa3d249658dda0c35f7ebcd441f0c57aff1237d66e9cc590eb7fd",
+      "canonicalSha256": "46c13d43ed2fa3d249658dda0c35f7ebcd441f0c57aff1237d66e9cc590eb7fd",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
