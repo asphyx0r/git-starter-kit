@@ -2,13 +2,15 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.11.4",
-    "release_date": "2026-09-26T10:58:30Z",
+    "version": "2.11.5",
+    "release_date": "2026-10-01T09:31:38Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Correct agent-rule synchronization guidance for configured and legacy repositories.",
-        "Clarify automatic activation and intentional manual updates on the default branch."
+        "Fix Windows cloud backup publication without requiring destination hard links.",
+        "Create archives in verified local temporary storage before destination transfer.",
+        "Reject Windows source junctions by default and strengthen failure cleanup.",
+        "Update the locked fast-uri dependency to 3.1.8 to clear the security audit."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -22,7 +24,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.11.4-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.11.5-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -30,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 150,
-            "size_bytes": 2494749,
-            "built_at": "2026-09-26T10:58:30Z",
-            "sha256": "f5dcfe18b79c033f2bdcd5e6a722324ad4e0c3357b987cdc1d5e522ca7489e31",
+            "size_bytes": 2532043,
+            "built_at": "2026-10-01T09:31:38Z",
+            "sha256": "870f299a689dfbc76e80f765a55c30ab48517b696bd991af347a746b1b08c92c",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -315,11 +317,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 14636,
+                    "size_bytes": 14777,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "dd269730e153ffac61bb4a91142d734b6461f3de2e4421236b99c3cc35d3d9e9",
+                    "sha256": "c1ec5c2449a1846a4f51b6a10cbf667dad16a2b5fb520865526b1c3516626917",
                     "mode": "644"
                 },
                 {
@@ -427,7 +429,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "25956dbd3c19bcab764baf6269f2850a2a062b3876132ff5311338ce1bf6b345",
+                    "sha256": "4acd6cfe941f55d387aa8aeb31cfd6b3850b4f1dc34e00efd48ab7efb0793813",
                     "mode": "644"
                 },
                 {
@@ -486,11 +488,11 @@
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 70376,
+                    "size_bytes": 70762,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7ab55778c707482ed7605340345405115a91feee7396de14d9ae6034bcd5c26b",
+                    "sha256": "c95afc5df1ceb84abde5739cb0355650609d450c8c65085e2c3439da0362854d",
                     "mode": "644"
                 },
                 {
@@ -526,7 +528,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "deebc9ef276a1e1a249bb6fd9b82cce5fcfe1ec36505f500b593e024d1170236",
+                    "sha256": "4c9fe58e23b17698215604dc0e8f6d493b02146a5eba85cc427771fdbc5807ee",
                     "mode": "644"
                 },
                 {
@@ -783,11 +785,11 @@
                 },
                 {
                     "relative_path": "tests/test_backup_target_directory.py",
-                    "size_bytes": 31047,
+                    "size_bytes": 56578,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c5d1943c593511c666dd4b4f1c6f1aa7716f39e5c06dbf9c79c43ca52aeffb89",
+                    "sha256": "aade1b1d35d704c7deb9da4dab8b2bcd0c7af035d334c81b66602781a3ee884f",
                     "mode": "644"
                 },
                 {
@@ -972,11 +974,11 @@
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 64936,
+                    "size_bytes": 70542,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "ec54629d9b9ac1ed2b82ca1ddf02903625a3f150ec98085445e6715404df61c7",
+                    "sha256": "748b7072732e1da34a04756262387bfb2f11b2f8a0f52c58420670e8efc0cf88",
                     "mode": "644"
                 },
                 {
@@ -990,11 +992,11 @@
                 },
                 {
                     "relative_path": "tools/backup-target-directory.py",
-                    "size_bytes": 16976,
+                    "size_bytes": 22606,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "2151e88d0907a0c0de04d43feea80be2779f40979b4c00a1e55821094802e9bf",
+                    "sha256": "8b546de1052660ebce205c7aaa8281c33b6f94bc5f9ec1cc6580a7bcb9c706f4",
                     "mode": "644"
                 },
                 {
@@ -1147,7 +1149,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "da8a6835fc08a0a5c2fc4c2f8969b6b8b2e80ead31a15d2a4af08e469523a226",
+                    "sha256": "825f361f086d5b3f688274ca4303631b6781a844c0a0a906546b0de27c7ab317",
                     "mode": "644"
                 },
                 {

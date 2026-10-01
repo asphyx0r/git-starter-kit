@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.11.4",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.4",
-    "generatedAt": "2026-09-26T10:56:59Z"
+    "ref": "v2.11.5",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.5",
+    "generatedAt": "2026-10-01T09:30:32Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.11.4",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.4",
-    "generatedAt": "2026-09-26T10:56:59Z"
+    "ref": "v2.11.5",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.11.5",
+    "generatedAt": "2026-10-01T09:30:32Z"
   },
   "files": [
     {
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "dd269730e153ffac61bb4a91142d734b6461f3de2e4421236b99c3cc35d3d9e9",
-      "canonicalSha256": "dd269730e153ffac61bb4a91142d734b6461f3de2e4421236b99c3cc35d3d9e9",
+      "sha256": "c1ec5c2449a1846a4f51b6a10cbf667dad16a2b5fb520865526b1c3516626917",
+      "canonicalSha256": "c1ec5c2449a1846a4f51b6a10cbf667dad16a2b5fb520865526b1c3516626917",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -311,8 +311,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "7ab55778c707482ed7605340345405115a91feee7396de14d9ae6034bcd5c26b",
-      "canonicalSha256": "7ab55778c707482ed7605340345405115a91feee7396de14d9ae6034bcd5c26b",
+      "sha256": "c95afc5df1ceb84abde5739cb0355650609d450c8c65085e2c3439da0362854d",
+      "canonicalSha256": "c95afc5df1ceb84abde5739cb0355650609d450c8c65085e2c3439da0362854d",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -375,8 +375,8 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "ec54629d9b9ac1ed2b82ca1ddf02903625a3f150ec98085445e6715404df61c7",
-      "canonicalSha256": "ec54629d9b9ac1ed2b82ca1ddf02903625a3f150ec98085445e6715404df61c7",
+      "sha256": "748b7072732e1da34a04756262387bfb2f11b2f8a0f52c58420670e8efc0cf88",
+      "canonicalSha256": "748b7072732e1da34a04756262387bfb2f11b2f8a0f52c58420670e8efc0cf88",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -391,8 +391,8 @@
     },
     {
       "path": "tools/backup-target-directory.py",
-      "sha256": "2151e88d0907a0c0de04d43feea80be2779f40979b4c00a1e55821094802e9bf",
-      "canonicalSha256": "2151e88d0907a0c0de04d43feea80be2779f40979b4c00a1e55821094802e9bf",
+      "sha256": "8b546de1052660ebce205c7aaa8281c33b6f94bc5f9ec1cc6580a7bcb9c706f4",
+      "canonicalSha256": "8b546de1052660ebce205c7aaa8281c33b6f94bc5f9ec1cc6580a7bcb9c706f4",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -511,8 +511,8 @@
     },
     {
       "path": "tools/quality/package-lock.json",
-      "sha256": "da8a6835fc08a0a5c2fc4c2f8969b6b8b2e80ead31a15d2a4af08e469523a226",
-      "canonicalSha256": "da8a6835fc08a0a5c2fc4c2f8969b6b8b2e80ead31a15d2a4af08e469523a226",
+      "sha256": "825f361f086d5b3f688274ca4303631b6781a844c0a0a906546b0de27c7ab317",
+      "canonicalSha256": "825f361f086d5b3f688274ca4303631b6781a844c0a0a906546b0de27c7ab317",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
