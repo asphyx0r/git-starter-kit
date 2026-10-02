@@ -1196,6 +1196,11 @@ The release-package workflow also calls this verifier with `--event release`
 for each required workflow, using the original release publication timestamp.
 The default remains `push` for existing preflight and final-push callers.
 
+Use one verifier instance for each exact repository/workflow/event/SHA/ref set
+and creation-time bound. Keep its process handle and default 5-second polling;
+parallel outer `gh run list` or `gh run view` loops add no gate evidence. Read
+additional logs when diagnosing a failure.
+
 ### Usage/Examples
 
 Preview a preflight verification without contacting GitHub:
@@ -1563,6 +1568,25 @@ installation command when it is absent.
 The pre-commit scanner also requires the exact Gitleaks version declared in
 `tools/quality/versions.json`; a missing or mismatched scanner blocks the commit
 with setup guidance. Betterleaks remains a separate manual review tool.
+
+Before the canonical repository's first long pre-push suite, use this locked
+environment for the supplemental prechecks, separately and in order:
+
+```bash
+python -B tools/quality/check-versions.py --runtime
+npm audit --audit-level=high --include=dev --prefix tools/quality
+bash tools/repository-audit.sh fast
+mypy --config-file tools/quality/pyproject.toml --platform linux
+mypy --config-file tools/quality/pyproject.toml --platform win32
+```
+
+Stop on a failure before dependent work. Set `RUFF_CACHE_DIR`,
+`MYPY_CACHE_DIR` and `npm_config_cache` to task-owned temporary paths. The
+cross-platform Mypy checks do not replace tests on the corresponding systems.
+These commands do not replace hooks or the complete audit; a focused retry
+cannot make a failed complete audit successful. Evidence validity, retry
+authorization, log/resume records and cleanup are described in the
+[canonical validation pilot](../docs/release-package.md#validation-evidence-and-optimization-pilot).
 
 In GitHub Actions, each isolated quality job installs the Python and npm locks
 once and invokes the external-tool installer once for the tools compatible with

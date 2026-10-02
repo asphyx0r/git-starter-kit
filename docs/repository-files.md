@@ -99,20 +99,21 @@ deferred, or explicitly excluded from the template.
   Protected or shared targets use one guarded PR per preparation intention,
   followed by the exact target audit and merged-tree validation. The preflight
   push filter must cover the unique release-preflight ref. The starter-only
-  extension adds only its package release contract.
+  extension adds its package release contract and canonical validation pilot.
 
 ### `.agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt`
 
 - Type: `file`
 - Status: `optional`
-- Goal: Orders starter-manifest and release-artifact preparation, then adds the
-  package CI and three-asset completion gate used only by
+- Goal: Defines the canonical validation pilot, orders starter-manifest and
+  release-artifact preparation, then adds the package CI and three-asset gate used only by
   `asphyx0r/git-starter-kit`.
 - Usage: Load only through the generic skill when its exact remote matches.
 - Notes: This source-repository extension adds `Release package`, prerelease
   promotion, sealed build/publication separation, both ZIP digests, the exact
   checksum asset, and provenance checks without duplicating common release-run
-  controls. It is excluded from packages distributed to derived
+  controls. Early prechecks, supplemental evidence validity and single-owner
+  monitoring preserve every mandatory gate. It is excluded from packages distributed to derived
   repositories.
 
 ### `.betterleaks.toml`
@@ -623,7 +624,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Explains how contributors should propose and verify changes.
 - Usage: Read before contributing to the starter kit.
 - Notes: Documents local Git hook activation and the required exact-file
-  Commitlint sequence for guarded commits. Future-project placeholders belong
+  Commitlint sequence for guarded commits, the 900-second pre-push family limit,
+  and the distinction between full audits and targeted retries. Future-project placeholders belong
   in `templates/CONTRIBUTING.md`.
 
 ### `LICENSE`
@@ -643,7 +645,8 @@ deferred, or explicitly excluded from the template.
 - Notes: Summarizes audit prerequisites, dependency caches, Windows Git Bash
   checks, local Git hook activation,
   release package behavior, the canonical skill invocation contract, generic
-  ignore coverage, and the maintainer migration record. Do not leave
+  ignore coverage, the maintainer migration record and the canonical validation
+  pilot link. Do not leave
   future-project placeholders in the root README.
 
 ### `SECURITY.md`
@@ -747,7 +750,8 @@ deferred, or explicitly excluded from the template.
   changed. Documents execution-policy troubleshooting for downloaded
   `git-init.ps1` copies that PowerShell blocks before launch, and records the
   backup and cumulative upgrade tools' provenance, consistency, and
-  restoration limits. Cumulative upgrades treat this repository-specific
+  restoration limits. Explains early locked prechecks and single-verifier
+  monitoring without changing audit or hook behavior. Cumulative upgrades treat this repository-specific
   operator reference as initialization-only.
 
 ### `tools/quality/`
@@ -1441,7 +1445,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Consult to discover available skills, supported invocations,
   capabilities, dependencies, and limitations.
 - Notes: This file is documentation-only. Each skill's `SKILL.md` remains the
-  authoritative source for its behavior and instructions. Cumulative upgrades
+  authoritative source for its behavior and instructions. Links the canonical
+  source-only validation pilot while retaining the generic gates. Cumulative upgrades
   preserve this repository-specific inventory as initialization-only.
 
 ### `docs/guarded-pull-request-merges.md`
@@ -1483,7 +1488,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before publishing or manually regenerating release package
   assets.
 - Notes: Covers the rule-freshness gate, prerelease promotion, the mandatory
-  automatic CI gate, generated ZIP contents, local testing, and
+  automatic CI gate, generated ZIP contents, the sourced validation pilot,
+  historical errors and recovery limits, local testing, and
   troubleshooting. Cumulative upgrades preserve this repository-specific
   guide as initialization-only. This operator guide is excluded from the full
   package.

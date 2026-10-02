@@ -318,6 +318,10 @@ The verified migration of the canonical maintainer worktree from Google Drive
 to local NTFS storage is recorded in
 [Repository migration](docs/repository-migration.md).
 
+The canonical release procedure's early prechecks, validation evidence and
+monitoring pilot are documented in
+[Release Package](docs/release-package.md#validation-evidence-and-optimization-pilot).
+
 ## Contributing
 
 Keep changes minimal, generic, and directly useful for reusable Git/GitHub

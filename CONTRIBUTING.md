@@ -58,7 +58,7 @@ repository-specific scoped Conventional Commit rules.
 
 The pre-push hook selects the affected Python and/or shell test families from
 each pushed branch update and runs them at the pushed commit in disposable
-detached clones. Each selected test family has a 180-second timeout. The hook
+detached clones. Each selected test family has a 900-second timeout. The hook
 removes those clones when it exits. It also validates `VERSION`, `SHA256SUMS`,
 and `manifest.json` for pushed SemVer tags. Guarded repository tools force this
 hook path independently of local Git configuration.
@@ -133,3 +133,8 @@ complete local audit when its required tools are available, then check that:
 - The repository inventory matches the files present in the repository.
 - `bash tools/repository-audit.sh full` succeeds in the locked quality
   environment.
+
+Record a complete audit separately from focused checks and retries. A passing
+isolated test does not replace a failed complete audit. For the canonical
+repository's early prechecks and evidence rules, see
+[Validation evidence and optimization pilot](docs/release-package.md#validation-evidence-and-optimization-pilot).

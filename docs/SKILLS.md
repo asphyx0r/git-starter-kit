@@ -57,6 +57,10 @@ synchronization checks, and optional template-based GitHub Release workflow.
 - For the canonical starter repository, verify the sealed build/publication
   boundary and exactly three assets: both ZIPs and their `SHA256SUMS` file.
   Validate all GitHub digests and the checksum file's exact two entries.
+- During authorized execution on the canonical repository, use the source-only
+  extension's early locked prechecks, temporary evidence ledger and one monitor
+  per execution. The [validation pilot](release-package.md#validation-evidence-and-optimization-pilot)
+  preserves every mandatory hook, audit, CI and asset gate.
 
 ### Usage examples
 
