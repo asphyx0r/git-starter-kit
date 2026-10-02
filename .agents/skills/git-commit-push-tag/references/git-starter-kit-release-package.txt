@@ -5,6 +5,96 @@ Cette extension s'applique lorsque le remote `origin` est exactement
 de contrôle de la GitHub Release s'appliquent uniquement lorsque
 `CREATE_GITHUB_RELEASE=true`.
 
+PILOTE DE VALIDATION ET DE SUIVI
+
+- Applique cette section pendant une exécution explicitement autorisée du
+  workflow sur ce remote exact. Une analyse du bump seule n'autorise aucune
+  installation, écriture, relance, opération Git ou publication. Les règles
+  d'arrêt et d'autorisation du workflow principal restent obligatoires.
+- La source, les raisons et les limites de ce pilote sont documentées dans
+  `docs/release-package.md`, section « Validation evidence and optimization
+  pilot ». Ce pilote ne change aucun outil, profil, hook, timeout ni contrôle
+  obligatoire du workflow principal.
+
+Registre temporaire des validations
+
+- Pour chaque validation, conserve dans un registre temporaire hors du working
+  tree : commande exacte, périmètre, SHA, empreintes des fichiers concernés
+  incluant les modifications non commitées, plateforme, versions réellement
+  utilisées, empreintes des verrous et configurations, début, fin, code de
+  sortie, résultat et référence du journal complet. Pour une CI, ajoute
+  repository, identité du workflow, événement, refs attendues et borne
+  `created-after`. Une commande en cours n'a pas de résultat final.
+- Distingue audit complet, contrôle ciblé, nouvelle tentative, CI et
+  vérification des assets. Un audit complet en échec reste en échec : une
+  reprise ciblée réussie ne permet jamais de le déclarer réussi. Diagnostique
+  l'échec, respecte les autorisations de relance du workflow principal, puis
+  exige un audit complet réussi avant les opérations qui en dépendent.
+
+Précontrôles locaux avant les suites longues
+
+- Avant le premier pre-push long, vérifie et prépare une fois l'environnement
+  verrouillé nécessaire, dans le périmètre autorisé. Utilise les versions de
+  `tools/quality/versions.json`, les verrous Python/npm et les outils externes
+  dont l'intégrité a été vérifiée. Les installations Python utilisent
+  `--require-hashes` et npm utilise `ci --ignore-scripts`. Les audits
+  n'installent aucune dépendance eux-mêmes.
+- Les cibles CI restent Python 3.11 sur Linux, Python 3.14 sur Windows et la
+  version Node.js déclarée par `policy.nodeCiVersion`. Documente toute différence
+  locale ; une analyse Mypy pour deux plateformes ne prouve pas l'exécution des
+  tests sur ces deux systèmes.
+- Exécute, depuis la racine, les commandes suivantes séparément et dans cet
+  ordre, avec les exécutables de l'environnement préparé et les caches Ruff,
+  Mypy et npm dirigés vers le répertoire temporaire de la tâche :
+  `python -B tools/quality/check-versions.py --runtime` ;
+  `npm audit --audit-level=high --include=dev --prefix tools/quality` ;
+  `bash tools/repository-audit.sh fast` ;
+  `mypy --config-file tools/quality/pyproject.toml --platform linux` ;
+  `mypy --config-file tools/quality/pyproject.toml --platform win32`.
+- Tout échec bloque la suite dépendante. Après diagnostic et autorisation de
+  reprise, requalifie les entrées ou l'environnement modifiés avant de lancer
+  une suite longue. Ces précontrôles s'ajoutent aux gates existantes ; ils ne
+  remplacent ni l'audit complet ni les tests du pre-push.
+
+Réutilisation limitée des preuves complémentaires
+
+- Réutilise uniquement une lecture ou un diagnostic complémentaire dont la
+  commande, le périmètre, le SHA, les empreintes des entrées et l'environnement
+  sont identiques. Si un de ces éléments change, la preuve concernée expire.
+  Une donnée externe mutable, notamment les avis de sécurité npm, exige une
+  nouvelle vérification au point où elle est requise.
+- Exécute toujours les contrôles obligatoires à leur point prévu : fichier
+  exact du commit, index, objets poussés, head de PR, commit fusionné, audit
+  complet, prévalidation distante, branche/tag et assets téléchargés. Un même
+  SHA ne dispense d'aucun de ces contrôles. Conserve la sélection des familles
+  par les hooks, la suite complète pour une nouvelle branche, les timeouts et
+  les critères CI existants. Ne crée aucun cache persistant de validation.
+
+Un propriétaire et un suivi par exécution
+
+- Pour chaque processus local, conserve un propriétaire, son identifiant de
+  session/processus et son journal. Reprends ce processus par son identifiant
+  plutôt que de lancer une seconde commande pour obtenir son état.
+- Pour les gates qui prescrivent `tools/verify-repository-audit-runs.py`,
+  conserve une seule instance pour le tuple exact repository, workflow,
+  événement, SHA, refs et `created-after`, avec `--poll-seconds 5`. Pour les
+  autres gates de release, conserve la découverte du run puis l'unique
+  `gh run watch <run-id> --exit-status` prescrits par le workflow principal.
+  Reprends le handle du mécanisme prescrit, sans en substituer un autre.
+  Conserve tous les délais, critères de sélection et états bloquants. N'ajoute
+  pas de boucle concurrente `gh run list` ou `gh run view` pour surveiller une
+  gate déjà suivie. Les lectures de diagnostic après un échec restent
+  possibles ; aucun autre run vert ne remplace le run requis.
+- Lors d'un progrès nouveau, d'un échec ou de la fin, affiche un extrait limité
+  par défaut à 30 lignes et 4 000 caractères. Conserve le journal complet et
+  la dernière plage lue ; une investigation peut lire une autre plage motivée.
+  Ne répète pas un extrait inchangé.
+- À la reprise, consulte un état compact : objectif, autorisations, branche et
+  SHA, preuves encore valides, échecs non résolus, processus/vérificateurs en
+  cours, dernière plage lue et inventaire des artefacts temporaires. Confirme
+  leur état avant toute relance. En fin de tâche, supprime uniquement ses
+  artefacts temporaires et vérifie leur absence ; préserve ceux préexistants.
+
 PRÉPARATION DU MANIFESTE DE RELEASE
 
 - Après la finalisation du changelog au point 29 et avant toute prévalidation

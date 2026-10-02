@@ -148,6 +148,148 @@ evidence. Both checks share a 30-minute deadline; each GitHub query is bounded
 to 30 seconds. The verifier is checked out from the workflow's immutable SHA so
 manual repair of an older release uses the current workflow's verification code.
 
+## Validation evidence and optimization pilot
+
+This canonical-repository pilot implements the user's approved plan of
+2026-10-02 following the local v2.11.5 usage audit. Its behavioral rules live
+in the source-only skill extension
+`.agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt`.
+They apply during authorized execution with the exact canonical HTTPS origin;
+bump analysis alone authorizes no mutation. Derived repositories keep the
+generic workflow. The extension and this operator guide remain excluded from
+distributed packages.
+
+### Source and specification change
+
+The source report is
+`codex-usage-release-git-starter-kit-v2-11-5-20261001-01a0f440`, version
+`1.0.0`, dated `2026-10-01T21:48:43+02:00`, with declared author `asphyx`.
+It is a local draft, marked unreviewed and unpublished, retained under the
+ignored `audits/` directory. Its exact-byte SHA-256 is:
+
+```text
+da3973499bd5dfc458c7935c8228d6a1852da0cc9709104716403686c759fd46
+```
+
+The recommendations are evidence to assess; they do not authorize changes.
+The user's subsequent approval is the source of this process specification
+change. The four adopted changes are early locked prechecks, explicit evidence
+validity, one monitor per execution, and bounded log/resume context. Their
+purpose is to detect predictable failures before long suites and reduce
+duplicate supplemental work. No runtime behavior, profile, hook mapping,
+timeout, generic skill step, release gate, model setting, or package schema
+changes. The existing exhaustive audit still blocks release on failure.
+
+### Order and ownership
+
+Prepare the locked environment once before the first long pre-push suite.
+Use the existing setup instructions in [Tools](../tools/README.md#prerequisites)
+and integrity-verified external tools. Python installation retains
+`--require-hashes`; npm retains `ci --ignore-scripts`. Audit commands do not
+install tools. CI still uses Python 3.11 on Linux, Python 3.14 on Windows and
+`policy.nodeCiVersion` from `tools/quality/versions.json` for Node.js. Record
+local differences rather than claiming CI equivalence.
+
+Run these existing commands separately, in order, from the repository root
+using that environment; stop on the first failure:
+
+```bash
+python -B tools/quality/check-versions.py --runtime
+npm audit --audit-level=high --include=dev --prefix tools/quality
+bash tools/repository-audit.sh fast
+mypy --config-file tools/quality/pyproject.toml --platform linux
+mypy --config-file tools/quality/pyproject.toml --platform win32
+```
+
+Direct Ruff, Mypy and npm caches into task-owned temporary storage through
+`RUFF_CACHE_DIR`, `MYPY_CACHE_DIR` and `npm_config_cache`. These are supplemental
+prechecks. The two Mypy targets check static platform branches; they do not run
+the Linux and Windows test suites. Changed inputs or environment require
+requalification. Follow the generic workflow's stop and retry authorization
+rules after a failure.
+
+| Evidence | Owner and validity | Required boundary |
+| --- | --- | --- |
+| Supplemental read or diagnostic | Operator's temporary ledger; same command, scope, SHA, input hashes and environment | Recheck on any relevant change; mutable external facts require a fresh query |
+| Commit and staged checks | Exact message file and indexed snapshot through the existing hooks | Every required commit/index check |
+| Pre-push tests | Hook selection at the exact pushed objects; full selection for a new branch | Every required push; 900 seconds per selected family |
+| Exhaustive local audit | Operator, exact candidate content and installed environment | Successful complete audit before dependent release operations |
+| PR and merged target checks | Guarded merge and exact post-merge audit | Exact PR head and resulting merged SHA |
+| CI gate | One prescribed monitor: verifier for its exact tuple, or discovery followed by the required `gh run watch` | Every required run; retain 5-second discovery/verifier polling and existing deadlines |
+| Release assets | Existing package verifier and downloaded bytes | Every required asset, digest, provenance and metadata check |
+
+For each command, record its exact scope and command, SHA and hashes of relevant
+uncommitted inputs, platform, actual tool versions, lock/configuration hashes,
+start/end, exit code, result and full-log reference. Keep full audits, focused
+checks, retries, CI and asset verification as distinct entries. A failed full
+audit remains failed even when its isolated failing test passes later. Only a
+successful full audit supplies the required full-audit evidence.
+
+Keep one owner and session/process handle per local execution. Resume its
+existing handle; for a CI gate, retain its prescribed mechanism. Use one
+verifier where required, or the existing discovery and `gh run watch` for the
+release gates that prescribe it. Keep all selection rules and deadlines;
+avoid concurrent outer GitHub polling. Emit new progress, failures and completion, with excerpts
+limited by default to 30 lines and 4,000 characters. Retain the full log and
+last range read; read additional ranges when diagnosis requires them. A compact
+resume record includes objective, authorizations, branch/SHA, valid evidence,
+unresolved failures, active handles, log position and temporary artifacts.
+Remove only task-owned artifacts and prove cleanup before finishing.
+
+### Historical errors and recovery limits
+
+- `pre-push: affected Python test family timed out after 900 seconds.`
+  The hook already enforces 900 seconds. The former 180-second statement in
+  `CONTRIBUTING.md` was stale documentation. Check the selected family,
+  elapsed time, environment and log before an authorized retry; a timeout
+  supplies no passing test result. This pilot does not increase the limit.
+- `tools\backup-target-directory.py:581: error: Module has no attribute
+  "WinDLL"  [attr-defined]` was corrected in v2.11.5 by guarding the Windows
+  API call with the platform check. The existing backup implementation owns
+  that correction; the two Mypy prechecks detect platform typing failures
+  earlier without changing backup behavior again.
+- `OSError: [Errno 22] Invalid argument:` occurred while creating the
+  `tools/quality/node_modules/.bin/commitlint.cmd` fixture in
+  `tests.test_git_init.InitializerTests.test_commitlint_and_commit_failures_never_create_a_tag`.
+  Later isolated runs passed, but do not prove the underlying cause or turn
+  that full audit green. Preserve the traceback, reproduce with the locked
+  environment, diagnose fixture/path access, and obtain a successful complete
+  audit after any authorized correction. No deterministic fix is claimed.
+- The v2.11.5 npm security correction was already applied to the locked
+  dependencies. An early `npm audit` checks current advisories; a previous green
+  result cannot establish the current state of the external advisory service.
+
+The spelling profile runs `codespell --config .codespellrc .`; unlike Markdown
+lint, it does not use Git's ignored-file selection. A local ignored French
+report can therefore stop a working-tree audit with a diagnostic such as
+`recommandations ==> recommendations`. <!-- codespell:ignore recommandations -->
+Preserve that report and the failed
+audit result. To validate the tracked candidate without changing local data or
+scanner policy, use a disposable clone with the same history and canonical
+origin, copy the tracked candidate bytes and verify every file's SHA-256, then
+run the unchanged complete profile with the locked environment. Record this as
+separate evidence for that tracked candidate; it does not make the original
+working-tree audit successful or waive any later mandatory gate. Remove the
+task-owned clone after verification. A scanner-policy change requires its own
+analysis and approval.
+
+The historical functional corrections are recorded in `CHANGELOG.md` under
+v2.11.5. This pilot changes their detection and evidence handling, not their
+implementation. Historical report totals are a baseline, not a savings
+guarantee or a new billing calculation.
+
+### Pilot acceptance and measurement
+
+Before acceptance, verify that a precheck failure stops dependent work, a
+focused success does not erase a full failure, changed revision or environment
+invalidates affected supplemental proof, a wrong/failed CI run cannot be
+replaced by another green run, and resumption attaches to existing handles.
+Check the ordinary hooks and packaging contracts as well as documentation.
+Record counts and elapsed time for full-suite attempts, targeted retries,
+monitor queries, log reads and emitted output, with the same counting scope
+for any comparison. Do not promise a percentage reduction from this pilot.
+Manual acceptance and an explicit commit request remain separate user gates.
+
 ## Automatic Release Mode
 
 Use this mode for the normal release process.
