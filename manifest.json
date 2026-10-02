@@ -2,14 +2,14 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.11.6",
-    "release_date": "2026-10-01T23:00:37Z",
+    "version": "2.11.7",
+    "release_date": "2026-10-02T13:55:07Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Keep the audit directory in Git with an empty marker.",
-        "Exclude generated audit reports and nested content from version control.",
-        "Document local audit storage and preserve the historical package test fixture."
+        "Document early locked prechecks and supplemental evidence validity.",
+        "Document one owner and monitor per operation while preserving mandatory gates.",
+        "Clarify failed-audit recovery and the existing 900-second pre-push family limit."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -23,7 +23,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.11.6-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.11.7-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -31,9 +31,9 @@
             },
             "format": "git-tree",
             "total_files": 151,
-            "size_bytes": 2533466,
-            "built_at": "2026-10-01T23:00:37Z",
-            "sha256": "d0ec6550dd629c2976c2b966d71866940cb3c4f6034637376694fb8f26b949b4",
+            "size_bytes": 2550810,
+            "built_at": "2026-10-02T13:55:07Z",
+            "sha256": "6851ccb4a8a010fe6f9aa844a7c88be9467e9033e7851f036d2cc26f56de7cf9",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -64,11 +64,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 7340,
+                    "size_bytes": 13102,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "23cde232d67765e394223faa174b158e262afc5abf153159fbf9c94f9cb2bdce",
+                    "sha256": "e41f5ffef0a3e0c306397e1c3640e00196a36a6c7583b57aa0fcf48502b3e977",
                     "mode": "644"
                 },
                 {
@@ -316,11 +316,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 14919,
+                    "size_bytes": 15062,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "aaac948539950eac7591193c5e4a4205d4e8d874a824bb08b97a6f97db3b3909",
+                    "sha256": "898379a621736837de6fd958c3df8dbd9346faca89505981ab90093131306cfe",
                     "mode": "644"
                 },
                 {
@@ -352,11 +352,11 @@
                 },
                 {
                     "relative_path": "CONTRIBUTING.md",
-                    "size_bytes": 5770,
+                    "size_bytes": 6090,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "74437ab7123ceb738b9570290802edfe02a4eaf9a5027aa2c7d739948452863f",
+                    "sha256": "6e9f399e4b8efc670446a777135879fb9f1c3f6c0d23a9dbed4eac5ee891031a",
                     "mode": "644"
                 },
                 {
@@ -388,11 +388,11 @@
                 },
                 {
                     "relative_path": "README.md",
-                    "size_bytes": 16738,
+                    "size_bytes": 16936,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e452a9e36def349f3b4ffca8c54b158f6cae8edbd32db8b251c9928c444d02e2",
+                    "sha256": "a205f179905f8ba4385559c49d120a354ee44ab05ac7ac1d492c4db01c902bd4",
                     "mode": "644"
                 },
                 {
@@ -428,7 +428,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "bbc4d5a6bd04152427509aa402cda29b527a7624283c444b660f15b79fd332c2",
+                    "sha256": "2664b7f8346dfd7032579bc51b6c2ab0d4a95614e13fe8ddd5a42aeb6f048e00",
                     "mode": "644"
                 },
                 {
@@ -460,11 +460,11 @@
                 },
                 {
                     "relative_path": "docs/SKILLS.md",
-                    "size_bytes": 4686,
+                    "size_bytes": 5008,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8397cc7e72a7ff0a52efca64bf98b8652a6e6d3a251d84012a66a343ad7d32d4",
+                    "sha256": "7f942ff93b85b93d8a33b259903a6dc818f7c3c4f62d4a34773ea411d002135e",
                     "mode": "644"
                 },
                 {
@@ -487,20 +487,20 @@
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 15098,
+                    "size_bytes": 23872,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "dbfb623d60da8adf588051627d2fd36375923d336021d11b98bb1999a0beaff3",
+                    "sha256": "316ba3341c8ddd9d539d0109ddea719d99b6d4db7e000c09b16cc47f7b49794f",
                     "mode": "644"
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 71547,
+                    "size_bytes": 72114,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "46c13d43ed2fa3d249658dda0c35f7ebcd441f0c57aff1237d66e9cc590eb7fd",
+                    "sha256": "8aeaeb46392df8f919760d58a01c21147ff301907298d55caf004d82ca67ffa7",
                     "mode": "644"
                 },
                 {
@@ -536,7 +536,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a670063eafff0c800d7bbae23d8389c9922130cc070ef568a74c490517fd90bf",
+                    "sha256": "2b3462a0fd62a558e72a3129ec065b7536ddacf52f705e2728958de469c6aeea",
                     "mode": "644"
                 },
                 {
@@ -982,11 +982,11 @@
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 70542,
+                    "size_bytes": 71800,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "748b7072732e1da34a04756262387bfb2f11b2f8a0f52c58420670e8efc0cf88",
+                    "sha256": "af8755cc96d4ba957b08da77ec080aac762a508671a8867e6f64bf2f449ff6e5",
                     "mode": "644"
                 },
                 {
