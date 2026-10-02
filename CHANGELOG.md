@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.11.7
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 88d07f7 | docs(release): streamline validation workflow | asphyx |
+
 ## v2.11.6
 
 | References | Description | Author(s) |
