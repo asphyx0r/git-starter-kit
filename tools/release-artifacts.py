@@ -568,6 +568,9 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
     previous: dict[str, bytes | None] = {}
     temporary: dict[str, Path] = {}
     replaced: list[str] = []
+    write_error: OSError | None = None
+    rollback_failures: list[str] = []
+    cleanup_failures: list[str] = []
     try:
         for relative_path, content in outputs.items():
             target = root / relative_path
@@ -575,28 +578,45 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
             handle, raw_path = tempfile.mkstemp(
                 dir=root, prefix=f".{relative_path}.", suffix=".tmp"
             )
+            temporary[relative_path] = Path(raw_path)
             with os.fdopen(handle, "wb") as stream:
                 stream.write(content)
                 stream.flush()
                 os.fsync(stream.fileno())
-            temporary[relative_path] = Path(raw_path)
         for relative_path in outputs:
             os.replace(temporary[relative_path], root / relative_path)
             replaced.append(relative_path)
     except OSError as error:
+        write_error = error
         for relative_path in reversed(replaced):
             target = root / relative_path
             old_content = previous[relative_path]
-            if old_content is None:
-                target.unlink(missing_ok=True)
-            else:
-                target.write_bytes(old_content)
-        raise ReleaseArtifactError(
-            f"Unable to write release artifacts: {error}"
-        ) from error
+            try:
+                if old_content is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    target.write_bytes(old_content)
+            except OSError as restore_error:
+                rollback_failures.append(f"{target}: {restore_error}")
     finally:
         for path in temporary.values():
-            path.unlink(missing_ok=True)
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                cleanup_failures.append(f"{path}: {cleanup_error}")
+    if write_error is not None or cleanup_failures:
+        diagnostic = (
+            f"Unable to write release artifacts: {write_error}"
+            if write_error is not None
+            else "Unable to clean release artifact temporary files."
+        )
+        if rollback_failures:
+            diagnostic += "\nRollback incomplete:\n" + "\n".join(rollback_failures)
+        if cleanup_failures:
+            diagnostic += "\nTemporary cleanup incomplete:\n" + "\n".join(
+                cleanup_failures
+            )
+        raise ReleaseArtifactError(diagnostic) from write_error
 
 
 def ref_exists(root: Path, ref: str) -> bool:

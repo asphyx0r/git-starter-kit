@@ -795,6 +795,14 @@ When an initialization-only file changed upstream, the plan reports
 `review-initialize-only` without blocking or writing the target. This makes
 required local review visible while preserving repository ownership.
 
+On POSIX systems, the plan also checks the owner execute bit against the
+package's Git mode. Each action records `localMode`, `modeAligned` and
+`modeOnly`. A mode-only `update` changes execute permissions in place,
+preserving exact local bytes and other permission bits. Initialize-only files
+remain subject to local review, and agent-rule files remain delegated.
+Application rejects permission changes made after planning and verifies each
+mode repair. Windows reports `localMode: null` and does not enforce POSIX modes.
+
 The tool performs no deletion, commit, tag, push, or network operation. Any
 conflict blocks application. An error or interruption during writes triggers
 restoration of the original content, modes and adoption state, including a
