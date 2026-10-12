@@ -853,6 +853,17 @@ deferred, or explicitly excluded from the template.
 - Notes: Records canonical archive integrity and every upstream file's original
   and fixed hashes. The original package version and advisory remain unchanged.
 
+### `tools/initialize-repository.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Validates generated package ownership and prepares the exact initial
+  system index used by the public initializers.
+- Usage: Use the public initializer normally; helper `validate` and `prepare`
+  accept `--path`, with `--tag` and a side-effect-free `--dry-run`.
+- Notes: Reuses the release SemVer validator before changelog, chmod or index
+  mutations. The required sibling release/runtime files travel with the package.
+
 ### `tools/quality/pyproject.toml`
 
 - Type: `file`
@@ -860,7 +871,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines scoped Ruff, Mypy, and branch-coverage policy for maintained
   Python code.
 - Usage: Pass it explicitly to the corresponding quality commands.
-- Notes: Targets Python 3.11 and lists maintained production modules for Mypy.
+- Notes: Targets Python 3.11 and covers every tracked production Python module,
+  including the initializer; a test prevents future omissions from Mypy.
   It enables branch measurement and the 85 percent global threshold;
   `check-coverage.py` additionally enforces the separate 85 percent branch
   threshold across `tools/`.

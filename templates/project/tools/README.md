@@ -4,6 +4,11 @@ These tools initialize this project, validate its managed core, run declared
 application checks and prepare verifiable release artifacts. Run examples from
 the repository root and consult each tool's `--help` before mutation.
 
+The initializer helper rejects invalid v-prefixed SemVer tags before changelog,
+file-mode or index changes, including prepare dry-runs. Release output writes
+restore replaced files after Python interruptions; failures in restoration or
+temporary cleanup accompany the original error. Use one writer during preparation.
+
 ## Tool index
 
 | Tool | Purpose | Runtime |

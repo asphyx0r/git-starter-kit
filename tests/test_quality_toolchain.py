@@ -933,6 +933,34 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertNotIn("exclude", pyproject["tool"]["mypy"])
         self.assertNotIn("ignore_missing_imports", pyproject["tool"]["mypy"])
 
+    def test_mypy_covers_every_tracked_production_python_file(self) -> None:
+        configured = tomllib.loads(
+            (QUALITY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )["tool"]["mypy"]["files"]
+        tracked = (
+            subprocess.check_output(
+                ["git", "--no-optional-locks", "ls-files", "-z", "--", "tools"],
+                cwd=SOURCE_ROOT,
+            )
+            .decode("utf-8")
+            .split("\0")
+        )
+        expected = {name for name in tracked if name.endswith(".py")}
+        covered = set()
+        for name in configured:
+            target = SOURCE_ROOT / name
+            if target.is_dir():
+                covered.update(
+                    path.relative_to(SOURCE_ROOT).as_posix()
+                    for path in target.rglob("*.py")
+                )
+            else:
+                covered.add(name)
+        self.assertTrue(
+            expected <= covered,
+            f"Production files missing from Mypy: {sorted(expected - covered)}",
+        )
+
     def test_coverage_threshold_fails_below_85_and_accepts_85_or_more(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)

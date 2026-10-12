@@ -568,7 +568,7 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
     previous: dict[str, bytes | None] = {}
     temporary: dict[str, Path] = {}
     replaced: list[str] = []
-    write_error: OSError | None = None
+    write_error: BaseException | None = None
     rollback_failures: list[str] = []
     cleanup_failures: list[str] = []
     try:
@@ -584,26 +584,30 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
                 stream.flush()
                 os.fsync(stream.fileno())
         for relative_path in outputs:
-            os.replace(temporary[relative_path], root / relative_path)
             replaced.append(relative_path)
-    except OSError as error:
+            os.replace(temporary[relative_path], root / relative_path)
+    except BaseException as error:
         write_error = error
         for relative_path in reversed(replaced):
             target = root / relative_path
             old_content = previous[relative_path]
             try:
+                if target.exists() and target.read_bytes() == old_content:
+                    continue
                 if old_content is None:
                     target.unlink(missing_ok=True)
                 else:
                     target.write_bytes(old_content)
-            except OSError as restore_error:
+            except BaseException as restore_error:
                 rollback_failures.append(f"{target}: {restore_error}")
     finally:
         for path in temporary.values():
             try:
                 path.unlink(missing_ok=True)
-            except OSError as cleanup_error:
+            except BaseException as cleanup_error:
                 cleanup_failures.append(f"{path}: {cleanup_error}")
+                if write_error is None and not isinstance(cleanup_error, OSError):
+                    write_error = cleanup_error
     if write_error is not None or cleanup_failures:
         diagnostic = (
             f"Unable to write release artifacts: {write_error}"
@@ -616,6 +620,9 @@ def write_outputs(root: Path, outputs: dict[str, bytes]) -> None:
             diagnostic += "\nTemporary cleanup incomplete:\n" + "\n".join(
                 cleanup_failures
             )
+        if write_error is not None and not isinstance(write_error, OSError):
+            write_error.add_note(diagnostic)
+            raise write_error
         raise ReleaseArtifactError(diagnostic) from write_error
 
 

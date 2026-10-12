@@ -240,6 +240,30 @@ tool does not preserve NTFS ACLs, alternate data streams, creation/access
 times, or a cryptographic manifest. The `v0.0.0` placeholder is also
 indistinguishable in the filename from a real tag with that exact name.
 
+## initialize-repository.py
+
+This helper validates a generated release package or prepares its initial system
+index. Normal users should run `git-init.sh` or `git-init.ps1`, which manage the
+interactive confirmations and Git initialization around these operations.
+
+```text
+usage: python tools/initialize-repository.py [-h] [--version] [--dry-run] [-v] \
+  {validate,prepare} --path PATH [--tag TAG]
+```
+
+`validate` reads the package inventory, paths, modes and repository schema.
+`prepare` requires an initialized Git repository, writes the initial changelog,
+sets declared modes, stages the exact system inventory and prepares/checks release
+artifacts from that index. It does not create a commit or tag. `--tag` defaults to
+`v1.0.0`; prepare validates the shared release tool's strict v-prefixed SemVer
+contract before writes, chmod or index updates. Its dry-run rejects invalid tags
+too and makes no mutations. The selected Python needs the locked jsonschema
+dependency; the distributed release helper and runtime modules must be present.
+
+Exit status is `0` on successful validation/preparation/preview, `1` on a target,
+tag or dependency failure, and `2` on invalid command-line syntax. `-v` enables
+debug logging. See [project initialization](../docs/project-configuration.md).
+
 ## release-artifacts.py
 
 ### Features
@@ -255,6 +279,8 @@ indistinguishable in the filename from a real tag with that exact name.
 - Requires release-specific business metadata from an external JSON file and
   never derives unknown values from repository content.
 - Supports side-effect-free preparation and exact index or tag validation.
+- Restores replaced outputs after Python exceptions, including KeyboardInterrupt,
+  while retaining the original exception and restoration/cleanup diagnostics.
 
 ### Synopsis
 

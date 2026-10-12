@@ -1199,6 +1199,77 @@ class ReleaseArtifactOutputTests(unittest.TestCase):
             self.assertEqual((self.root / name).read_bytes(), content)
         self.assertEqual(list(self.root.glob(".*.tmp")), [])
 
+    def test_write_outputs_restores_every_output_after_interrupt_at_each_replace(self):
+        for interrupted_at in range(1, len(self.outputs) + 1):
+            with self.subTest(interrupted_at=interrupted_at):
+                error = KeyboardInterrupt("publication interrupted")
+                calls = 0
+
+                def interrupt(source, destination):
+                    nonlocal calls
+                    calls += 1
+                    if calls == interrupted_at:
+                        raise error
+                    self.replace(source, destination)
+
+                with patch.object(ARTIFACTS.os, "replace", side_effect=interrupt):
+                    with self.assertRaises(KeyboardInterrupt) as raised:
+                        ARTIFACTS.write_outputs(self.root, self.outputs)
+                self.assertIs(raised.exception, error)
+                for name, content in self.originals.items():
+                    self.assertEqual((self.root / name).read_bytes(), content)
+                self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
+    def test_interrupt_keeps_primary_restore_and_cleanup_diagnostics(self):
+        error = KeyboardInterrupt("publication interrupted")
+        write_bytes = Path.write_bytes
+        unlink = Path.unlink
+
+        def interrupt(source, destination):
+            if Path(destination).name == "manifest.json":
+                raise error
+            self.replace(source, destination)
+
+        def restore(path, content):
+            if path == self.root / "VERSION":
+                raise OSError("restore blocked")
+            return write_bytes(path, content)
+
+        def cleanup(path, *args, **kwargs):
+            if path.name.startswith(".manifest.json."):
+                raise OSError("cleanup blocked")
+            return unlink(path, *args, **kwargs)
+
+        with (
+            patch.object(ARTIFACTS.os, "replace", side_effect=interrupt),
+            patch.object(Path, "write_bytes", restore),
+            patch.object(Path, "unlink", cleanup),
+        ):
+            with self.assertRaises(KeyboardInterrupt) as raised:
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+        self.assertIs(raised.exception, error)
+        self.assertEqual(
+            (self.root / "SHA256SUMS").read_bytes(), self.originals["SHA256SUMS"]
+        )
+        notes = " ".join(raised.exception.__notes__)
+        self.assertIn("restore blocked", notes)
+        self.assertIn("cleanup blocked", notes)
+
+    def test_interrupt_after_atomic_replacement_still_restores_the_target(self):
+        error = KeyboardInterrupt("interrupted after replacement")
+
+        def interrupt(source, destination):
+            self.replace(source, destination)
+            raise error
+
+        with patch.object(ARTIFACTS.os, "replace", side_effect=interrupt):
+            with self.assertRaises(KeyboardInterrupt) as raised:
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+        self.assertIs(raised.exception, error)
+        for name, content in self.originals.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
     def test_write_outputs_restores_other_files_when_one_restore_fails(self):
         write_bytes = Path.write_bytes
 
