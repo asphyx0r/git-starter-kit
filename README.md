@@ -50,6 +50,12 @@ npm ci --ignore-scripts --prefix tools/quality
 bash tools/git-init.sh --path .
 ```
 
+When maintaining this source checkout or preparing the v2.12.0 candidate,
+explicitly run `python tools/quality/npm-security.py patch` after every npm
+installation. The [security tool guide](tools/README.md#qualitynpm-securitypy)
+describes the attested fix and network audits. Published v2.11.7 assets do not
+contain that command; use the instructions belonging to the selected asset.
+
 An optional `bash tools/git-init.sh --path . --dry-run` inspects the actions
 before initialization. Windows users may run the equivalent
 `powershell -NoProfile -File tools/git-init.ps1 --path .`.
@@ -138,8 +144,10 @@ without downloading release assets or dependencies.
 The Repository audit workflow covers all branch and tag pushes, pull requests
 targeting `main` or `master`, published releases, and manual runs. Reference
 deletions report that there is no new commit and skip the content suites.
-Linux runs a blocking npm audit of development dependencies at the high
-severity threshold; registry errors also fail the job. Tags outside the release
+Linux runs a blocking attested npm audit of development dependencies and audits
+both Python locks. Unhandled high/critical npm findings and verification errors
+fail the job; the raw braces advisory remains visible alongside its verified
+local fix. Tags outside the release
 SemVer contract trigger an audit without creating a release.
 
 The source repository's `checks: []` declares no additional application checks.

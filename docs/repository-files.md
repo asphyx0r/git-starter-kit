@@ -265,8 +265,9 @@ deferred, or explicitly excluded from the template.
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
   forwarded workflow token keep checked-out audit code unprivileged. Linux also
-  runs `npm audit --audit-level=high --include=dev --prefix tools/quality`:
-  high or critical advisories and verification errors block the job. Ordinary
+  runs the attested `npm-security.py audit` gate and pip-audit on both Python
+  locks: unhandled high/critical npm advisories and verification errors block
+  the job; the attested upstream braces report remains visible. Ordinary
   branch pushes and PRs have separate runs. Existing branch pushes validate
   the pushed commit range. CI retrieves the exact previous commit if a rewritten
   push left it outside the checkout; retrieval failures block the audit. Local
@@ -831,6 +832,27 @@ deferred, or explicitly excluded from the template.
 - Notes: The empty settings map intentionally retains the analyzer's default
   rules without repository-wide exclusions or suppressions.
 
+### `tools/quality/npm-security.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Applies and attests the local braces stack-exhaustion fix, then evaluates
+  the complete npm advisory graph without blanket exclusions.
+- Usage: Run `patch` explicitly after npm ci, `verify` for local integrity, and
+  `audit` for a bounded registry check. See [the tool guide](../tools/README.md#qualitynpm-securitypy).
+- Notes: Rejects unexpected bytes, links and unlocked occurrences; rollback
+  preserves interrupts and foreign edits. Raw upstream findings remain visible.
+
+### `tools/quality/patches/braces-3.0.3/`
+
+- Type: `directory`
+- Status: `required`
+- Goal: Distributes the fixed package payload, provenance and upstream license.
+- Usage: `npm-security.py` consumes `manifest.json`, `lib/compile.js`,
+  `lib/expand.js`, `lib/stringify.js` and `lib/utils.js`; `LICENSE` retains MIT terms.
+- Notes: Records canonical archive integrity and every upstream file's original
+  and fixed hashes. The original package version and advisory remain unchanged.
+
 ### `tools/quality/pyproject.toml`
 
 - Type: `file`
@@ -878,7 +900,9 @@ deferred, or explicitly excluded from the template.
   Shfmt, PSScriptAnalyzer, ShellCheck, and Gitleaks. Optional platform `variants`
   override only artifact fields; version/probe pins remain shared. The updated
   reader accepts old records without variants; distribute reader and registry
-  together. Windows executable ZIP variants declare exact allowed payloads.
+  together. Optional `nodeOverrides` pins transitive npm versions; declarations
+  and all matching lock entries must agree. Windows executable ZIP variants
+  declare exact allowed payloads.
 
 ### `tools/quality/yamllint.yaml`
 
@@ -1368,6 +1392,36 @@ deferred, or explicitly excluded from the template.
 - Notes: Covers declaration drift, exact direct dependencies, complete hashes,
   coverage policy, HTTPS redirects, archive safety, symlink rejection,
   staged probes, atomic publication, and bounded diagnostics.
+
+### `tests/test_npm_security.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Proves patch compatibility, bounded traversal, provenance and fail-closed
+  advisory attribution.
+- Usage: Run `python -B -m unittest discover -s tests -p test_npm_security.py` after
+  installing the locked npm dependencies.
+- Notes: Exercises interruption rollback, preserved foreign edits, nested and
+  unlocked packages, idempotence, stale counts and unknown/cyclic advisories.
+
+### `tests/fixtures/braces-3.0.3.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Keeps the exact original npm archive and walkers as compatibility
+  oracles for the corrected package.
+- Usage: Only the npm security tests consume these files; production never does.
+- Notes: The deliberate small binary fixture has the canonical integrity
+  recorded in the patch manifest and contains the upstream MIT license.
+
+### `docs/superpowers/plans/2026-10-12-audit-remediation.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the approved remediation scope, decisions and proof requirements.
+- Usage: Follow its eight tasks and nineteen finding identifiers; candidate
+  preparation remains separate from GitHub activation and publication.
+- Notes: A plan alone does not close a finding or attest completed verification.
 
 ### `tests/test_release_artifacts.py`
 

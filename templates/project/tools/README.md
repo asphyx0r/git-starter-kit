@@ -20,6 +20,7 @@ the repository root and consult each tool's `--help` before mutation.
 | `backup-target-directory.py` | Local directory backup | Python |
 | `quality/check-versions.py` | Verify pinned tools | Python |
 | `quality/install-external-tools.py` | Verified external tool installation | Python |
+| `quality/npm-security.py` | Attested npm fix and security gate | Python / Node.js |
 | `git_objects.py` / `process_runner.py` | Shared runtime modules | Python |
 
 ## Requirements
@@ -32,6 +33,11 @@ Use its active `python` for
 `python -m pip install --require-hashes --requirement tools/quality/requirements.lock`;
 the initializer requires `jsonschema`, not provided by standard Python. Install
 locked Node dependencies with `npm ci --ignore-scripts --prefix tools/quality`.
+Apply `python tools/quality/npm-security.py patch` after that installation.
+`verify` validates every installed braces occurrence; `audit` queries npm and
+blocks other high/critical advisories while retaining the attested upstream
+braces finding in its raw report. Use `--help` for dry-run and diagnostics.
+The fix, hashes and MIT license live in `quality/patches/braces-3.0.3/`.
 Full/static audits also require the pinned tools in `quality/versions.json` and
 PSScriptAnalyzer where PowerShell files are audited. See each CLI's help for
 installation roots and platform selection, and

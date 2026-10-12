@@ -300,16 +300,20 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_dependency_audit_blocks_advisories_and_registry_errors(self):
         steps = self.read_workflow("repository-audit")["jobs"]["quality-linux"]["steps"]
-        audits = [step for step in steps if step.get("run", "").startswith("npm audit")]
+        audits = [
+            step
+            for step in steps
+            if "python tools/quality/npm-security.py audit" in step.get("run", "")
+        ]
         self.assertEqual(
             len(audits), 1, "the locked npm toolchain needs a blocking audit"
         )
         step = audits[0]
         self.assertNotIn("continue-on-error", step)
         self.assertNotIn("if", step)
-        for status in (0, 1, 42):
+        for status, failed_call in ((0, 1), (1, 1), (42, 1), (1, 2), (42, 3)):
             with (
-                self.subTest(status=status),
+                self.subTest(status=status, failed_call=failed_call),
                 tempfile.TemporaryDirectory() as temporary,
             ):
                 arguments = Path(temporary) / "arguments"
@@ -317,13 +321,17 @@ class WorkflowContractTests(unittest.TestCase):
                     [
                         BASH,
                         "-c",
-                        'npm() { printf "%s\\n" "$*" > "$AUDIT_ARGUMENTS"; '
-                        'return "$AUDIT_EXIT"; }\n' + step["run"],
+                        "calls=0\npython() { calls=$((calls+1)); "
+                        'printf "%s\\n" "$*" >> "$AUDIT_ARGUMENTS"; '
+                        'if [[ "$calls" == "$FAILED_CALL" ]]; then return "$AUDIT_EXIT"; fi; '
+                        "return 0; }\n" + step["run"],
                     ],
                     env={
                         **os.environ,
                         "AUDIT_ARGUMENTS": str(arguments),
                         "AUDIT_EXIT": str(status),
+                        "FAILED_CALL": str(failed_call),
+                        "RUNNER_TEMP": temporary,
                     },
                     capture_output=True,
                     text=True,
@@ -331,8 +339,13 @@ class WorkflowContractTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, status, result.stderr)
                 self.assertEqual(
-                    arguments.read_text().strip(),
-                    "audit --audit-level=high --include=dev --prefix tools/quality",
+                    arguments.read_text().splitlines()[0],
+                    "tools/quality/npm-security.py audit",
+                )
+                self.assertEqual(
+                    len(arguments.read_text().splitlines()),
+                    failed_call if status else 3,
+                    "failed audit must stop subsequent dependency checks",
                 )
 
     def test_push_history_restores_missing_commit_without_moving_refs(self):

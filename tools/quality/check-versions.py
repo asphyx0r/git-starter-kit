@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 from urllib.parse import urlparse
 
@@ -189,6 +189,9 @@ def check_declarations(quality_root: Path) -> list[str]:
     package = load_json(quality_root / "package.json")
     package_lock = load_json(quality_root / "package-lock.json")
     expected_node = registry["node"]
+    expected_overrides = registry.get("nodeOverrides", {})
+    if package.get("overrides", {}) != expected_overrides:
+        errors.append("package.json: overrides differ from versions.json")
     expected_engine = {"node": f">={policies['nodeMinimum']}"}
     if package.get("engines") != expected_engine:
         errors.append(f"package.json: node engine expected >={policies['nodeMinimum']}")
@@ -202,6 +205,16 @@ def check_declarations(quality_root: Path) -> list[str]:
     if lock_root.get("devDependencies") != expected_node:
         errors.append("package-lock.json: root dependencies differ from versions.json")
     lock_packages = package_lock.get("packages", {})
+    for name, version in expected_overrides.items():
+        occurrences = [
+            record
+            for path, record in lock_packages.items()
+            if path == f"node_modules/{name}" or path.endswith(f"/node_modules/{name}")
+        ]
+        if not occurrences or any(
+            record.get("version") != version for record in occurrences
+        ):
+            errors.append(f"package-lock.json: {name} override expected {version}")
     for name, expected_version in expected_node.items():
         locked = lock_packages.get(f"node_modules/{name}", {})
         actual_version = locked.get("version")
@@ -310,6 +323,34 @@ def external_commands(
     }
 
 
+def check_installed_node_overrides(quality_root: Path) -> list[str]:
+    """Check every locked occurrence of the pinned transitive npm packages."""
+    overrides = load_json(quality_root / "versions.json").get("nodeOverrides", {})
+    packages = load_json(quality_root / "package-lock.json")["packages"]
+    errors = []
+    for name, expected in overrides.items():
+        for location in packages:
+            if location != f"node_modules/{name}" and not location.endswith(
+                f"/node_modules/{name}"
+            ):
+                continue
+            if (
+                not location.startswith("node_modules/")
+                or PurePosixPath(location).as_posix() != location
+                or ":" in location
+                or "\\" in location
+                or any(part in {".", "..", ".git"} for part in location.split("/"))
+            ):
+                raise ValueError(f"Unsafe npm lock location: {location}")
+            package = quality_root / location / "package.json"
+            actual = load_json(package).get("version") if package.is_file() else None
+            if actual != expected:
+                errors.append(
+                    f"runtime: {location} expected {expected}, found {actual}"
+                )
+    return errors
+
+
 def check_runtime(quality_root: Path) -> list[str]:
     """Check installed runtimes without installing or downloading anything."""
     registry = load_json(quality_root / "versions.json")
@@ -345,6 +386,7 @@ def check_runtime(quality_root: Path) -> list[str]:
                 f"runtime: {name} expected {expected_version}, found {actual_version}"
             )
 
+    errors.extend(check_installed_node_overrides(quality_root))
     external = registry["external"]
     commands = external_commands(external)
     for name, record in external.items():

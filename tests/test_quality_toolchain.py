@@ -29,6 +29,7 @@ DECLARED_VERSIONS = json.loads(
 )
 DECLARED_PYTHON_REQUIREMENTS = DECLARED_VERSIONS["python"]
 DECLARED_NODE_REQUIREMENTS = DECLARED_VERSIONS["node"]
+DECLARED_NODE_OVERRIDES = DECLARED_VERSIONS.get("nodeOverrides", {})
 DECLARED_NODE_MINIMUM = DECLARED_VERSIONS["policy"]["nodeMinimum"]
 DECLARED_NODE_CI_VERSION = DECLARED_VERSIONS["policy"]["nodeCiVersion"]
 DECLARED_EXTERNAL_TOOLS = DECLARED_VERSIONS["external"]
@@ -211,6 +212,40 @@ class QualityToolchainTests(unittest.TestCase):
             "package.json: node engine expected >=22.12.0",
         )
 
+    def test_declaration_checker_rejects_undeclared_npm_overrides(self) -> None:
+        def mutate_override(quality_root: Path) -> None:
+            package_path = quality_root / "package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["overrides"] = {"smol-toml": "1.9.1"}
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+
+        self.check_mutated_quality(
+            mutate_override, "package.json: overrides differ from versions.json"
+        )
+
+    def test_declaration_checker_rejects_nested_override_version_drift(self) -> None:
+        def mutate_override(quality_root: Path) -> None:
+            registry_path = quality_root / "versions.json"
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+            registry["nodeOverrides"] = {"smol-toml": "1.9.1"}
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            package_path = quality_root / "package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["overrides"] = registry["nodeOverrides"]
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            lock_path = quality_root / "package-lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["packages"]["node_modules/nested/node_modules/smol-toml"] = {
+                "version": "1.8.0",
+                "integrity": "sha512-owned-test-fixture",
+                "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.8.0.tgz",
+            }
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+
+        self.check_mutated_quality(
+            mutate_override, "package-lock.json: smol-toml override expected 1.9.1"
+        )
+
     def test_declaration_checker_rejects_lock_and_policy_mutations(self) -> None:
         def mutate_lock(field: str, value: object) -> callable:
             def mutation(quality_root: Path) -> None:
@@ -344,7 +379,10 @@ class QualityToolchainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             quality_copy = Path(temporary_directory) / "quality"
             copy_quality_configuration(quality_copy)
-            for name, version in DECLARED_NODE_REQUIREMENTS.items():
+            for name, version in {
+                **DECLARED_NODE_REQUIREMENTS,
+                **DECLARED_NODE_OVERRIDES,
+            }.items():
                 package_path = quality_copy / "node_modules" / name / "package.json"
                 package_path.parent.mkdir(parents=True)
                 package_path.write_text(
@@ -489,6 +527,7 @@ class QualityToolchainTests(unittest.TestCase):
                 )
 
     def test_declaration_checker_reports_every_manifest_drift(self) -> None:
+        ruff_version = DECLARED_PYTHON_REQUIREMENTS["ruff"]
         checker = load_script_module(
             QUALITY_ROOT / "check-versions.py",
             "quality_versions_manifest_drift",
@@ -500,7 +539,8 @@ class QualityToolchainTests(unittest.TestCase):
             requirements_path = quality_copy / "requirements.in"
             requirements = requirements_path.read_text(encoding="utf-8")
             requirements_path.write_text(
-                requirements.replace("ruff==0.16.8\n", "") + "unexpected==9.9.9\n",
+                requirements.replace(f"ruff=={ruff_version}\n", "")
+                + "unexpected==9.9.9\n",
                 encoding="utf-8",
             )
 
@@ -531,9 +571,9 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertEqual(
             errors,
             [
-                "requirements.in: expected direct requirement ruff==0.16.8",
+                f"requirements.in: expected direct requirement ruff=={ruff_version}",
                 "requirements.in: unexpected direct requirement unexpected",
-                "requirements.in: ruff expected 0.16.8, found None",
+                f"requirements.in: ruff expected {ruff_version}, found None",
                 "requirements.in: unexpected expected None, found 9.9.9",
                 "package-lock.json: node engine expected >=22.12.0",
                 "package-lock.json: root dependencies differ from versions.json",
@@ -692,9 +732,36 @@ class QualityToolchainTests(unittest.TestCase):
                 "runtime: codespell expected 2.4.3, found None",
                 "runtime: @commitlint/cli expected 21.2.3, found None",
                 "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
+                "runtime: node_modules/katex expected 0.18.2, found None",
+                "runtime: node_modules/smol-toml expected 1.9.1, found None",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],
         )
+
+    def test_runtime_checker_rejects_nested_override_drift(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_versions_installed_overrides"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            quality_copy = Path(temporary) / "quality"
+            copy_quality_configuration(quality_copy)
+            for name, version in DECLARED_NODE_OVERRIDES.items():
+                package = quality_copy / "node_modules" / name / "package.json"
+                package.parent.mkdir(parents=True)
+                package.write_text(json.dumps({"version": version}), encoding="utf-8")
+            self.assertEqual(checker.check_installed_node_overrides(quality_copy), [])
+            lock_path = quality_copy / "package-lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            nested = "node_modules/other/node_modules/smol-toml"
+            lock["packages"][nested] = {"version": DECLARED_NODE_OVERRIDES["smol-toml"]}
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            package = quality_copy / nested / "package.json"
+            package.parent.mkdir(parents=True)
+            package.write_text('{"version":"1.8.0"}', encoding="utf-8")
+            self.assertEqual(
+                checker.check_installed_node_overrides(quality_copy),
+                [f"runtime: {nested} expected 1.9.1, found 1.8.0"],
+            )
 
     def test_semver_parser_rejects_ambiguous_runtime_versions(self) -> None:
         checker = load_script_module(

@@ -145,9 +145,18 @@ jobs:
             --require-hashes \
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-      - name: Audit locked npm tool dependencies
+          python tools/quality/npm-security.py patch
+      - name: Audit locked tool dependencies
         shell: bash
-        run: npm audit --audit-level=high --include=dev --prefix tools/quality
+        run: |
+          set -euo pipefail
+          python tools/quality/npm-security.py audit
+          python -m pip_audit --require-hashes --disable-pip \
+            --cache-dir "$RUNNER_TEMP/pip-audit" \
+            -r tools/quality/requirements.lock
+          python -m pip_audit --require-hashes --disable-pip \
+            --cache-dir "$RUNNER_TEMP/pip-audit" \
+            -r tools/release-artifacts-requirements.txt
       - name: Install verified external tools
         shell: bash
         run: |
@@ -221,6 +230,7 @@ jobs:
             --require-hashes `
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
+          python tools/quality/npm-security.py patch
       - name: Install verified PowerShell analyzer
         shell: pwsh
         run: |

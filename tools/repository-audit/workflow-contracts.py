@@ -322,6 +322,7 @@ def release_package_contract(node_version: str) -> dict:
                             python -m pip install --disable-pip-version-check --no-input \
                               --require-hashes -r tools/quality/requirements.lock
                             npm ci --ignore-scripts --prefix tools/quality
+                              python tools/quality/npm-security.py patch
                             """).strip(),
                     },
                     {
@@ -1044,11 +1045,21 @@ def repository_audit_contract(node_version: str) -> dict:
                               --require-hashes \
                               --requirement tools/quality/requirements.lock
                             npm ci --ignore-scripts --prefix tools/quality
+                              python tools/quality/npm-security.py patch
                             """).strip(),
                     },
                     {
                         "shell": "bash",
-                        "run": "npm audit --audit-level=high --include=dev --prefix tools/quality",
+                        "run": textwrap.dedent(r"""
+                            set -euo pipefail
+                            python tools/quality/npm-security.py audit
+                            python -m pip_audit --require-hashes --disable-pip \
+                              --cache-dir "$RUNNER_TEMP/pip-audit" \
+                              -r tools/quality/requirements.lock
+                            python -m pip_audit --require-hashes --disable-pip \
+                              --cache-dir "$RUNNER_TEMP/pip-audit" \
+                              -r tools/release-artifacts-requirements.txt
+                            """).strip(),
                     },
                     {
                         "shell": "bash",
@@ -1091,6 +1102,7 @@ def repository_audit_contract(node_version: str) -> dict:
                               --require-hashes `
                               --requirement tools/quality/requirements.lock
                             npm ci --ignore-scripts --prefix tools/quality
+                              python tools/quality/npm-security.py patch
                             """).strip(),
                     },
                     {
@@ -1271,7 +1283,10 @@ def guarded_pull_request_merge_contract(node_version: str) -> dict:
                     setup_python("3.11", None),
                     setup_node("${{ env.NODE_VERSION }}"),
                     {
-                        "run": "npm ci --ignore-scripts --prefix tools/quality",
+                        "run": textwrap.dedent(r"""
+                            npm ci --ignore-scripts --prefix tools/quality
+                            python tools/quality/npm-security.py patch
+                            """).strip(),
                     },
                     {
                         "shell": "bash",

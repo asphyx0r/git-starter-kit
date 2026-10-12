@@ -195,7 +195,7 @@ using that environment; stop on the first failure:
 
 ```bash
 python -B tools/quality/check-versions.py --runtime
-npm audit --audit-level=high --include=dev --prefix tools/quality
+python tools/quality/npm-security.py audit
 bash tools/repository-audit.sh fast
 mypy --config-file tools/quality/pyproject.toml --platform linux
 mypy --config-file tools/quality/pyproject.toml --platform win32

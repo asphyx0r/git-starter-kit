@@ -1300,7 +1300,8 @@ usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime]
 default is the script directory. `--runtime` additionally checks installed
 Python distributions, packages under `tools/quality/node_modules`, and the
 registry-owned external tools through bounded local version probes. It does
-not install missing tools.
+not install missing tools. Every locked occurrence of an npm override is also
+checked against its installed package version, including nested occurrences.
 
 ### Exit Status
 
@@ -1325,7 +1326,7 @@ pinned with the generator so its recorded command does not add an unused
 
 ```bash
 python -m pip install "pip-tools==7.6.1" "click==8.2.1"
-pip-compile --generate-hashes \
+pip-compile --allow-unsafe --generate-hashes \
   --output-file=tools/quality/requirements.lock --strip-extras \
   tools/quality/requirements.in
 python tools/quality/check-versions.py
@@ -1337,12 +1338,82 @@ upgrade, then verify a clean installation and its advisories:
 
 ```bash
 npm ci --ignore-scripts --prefix tools/quality
-npm audit --audit-level=high --include=dev --prefix tools/quality
+python tools/quality/npm-security.py patch
+python tools/quality/npm-security.py audit
 python tools/quality/check-versions.py
 ```
 
-The Linux CI job requires the npm audit to succeed; high or critical
-vulnerabilities and errors preventing verification block integration.
+Use exact `nodeOverrides` entries in the registry for transitive npm pins;
+`package.json` overrides and every matching lock entry must agree. The Python
+lock generator's `--allow-unsafe` includes a hashed pip pin required by pip-api;
+installation continues to require hashes for every dependency.
+
+The Linux CI job requires the attested npm audit and audits of both Python
+locks to succeed. High or critical npm findings and verification errors block
+integration, except the precisely attested braces advisory described below.
+
+## quality/npm-security.py
+
+This tool applies and verifies the local fix for braces 3.0.3's recursive
+stack exhaustion, then evaluates npm's complete advisory graph. It preserves
+the upstream package version, npm integrity, MIT license and raw advisory
+report. It does not install packages or enable lifecycle scripts.
+
+### Synopsis
+
+```text
+usage: python tools/quality/npm-security.py [-h] [--version] [--dry-run] [-v] \
+  {patch,verify,audit} [--quality-root PATH] [--dry-run]
+```
+
+Apply `patch` explicitly after each `npm ci --ignore-scripts`. `verify` checks
+every installed braces occurrence against the recorded hashes. `audit` first
+verifies those bytes, then queries the npm registry with a 120-second deadline
+and a temporary download cache. `--dry-run` makes no writes or network calls;
+audit dry-run prints the planned command after local verification. `-v` shows
+the exception details on a failure. `--quality-root` defaults to this tool's
+directory and selects another installed quality tree with its lockfile.
+
+The patch manifest records the canonical npm archive URL and SHA512 integrity,
+the advisory `GHSA-vfj7-8cjw-p6xm`, and before/after SHA256 hashes for all ten
+upstream files. Replacement walkers use iterative traversal, retaining outputs,
+ordering, options and range limits. Frozen upstream walkers in the test fixtures
+support differential compatibility checks. License and provenance live under
+`quality/patches/braces-3.0.3/`.
+
+Unexpected files, hashes, linked directories, wrong lock provenance or unlocked
+braces copies stop patching. Application is idempotent; an interruption restores
+already replaced files and preserves the original exception. Concurrent foreign
+edits are preserved with an explicit incomplete-restoration diagnostic. Keep
+installation and patching exclusive of other writes to that dependency tree.
+
+An npm high finding is attested only when every advisory leaf is that exact
+braces advisory and all affected installed occurrences have the recorded fix.
+Other high or critical advisories block. Missing or cyclic attribution, malformed
+reports, stale counts and registry failures block as well. The JSON output keeps
+`rawReport` and `rawCounts` alongside `attested` and `blocked`; upstream findings
+remain visible. No advisory is silently suppressed. Remove the local patch when
+an upstream fixed release passes the same compatibility and security checks.
+
+Audit both fully hashed Python environments without installation or resolution:
+
+```bash
+python -m pip_audit --require-hashes --disable-pip \
+  --cache-dir /path/to/task-cache -r tools/quality/requirements.lock
+python -m pip_audit --require-hashes --disable-pip \
+  --cache-dir /path/to/task-cache -r tools/release-artifacts-requirements.txt
+```
+
+These network checks supplement local audit profiles. They do not mutate locks,
+run automatic fixes, or replace hooks and full qualification.
+
+### Exit Status
+
+- `0`: patch/verification succeeded, no unhandled high/critical advisory remains,
+  or the requested dry-run completed.
+- `1`: verification, registry audit or patch application failed, or blocking
+  advisories remain. Incomplete restoration details accompany the original error.
+- `2`: command-line arguments are invalid.
 
 ## quality/install-external-tools.py
 
@@ -1567,6 +1638,7 @@ python -m pip install \
   --require-hashes \
   --requirement tools/quality/requirements.lock
 npm ci --ignore-scripts --prefix tools/quality
+python tools/quality/npm-security.py patch
 ```
 
 The external versions declared in `tools/quality/versions.json` must also be
@@ -1582,7 +1654,7 @@ environment for the supplemental prechecks, separately and in order:
 
 ```bash
 python -B tools/quality/check-versions.py --runtime
-npm audit --audit-level=high --include=dev --prefix tools/quality
+python tools/quality/npm-security.py audit
 bash tools/repository-audit.sh fast
 mypy --config-file tools/quality/pyproject.toml --platform linux
 mypy --config-file tools/quality/pyproject.toml --platform win32

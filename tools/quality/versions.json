@@ -2,16 +2,21 @@
   "schemaVersion": 2,
   "python": {
     "codespell": "2.4.3",
-    "coverage": "7.16.1",
+    "coverage": "7.16.2",
     "jsonschema[format]": "4.26.0",
-    "mypy": "2.3.1",
+    "mypy": "2.4.0",
+    "pip-audit": "2.10.1",
     "PyYAML": "6.0.3",
-    "ruff": "0.16.8",
+    "ruff": "0.16.10",
     "yamllint": "1.38.0"
   },
   "node": {
     "@commitlint/cli": "21.2.3",
     "markdownlint-cli2": "0.23.3"
+  },
+  "nodeOverrides": {
+    "katex": "0.18.2",
+    "smol-toml": "1.9.1"
   },
   "external": {
     "gitleaks": {
