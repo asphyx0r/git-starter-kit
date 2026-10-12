@@ -1043,8 +1043,10 @@ deferred, or explicitly excluded from the template.
 - Usage: Invoke directly with Python, or through the audit contract wrappers;
   `--workflow` selects one contract and `--path` accepts its fixture file.
 - Notes: Uses safe YAML loading with duplicate-key rejection. Presentation
-  changes do not require policy updates; permissions, dependencies, action SHAs,
-  credential placement and executed guards remain enforced. Runtime versions
+  changes and bounded download-cache edits do not require policy updates;
+  permissions, dependencies, action SHAs, credential placement and executed
+  guards remain enforced. Named script seals hash normalized shell structure and
+  embedded Python syntax trees without duplicating the executable bodies. Runtime versions
   come from the quality registry. Default selection preserves the source-only
   release workflow boundary; explicit workflow selection remains strict.
 

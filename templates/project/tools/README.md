@@ -137,6 +137,13 @@ The exact inventory is [Managed files](../docs/repository-files.md).
 
 ## Common usage and tool reference
 
+Managed workflow contracts use named hashes of normalized executable scripts,
+with embedded Python checked as syntax trees. Permissions, pinned actions, refs,
+credential boundaries and step order remain protected. Setup download caches may
+vary only across declared lock/registry paths. Review execution changes and their
+tests before updating the corresponding seal; a matching hash does not prove the
+changed behavior is correct.
+
 ```bash
 bash tools/git-init.sh --path . --dry-run
 bash tools/git-init.sh --path .

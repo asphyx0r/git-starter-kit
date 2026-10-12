@@ -698,6 +698,40 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.validate("release-package", workflow)
 
+    def test_cache_can_be_removed_without_weakening_execution_contracts(self):
+        for name in self.workflows:
+            with self.subTest(workflow=name):
+                workflow = self.read_workflow(name)
+                for job in workflow["jobs"].values():
+                    for step in job.get("steps", []):
+                        if step.get("uses", "").startswith(
+                            ("actions/setup-node@", "actions/setup-python@")
+                        ):
+                            step.get("with", {}).pop("cache", None)
+                            step.get("with", {}).pop("cache-dependency-path", None)
+                self.validate(name, workflow)
+
+    def test_cache_input_order_is_presentation_but_paths_remain_bounded(self):
+        workflow = self.read_workflow("repository-audit")
+        setup = next(
+            step
+            for step in workflow["jobs"]["quality-linux"]["steps"]
+            if step.get("uses", "").startswith("actions/setup-node@")
+        )
+        setup["with"]["cache-dependency-path"] = (
+            "tools/quality/versions.json\ntools/quality/package-lock.json"
+        )
+        self.validate("repository-audit", workflow)
+        for value in (
+            "../../secret",
+            "${{ secrets.PRIVATE_KEY }}",
+            "unknown-lock.json",
+        ):
+            with self.subTest(path=value):
+                setup["with"]["cache-dependency-path"] = value
+                with self.assertRaises(self.validator.ContractError):
+                    self.validate("repository-audit", workflow)
+
     def test_literal_whitespace_around_repository_expression_is_rejected(self):
         for prefix, suffix in ((" ", " "), ("\t", ""), ("", "\n")):
             with self.subTest(prefix=prefix, suffix=suffix):

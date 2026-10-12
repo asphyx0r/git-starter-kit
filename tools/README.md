@@ -1652,6 +1652,26 @@ configuration, and unknown paths select the complete Python suite and the
 existing hook and commit-message shell suites. The exhaustive shell behavior
 and audit suites remain mandatory in Linux CI.
 
+Workflow contracts retain explicit events, check names, dependencies, permissions,
+action pins, trusted refs and credential boundaries. The validator stores named
+SHA256 seals of normalized executable scripts instead of second copies of those
+scripts. Shell normalization retains quoted values and statement boundaries;
+embedded Python compares parsed syntax trees. Step removal, reordering, added
+privileged execution and changed guards still fail closed.
+
+Setup-Python and Setup-Node download caches may be omitted or use the declared
+lock/registry paths in a different order. Runtime versions, action identities,
+other inputs and steps remain protected. Cache paths outside the known locks,
+credential expressions and unknown paths are rejected.
+
+When a planned workflow change alters execution, review the YAML change and its
+security/functional tests before updating only the affected entry in
+`SEALED_SCRIPTS` in `repository-audit/workflow-contracts.py`. Compute its digest as
+`"sha256:" + hashlib.sha256(normalize_script(run, shell).encode("utf-8")).hexdigest()`
+using that module's normalizer. The explicit algorithm prefix identifies checksum
+data, including roles whose names mention credentials. A matching digest is a contract check, not a substitute
+for reviewing the changed behavior. Presentation/cache edits need no new seal.
+
 ### Prerequisites
 
 Install the locked Python and Node dependencies before running an exhaustive
