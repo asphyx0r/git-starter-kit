@@ -37,6 +37,7 @@ mkdir -p "${fixture}/tools"
 mkdir -p "${fixture}/tools/quality"
 find "${source_root}/tools/quality" -maxdepth 1 -type f \
   -exec cp -- {} "${fixture}/tools/quality/" \;
+cp "${source_root}/tools/process_runner.py" "${fixture}/tools/process_runner.py"
 for generated_quality_path in node_modules __pycache__ .ruff_cache; do
   if [[ -e "${fixture}/tools/quality/${generated_quality_path}" ]]; then
     fail "pre-commit fixture copied generated ${generated_quality_path}"
@@ -59,7 +60,7 @@ linked_fixture="${test_temp}/linked worktree"
 git worktree add -q --detach "${linked_fixture}" HEAD
 (
   # Used by initialize_repository_root from the sourced common module.
-  # shellcheck disable=SC2034
+  # shellcheck disable=SC2030,SC2034
   audit_script_dir="${linked_fixture}/tools"
   GIT_DIR="$(git -C "${linked_fixture}" rev-parse --absolute-git-dir)"
   export GIT_DIR
@@ -101,11 +102,23 @@ run_focused_pre_commit_checks() (
     printf '%s\n' "$1" >"${test_temp}/snapshot-path"
     return "${fixture_validator_status:-0}"
   }
+  run_hook_runtime_preflight() {
+    [[ -f "$1/tools/quality/versions.json" ]] ||
+      fail 'runtime preflight did not receive indexed pins'
+    if [[ -f "$1/document with spaces.md" ]]; then
+      [[ "$(cat "$1/document with spaces.md")" == '# indexed content' ]] ||
+        fail 'runtime preflight did not receive indexed content'
+    fi
+    printf '%s\n' "$1" >"${test_temp}/runtime-snapshot-path"
+    return "${fixture_runtime_status:-0}"
+  }
   printf '# indexed content\n' >'document with spaces.md'
   git add 'document with spaces.md'
   printf '# unstaged content\n' >'document with spaces.md'
   index_before="$(git hash-object "$(git rev-parse --git-path index)")"
   run_hook_pre_commit || fail 'safe partial index rejected'
+  cmp -s "${test_temp}/runtime-snapshot-path" "${test_temp}/snapshot-path" ||
+    fail 'runtime and validator did not receive the same snapshot'
   if [[ "${mode}" == --windows ]]; then
     cmp -s "${test_temp}/scanner-path" "${test_temp}/snapshot-path" ||
       fail 'scanner and validator did not receive the same indexed snapshot'
@@ -119,6 +132,12 @@ run_focused_pre_commit_checks() (
   ((validator_status == 47)) || fail 'validator failure not preserved'
   [[ ! -e "$(cat "${test_temp}/snapshot-path")" ]] || fail 'failure leaked snapshot'
   fixture_validator_status=0
+  fixture_runtime_status=48
+  runtime_status=0
+  run_hook_pre_commit || runtime_status=$?
+  ((runtime_status == 48)) || fail 'runtime preflight failure was not preserved'
+  [[ ! -e "$(cat "${test_temp}/runtime-snapshot-path")" ]] || fail 'runtime failure leaked snapshot'
+  fixture_runtime_status=0
   git reset -q --hard HEAD
   if [[ "${mode}" != --windows ]]; then
     secret_name='API_TO'
@@ -202,6 +221,48 @@ run_focused_pre_commit_checks() (
   [[ -z "$(find "${TMPDIR}" -mindepth 1 -print -quit)" ]] || fail 'real Markdown check leaked snapshots'
   printf '%s\n' 'PASS: focused staged content, spaces, indexed policy and cleanup'
 )
+
+run_actual_runtime_preflight_checks() (
+  fixture="${test_temp}/runtime repository"
+  git clone -q --no-hardlinks "${repository_root}" "${fixture}"
+  git -C "${fixture}" config core.autocrlf false
+  # The fixture replaces repository_root only inside this test subshell.
+  # shellcheck disable=SC2030
+  repository_root="${fixture}"
+  cd "${repository_root}"
+  # Reload the production preflight after the focused validator stubs.
+  # shellcheck disable=SC1090,SC1091
+  source "${source_root}/tools/repository-audit.sh"
+  run_hook_secret_scan() { return 0; }
+  local_bin="${test_temp}/wrong-runtime"
+  mkdir -p "${local_bin}"
+  cat >"${local_bin}/ruff" <<'RUFF_VERSION'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == --version ]]; then printf 'ruff 0.0.0\n'; exit 0; fi
+touch "$QUALITY_UNEXPECTED_LINT"
+RUFF_VERSION
+  chmod +x "${local_bin}/ruff"
+  mkdir -p tests
+  printf 'value = 1\n' >tests/test_runtime_example.py
+  git add tests/test_runtime_example.py
+  before_index="$(git hash-object "$(git rev-parse --git-path index)")"
+  export QUALITY_UNEXPECTED_LINT="${test_temp}/unexpected-lint"
+  if PATH="${local_bin}:${PATH}" run_hook_pre_commit \
+    >"${test_temp}/runtime.out" 2>"${test_temp}/runtime.err"; then
+    fail 'pre-commit accepted a mismatched selected executable'
+  fi
+  grep -F 'runtime executable: ruff expected' "${test_temp}/runtime.err" >/dev/null || {
+    cat "${test_temp}/runtime.err" >&2
+    fail 'preflight did not identify the wrong executable'
+  }
+  [[ ! -e "${QUALITY_UNEXPECTED_LINT}" ]] || fail 'lint ran after runtime failure'
+  [[ "$(git hash-object "$(git rev-parse --git-path index)")" == "${before_index}" ]] ||
+    fail 'runtime preflight changed the source index'
+  printf '%s\n' 'PASS: actual selected runtime fails before lint without index mutation'
+)
+
+run_actual_runtime_preflight_checks
 
 if [[ "${1:-}" == --windows ]]; then
   run_focused_pre_commit_checks --windows
@@ -356,6 +417,8 @@ done
 
 quality_bin="${test_temp}/bin"
 mkdir -p "${quality_bin}"
+# Later cases isolate validator status propagation with trace executables.
+run_hook_runtime_preflight() { return 0; }
 export QUALITY_DECLARATION_REAL_PYTHON
 QUALITY_DECLARATION_REAL_PYTHON="$(command -v python)"
 cat >"${quality_bin}/python" <<'PYTHON'

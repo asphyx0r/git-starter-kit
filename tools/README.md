@@ -1319,15 +1319,33 @@ downloading, or modifying anything.
 ### Synopsis
 
 ```text
-usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime]
+usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime] \
+  [--tool NAME] [--runtime-root PATH] [--executable TOOL=PATH]
 ```
 
 `--quality-root PATH` selects another quality configuration directory. The
 default is the script directory. `--runtime` additionally checks installed
-Python distributions, packages under `tools/quality/node_modules`, and the
-registry-owned external tools through bounded local version probes. It does
+Python distributions, installed Node packages and the actual selected Python,
+Node and external CLI executables through bounded local version probes. It does
 not install missing tools. Every locked occurrence of an npm override is also
 checked against its installed package version, including nested occurrences.
+
+Repeat `--tool NAME` to limit runtime probes to the named registry tools;
+unselected tools are not required. Node-based tools also check the minimum Node
+version and installed override pins. `--runtime-root PATH` selects the installed
+quality tree when `--quality-root` points to immutable index metadata. Repeat
+`--executable TOOL=PATH` to probe the exact command selected by a caller. Unknown
+tools, conflicting overrides and scoped options without `--runtime` fail.
+Python libraries with no CLI retain distribution checks.
+
+Each version probe has a 15-second deadline containing its process tree and
+inherited output pipes. Windows npm shims run through the verified Git Bash
+installation; explicit paths take precedence over PATHEXT substitution. An
+unlaunchable, silent or mismatched executable is a failure with its diagnostic.
+
+```bash
+python -B tools/quality/check-versions.py --runtime --tool ruff --tool mypy
+```
 
 ### Exit Status
 
@@ -1641,7 +1659,12 @@ and ignore files come from the index, including when the working tree differs.
 Simple Markdown, Bash, and YAML checks export only required indexed files and
 configuration; checks that need repository context use the full index.
 `hook-commit-msg MESSAGE_FILE` validates the message file named by its required
-positional argument. `hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
+positional argument against the indexed Commitlint configuration. It snapshots
+the quality declarations and checks the actual Commitlint first. Pre-commit
+checks only the executables its selected validators will use, with expected pins
+from the same indexed snapshot; no installation occurs. PowerShell validation
+loads the registry's exact PSScriptAnalyzer version.
+`hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
 `LOCAL_REF LOCAL_OBJECT_ID REMOTE_REF REMOTE_OBJECT_ID` quadruplets from
 standard input, runs affected test families from the exact pushed objects with
 a 900-second timeout per selected family, and validates new SemVer release tags.

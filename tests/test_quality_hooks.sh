@@ -558,6 +558,9 @@ initialize_repository_root() {
 }
 initialize_repository_root
 
+# These validators are traces; real version probes have dedicated integration tests.
+run_hook_runtime_preflight() { return 0; }
+
 empty_output="${test_temp}/empty.out"
 empty_error="${test_temp}/empty.err"
 if ! run_hook_pre_commit >"${empty_output}" 2>"${empty_error}"; then

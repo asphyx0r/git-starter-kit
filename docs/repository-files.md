@@ -784,7 +784,9 @@ deferred, or explicitly excluded from the template.
 - Goal: Detects drift between the quality registry, dependency locks, and
   policy settings.
 - Usage: Run without options to validate declarations or with `--runtime` to
-  validate installed tool versions as well.
+  validate installed tool versions as well. Repeat `--tool` for selected runtimes;
+  `--runtime-root` separates installed packages from expected indexed declarations,
+  and `--executable TOOL=PATH` probes the exact selected command.
 - Notes: Uses bounded runtime probes and fails on missing, extra, malformed, or
   inconsistent direct declarations.
 

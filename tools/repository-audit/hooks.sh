@@ -313,6 +313,9 @@ run_hook_powershell_static() {
   pwsh_cmd="$(resolve_powershell_command)" || return
   local settings_path
   settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1" "${pwsh_cmd}")" || return
+  local python_cmd pssa_version
+  python_cmd="$(resolve_hook_python)" || return
+  pssa_version="$("${python_cmd}" -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["external"]["PSScriptAnalyzer"]["version"])' "${staged_root}/tools/quality/versions.json")" || return
   local file_path
   for file_path in "$@"; do
     if [[ "${file_path#./}" == tools/quality/PSScriptAnalyzerSettings.psd1 ]]; then
@@ -323,9 +326,10 @@ run_hook_powershell_static() {
     host_path="$(to_hook_host_path "${staged_root}/${file_path#./}" "${pwsh_cmd}")" || return
     # PowerShell expands its environment variables in the single-quoted script.
     # shellcheck disable=SC2016
-    AUDIT_PS_PATH="${host_path}" AUDIT_PS_SETTINGS="${settings_path}" \
+    AUDIT_PS_PATH="${host_path}" AUDIT_PS_SETTINGS="${settings_path}" AUDIT_PSSA_VERSION="${pssa_version}" \
       "${pwsh_cmd}" -NoProfile -Command '
 $ErrorActionPreference = "Stop"
+Import-Module PSScriptAnalyzer -RequiredVersion $env:AUDIT_PSSA_VERSION -Force -ErrorAction Stop
 $null = Get-Content -LiteralPath $env:AUDIT_PS_PATH -Raw
 $null = Get-Content -LiteralPath $env:AUDIT_PS_SETTINGS -Raw
 $findings = Invoke-ScriptAnalyzer `
@@ -345,11 +349,15 @@ run_hook_powershell_settings() {
   pwsh_cmd="$(resolve_powershell_command)" || return
   local settings_path
   settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1" "${pwsh_cmd}")" || return
+  local python_cmd pssa_version
+  python_cmd="$(resolve_hook_python)" || return
+  pssa_version="$("${python_cmd}" -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["external"]["PSScriptAnalyzer"]["version"])' "${staged_root}/tools/quality/versions.json")" || return
   # PowerShell expands its environment variables in the single-quoted script.
   # shellcheck disable=SC2016
-  AUDIT_PS_SETTINGS="${settings_path}" \
+  AUDIT_PS_SETTINGS="${settings_path}" AUDIT_PSSA_VERSION="${pssa_version}" \
     "${pwsh_cmd}" -NoProfile -Command '
 $ErrorActionPreference = "Stop"
+Import-Module PSScriptAnalyzer -RequiredVersion $env:AUDIT_PSSA_VERSION -Force -ErrorAction Stop
 $null = Invoke-ScriptAnalyzer `
     -ScriptDefinition "`$null = `$null" `
     -Settings $env:AUDIT_PS_SETTINGS
@@ -421,6 +429,53 @@ run_hook_markdown_configuration() {
         --no-globs \
         -
   )
+}
+
+run_hook_runtime_preflight() {
+  local staged_root="$1"
+  local -a selected=() arguments=()
+  if ((${#markdown_paths[@]} > 0)) || [[ "${run_markdown_configuration}" == true ]]; then
+    selected+=(markdownlint-cli2)
+  fi
+  if ((${#yaml_paths[@]} > 0)); then selected+=(yamllint); fi
+  if ((${#python_paths[@]} > 0)); then
+    selected+=(ruff)
+    local path
+    for path in "${python_paths[@]}"; do
+      if [[ "${path}" == ./tools/* ]]; then
+        selected+=(mypy)
+        break
+      fi
+    done
+  fi
+  if ((${#shell_paths[@]} > 0)); then selected+=(shellcheck shfmt); fi
+  if ((${#javascript_paths[@]} > 0)); then selected+=(node); fi
+  if ((${#powershell_paths[@]} > 0)) || [[ "${run_powershell_settings}" == true ]]; then
+    selected+=(PSScriptAnalyzer)
+  fi
+  if [[ "${run_spelling_configuration}" == true ]]; then selected+=(codespell); fi
+  if [[ "${run_commitlint_configuration}" == true ]]; then selected+=('@commitlint/cli'); fi
+  if [[ "${run_workflows}" == true ]]; then selected+=(actionlint); fi
+  ((${#selected[@]} > 0)) || return 0
+  local tool command python_cmd runtime_root="${repository_root}/tools/quality"
+  python_cmd="$(resolve_hook_python)" || return
+  for tool in "${selected[@]}"; do
+    case "${tool}" in
+    markdownlint-cli2) command="$(resolve_hook_node_tool markdownlint-cli2)" || return ;;
+    '@commitlint/cli') command="$(resolve_hook_node_tool commitlint)" || return ;;
+    PSScriptAnalyzer) command="$(resolve_powershell_command)" || return ;;
+    ruff | mypy | yamllint | codespell) command="$(resolve_hook_command python "${tool}" "${tool}.exe")" || return ;;
+    *) command="$(resolve_hook_command system "${tool}" "${tool}.exe")" || return ;;
+    esac
+    if [[ "${command}" == */node_modules/.bin/* ]]; then
+      runtime_root="${command%/node_modules/.bin/*}"
+    fi
+    command="$(to_hook_host_path "${command}" "${python_cmd}")" || return
+    arguments+=(--tool "${tool}" --executable "${tool}=${command}")
+  done
+  "${python_cmd}" -B "${audit_script_dir}/quality/check-versions.py" \
+    --quality-root "${staged_root}/tools/quality" --runtime \
+    --runtime-root "${runtime_root}" "${arguments[@]}"
 }
 
 run_hook_pre_commit() (
@@ -562,7 +617,10 @@ run_hook_pre_commit() (
   else
     local export_names="${hook_temp}/export.names"
     cp "${staged_names}" "${export_names}" || return
-    local -a export_configs=(.gitleaks.toml .gitleaksignore tools/quality/versions.json)
+    local -a export_configs=(.gitleaks.toml .gitleaksignore tools/quality/versions.json
+      tools/quality/check-versions.py tools/quality/install-external-tools.py
+      tools/process_runner.py tools/quality/requirements.in tools/quality/requirements.lock
+      tools/quality/package.json tools/quality/package-lock.json tools/quality/pyproject.toml)
     if ((${#markdown_paths[@]} > 0)); then
       export_configs+=(.gitignore '**/.gitignore' '.markdownlint*' '**/.markdownlint*')
     fi
@@ -585,6 +643,9 @@ run_hook_pre_commit() (
   fi
   if ((check_status == 0)); then
     run_hook_secret_scan "${staged_root}" || check_status=$?
+  fi
+  if ((check_status == 0)); then
+    run_hook_runtime_preflight "${staged_root}" || check_status=$?
   fi
   if ((check_status == 0)); then
     for staged_file in "${required_configuration_paths[@]}"; do
@@ -655,25 +716,61 @@ require_commit_message_file() {
 
 run_hook_commitlint() {
   local commit_message_file="$1"
+  local expected_root="${2:-${repository_root}}"
   local commitlint_cmd
   commitlint_cmd="$(resolve_hook_node_tool commitlint)" || return
-  local commitlint_config="${repository_root}/commitlint.config.cjs"
+  local commitlint_config="${expected_root}/commitlint.config.cjs"
   if [[ ! -f "${commitlint_config}" ]]; then
     printf 'commit-msg: commitlint config does not exist: %s\n' \
       "${commitlint_config}" >&2
     return 1
   fi
+  local python_cmd runtime_root="${repository_root}/tools/quality"
+  python_cmd="$(resolve_hook_python)" || return
+  if [[ "${commitlint_cmd}" == */node_modules/.bin/* ]]; then
+    runtime_root="${commitlint_cmd%/node_modules/.bin/*}"
+  fi
+  local host_command
+  host_command="$(to_hook_host_path "${commitlint_cmd}" "${python_cmd}")" || return
+  "${python_cmd}" -B "${audit_script_dir}/quality/check-versions.py" \
+    --quality-root "${expected_root}/tools/quality" --runtime \
+    --runtime-root "${runtime_root}" --tool '@commitlint/cli' \
+    --executable "@commitlint/cli=${host_command}" || return
   printf '%s\n' 'commit-msg: running commitlint on commit message.'
   "${commitlint_cmd}" \
     --edit "${commit_message_file}" \
     --config "${commitlint_config}"
 }
 
-run_hook_commit_msg() {
+run_hook_commit_msg() (
   local commit_message_file="${1:-}"
   require_commit_message_file "${commit_message_file}" || return
-  run_hook_commitlint "${commit_message_file}"
-}
+  local message_temp
+  message_temp="$(mktemp -d "${TMPDIR:-/tmp}/commit-message-index.XXXXXX")" || return
+  # The generated path is owned by this subshell's EXIT trap.
+  # shellcheck disable=SC2329
+  cleanup_message_index() {
+    case "${message_temp}" in
+    "${TMPDIR:-/tmp}"/commit-message-index.*) rm -rf -- "${message_temp}" ;;
+    *)
+      printf 'Refusing unexpected message snapshot: %s\n' "${message_temp}" >&2
+      return 1
+      ;;
+    esac
+  }
+  trap cleanup_message_index EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  local expected_root="${message_temp}/index"
+  mkdir -p "${expected_root}" || return
+  git ls-files -z -- commitlint.config.cjs tools/quality/versions.json \
+    tools/quality/check-versions.py tools/quality/install-external-tools.py \
+    tools/process_runner.py tools/quality/requirements.in tools/quality/requirements.lock \
+    tools/quality/package.json tools/quality/package-lock.json tools/quality/pyproject.toml |
+    git checkout-index -z --stdin --prefix="${expected_root}/" || return
+  run_hook_commitlint "${commit_message_file}" "${expected_root}"
+)
 
 list_hook_push_changes() {
   local local_object_id="$1"

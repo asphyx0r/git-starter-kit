@@ -149,6 +149,14 @@ pre-commit/pre-push suites for those wrappers, combining repeated pushed objects
 Shared or unknown source changes retain all Python and four shell suites. Consumer
 projects keep their managed-core scope and explicitly declared application checks.
 
+Pre-commit probes only its selected executables against indexed pins before
+linting. Commit-msg checks the actual Commitlint and indexed configuration.
+PowerShell validation loads the exact pinned PSScriptAnalyzer module. Use
+`python -B tools/quality/check-versions.py --runtime --tool NAME` for a focused
+runtime check; repeat `--tool` as needed. `--runtime-root` separates installed
+packages from expected metadata, and `--executable TOOL=PATH` names the exact
+caller-selected command. These checks never install missing tools.
+
 ```bash
 bash tools/git-init.sh --path . --dry-run
 bash tools/git-init.sh --path .

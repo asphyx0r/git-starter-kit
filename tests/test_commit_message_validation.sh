@@ -52,7 +52,18 @@ initialize_fixture() {
   cp -R "$source_root/tools/repository-audit" \
     "$fixture_root/tools/repository-audit"
   cp "$source_root/commitlint.config.cjs" "$fixture_root/commitlint.config.cjs"
+  mkdir -p "$fixture_root/tools/quality"
+  find "$source_root/tools/quality" -maxdepth 1 -type f \
+    -exec cp -- {} "$fixture_root/tools/quality/" \;
+  cp "$source_root/tools/process_runner.py" "$fixture_root/tools/process_runner.py"
+  # The proxy delegates to the real locked CLI; retain its version metadata.
+  for package in @commitlint/cli markdownlint-cli2 smol-toml katex; do
+    mkdir -p "$fixture_root/tools/quality/node_modules/$package"
+    cp "$source_root/tools/quality/node_modules/$package/package.json" \
+      "$fixture_root/tools/quality/node_modules/$package/package.json"
+  done
   chmod +x "$fixture_root/.githooks/commit-msg"
+  git -C "$fixture_root" add -- commitlint.config.cjs tools .githooks
 }
 
 commit_without_repository_hooks() {
