@@ -998,6 +998,9 @@ deferred, or explicitly excluded from the template.
   retains release-tag artifact validation. Clone guards compare directory
   identities so equivalent Git Bash mount paths remain valid. One affected-path
   mapping selects snapshots and test modules for both hooks.
+  Source test edits select their own suite; initializer tools select initializer
+  tests. Hook wrappers select common and focused shell suites. Shared/unknown
+  paths retain all Python tests and all four shell suites; missing selections fail.
 
 ### `tools/repository-audit/profiles.sh`
 

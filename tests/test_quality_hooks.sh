@@ -176,11 +176,14 @@ fi
 if [[ "${1:-}" == --selection ]]; then
   assert_selection() {
     local run_python=false run_shell=false run_workflows=false
-    local full_snapshot=false python_modules=''
+    local full_snapshot=false python_modules='' shell_modules=''
     classify_hook_path "$1"
     [[ "${python_modules}" == "$2" ]] || fail "wrong modules for $1: ${python_modules}"
     [[ "${full_snapshot}" == "$3" ]] || fail "wrong export policy for $1"
     [[ "${run_workflows}" == "$4" ]] || fail "wrong workflow policy for $1"
+    if (($# == 5)); then
+      [[ "${shell_modules}" == "$5" ]] || fail "wrong shell modules for $1: ${shell_modules}"
+    fi
   }
   assert_selection tools/backup-target-directory.py test_backup_target_directory.py true false
   assert_selection tools/starter_kit_upgrade/planning.py test_starter_kit_upgrade.py true false
@@ -189,6 +192,20 @@ if [[ "${1:-}" == --selection ]]; then
   assert_selection .github/workflows/repository-audit.yml test_workflow_contracts.py true true
   assert_selection docs/guide.md '' false false
   assert_selection 'unknown file.bin' '*' true false
+  assert_selection tests/test_quality_toolchain.py test_quality_toolchain.py true false ''
+  assert_selection tests/test_git_init.py test_git_init.py true false ''
+  assert_selection tools/initialize-repository.py test_git_init.py true false ''
+  assert_selection tools/git-init.sh test_git_init.py true false ''
+  assert_selection tools/git-init.ps1 test_git_init.py true false ''
+  assert_selection tools/quality/npm-security.py test_npm_security.py true false ''
+  assert_selection tests/fixtures/braces-3.0.3.tgz test_npm_security.py true false ''
+  assert_selection tests/test_quality_pre_commit.sh '' false false test_quality_pre_commit.sh
+  assert_selection tests/test_quality_pre_push.sh '' false false test_quality_pre_push.sh
+  assert_selection .githooks/pre-commit '' false false 'test_quality_hooks.sh test_quality_pre_commit.sh'
+  assert_selection .githooks/pre-push '' false false 'test_quality_hooks.sh test_quality_pre_push.sh'
+  assert_selection .githooks/commit-msg '' false false 'test_quality_hooks.sh test_commit_message_validation.sh'
+  assert_selection tools/repository-audit/hooks.sh '*' true false '*'
+  assert_selection 'tests/test_with spaces.py' '*' true false '*'
   selected_root="${test_temp}/selected tests"
   mkdir -p "${selected_root}/tests"
   printf 'raise AssertionError("unrelated test was selected")\n' >"${selected_root}/tests/test_unrelated.py"
@@ -199,6 +216,19 @@ if [[ "${1:-}" == --selection ]]; then
   rm "${selected_root}/tests/test_backup_target_directory.py"
   if run_hook_affected_tests "${selected_root}" true false test_backup_target_directory.py; then
     fail 'missing selected unittest silently passed'
+  fi
+  printf '#!/usr/bin/env bash\n[[ ! -e shell.ran ]] || exit 41\ntouch shell.ran\n' \
+    >"${selected_root}/tests/test_quality_pre_commit.sh"
+  printf '#!/usr/bin/env bash\nexit 42\n' >"${selected_root}/tests/test_unrelated.sh"
+  run_hook_affected_tests "${selected_root}" false true '' false \
+    'test_quality_pre_commit.sh test_quality_pre_commit.sh'
+  [[ -f "${selected_root}/shell.ran" ]] || fail 'selected shell suite did not run'
+  rm "${selected_root}/tests/test_quality_pre_commit.sh"
+  if run_hook_affected_tests "${selected_root}" false true '' false test_quality_pre_commit.sh; then
+    fail 'missing selected shell suite silently passed'
+  fi
+  if run_hook_affected_tests "${selected_root}" false true '' false ''; then
+    fail 'empty mandatory shell selection silently passed'
   fi
   printf '%s\n' 'PASS: centralized affected-check selection'
   exit 0
@@ -260,7 +290,9 @@ PYTHON
 chmod +x "${affected_bin}/python"
 for shell_test in \
   test_quality_hooks.sh \
-  test_commit_message_validation.sh; do
+  test_commit_message_validation.sh \
+  test_quality_pre_commit.sh \
+  test_quality_pre_push.sh; do
   cat >"${affected_root}/tests/${shell_test}" <<'SHELL_TEST'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -372,7 +404,7 @@ assert_file_contains "${test_temp}/missing-timeout.err" \
 assert_file_contains "${test_temp}/missing-timeout.err" \
   "Install required timeout and ensure it is on PATH."
 
-for failed_shell_position in 1 2; do
+for failed_shell_position in 1 2 3 4; do
   shell_call_trace="${test_temp}/shell-${failed_shell_position}.trace"
   : >"${shell_call_trace}"
   shell_failure_status=$((46 + failed_shell_position))
@@ -380,6 +412,8 @@ for failed_shell_position in 1 2; do
     sed -n "${failed_shell_position}p" <<'EOF'
 test_quality_hooks.sh
 test_commit_message_validation.sh
+test_quality_pre_commit.sh
+test_quality_pre_push.sh
 EOF
   )"
   affected_shell_status=0
@@ -417,6 +451,7 @@ done
 test_object_ids=()
 test_python_flags=()
 test_shell_flags=()
+test_shell_modules=()
 merge_hook_test_update abc123 true false
 merge_hook_test_update abc123 true false
 if ((${#test_object_ids[@]} != 1)) ||
@@ -429,6 +464,11 @@ if ((${#test_object_ids[@]} != 1)) ||
   [[ "${test_python_flags[0]}" != true ]] ||
   [[ "${test_shell_flags[0]}" != true ]]; then
   fail "complementary object ID flags were not merged"
+fi
+merge_hook_test_update focused false true '' false test_quality_pre_commit.sh
+merge_hook_test_update focused false true '' false test_quality_pre_push.sh
+if [[ "${test_shell_modules[1]}" != 'test_quality_pre_commit.sh test_quality_pre_push.sh' ]]; then
+  fail 'focused shell suites were not merged for the same pushed object'
 fi
 
 assert_hook_path_flags() {

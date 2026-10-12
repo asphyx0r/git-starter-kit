@@ -144,6 +144,11 @@ vary only across declared lock/registry paths. Review execution changes and thei
 tests before updating the corresponding seal; a matching hash does not prove the
 changed behavior is correct.
 
+Source-maintenance hooks select each changed test's family and the focused
+pre-commit/pre-push suites for those wrappers, combining repeated pushed objects.
+Shared or unknown source changes retain all Python and four shell suites. Consumer
+projects keep their managed-core scope and explicitly declared application checks.
+
 ```bash
 bash tools/git-init.sh --path . --dry-run
 bash tools/git-init.sh --path .

@@ -1646,10 +1646,14 @@ positional argument. `hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
 standard input, runs affected test families from the exact pushed objects with
 a 900-second timeout per selected family, and validates new SemVer release tags.
 Both hooks use one affected-path mapping. A standalone Python tool selects its
-test module, upgrade changes select the upgrade suite, and workflow changes
-select Actionlint and semantic workflow contracts. Shared runtime,
-configuration, and unknown paths select the complete Python suite and the
-existing hook and commit-message shell suites. The exhaustive shell behavior
+test module; isolated test changes select that test. Both public initializers
+and their helper select the initializer suite. Upgrade changes select the upgrade
+suite, and workflow changes select Actionlint and semantic workflow contracts.
+Each hook wrapper selects the common hook suite and its own focused suite.
+Shared runtime, configuration and unknown paths select the complete Python suite
+and all four shell suites: common hooks, commit messages, pre-commit and pre-push.
+Selections are combined for repeated pushed objects and executed once per suite;
+missing suites or an empty mandatory selection fail. The exhaustive shell behavior
 and audit suites remain mandatory in Linux CI.
 
 Workflow contracts retain explicit events, check names, dependencies, permissions,

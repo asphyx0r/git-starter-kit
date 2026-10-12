@@ -25,7 +25,7 @@ classify_hook_path() {
     scope="$(resolve_validation_scope)" || return
     [[ "${scope}" == source ]] || return 0
   fi
-  local module=''
+  local module='' shell_module=''
   case "${changed_path}" in
   tools/backup-target-directory.py | tests/test_backup_target_directory.py)
     module=test_backup_target_directory.py
@@ -48,6 +48,21 @@ classify_hook_path() {
   tools/build-release-package.ps1 | tests/test_build_release_package.py)
     module=test_build_release_package.py
     ;;
+  tools/initialize-repository.py | tools/git-init.sh | tools/git-init.ps1 | tests/test_git_init.py)
+    module=test_git_init.py
+    ;;
+  tools/quality/npm-security.py | tools/quality/patches/braces-3.0.3/* | tests/fixtures/braces-3.0.3.tgz)
+    module=test_npm_security.py
+    ;;
+  .githooks/pre-commit)
+    shell_module='test_quality_hooks.sh test_quality_pre_commit.sh'
+    ;;
+  .githooks/pre-push)
+    shell_module='test_quality_hooks.sh test_quality_pre_push.sh'
+    ;;
+  .githooks/commit-msg)
+    shell_module='test_quality_hooks.sh test_commit_message_validation.sh'
+    ;;
   .github/workflows/* | tools/repository-audit/workflow-contracts.py | tests/test_workflow_contracts.py)
     module=test_workflow_contracts.py
     run_workflows=true
@@ -55,26 +70,53 @@ classify_hook_path() {
   tools/quality/check-coverage.py | tests/test_coverage_policy.py)
     module=test_coverage_policy.py
     ;;
+  tests/test_*.py)
+    module="${changed_path#tests/}"
+    if [[ ! "${module}" =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
+      module='*'
+      shell_module='*'
+    fi
+    ;;
+  tests/test_*.sh)
+    shell_module="${changed_path#tests/}"
+    if [[ ! "${shell_module}" =~ ^test_[A-Za-z0-9_]+\.sh$ ]]; then
+      module='*'
+      shell_module='*'
+    fi
+    ;;
   tools/quality/* | tools/git_objects.py | tools/process_runner.py | .codespellrc | \
     tools/repository-audit.sh | tools/repository-audit/* | .githooks/* | \
     .gitleaks.toml | .gitleaksignore | .betterleaks.toml | \
     commitlint.config.cjs | .markdownlint-cli2.yaml | \
     tools/release-artifacts-requirements.txt | VERSION | SHA256SUMS | manifest.json)
     module='*'
-    run_shell=true
+    shell_module='*'
     ;;
   *.md)
     ;;
   *.sh)
-    run_shell=true
+    shell_module='*'
     ;;
   *.yml | *.yaml)
     ;;
   *)
     module='*'
-    run_shell=true
+    shell_module='*'
     ;;
   esac
+  if [[ -n "${shell_module}" ]]; then
+    run_shell=true
+    if [[ "${shell_module}" == '*' || "${shell_modules:-}" == '*' ]]; then
+      shell_modules='*'
+    else
+      local selected_shell
+      for selected_shell in ${shell_module}; do
+        if [[ " ${shell_modules:-} " != *" ${selected_shell} "* ]]; then
+          shell_modules="${shell_modules:+${shell_modules} }${selected_shell}"
+        fi
+      done
+    fi
+  fi
   if [[ -n "${module}" ]]; then
     run_python=true
     full_snapshot=true
@@ -432,7 +474,7 @@ run_hook_pre_commit() (
   local configuration_names="${hook_temp}/configuration.names"
   local release_names="${hook_temp}/release.names"
   local run_python=false run_shell=false run_workflows=false
-  local full_snapshot=false python_modules=''
+  local full_snapshot=false python_modules='' shell_modules=''
   local selection_names="${hook_temp}/selection.names"
 
   git diff --cached --name-only -z --diff-filter=ACMR \
@@ -646,6 +688,10 @@ merge_hook_test_update() {
   local run_shell_for_object="$3"
   local modules_for_object="${4-*}"
   local workflows_for_object="${5:-false}"
+  local shells_for_object="${6-*}"
+  if [[ "${run_shell_for_object}" != true ]]; then
+    shells_for_object=''
+  fi
   local object_index
 
   for ((object_index = 0; object_index < ${#test_object_ids[@]}; object_index += 1)); do
@@ -655,6 +701,11 @@ merge_hook_test_update() {
       fi
       if [[ "${run_shell_for_object}" == true ]]; then
         test_shell_flags[object_index]=true
+        if [[ "${shells_for_object}" == '*' || "${test_shell_modules[object_index]:-}" == '*' ]]; then
+          test_shell_modules[object_index]='*'
+        else
+          test_shell_modules[object_index]+=" ${shells_for_object}"
+        fi
       fi
       if [[ "${workflows_for_object}" == true ]]; then
         test_workflow_flags[object_index]=true
@@ -671,6 +722,7 @@ merge_hook_test_update() {
   test_object_ids+=("${object_id}")
   test_python_flags+=("${run_python_for_object}")
   test_shell_flags+=("${run_shell_for_object}")
+  test_shell_modules+=("${shells_for_object}")
   test_python_modules+=("${modules_for_object}")
   test_workflow_flags+=("${workflows_for_object}")
 }
@@ -740,6 +792,7 @@ run_hook_affected_tests() {
   local run_shell="$3"
   local modules="${4:-*}"
   local run_workflows="${5:-false}"
+  local shell_modules="${6-*}"
   local python_cmd
   if [[ "${run_python}" == true ]]; then
     python_cmd="$(resolve_hook_python)" || return
@@ -764,18 +817,28 @@ run_hook_affected_tests() {
     ' hook-python-family "${pushed_root}" "${python_cmd}" "${modules}" || return
   fi
   if [[ "${run_shell}" == true ]]; then
+    if [[ -z "${shell_modules}" ]]; then
+      printf '%s\n' 'pre-push: mandatory shell selection is empty.' >&2
+      return 1
+    fi
     printf '%s\n' 'pre-push: running affected shell tests.'
     # The child Bash expands its positional arguments.
     # shellcheck disable=SC2016
     run_hook_test_family Shell bash -c '
       cd -- "$1" || exit
-      shift
-      for shell_test in "$@"; do
-        bash "${shell_test}" || exit $?
+      modules="$2"
+      if [[ "$modules" == "*" ]]; then
+        modules="test_quality_hooks.sh test_commit_message_validation.sh test_quality_pre_commit.sh test_quality_pre_push.sh"
+      fi
+      read -r -a selected_modules <<<"${modules}"
+      seen_modules=" "
+      for shell_test in "${selected_modules[@]}"; do
+        [[ "${seen_modules}" != *" ${shell_test} "* ]] || continue
+        seen_modules+="${shell_test} "
+        [[ -f "tests/${shell_test}" ]] || { printf "Missing affected test: %s\n" "$shell_test" >&2; exit 1; }
+        bash "tests/${shell_test}" || exit $?
       done
-    ' hook-shell-family "${pushed_root}" \
-      tests/test_quality_hooks.sh \
-      tests/test_commit_message_validation.sh || return $?
+    ' hook-shell-family "${pushed_root}" "${shell_modules}" || return $?
   fi
   if [[ "${run_workflows}" == true ]]; then
     run_hook_workflows "${pushed_root}" || return
@@ -878,6 +941,7 @@ run_hook_pre_push() (
   local -a test_object_ids=()
   local -a test_python_flags=()
   local -a test_shell_flags=()
+  local -a test_shell_modules=()
   local -a test_python_modules=()
   local -a test_workflow_flags=()
   local -a release_updates=()
@@ -897,11 +961,12 @@ run_hook_pre_push() (
     fi
     local run_python=false
     local run_shell=false
-    local run_workflows=false full_snapshot=false python_modules=''
+    local run_workflows=false full_snapshot=false python_modules='' shell_modules=''
     if is_hook_zero_object_id "${remote_object_id}"; then
       run_python=true
       run_shell=true
       python_modules='*'
+      shell_modules='*'
       run_workflows=true
     else
       local changes_path="${hook_temp}/changes.${update_index}"
@@ -918,7 +983,7 @@ run_hook_pre_push() (
     fi
     merge_hook_test_update \
       "${local_object_id}" "${run_python}" "${run_shell}" \
-      "${python_modules}" "${run_workflows}"
+      "${python_modules}" "${run_workflows}" "${shell_modules}"
     update_index=$((update_index + 1))
   done
 
@@ -970,7 +1035,8 @@ run_hook_pre_push() (
           "${test_python_flags[update_index]}" \
           "${test_shell_flags[update_index]}" \
           "${test_python_modules[update_index]}" \
-          "${test_workflow_flags[update_index]}" || return
+          "${test_workflow_flags[update_index]}" \
+          "${test_shell_modules[update_index]}" || return
       else
         (
           repository_root="${validated_hook_root}"
