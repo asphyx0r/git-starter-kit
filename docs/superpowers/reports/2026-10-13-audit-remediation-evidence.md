@@ -677,3 +677,30 @@ It must not execute PR code under the token, disable a ruleset or grant any new
 bypass. The temporary fixture workflow must be removed after qualification.
 The permanent API transport, its final checks and this bootstrap result remain
 separate evidence gates at this checkpoint.
+
+## Hosted Review Regression Checks
+
+The exact `ed41487` PR run `38423111287` and push run `38423095586` passed all
+jobs. Windows ran 601 tests in 422.315 seconds; Linux ran 601 in 226.070 seconds.
+The measured union remained global 90.66%, statements 92.07% and branches 87.14%.
+The active local pre-push passed 601 tests in 792.366 seconds, nineteen Windows
+skips and all four shell suites. Its earlier intermittent fixture write error
+was not reproduced by the focused replay or the complete retry.
+
+Bootstrap run `38426223695` passed both trusted validations and reached the
+ordinary App merge API. GitHub rejected it with HTTP 405 because review
+conversations were unresolved. Main remained `6d5b6d1`; ordinary conversation
+protection was not bypassed. A prior bootstrap import error was reproduced and
+corrected only in that temporary fixture workflow.
+
+The three review concerns reproduce as failures: partial setup-cache inputs
+were accepted, folded OS jobs retained only 25 minutes, and an explicit relative
+version probe launched the PATH namesake (`9.9.9`) instead of its selected file
+(`1.2.3`). Cache inputs now require both the kind and approved dependency paths;
+each OS job retains the sum of the former quality/project budgets (45 minutes);
+explicit probe files use absolute launch paths without resolving symlink names.
+These corrections stay within findings 09, 17 and 19. The 900-second local
+limits, action pins, permissions, ordinary protections and script seals remain
+unchanged. The resulting candidate requires its own publication hook, hosted
+qualification and package proofs before conversations can be resolved and the
+guarded integration can be retried.

@@ -140,7 +140,8 @@ The exact inventory is [Managed files](../docs/repository-files.md).
 Managed workflow contracts use named hashes of normalized executable scripts,
 with embedded Python checked as syntax trees. Permissions, pinned actions, refs,
 credential boundaries and step order remain protected. Setup download caches may
-vary only across declared lock/registry paths. Review execution changes and their
+vary only across declared lock/registry paths. Configure `cache` and
+`cache-dependency-path` together, or omit both. Review execution changes and their
 tests before updating the corresponding seal; a matching hash does not prove the
 changed behavior is correct.
 
@@ -156,6 +157,8 @@ PowerShell validation loads the exact pinned PSScriptAnalyzer module. Use
 runtime check; repeat `--tool` as needed. `--runtime-root` separates installed
 packages from expected metadata, and `--executable TOOL=PATH` names the exact
 caller-selected command. These checks never install missing tools.
+Explicit relative paths such as `./tool` launch that file even when `PATH`
+contains a namesake executable.
 
 ```bash
 bash tools/git-init.sh --path . --dry-run

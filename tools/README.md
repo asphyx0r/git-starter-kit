@@ -1382,6 +1382,8 @@ quality tree when `--quality-root` points to immutable index metadata. Repeat
 `--executable TOOL=PATH` to probe the exact command selected by a caller. Unknown
 tools, conflicting overrides and scoped options without `--runtime` fail.
 Python libraries with no CLI retain distribution checks.
+Explicit relative paths such as `./tool` launch the requested file even when
+`PATH` contains a namesake executable.
 
 Each version probe has a 15-second deadline containing its process tree and
 inherited output pipes. Windows npm shims run through the verified Git Bash
@@ -1741,7 +1743,8 @@ supported Python versions. Step removal, reordering, added
 privileged execution and changed guards still fail closed.
 
 Setup-Python and Setup-Node download caches may be omitted or use the declared
-lock/registry paths in a different order. Runtime versions, action identities,
+lock/registry paths in a different order. Configure `cache` and
+`cache-dependency-path` together, or omit both. Runtime versions, action identities,
 other inputs and steps remain protected. Cache paths outside the known locks,
 credential expressions and unknown paths are rejected.
 
@@ -1802,6 +1805,9 @@ the npm key also includes the declared runtime policy. Installation still uses
 `--require-hashes` and `npm ci --ignore-scripts`. The workflow uses no Go setup or
 dynamic `go install`; every external binary or module comes from the registry
 entry whose HTTPS artifact digest and runtime probe were validated.
+Each Linux/Windows job has a 45-minute total deadline, preserving the combined
+former 25-minute quality and 20-minute project-check budgets. Local hook family
+and project-command timeouts remain 900 seconds.
 
 Only the exhaustive profile's release-package smoke test uses network access.
 It requests `releases/latest` metadata for `asphyx0r/agent-coding-rules` from

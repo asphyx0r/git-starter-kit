@@ -274,7 +274,7 @@ def command_version(
     """Return a bounded external version probe with a precise diagnostic."""
     requested = Path(command[0])
     resolved = (
-        str(requested)
+        str(requested.absolute())
         if ("/" in command[0] or "\\" in command[0]) and requested.is_file()
         else shutil.which(command[0])
     )

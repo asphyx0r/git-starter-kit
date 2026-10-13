@@ -3,14 +3,15 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T14:38:41Z",
+    "release_date": "2026-10-13T16:14:22Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
         "Apply attested braces fixes and synchronized dependency security gates.",
         "Preserve rollback and validate initialization before repository changes.",
         "Verify locked hook runtimes and focused tests; qualify both OS coverage paths.",
-        "Reject incomplete guarded activation without expanding workflow permissions."
+        "Reject incomplete guarded activation without expanding workflow permissions.",
+        "Retain quality/project budgets and paired cache locks; probe explicit files."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -32,9 +33,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2853716,
-            "built_at": "2026-10-13T14:38:41Z",
-            "sha256": "67cb62e918751755e199d0738224019797e3b2fb806e7ad1ab059832fa2a717d",
+            "size_bytes": 2858801,
+            "built_at": "2026-10-13T16:14:22Z",
+            "sha256": "0f18fe88de28e1fdf9dbc3d5cd71926c2706a7eabb5981155d73ac1f834b1708",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -231,7 +232,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "611245b0c81305f91b8ce61bb76733763cd65e51066cd7d6a40c85390da8f15f",
+                    "sha256": "95bd686c4aff45f21c902b5ebe8f92542074787b097f0ac07a17d8cdbc7409a3",
                     "mode": "644"
                 },
                 {
@@ -533,11 +534,11 @@
                 },
                 {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
-                    "size_bytes": 44991,
+                    "size_bytes": 46674,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "d8417968ce6219b6c2587ea4899b57da44d35dd5e2a6ff0d1eb3829abdbfaf7d",
+                    "sha256": "df26d2514788f96875f9c4f3f65a41cc6e2188e223aade23a9107a1c191ed74e",
                     "mode": "644"
                 },
                 {
@@ -555,7 +556,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1a13262f8dedf411374480b58e43cdb73784f1a366e25436a57e1234edb8505b",
+                    "sha256": "da9537af400e953304da14baef1089fdf91fab2208e8c48417b06192f05734a7",
                     "mode": "644"
                 },
                 {
@@ -740,11 +741,11 @@
                 },
                 {
                     "relative_path": "templates/project/docs/project-configuration.md",
-                    "size_bytes": 9743,
+                    "size_bytes": 9939,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "85ca5ba1d63ae0623bff350659d942d6d7689edaae5aef5330dbdc855dd016f6",
+                    "sha256": "1e705b4168b482c846dffb82918a6b5afebecc280a0c892ab4be576d9cc61ff7",
                     "mode": "644"
                 },
                 {
@@ -758,11 +759,11 @@
                 },
                 {
                     "relative_path": "templates/project/tools/README.md",
-                    "size_bytes": 11201,
+                    "size_bytes": 11378,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "fbc60103654c3b29d7d7a23fcf527fe8684e4551426ff42c638da84f8939c80b",
+                    "sha256": "5231562d5b322b75d75d9838b093568353e02193c323de1b286fbcbdd5d961f9",
                     "mode": "644"
                 },
                 {
@@ -1001,11 +1002,11 @@
                 },
                 {
                     "relative_path": "tests/test_quality_toolchain.py",
-                    "size_bytes": 104234,
+                    "size_bytes": 105380,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "74bdd242899026ba69d11d038e7204d234d1881581c454648602b81fea2dc5b9",
+                    "sha256": "ee8468d47a5cf1448106a9ff087b3d21f8862ff5f9ff60e7339f9db5dd04b781",
                     "mode": "644"
                 },
                 {
@@ -1055,20 +1056,20 @@
                 },
                 {
                     "relative_path": "tests/test_workflow_contracts.py",
-                    "size_bytes": 55998,
+                    "size_bytes": 57294,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8f383cc2316cf94caa5b3a9b7ef507d1e3dd50a9af4491cc03db8c8075146f18",
+                    "sha256": "0f0d4f95fa8dee6de6d26a38e3be92257c2965413e1976bbe8fb2014ab369ea3",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 84172,
+                    "size_bytes": 84566,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "2682d2df34425651ad36467e186ae54d1af1adb4a3f3d8931c9f35555b86a9f6",
+                    "sha256": "471250ddd2e750f450a18fc3db2ec8d38fe293077302c09ef9997cfb74f1625b",
                     "mode": "644"
                 },
                 {
@@ -1217,11 +1218,11 @@
                 },
                 {
                     "relative_path": "tools/quality/check-versions.py",
-                    "size_bytes": 22451,
+                    "size_bytes": 22462,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "55ffb480895fb6380261194ea22c46eecef5871f020b15903e5cde409e0af68d",
+                    "sha256": "86d699fd58cfa8f49d10076e31ca50b7730a4632e23e8369301487fde9f010d3",
                     "mode": "644"
                 },
                 {
@@ -1460,11 +1461,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/workflow-contracts.py",
-                    "size_bytes": 58846,
+                    "size_bytes": 59028,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "267e66e21437bbf5e89a2e22bde50dccf8cd76001ff95f2dfb40dc3a7022f8e6",
+                    "sha256": "baa03404c95ce9de89460b5748d55a04931dfbe0469cc90843090c80eec8c887",
                     "mode": "644"
                 },
                 {

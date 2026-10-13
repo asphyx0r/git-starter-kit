@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import http.client
@@ -689,6 +690,34 @@ class QualityToolchainTests(unittest.TestCase):
                     expected_line,
                 )
             self.assertEqual(result, checker.VersionProbe(None, diagnostic))
+
+    def test_relative_version_probe_ignores_a_namesake_on_path(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_versions_relative_probe"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            other = root / "other"
+            other.mkdir()
+            for path, version in (
+                (root / "version-probe", "1.2.3"),
+                (other / "version-probe", "9.9.9"),
+            ):
+                path.write_text(
+                    f"#!/bin/sh\nprintf 'tool {version}\\n'\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                path.chmod(0o755)
+            with (
+                contextlib.chdir(root),
+                mock.patch.dict(
+                    os.environ,
+                    {"PATH": str(other) + os.pathsep + os.environ["PATH"]},
+                ),
+            ):
+                result = checker.command_version(["./version-probe", "--version"])
+        self.assertEqual(result, checker.VersionProbe("1.2.3", "matched"))
 
     def test_runtime_checker_reports_each_missing_or_mismatched_family(self) -> None:
         checker = load_script_module(

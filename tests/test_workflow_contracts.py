@@ -793,6 +793,30 @@ class WorkflowContractTests(unittest.TestCase):
                             step.get("with", {}).pop("cache-dependency-path", None)
                 self.validate(name, workflow)
 
+    def test_enabled_caches_require_matching_lock_inputs(self):
+        for action in ("actions/setup-python@", "actions/setup-node@"):
+            for removed in ("cache", "cache-dependency-path"):
+                with self.subTest(action=action, removed=removed):
+                    workflow = self.read_workflow("repository-audit")
+                    setup = next(
+                        step
+                        for step in workflow["jobs"]["quality-linux"]["steps"]
+                        if step.get("uses", "").startswith(action)
+                    )
+                    setup["with"].pop(removed)
+                    with self.assertRaises(self.validator.ContractError):
+                        self.validate("repository-audit", workflow)
+
+    def test_project_check_budget_survives_combining_jobs(self):
+        for job_id in ("quality-linux", "compatibility-windows"):
+            with self.subTest(job=job_id):
+                workflow = self.read_workflow("repository-audit")
+                job = workflow["jobs"][job_id]
+                self.assertGreaterEqual(job["timeout-minutes"], 25 + 20)
+                job["timeout-minutes"] = 25
+                with self.assertRaises(self.validator.ContractError):
+                    self.validate("repository-audit", workflow)
+
     def test_cache_input_order_is_presentation_but_paths_remain_bounded(self):
         workflow = self.read_workflow("repository-audit")
         setup = next(
