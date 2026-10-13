@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T08:21:49Z",
+    "release_date": "2026-10-13T09:16:15Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2830403,
-            "built_at": "2026-10-13T08:21:49Z",
-            "sha256": "7919d80b7b9089605a7454d0b535320b20821b7f071feb3c4b2a0623e1a5f533",
+            "size_bytes": 2835874,
+            "built_at": "2026-10-13T09:16:15Z",
+            "sha256": "59112d52008318be7ed869c7a727140975274b8ebee6ff3c3ebed3f6d2886834",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -353,11 +353,11 @@
                 },
                 {
                     "relative_path": "CONTRIBUTING.md",
-                    "size_bytes": 6090,
+                    "size_bytes": 6258,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6e9f399e4b8efc670446a777135879fb9f1c3f6c0d23a9dbed4eac5ee891031a",
+                    "sha256": "0245f38a1cf3860183116dc5990b406cf7c793210f9650f9f256e0b9a508ca92",
                     "mode": "644"
                 },
                 {
@@ -533,11 +533,11 @@
                 },
                 {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
-                    "size_bytes": 28707,
+                    "size_bytes": 31846,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "400dde23f29d97c2e6362c805653113b42e9e645b8f171a9dffa56d8a854b1a5",
+                    "sha256": "e47b767e749d34c845fb4c8ce6d59f1ce46205785486f74c1afa2ab8ef51abe8",
                     "mode": "644"
                 },
                 {
@@ -555,7 +555,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "aa09bd63bb1ddf745a9e3818f6d980918e3b38c26194c3dbdccbd9212218a3ae",
+                    "sha256": "544058942e4d33f0b6f70f313ceabc90584c6ba4a747619eb22da8636e829174",
                     "mode": "644"
                 },
                 {
@@ -686,11 +686,11 @@
                 },
                 {
                     "relative_path": "templates/project/CONTRIBUTING.md",
-                    "size_bytes": 1412,
+                    "size_bytes": 1539,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7f8ac2cb7f227bd09d3669b63033129073f5fc2a02ec22eafd2c27ef7b99ff5b",
+                    "sha256": "21e4c976fde28ea69fffb46a25debbdf38abaf88283b5d2635d4fbdad3e832c5",
                     "mode": "644"
                 },
                 {
@@ -875,11 +875,11 @@
                 },
                 {
                     "relative_path": "tests/test_commit_message_validation.sh",
-                    "size_bytes": 18357,
+                    "size_bytes": 20594,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "bdd0a3403e83078628e0a148ba0832abeccdae541ca4dc4c87114299f44d7f23",
+                    "sha256": "4a2e29a86e6ce8811f6cbb94b2ba8a2b9c3e5bf37e6f2c846bff11ebd1dda4ad",
                     "mode": "644"
                 },
                 {
@@ -1064,11 +1064,11 @@
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 83876,
+                    "size_bytes": 83953,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "dd8cf4453bb9562d9c11ab9fc4db957ce97645e650f387b256d5d105a7da3860",
+                    "sha256": "b7f9d9e1e1b39207e10f6e0c9b75f667acf9b0469e1ebc79f9f79fc85b587515",
                     "mode": "644"
                 },
                 {
@@ -1424,11 +1424,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/hooks.sh",
-                    "size_bytes": 40577,
+                    "size_bytes": 40300,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "24fb0a669e7f5847cdef055a4e32a2c07cef51f0c0b2929fd98d839ea1b36632",
+                    "sha256": "11c6572777d778cf75be6e9b7dba302b0e7125939266e86948aa7dd539cea1e9",
                     "mode": "644"
                 },
                 {

@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T08:21:50Z"
+    "generatedAt": "2026-10-13T09:16:17Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T08:21:50Z"
+    "generatedAt": "2026-10-13T09:16:17Z"
   },
   "files": [
     {
@@ -239,8 +239,8 @@
     },
     {
       "path": "CONTRIBUTING.md",
-      "sha256": "6e9f399e4b8efc670446a777135879fb9f1c3f6c0d23a9dbed4eac5ee891031a",
-      "canonicalSha256": "6e9f399e4b8efc670446a777135879fb9f1c3f6c0d23a9dbed4eac5ee891031a",
+      "sha256": "0245f38a1cf3860183116dc5990b406cf7c793210f9650f9f256e0b9a508ca92",
+      "canonicalSha256": "0245f38a1cf3860183116dc5990b406cf7c793210f9650f9f256e0b9a508ca92",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -383,8 +383,8 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "dd8cf4453bb9562d9c11ab9fc4db957ce97645e650f387b256d5d105a7da3860",
-      "canonicalSha256": "dd8cf4453bb9562d9c11ab9fc4db957ce97645e650f387b256d5d105a7da3860",
+      "sha256": "b7f9d9e1e1b39207e10f6e0c9b75f667acf9b0469e1ebc79f9f79fc85b587515",
+      "canonicalSha256": "b7f9d9e1e1b39207e10f6e0c9b75f667acf9b0469e1ebc79f9f79fc85b587515",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -679,8 +679,8 @@
     },
     {
       "path": "tools/repository-audit/hooks.sh",
-      "sha256": "24fb0a669e7f5847cdef055a4e32a2c07cef51f0c0b2929fd98d839ea1b36632",
-      "canonicalSha256": "24fb0a669e7f5847cdef055a4e32a2c07cef51f0c0b2929fd98d839ea1b36632",
+      "sha256": "11c6572777d778cf75be6e9b7dba302b0e7125939266e86948aa7dd539cea1e9",
+      "canonicalSha256": "11c6572777d778cf75be6e9b7dba302b0e7125939266e86948aa7dd539cea1e9",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"

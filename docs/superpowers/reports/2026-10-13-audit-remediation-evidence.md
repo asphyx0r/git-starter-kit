@@ -471,7 +471,7 @@ the index. Source and consumer contribution guides describe the same contract.
 The corrected complete commit-message suite passed on Windows and Linux,
 including the relative helper acceptance/rejection cases. ShellCheck, the
 repository's `shfmt -i 2` checks and all four changed Markdown files passed.
-The review correction still requires refreshed candidate metadata and
-exact-candidate qualification. The successful `5cb9994` measurements remain their
+The correction is committed at `2a3ea20`; subsequent qualification must identify
+its regenerated candidate. The successful `5cb9994` measurements remain their
 immutable milestone; they are not relabeled as later results.
 Findings 02/11 and the separate activation/hosted/cleanup gates remain open.
