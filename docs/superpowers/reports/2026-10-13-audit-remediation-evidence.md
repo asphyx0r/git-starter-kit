@@ -368,3 +368,57 @@ of the whole branch. Hosted results and remote activation are separate proofs.
 Findings 02/11 remain open until live settings and the disposable PR demonstrate
 the agreed governance. Task-owned temporary artifacts must be removed and their
 absence verified; permanent local environments are recorded separately.
+
+## Candidate Qualification at `2c856e1`
+
+Both actual candidate dependency gates passed: the npm gate reported no blocked
+finding and retained its raw advisories with the exact braces attestation; both
+hashed Python locks reported no known vulnerabilities. These are live registry
+results at qualification time, not a perpetual absence-of-vulnerabilities claim.
+
+A separate disposable Ubuntu clone built the actual SemVer candidate package,
+with an annotated fixture-only `v2.12.0` tag at
+`2c856e1794606d5fa061601ec139c8570934d800`. This does not qualify a release
+changelog, hosted status or publication. The ZIP contains 100 files; all eleven
+security/runtime files match the exact source. Its SHA-256 is
+`508635589a5372a06f608fa5d0f70d6ba1495f45406281fe9c92ed1290f390e7`.
+
+The published `v2.11.7` base ZIP matched the live GitHub asset digest
+`ea18e7a5e5a14f302f48767a9a19d0a1b99d5134f8b2f78875f93c9a66e623f6`.
+The new consumer validated and prepared its unborn Git index. A cumulative
+upgrade and toolkit were built from the real base. Actual application preserved
+customized documentation, tracked application content and unrelated untracked
+notes. An injected failure on the third write restored the original non-Git
+file bytes and modes; the subsequent normal CLI application succeeded.
+
+The Linux full profile passed all 595 Python tests and six shell suites, with
+89.43% global coverage (6,921/7,739) and 85.45% branches (1,885/2,206). It then
+failed initializer smoke: the synthetic fixture omitted the version checker and
+locked declarations required by the mandatory commit-message preflight. The
+cancelled initialization itself returned zero. The later positive initialization
+failed in its real hook. The fixture correction carries those inputs and test
+metadata derived from the tracked lock while delegating to the real host CLI.
+Dependency installation and runtime enforcement are unchanged.
+
+Windows completed 595 tests in 2,421.091 seconds with nineteen explained skips,
+but one npm fixture cleanup raised `WinError 145`. The affected directory was
+subsequently observed empty; the handle holder was not identified. No production
+leak is inferred. Two deterministic registered-cleanup regressions failed before
+the correction, then all twenty npm tests passed. The bounded cleanup already
+qualified for the backup fixture is now shared; all 48 native Windows backup
+tests still pass with three applicable skips. Persistent and other cleanup errors
+retain their original exception. The initial sandbox backup run encountered
+filesystem access errors; the unchanged native retry passed.
+
+These failures prevent a complete profile or final Windows/combined coverage
+claim at this revision. The successful Linux and package phases remain separate
+proofs. The fixture corrections require updated candidate metadata, exact-commit
+qualification and a fresh whole-branch review before completion.
+
+The corrected fixtures passed twenty npm tests and 48 backup tests on both
+platforms, plus the complete dispatcher suite on both platforms and the entire
+real smoke family on Linux. The focused initializer regression verifies the
+locked inputs, excluded dependency metadata and real initial commit-message hook.
+Ruff, the repository's `shfmt -i 2` policy, ShellCheck and Markdown checks passed.
+The failed npm fixture residue was removed only after its owned absolute path,
+regular-directory type and absence of links were checked; absence was verified.

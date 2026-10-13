@@ -18,6 +18,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from fixture_cleanup import cleanup_temporary_directory
+
 
 ROOT = Path(__file__).resolve().parents[1]
 QUALITY = ROOT / "tools/quality"
@@ -31,7 +33,7 @@ spec.loader.exec_module(security)
 class NpmSecurityTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
+        self.addCleanup(cleanup_temporary_directory, self.temporary)
         self.quality = Path(self.temporary.name) / "quality"
         lock = json.loads((QUALITY / "package-lock.json").read_text(encoding="utf-8"))
         provenance = json.loads(
@@ -99,6 +101,45 @@ class NpmSecurityTests(unittest.TestCase):
             check=False,
             timeout=20,
         )
+
+    def test_registered_cleanup_retries_transient_windows_directory_deletion(self):
+        failure = OSError("pending Windows deletion")
+        failure.winerror = 145
+        original = tempfile.TemporaryDirectory._rmtree
+        calls = 0
+
+        def remove(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise failure
+            return original(*args, **kwargs)
+
+        cleanup, arguments, keywords = self._cleanups[0]
+        with patch.object(tempfile.TemporaryDirectory, "_rmtree", side_effect=remove):
+            try:
+                cleanup(*arguments, **keywords)
+            except OSError as error:
+                self.fail(f"Transient cleanup error escaped: {error}")
+        self.assertEqual(calls, 2)
+        self.assertFalse(Path(self.temporary.name).exists())
+
+    def test_registered_cleanup_preserves_persistent_and_other_errors(self):
+        cleanup, arguments, keywords = self._cleanups[0]
+        for winerror, expected_calls in ((145, 3), (5, 1), (None, 1)):
+            with self.subTest(winerror=winerror):
+                failure = OSError("cleanup failed")
+                if winerror is not None:
+                    failure.winerror = winerror
+                with (
+                    patch.object(
+                        tempfile.TemporaryDirectory, "_rmtree", side_effect=failure
+                    ) as remove,
+                    self.assertRaises(OSError) as caught,
+                ):
+                    cleanup(*arguments, **keywords)
+                self.assertIs(caught.exception, failure)
+                self.assertEqual(remove.call_count, expected_calls)
 
     def test_main_dry_run_preserves_bytes_then_patch_and_verify_succeed(self):
         originals = {

@@ -1054,7 +1054,10 @@ deferred, or explicitly excluded from the template.
   available.
 - Notes: Verifies distribution strategies and package contents against the
   maintained manifests while keeping mutations inside audit-owned temporary
-  directories.
+  directories. Initializer fixtures carry the tracked quality declarations and
+  checker plus lock-derived test metadata; the real locked host CLI remains the
+  executor. Installed-dependency metadata is ignored and excluded from the
+  synthetic package inventory. No hook installs dependencies.
 
 ### `tools/repository-audit/workflow-contracts.py`
 
@@ -1318,7 +1321,20 @@ deferred, or explicitly excluded from the template.
   and symbolic-link cases skip only when the required platform capability is
   unavailable. The publication fixture retries only Windows cleanup error 145,
   at most three attempts with two 10 ms waits; persistent and other cleanup errors
-  still fail. This does not alter production backup publication or cleanup.
+  still fail. It uses the shared test-only cleanup helper below and does not
+  alter production backup publication or cleanup.
+
+### `tests/fixture_cleanup.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Cleans owned temporary directories for the backup-publication and npm
+  fixtures, preserving persistent and non-Windows deletion errors.
+- Usage: Imported by the corresponding unittest suites; no standalone CLI.
+- Notes: Retries only Windows error 145, at most three attempts with two 10 ms
+  waits. Regression tests exercise the registered cleanup callback and original
+  exception propagation. Shared test changes retain the complete hook-test
+  fallback. This source-maintenance helper is excluded from consumer packages.
 
 ### `tests/test_build_release_package.py`
 
@@ -1455,6 +1471,8 @@ deferred, or explicitly excluded from the template.
   of checkout dependency installation.
 - Notes: Exercises interruption rollback, preserved foreign edits, nested and
   unlocked packages, idempotence, stale counts and unknown/cyclic advisories.
+  Registered cleanup uses the bounded shared fixture helper; transient cleanup
+  is tested without hiding persistent or other errors.
 
 ### `tests/fixtures/braces-3.0.3.tgz`
 
@@ -1529,7 +1547,9 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with Bash from the repository root.
 - Notes: Exercises missing, malformed, and failing modules without changing a
   sourcing caller's shell state, plus guarded-merge, workflow, and distribution
-  mutations with exact failure diagnostics.
+  mutations with exact failure diagnostics. `--initializer-fixture` focuses the
+  locked fixture inputs and real initial commit-message hook; the full suite
+  includes that regression.
 
 ### `tests/test_verify_repository_audit_runs.py`
 

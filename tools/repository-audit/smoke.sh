@@ -11,6 +11,10 @@ prepare_initializer_validation_fixture() {
   mkdir -p "$fixture_root/tools" || return
   cp tools/repository-audit.sh "$fixture_root/tools/repository-audit.sh" || return
   cp -R tools/repository-audit "$fixture_root/tools/repository-audit" || return
+  cp .gitignore "$fixture_root/.gitignore" || return
+  mkdir -p "$fixture_root/tools/quality" || return
+  find tools/quality -maxdepth 1 -type f \
+    -exec cp -- {} "$fixture_root/tools/quality/" \; || return
   chmod +x "$fixture_root/.githooks/commit-msg" || return
 
   if [ "$strict_header_length" = "true" ]; then
@@ -41,6 +45,14 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
+quality = root / "tools/quality"
+lock = json.loads((quality / "package-lock.json").read_bytes())
+# Test metadata supports the real host CLI proxy; no dependency is installed.
+for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+    package = quality / "node_modules" / name / "package.json"
+    package.parent.mkdir(parents=True, exist_ok=True)
+    version = lock["packages"][f"node_modules/{name}"]["version"]
+    package.write_text(json.dumps({"version": version}), encoding="utf-8")
 modes = {}
 for record in subprocess.check_output(["git", "ls-files", "--stage", "-z"]).split(b"\0"):
     if record:
@@ -49,7 +61,8 @@ for record in subprocess.check_output(["git", "ls-files", "--stage", "-z"]).spli
 entries = [
     {"path": path.relative_to(root).as_posix(),
      "mode": modes.get(path.relative_to(root).as_posix(), "100644")}
-    for path in sorted(root.rglob("*")) if path.is_file()
+    for path in sorted(root.rglob("*"))
+    if path.is_file() and "node_modules" not in path.relative_to(root).parts
 ]
 (root / "_starter-kit-files.json").write_text(
     json.dumps({"schemaVersion": 3, "files": entries}), encoding="utf-8"

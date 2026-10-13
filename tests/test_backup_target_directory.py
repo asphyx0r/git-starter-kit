@@ -20,6 +20,8 @@ from threading import Barrier
 from types import SimpleNamespace
 from unittest import mock
 
+from fixture_cleanup import cleanup_temporary_directory
+
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1] / "tools" / "backup-target-directory.py"
 )
@@ -914,15 +916,7 @@ class LocalBackupPublicationTest(unittest.TestCase):
         self.logger = self.script.Logger(False, self.output)
 
     def cleanup_fixture(self) -> None:
-        # Windows may briefly retain a delete-pending entry after ZIP handles close.
-        for attempt in range(3):
-            try:
-                self.fixture.cleanup()
-                return
-            except OSError as error:
-                if getattr(error, "winerror", None) != 145 or attempt == 2:
-                    raise
-                time.sleep(0.01)
+        cleanup_temporary_directory(self.fixture)
 
     def test_transient_windows_directory_cleanup_is_retried(self) -> None:
         failure = OSError(errno.ENOTEMPTY, "pending Windows deletion")
