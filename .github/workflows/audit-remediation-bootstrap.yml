@@ -89,6 +89,7 @@ jobs:
           from pathlib import Path
           import sys
 
+          sys.path.insert(0, str(Path("tools").resolve()))
           spec = importlib.util.spec_from_file_location(
               "trusted_guard", "tools/merge-pull-request.py"
           )

@@ -2,7 +2,7 @@
     "manifest_version": "3.0.0",
     "release_kind": "repository",
     "version": "2.12.0",
-    "release_date": "2026-10-13T15:27:25Z",
+    "release_date": "2026-10-13T15:54:19Z",
     "artifact": {
         "format": "git-tree",
         "files": [
@@ -152,11 +152,11 @@
             },
             {
                 "relative_path": ".github/workflows/audit-remediation-bootstrap.yml",
-                "size_bytes": 5429,
+                "size_bytes": 5488,
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "c8062bb5e6320868a74970e90e734b5e633f43289a4396b8b825e3b5e38b60b3",
+                "sha256": "82b075359850c2eb0ba9cae61eee2f4017c1bbd701091fbf3d9dbdc698e48930",
                 "mode": "644"
             },
             {
@@ -926,8 +926,8 @@
             }
         ],
         "total_files": 102,
-        "size_bytes": 1272448,
-        "sha256": "858971a1e84ba5b487ba1a8be10d66c237bc831ce41c390a65acaeb0cc470d8f",
-        "built_at": "2026-10-13T15:27:25Z"
+        "size_bytes": 1272507,
+        "sha256": "2f8bf4d3058ba222ee57b601333d0aa827d96deca743eaf9e965a8941c2a472f",
+        "built_at": "2026-10-13T15:54:19Z"
     }
 }
