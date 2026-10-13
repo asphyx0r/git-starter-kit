@@ -56,12 +56,20 @@ initialize_fixture() {
   find "$source_root/tools/quality" -maxdepth 1 -type f \
     -exec cp -- {} "$fixture_root/tools/quality/" \;
   cp "$source_root/tools/process_runner.py" "$fixture_root/tools/process_runner.py"
-  # The proxy delegates to the real locked CLI; retain its version metadata.
-  for package in @commitlint/cli markdownlint-cli2 smol-toml katex; do
-    mkdir -p "$fixture_root/tools/quality/node_modules/$package"
-    cp "$source_root/tools/quality/node_modules/$package/package.json" \
-      "$fixture_root/tools/quality/node_modules/$package/package.json"
-  done
+  # The real CLI proxy uses test metadata derived from the tracked lock.
+  python -B - "$fixture_root/tools/quality" <<'PYTHON_METADATA'
+import json
+from pathlib import Path
+import sys
+
+quality = Path(sys.argv[1])
+lock = json.loads((quality / "package-lock.json").read_text(encoding="utf-8"))
+for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+    package = quality / "node_modules" / name / "package.json"
+    package.parent.mkdir(parents=True, exist_ok=True)
+    version = lock["packages"][f"node_modules/{name}"]["version"]
+    package.write_text(json.dumps({"version": version}), encoding="utf-8")
+PYTHON_METADATA
   chmod +x "$fixture_root/.githooks/commit-msg"
   git -C "$fixture_root" add -- commitlint.config.cjs tools .githooks
 }
@@ -99,6 +107,10 @@ write_valid_message() {
 require_test_command git
 require_test_command python
 locked_commitlint_command="$(resolve_hook_node_tool commitlint)"
+
+source_without_install="$test_temp/source without install"
+git clone -q --no-hardlinks -- "$source_root" "$source_without_install"
+source_root="$source_without_install"
 
 test_bin="$test_temp/bin"
 mkdir -p "$test_bin"

@@ -23,6 +23,7 @@ No primary tag, push, GitHub Release or remote activation has been performed.
 | `b9c513f` | Indexed runtime preflight and actual executable version checks |
 | `900d77c` | OS coverage artifacts, folded project checks and push cancellation |
 | `235c5ff` | Caller-safe coverage reporting and expanded coverage/security regressions |
+| `61f08f3` | Offline npm fixtures and precise fixture routing |
 
 Behavior changes include their tests and relevant source/consumer documentation.
 Future commits continue this separation; no historical commit is rewritten.
@@ -198,6 +199,30 @@ include their upstream MIT licenses and remain source-only. Hook routing include
 each fixture in the npm suite; hooks still install nothing. All eighteen npm
 tests pass on Windows and Linux without a checkout dependency tree. A complete pre-push
 replay of the correction remains required.
+
+At the exact `61f08f3` commit, Linux passed all 586 tests with the same ten
+platform skips in 254.379 seconds. Its global and branch coverage remained
+89.39% and 85.38%, respectively. Both OS fast profiles passed: 44 Python files
+formatted and 24 production files accepted by Mypy. They explicitly warned that
+the canonical project has no configured application checks; these results do
+not establish consumer application or hosted validation.
+
+The complete Windows pre-push replay passed its 586 Python tests with nineteen
+skips in 772.071 seconds, within the unchanged 900-second deadline. Its shell
+phase then failed when the message-validation fixture copied installed package
+metadata from the dependency-free clone. A separate remaining-family run exposed
+a second assumption: the real Markdown case forced a CLI path inside that clone.
+
+The message suite now always clones its source without dependencies, seeds test
+metadata from the tracked lock and invokes the actual locked host Commitlint.
+The Markdown fixture preserves the actual selected host CLI before isolating
+repositories. Both regressions were observed before correction. The complete
+message suite and the pre-commit/pre-push suites pass on Windows and Linux,
+including indexed content/configuration, exact pushed identities, failure
+propagation and cleanup. The Windows remaining suites ran through the production
+family executor in a clone with no `node_modules`. Its 900-second deadline was
+preserved. These component results do not replace the complete corrected hook
+replay or final candidate qualification.
 
 ## Governance Work Still Open
 

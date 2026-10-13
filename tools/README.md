@@ -1083,7 +1083,8 @@ when the target path is a native Windows path.
 ### Features
 
 - Validates one exact UTF-8 squash message with the repository-pinned
-  Commitlint before contacting GitHub.
+  Commitlint after reading immutable default-branch configuration and before
+  dispatching the guarded workflow.
 - Seals an open, non-draft pull request number, its 40-character head SHA, the
   message SHA-256 digest, and a UUID in a typed repository dispatch.
 - Reconciles effective default-branch required checks with current check rows,

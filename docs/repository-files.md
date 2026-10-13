@@ -1124,7 +1124,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Seals, dispatches, revalidates, and confirms exact squash merges.
 - Usage: Use `request` with a positive pull request number and exact message
   file; the repository-owned workflow uses `execute --event-file`.
-- Notes: Validates Commitlint before the first `gh` call, requires an open
+- Notes: Validates Commitlint after immutable configuration reads and before
+  dispatch, requires an open
   non-draft default-branch pull request and every effective required check,
   rejects repository auto-merge and applicable merge queues, supports forks
   without running their code, never retries a dispatch, and returns `3` when a
@@ -1338,12 +1339,13 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Reproduces overlong commit bodies and verifies forced hooks, exact
   message-file commits, preflight ranges, tag ranges, and first-release ranges.
-- Usage: Run `bash tests/test_commit_message_validation.sh` with Git, Bash, and
-  Node.js after installing the locked Node quality dependencies.
+- Usage: Run `bash tests/test_commit_message_validation.sh` with Git, Bash, Python
+  and Node.js after provisioning the locked Commitlint CLI in the host environment.
 - Notes: Reproduces PR #17 with the valid branch message and invalid squash
-  message, requires the latter to fail on `body-max-line-length` before any
-  `gh` call, uses only temporary Git repositories, and is included in packages
-  for derived repositories.
+  message; the latter must fail on `body-max-line-length` after bounded immutable
+  configuration reads and before dispatch. The source clone has no dependency
+  installation; fixture metadata comes from its lock and the proxy invokes the
+  real host CLI. Uses only temporary Git repositories and is source-only.
 
 ### `tests/test_merge_pull_request.py`
 
@@ -1382,6 +1384,9 @@ deferred, or explicitly excluded from the template.
   PowerShell, configuration, and release-artifact paths while proving that
   unstaged working-tree content does not replace the staged snapshot. The
   `--windows` subset covers Git Bash paths, staging and cleanup behavior.
+  Real Markdown checks preserve the CLI selected from the host environment
+  before isolating the source/fixture repositories; no dependency installation
+  in the pushed clone is required.
 
 ### `tests/test_quality_pre_push.sh`
 

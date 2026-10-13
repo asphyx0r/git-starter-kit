@@ -52,6 +52,8 @@ git -C "${fixture}" commit -q -m "test: initialize pre-commit fixture"
 
 # shellcheck disable=SC1090,SC1091
 source "${source_root}/tools/repository-audit.sh"
+repository_root="${source_root}"
+locked_markdown_command="$(resolve_hook_node_tool markdownlint-cli2)"
 repository_root="${fixture}"
 cd "${repository_root}"
 
@@ -178,7 +180,8 @@ run_focused_pre_commit_checks() (
     # shellcheck disable=SC1090,SC1091
     source "${source_root}/tools/repository-audit/hooks.sh"
     resolve_hook_node_tool() {
-      printf '%s/tools/quality/node_modules/.bin/%s\n' "${source_root}" "$1"
+      [[ "$1" == markdownlint-cli2 ]] || return 1
+      printf '%s\n' "${locked_markdown_command}"
     }
     run_hook_pre_commit
   )
