@@ -185,6 +185,13 @@ bash tools/repository-audit.sh project-checks
 Core success and successful eligible application checks are separate results.
 An empty-check warning never proves application regressions passed.
 
+The audit workflow executes declared project checks in its existing Linux and
+Windows jobs; either failure blocks the aggregate `Repository audit` check.
+Source maintenance coverage artifacts and their combined floors are conditional
+on source scope and do not require consumer test files. Superseded ordinary
+branch pushes are cancelled by ref; tag, release, manual and release-preflight
+evidence remains separate and is not cancelled by that policy.
+
 Prepare application dependencies in the environment that runs each declared
 check. Exact pre-push snapshots do not inherit ignored dependencies from your
 worktree. A Laravel project-owned setup/test command runs inside `laravel/` and

@@ -158,11 +158,16 @@ per isolated job and caches pip and npm downloads using the tracked dependency
 locks and tool versions. `quality-linux` runs the exhaustive profile on
 Ubuntu 24.04 with Python 3.11.
 `compatibility-windows` uses Windows 2025 with Python 3.14 for the fast
-cross-platform profile, the complete Python test suite, focused Git Bash hook
+cross-platform profile, measured Python coverage, focused Git Bash hook
 checks, and PSScriptAnalyzer.
 Both use Node.js 24.20.0. The aggregate `Repository audit` check requires both
 jobs to succeed; manual runs retain the distinct
 `Repository audit (manual)` name.
+Declared project checks run inside both OS jobs. Source coverage retains the
+Linux global and branch floors and enforces them again on verified, matching
+Linux/Windows artifacts. Consumers skip source measurements. Ordinary branch
+pushes cancel superseded runs; release evidence remains separate. See the
+[coverage artifact contract](tools/README.md#qualitycoverage-artifactspy).
 
 Do not create a release tag or GitHub release if the exhaustive audit fails.
 

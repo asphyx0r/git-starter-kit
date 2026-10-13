@@ -239,6 +239,11 @@ run_python_coverage() {
     "${coverage_cmd}" report --rcfile=tools/quality/pyproject.toml || coverage_status=$?
   "${python_cmd}" tools/quality/check-coverage.py \
     "${audit_temp}/coverage.json" || coverage_status=1
+  if ((coverage_status == 0)) && [[ -n "${1:-}" ]]; then
+    "${python_cmd}" tools/quality/coverage-artifacts.py export \
+      "${audit_temp}/.coverage" "$1" --platform linux || return
+    cp "${audit_temp}/coverage.json" "$1/coverage.json" || return
+  fi
   return "${coverage_status}"
 }
 
@@ -397,7 +402,7 @@ run_static() {
     check_release_package_portability || return
     check_release_guard_contract || return
   fi
-  run_python_coverage || return
+  run_python_coverage "${AUDIT_COVERAGE_DIR:-}" || return
   run_shell_behavior_tests || return
   run_script_smoke || return
   run_commitlint || return

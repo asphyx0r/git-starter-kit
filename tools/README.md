@@ -1308,6 +1308,40 @@ unreadable or malformed reports produce a diagnostic on standard error. The
 complete audit generates this
 report in its temporary directory and removes it during cleanup.
 
+## quality/coverage-artifacts.py
+
+This CI helper seals successful source-repository coverage measurements and
+combines the Linux and Windows branch data using the installed Coverage.py API.
+It belongs to the source repository and is excluded from consumer packages.
+Run it from the repository root with the locked quality environment. It requires
+`AUDIT_COMMIT_SHA`, `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT`; the workflow first
+verifies that the checkout matches that full commit SHA.
+
+```bash
+python tools/quality/coverage-artifacts.py export /path/to/.coverage /path/to/coverage/linux --platform linux
+python tools/quality/coverage-artifacts.py export /path/to/.coverage.windows /path/to/coverage/windows --platform windows
+python tools/quality/coverage-artifacts.py combine /path/to/coverage
+python tools/quality/check-coverage.py /path/to/coverage/combined.json
+```
+
+`export` requires a new destination directory and writes `.coverage` and
+`metadata.json`. Metadata binds the data and measured source hashes to the
+commit, run, attempt, Coverage version and policy hash. `combine` requires both
+platform subdirectories with matching metadata and unchanged data/source files;
+it rejects absent, linked, unsafe, empty or line-only inputs. It unions normalized
+OS paths in memory and writes `combined.json`. It returns `0` for a valid export
+or combination, `1` for validation/access errors, and `2` for invalid arguments.
+Use `--help`, `export --help` or `combine --help` for the command syntax.
+
+Linux still enforces the existing global and branch floors. Windows publishes
+its own report without a separate new floor; the aggregate enforces both floors
+again on the union. Artifacts are scoped to the exact run attempt and commit,
+retained for seven days, and never downloaded from another workflow run.
+Consumer repositories skip source coverage but execute their declared project
+checks in both existing OS jobs. Ordinary branch pushes cancel superseded runs;
+PR, tag, release, manual and release-preflight evidence retain distinct groups.
+Tag, release, manual and release-preflight runs are never cancelled by this policy.
+
 ## quality/check-versions.py
 
 `quality/check-versions.py` detects drift between `quality/versions.json` and
@@ -1683,7 +1717,8 @@ Workflow contracts retain explicit events, check names, dependencies, permission
 action pins, trusted refs and credential boundaries. The validator stores named
 SHA256 seals of normalized executable scripts instead of second copies of those
 scripts. Shell normalization retains quoted values and statement boundaries;
-embedded Python compares parsed syntax trees. Step removal, reordering, added
+embedded Python compares parsed syntax trees with a stable representation across
+supported Python versions. Step removal, reordering, added
 privileged execution and changed guards still fail closed.
 
 Setup-Python and Setup-Node download caches may be omitted or use the declared

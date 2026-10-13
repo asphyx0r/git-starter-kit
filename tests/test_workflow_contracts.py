@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -135,7 +136,19 @@ class WorkflowContractTests(unittest.TestCase):
     def validate(self, name, workflow):
         self.validator.validate_workflow(name, workflow, self.registry)
 
-    def test_audit_checks_exact_actual_head_and_distinct_project_results(self):
+    def test_embedded_python_normalization_is_version_independent(self):
+        script = (
+            "python - <<'PY'\n"
+            "def validate(value):\n    return value is None or value == []\n"
+            "class Guard:\n    pass\nPY\n"
+        )
+        normalized = self.validator.normalize_script(script, "bash")
+        self.assertEqual(
+            hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
+            "7ad442647b6214a8af3119e7a0b3a493d00e6fda43e43ad974fb5f768e9e7069",
+        )
+
+    def test_audit_checks_exact_head_and_folded_project_results(self):
         workflow = self.read_workflow("repository-audit")
         self.assertIsNone(workflow["on"]["push"])
         self.assertIn("main", workflow["on"]["pull_request"]["branches"])
@@ -143,8 +156,6 @@ class WorkflowContractTests(unittest.TestCase):
         for job_id in (
             "quality-linux",
             "compatibility-windows",
-            "project-linux",
-            "project-windows",
         ):
             job = workflow["jobs"][job_id]
             checkout = next(
@@ -160,9 +171,60 @@ class WorkflowContractTests(unittest.TestCase):
                 "Verify exact audit revision",
                 [step.get("name") for step in job["steps"]],
             )
-        self.assertIn("project-linux", workflow["jobs"]["repository-audit"]["needs"])
-        self.assertIn("project-windows", workflow["jobs"]["repository-audit"]["needs"])
+            self.assertIn(
+                "python -B tools/project_validation.py --repository-root . --timeout 900",
+                [step.get("run", "").strip() for step in job["steps"]],
+            )
+            names = [step.get("name") for step in job["steps"]]
+            self.assertLess(
+                names.index("Check quality declarations"),
+                names.index("Install locked language toolchains"),
+            )
+        self.assertNotIn("project-linux", workflow["jobs"])
+        self.assertNotIn("project-windows", workflow["jobs"])
+        self.assertEqual(
+            workflow["jobs"]["repository-audit"]["needs"],
+            ["activation", "quality-linux", "compatibility-windows"],
+        )
         self.validate("repository-audit", workflow)
+
+    def test_windows_and_combined_coverage_are_required_for_source(self):
+        workflow = self.read_workflow("repository-audit")
+        windows = workflow["jobs"]["compatibility-windows"]["steps"]
+        measurement = next(
+            step
+            for step in windows
+            if step.get("name") == "Measure Windows Python coverage"
+        )
+        self.assertIn("coverage run", measurement["run"])
+        self.assertIn("coverage-artifacts.py export", measurement["run"])
+        aggregate = workflow["jobs"]["repository-audit"]["steps"]
+        combination = next(
+            step
+            for step in aggregate
+            if step.get("name") == "Require combined coverage"
+        )
+        self.assertIn("coverage-artifacts.py combine", combination["run"])
+        self.assertIn("check-coverage.py", combination["run"])
+        for steps, required in ((windows, measurement), (aggregate, combination)):
+            position = steps.index(required)
+            steps.remove(required)
+            with self.assertRaises(self.validator.ContractError):
+                self.validate("repository-audit", workflow)
+            steps.insert(position, required)
+
+    def test_cancellation_cannot_discard_release_evidence(self):
+        workflow = self.read_workflow("repository-audit")
+        for field, value in (
+            ("cancel-in-progress", True),
+            ("group", "repository-audit-${{ github.event_name }}-${{ github.run_id }}"),
+        ):
+            with self.subTest(field=field):
+                original = workflow["concurrency"][field]
+                workflow["concurrency"][field] = value
+                with self.assertRaises(self.validator.ContractError):
+                    self.validate("repository-audit", workflow)
+                workflow["concurrency"][field] = original
 
     def test_optional_automation_jobs_gate_before_install_or_credentials(self):
         for name, job_id in (
@@ -552,7 +614,7 @@ class WorkflowContractTests(unittest.TestCase):
         ]
         for step in steps:
             if step.get("run", "").startswith(
-                ("python -m unittest", "bash tests/test_quality_pre_commit.sh")
+                ("python -m coverage run", "bash tests/test_quality_pre_commit.sh")
             ):
                 self.assertEqual(step["if"], "steps.scope.outputs.scope == 'source'")
 
@@ -583,7 +645,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_exact_revision_guard_rejects_merge_or_wrong_head(self):
-        step = self.read_workflow("repository-audit")["jobs"]["project-linux"]["steps"][
+        step = self.read_workflow("repository-audit")["jobs"]["quality-linux"]["steps"][
             1
         ]
         with tempfile.TemporaryDirectory() as temporary:
@@ -1137,11 +1199,11 @@ class ConsumerWorkflowContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         workflow_path = self.consumer / ".github/workflows/repository-audit.yml"
         workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-        del workflow["jobs"]["project-linux"]
+        del workflow["jobs"]["compatibility-windows"]
         workflow_path.write_text(yaml.safe_dump(workflow), encoding="utf-8")
         result = self.run_validator("--repository-root", ".")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("project-linux", result.stderr)
+        self.assertIn("compatibility-windows", result.stderr)
 
     def test_each_core_workflow_remains_mandatory_in_consumer(self):
         for name in (

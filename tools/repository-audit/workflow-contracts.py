@@ -133,6 +133,20 @@ def normalize_script(script: str, shell: str) -> str:
             tree = ast.parse(match.group(1))
         except SyntaxError as error:
             raise ContractError(f"invalid embedded Python: {error.msg}") from error
+        # Empty AST fields have different dump defaults across supported Python versions.
+        for node in ast.walk(tree):
+            setattr(
+                node,
+                "_fields",
+                tuple(
+                    field
+                    for field in node._fields
+                    if not (
+                        isinstance(getattr(node, field, None), list)
+                        and not getattr(node, field)
+                    )
+                ),
+            )
         # An opaque unquoted token keeps Python string contents out of shell lexing.
         encoded_tree = ast.dump(tree, include_attributes=False).encode("utf-8").hex()
         return "<<'PY'\nPYTHON_AST_" + encoded_tree + "\nPY"
@@ -293,17 +307,20 @@ SEALED_SCRIPTS = {
     "repository-audit/compatibility-windows/analyze-powershell-on-windows": "sha256:ea7625b2558eb3a6a01170181e9ec5f0439887175427665494a1f8b39db1eeb2",
     "repository-audit/compatibility-windows/install-verified-powershell-analyzer": "sha256:ae239cbd7dc6da006d9e30de4114392c1e630ee2ea7d2adde8f8c92fc9179269",
     "repository-audit/compatibility-windows/run-cross-platform-compatibility-checks": "sha256:072fc07820540ec821834c712d23affc7d258008a43a08b1aeada0b69015e479",
-    "repository-audit/compatibility-windows/run-the-complete-python-suite-on-3-14": "sha256:427b5f1ec0c3fef7fe60e688298b380f03cab2ff07dfdbd5d01fe7678c8b83ff",
+    "repository-audit/compatibility-windows/measure-windows-python-coverage": "sha256:8894a1e8135769f649e62ddd31fb92fa9c38b1debf6325d3bdd79f706d906899",
     "repository-audit/compatibility-windows/scope": "sha256:0cbf4de9b6d95efb15fcef6bac5d89cadcc6bb988415b6422f8ec0b23ac7fd40",
     "repository-audit/compatibility-windows/verify-git-bash-hooks-on-windows": "sha256:999104a1301ddfe9fdc8727a167d73c327140d91f02bb5090b02c38e9ce94673",
-    "repository-audit/project-linux/require-selected-checks-to-succeed": "sha256:ddfd5c91a81bd1f1c6f158867b3624e10efb3cbbde4fa8ecbf1d4238b8b98b56",
+    "repository-audit/shared/require-project-checks": "sha256:ddfd5c91a81bd1f1c6f158867b3624e10efb3cbbde4fa8ecbf1d4238b8b98b56",
+    "repository-audit/shared/check-quality-declarations": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
     "repository-audit/quality-linux/audit-locked-tool-dependencies": "sha256:d324e2e10899f448aba26c2500a06737256b38215fb83c0b9429347756c02e65",
     "repository-audit/quality-linux/install-locked-language-toolchains": "sha256:6d45c44da8cfc2a0316f4f65d9b0e8c1dbb47551652e1e55b9d4adb39577d201",
     "repository-audit/quality-linux/install-verified-external-tools": "sha256:734ab6d73d005c92cd408a1a5bb6b7bac54d7c872060b00d2fb8c932abc01f0f",
     "repository-audit/quality-linux/prepare-previous-push-commit": "sha256:c634a7018a81908b746389cbfba183e998c2aadac8e32fcdbec167e0efb79c38",
     "repository-audit/quality-linux/run-the-complete-quality-gate": "sha256:90bb94b137a4b1de8a24bb128dbb5e5b7fbda723972e879f0b9c9b4750a4c770",
     "repository-audit/quality-linux/verify-exact-audit-revision": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
-    "repository-audit/repository-audit/require-selected-checks-to-succeed": "sha256:581139fc095100e754102128decfff6f12d175e8597725815b225a14e5655ad2",
+    "repository-audit/repository-audit/require-selected-checks-to-succeed": "sha256:1fcbc529880c297ef8c1af80d51cf23229d4da1ab5b6f64e8b2da05d941fbaa6",
+    "repository-audit/repository-audit/install-locked-coverage-runtime": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
+    "repository-audit/repository-audit/require-combined-coverage": "sha256:22c242e3434653c29989eb96eb84869345e502fb947aea6fbde7cb1c35a695c2",
 }
 
 
@@ -742,6 +759,42 @@ def agent_rules_update_contract(node_version: str) -> dict:
     }
 
 
+def declaration_step() -> dict:
+    return {
+        "shell": "bash",
+        "run": SEALED_SCRIPTS["repository-audit/shared/check-quality-declarations"],
+    }
+
+
+def project_check_step() -> dict:
+    return {
+        "shell": "bash",
+        "run": SEALED_SCRIPTS["repository-audit/shared/require-project-checks"],
+    }
+
+
+def coverage_transfer(platform: str, *, upload: bool) -> dict:
+    inputs: dict[str, Any] = {
+        "name": f"coverage-{platform}-${{{{ github.event.pull_request.head.sha || github.sha }}}}-${{{{ github.run_id }}}}-${{{{ github.run_attempt }}}}",
+        "path": f"${{{{ runner.temp }}}}/coverage/{platform}",
+    }
+    if upload:
+        inputs.update(
+            {
+                "include-hidden-files": True,
+                "if-no-files-found": "error",
+                "retention-days": 7,
+            }
+        )
+    return {
+        "uses": ACTION_REFS["upload-artifact" if upload else "download-artifact"],
+        "if": "steps.scope.outputs.scope == 'source'"
+        if upload
+        else "needs.quality-linux.outputs.scope == 'source'",
+        "with": inputs,
+    }
+
+
 def repository_audit_contract(node_version: str) -> dict:
     return {
         "name": "Repository audit",
@@ -754,14 +807,15 @@ def repository_audit_contract(node_version: str) -> dict:
         "permissions": {"contents": "read"},
         "env": {"NODE_VERSION": node_version},
         "concurrency": {
-            "group": "repository-audit-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}",
-            "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+            "group": "repository-audit-${{ github.event_name }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref_type == 'branch' && !startsWith(github.ref_name, 'codex/release-preflight-') && github.ref) || github.run_id }}",
+            "cancel-in-progress": "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && !startsWith(github.ref_name, 'codex/release-preflight-')) }}",
         },
         "jobs": {
             "quality-linux": {
                 "name": "Quality - Ubuntu 24.04 / Python 3.11",
                 "runs-on": "ubuntu-24.04",
                 "timeout-minutes": 25,
+                "outputs": {"scope": "${{ steps.scope.outputs.scope }}"},
                 "steps": [
                     checkout(
                         **{
@@ -786,6 +840,14 @@ def repository_audit_contract(node_version: str) -> dict:
                     setup_python("3.11", "tools/quality/requirements.lock"),
                     setup_node("${{ env.NODE_VERSION }}"),
                     {
+                        "id": "scope",
+                        "shell": "bash",
+                        "run": SEALED_SCRIPTS[
+                            "repository-audit/compatibility-windows/scope"
+                        ],
+                    },
+                    declaration_step(),
+                    {
                         "shell": "bash",
                         "run": SEALED_SCRIPTS[
                             "repository-audit/quality-linux/install-locked-language-toolchains"
@@ -806,6 +868,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     {
                         "shell": "bash",
                         "env": {
+                            "AUDIT_COVERAGE_DIR": "${{ runner.temp }}/coverage/linux",
                             "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
                             "BEFORE_SHA": "${{ github.event_name == 'release' && '0000000000000000000000000000000000000000' || github.event.before }}",
                             "GITHUB_TOKEN": "${{ github.token }}",
@@ -818,6 +881,8 @@ def repository_audit_contract(node_version: str) -> dict:
                             "repository-audit/quality-linux/run-the-complete-quality-gate"
                         ],
                     },
+                    project_check_step(),
+                    coverage_transfer("linux", upload=True),
                 ],
                 "needs": "activation",
                 "if": "needs.activation.outputs.enabled == 'true'",
@@ -842,6 +907,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         ],
                     },
                     setup_node("${{ env.NODE_VERSION }}"),
+                    declaration_step(),
                     {
                         "shell": "pwsh",
                         "run": SEALED_SCRIPTS[
@@ -863,9 +929,12 @@ def repository_audit_contract(node_version: str) -> dict:
                     {
                         "shell": "pwsh",
                         "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/run-the-complete-python-suite-on-3-14"
+                            "repository-audit/compatibility-windows/measure-windows-python-coverage"
                         ],
                         "if": "steps.scope.outputs.scope == 'source'",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"
+                        },
                     },
                     {
                         "shell": "bash",
@@ -880,6 +949,8 @@ def repository_audit_contract(node_version: str) -> dict:
                             "repository-audit/compatibility-windows/analyze-powershell-on-windows"
                         ],
                     },
+                    project_check_step(),
+                    coverage_transfer("windows", upload=True),
                 ],
                 "needs": "activation",
                 "if": "needs.activation.outputs.enabled == 'true'",
@@ -890,25 +961,50 @@ def repository_audit_contract(node_version: str) -> dict:
                     "activation",
                     "quality-linux",
                     "compatibility-windows",
-                    "project-linux",
-                    "project-windows",
                 ],
                 "if": "${{ always() && needs.activation.outputs.enabled != 'false' }}",
                 "runs-on": "ubuntu-24.04",
-                "timeout-minutes": 5,
+                "timeout-minutes": 10,
                 "steps": [
                     {
                         "env": {
                             "LINUX_RESULT": "${{ needs.quality-linux.result }}",
                             "WINDOWS_RESULT": "${{ needs.compatibility-windows.result }}",
                             "ACTIVATION_RESULT": "${{ needs.activation.result }}",
-                            "PROJECT_LINUX_RESULT": "${{ needs.project-linux.result }}",
-                            "PROJECT_WINDOWS_RESULT": "${{ needs.project-windows.result }}",
                         },
                         "run": SEALED_SCRIPTS[
                             "repository-audit/repository-audit/require-selected-checks-to-succeed"
                         ],
-                    }
+                    },
+                    checkout(
+                        **{
+                            "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+                        }
+                    ),
+                    audit_revision_step(),
+                    {
+                        **setup_python("3.11", "tools/quality/requirements.lock"),
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                    },
+                    {
+                        "shell": "bash",
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "run": SEALED_SCRIPTS[
+                            "repository-audit/repository-audit/install-locked-coverage-runtime"
+                        ],
+                    },
+                    coverage_transfer("linux", upload=False),
+                    coverage_transfer("windows", upload=False),
+                    {
+                        "shell": "bash",
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"
+                        },
+                        "run": SEALED_SCRIPTS[
+                            "repository-audit/repository-audit/require-combined-coverage"
+                        ],
+                    },
                 ],
             },
             "activation": {
@@ -949,50 +1045,6 @@ def repository_audit_contract(node_version: str) -> dict:
                         "env": {"EVENT_NAME": "${{ github.event_name }}"},
                         "run": SEALED_SCRIPTS["repository-audit/activation/activation"],
                         "if": "steps.resolve.outputs.trusted_sha != ''",
-                    },
-                ],
-            },
-            "project-linux": {
-                "name": "Project checks - linux",
-                "runs-on": "ubuntu-24.04",
-                "timeout-minutes": 20,
-                "needs": "activation",
-                "if": "needs.activation.outputs.enabled == 'true'",
-                "steps": [
-                    checkout(
-                        **{
-                            "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        }
-                    ),
-                    audit_revision_step(),
-                    setup_python("3.11", None),
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/project-linux/require-selected-checks-to-succeed"
-                        ],
-                    },
-                ],
-            },
-            "project-windows": {
-                "name": "Project checks - windows",
-                "runs-on": "windows-2025",
-                "timeout-minutes": 20,
-                "needs": "activation",
-                "if": "needs.activation.outputs.enabled == 'true'",
-                "steps": [
-                    checkout(
-                        **{
-                            "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        }
-                    ),
-                    audit_revision_step(),
-                    setup_python("3.14", None),
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/project-linux/require-selected-checks-to-succeed"
-                        ],
                     },
                 ],
             },

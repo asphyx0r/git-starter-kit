@@ -680,6 +680,7 @@ class StarterKitManifestTests(unittest.TestCase):
                     "templates/SUPPORT.md",
                     "templates/SKILLS.md",
                     "tools/quality/check-coverage.py",
+                    "tools/quality/coverage-artifacts.py",
                     ".github/CODEOWNERS",
                     ".github/workflows/release-package.yml",
                     "SHA256SUMS",

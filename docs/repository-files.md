@@ -260,7 +260,11 @@ deferred, or explicitly excluded from the template.
   integrity-pinned external-tool installer without a Go bootstrap. Download
   caches use the dependency locks and runtime policy; installs still verify
   hashes and disable npm lifecycle scripts. Each dependency family is installed
-  once per isolated job. Only superseded PR runs are cancelled. The
+  once per isolated job. Superseded PR and ordinary branch-push runs are cancelled;
+  tags, releases, manual runs and release-preflight branches retain their evidence.
+  Project checks execute inside both OS jobs, including in consumers. Source
+  coverage is measured on both OSes; Linux keeps its floors and the aggregate
+  verifies matching artifact inputs before enforcing the combined floors. The
   aggregate requires both environments and uses `Repository audit` for
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
@@ -776,6 +780,18 @@ deferred, or explicitly excluded from the template.
   collecting measurements.
 - Notes: Rejects missing or inconsistent measurements and writes its verdict
   to the GitHub Actions job summary when available.
+
+### `tools/quality/coverage-artifacts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Binds and combines source coverage measurements across Linux and Windows.
+- Usage: CI exports one successful OS measurement, then combines both matching
+  platform directories before running `check-coverage.py`.
+- Notes: Source-only tool, excluded from consumer packages. Requires exact
+  commit/run/attempt identity, locked Coverage and policy,
+  data/source hashes and safe relative source paths. Rejects missing or stale
+  inputs; produces the union report without relaxing Linux coverage floors.
 
 ### `tools/quality/check-versions.py`
 
@@ -1389,6 +1405,15 @@ deferred, or explicitly excluded from the template.
 - Usage: Run through Python unittest discovery or select this module.
 - Notes: Covers threshold boundaries, invalid measurements, misleading global
   scores, command exit status, and the CI summary verdict.
+
+### `tests/test_coverage_artifacts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects coverage artifact identity and cross-platform branch combination.
+- Usage: Run through Python unittest discovery with the locked Coverage runtime.
+- Notes: Covers OS path normalization, unioned branches, absent/stale/wrong-SHA
+  measurements, altered source/data, malformed metadata, unsafe paths and CLI errors.
 
 ### `tests/test_workflow_contracts.py`
 

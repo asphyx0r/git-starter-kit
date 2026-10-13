@@ -40,6 +40,7 @@ $StarterOnlyPaths = @(
     "templates/SUPPORT.md",
     "templates/SKILLS.md",
     "tools/quality/check-coverage.py",
+    "tools/quality/coverage-artifacts.py",
     ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
     ".github/CODEOWNERS",
     ".github/workflows/release-package.yml",
