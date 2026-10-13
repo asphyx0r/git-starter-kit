@@ -137,7 +137,7 @@ PRÉCONDITION DU WORKFLOW DE RELEASE
   - scelle un transfert contenant exactement trois fichiers réguliers : les
     deux ZIP nommés pour le tag et `SHA256SUMS`, avec les empreintes des ZIP
     transmises comme sorties du job de build ;
-  - contient un job `publish` dépendant de `build`, sous l'environnement
+  - contient un job `publish` dépendant de `build` et `release-checks`, sous l'environnement
     `release`, seul détenteur de `contents: write`, sans checkout ni exécution
     de code téléchargé ;
   - vérifie le jeu exact de fichiers, les empreintes scellées et `SHA256SUMS`
@@ -155,6 +155,17 @@ PRÉCONDITION DU WORKFLOW DE RELEASE
 - Enregistre `Release package` comme workflow de release obligatoire en plus
   des workflows communs définis par le workflow principal. Ne remplace et ne
   redéfinis aucun contrôle commun.
+- Avant de créer une release, lis par API la configuration réelle de
+  l'environnement `release` et ses politiques de déploiement :
+  - aucun approbateur obligatoire et aucun délai d'attente ;
+  - `can_admins_bypass` reste `false` ;
+  - seules les branches `main`, `master` et les tags `v*` sont autorisés.
+- La publication est automatique après la réussite du build, des vérifications
+  d'intégrité et des contrôles CI obligatoires. Un échec empêche la promotion
+  en stable/latest ; ne contourne jamais ces contrôles.
+- Un approbateur obligatoire, un délai d'attente ou une configuration illisible
+  est une erreur de configuration à signaler avant toute publication. N'ajoute
+  aucun bot et n'appelle aucun endpoint d'approbation de déploiement.
 
 CRÉATION DE LA PRERELEASE
 
