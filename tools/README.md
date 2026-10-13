@@ -1339,7 +1339,9 @@ or combination, `1` for validation/access errors, and `2` for invalid arguments.
 Use `--help`, `export --help` or `combine --help` for the command syntax.
 Report generation uses an explicit source root and preserves the calling
 process's directory and measurement paths, including when its tests run under
-Coverage. OS collection retains the configured relative-path policy.
+Coverage. Absolute measurement keys use Coverage's canonical filename resolution,
+including Windows 8.3 aliases, before reporting. OS collection retains the
+configured relative-path policy.
 
 Linux still enforces the existing global and branch floors. Windows publishes
 its own report without a separate new floor; the aggregate enforces both floors

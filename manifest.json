@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T12:09:42Z",
+    "release_date": "2026-10-13T13:23:13Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2846862,
-            "built_at": "2026-10-13T12:09:42Z",
-            "sha256": "0de4e528d9e1217c62c58961ce0dbd0e76baf0dcc6d299beea5fed5611498222",
+            "size_bytes": 2851139,
+            "built_at": "2026-10-13T13:23:13Z",
+            "sha256": "77adc43fa56eeab1d842ba249e8255e3734a618802fd14224b1a76b1333971ab",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -227,11 +227,11 @@
                 },
                 {
                     "relative_path": ".github/workflows/repository-audit.yml",
-                    "size_bytes": 15998,
+                    "size_bytes": 16140,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a1758d234fc122983cd976fd2a6ec047fcd933299142526d07b2762a0d27e7f2",
+                    "sha256": "611245b0c81305f91b8ce61bb76733763cd65e51066cd7d6a40c85390da8f15f",
                     "mode": "644"
                 },
                 {
@@ -533,11 +533,11 @@
                 },
                 {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
-                    "size_bytes": 40463,
+                    "size_bytes": 42960,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8d3f62d00fb763755ce73cfbbf5f640d599807f153cb7bad61c396ee6df985e3",
+                    "sha256": "fe1862a22199007465bb7b80067eaa18785112bcd9e48c27e6350548b65b77c4",
                     "mode": "644"
                 },
                 {
@@ -555,7 +555,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7d27272f5ee2b067e9d1bc1a8189c7e6c7287781288ad112b92202e8030005d7",
+                    "sha256": "bcebd5131a8f430f10c27d58dbf2332586464dc5bbf32692906683f59a4f1449",
                     "mode": "644"
                 },
                 {
@@ -740,11 +740,11 @@
                 },
                 {
                     "relative_path": "templates/project/docs/project-configuration.md",
-                    "size_bytes": 9434,
+                    "size_bytes": 9743,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6ce5b2fc96d440b0073e6b832e64ec13f637213fc46684979c0f1257a50d257a",
+                    "sha256": "85ca5ba1d63ae0623bff350659d942d6d7689edaae5aef5330dbdc855dd016f6",
                     "mode": "644"
                 },
                 {
@@ -884,11 +884,11 @@
                 },
                 {
                     "relative_path": "tests/test_coverage_artifacts.py",
-                    "size_bytes": 10960,
+                    "size_bytes": 11279,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "0abf10a042ed1ffbab3eefd87501e0a7aa5bb797a3b970e9ebaaf7ae9d160d12",
+                    "sha256": "80cbb41e43b46facf577f8502a074f11de4e73b0f7c8e07f731dd64f41019045",
                     "mode": "644"
                 },
                 {
@@ -1055,20 +1055,20 @@
                 },
                 {
                     "relative_path": "tests/test_workflow_contracts.py",
-                    "size_bytes": 55202,
+                    "size_bytes": 55998,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6104d3d09545cd43a4011e178c44a66577ae5afa24b0a07dfa1ac0e416015ae3",
+                    "sha256": "8f383cc2316cf94caa5b3a9b7ef507d1e3dd50a9af4491cc03db8c8075146f18",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 83953,
+                    "size_bytes": 84074,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "b7f9d9e1e1b39207e10f6e0c9b75f667acf9b0469e1ebc79f9f79fc85b587515",
+                    "sha256": "42f660e65e7ebfed6f7b33b8d81ea8107f4d4b242c43f7ef48b6c6222f653b38",
                     "mode": "644"
                 },
                 {
@@ -1226,11 +1226,11 @@
                 },
                 {
                     "relative_path": "tools/quality/coverage-artifacts.py",
-                    "size_bytes": 6557,
+                    "size_bytes": 6636,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "28f5d070ba00fe29f093592f72b37f60ab4d31c5b353a770d69aa5830accecce",
+                    "sha256": "8a989230aebabcea0dcbe842fc3a1d63631e4bd2884dd79fd283729aadf9e34b",
                     "mode": "644"
                 },
                 {
@@ -1460,11 +1460,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/workflow-contracts.py",
-                    "size_bytes": 58832,
+                    "size_bytes": 58846,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "cc5ee61a215ecdd3b560b197420e8fb796ef9f0e9587d65762bec90a03ef8f3b",
+                    "sha256": "267e66e21437bbf5e89a2e22bde50dccf8cd76001ff95f2dfb40dc3a7022f8e6",
                     "mode": "644"
                 },
                 {

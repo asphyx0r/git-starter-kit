@@ -76,11 +76,19 @@ class CoverageArtifactsTests(unittest.TestCase):
         paths = [Path(name.replace("\\", "/")) for name in report["files"]]
         self.assertEqual(
             {
-                (path.relative_to(self.root) if path.is_absolute() else path).as_posix()
+                (
+                    path.resolve().relative_to(self.root.resolve())
+                    if path.is_absolute()
+                    else path
+                ).as_posix()
                 for path in paths
             },
             {"tools/example.py"},
         )
+
+    def test_combination_canonicalizes_absolute_measurement_paths(self):
+        report = self.artifacts.combine(self.root / "tools" / "..", self.output)
+        self.assertEqual(report["totals"]["covered_branches"], 2)
 
     def test_combination_closes_in_memory_sqlite_connections(self):
         gc.collect()

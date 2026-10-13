@@ -188,6 +188,26 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.validate("repository-audit", workflow)
 
+    def test_windows_provisions_consumer_shell_tools(self):
+        workflow = self.read_workflow("repository-audit")
+        installation = next(
+            step
+            for step in workflow["jobs"]["compatibility-windows"]["steps"]
+            if "install-external-tools.py" in step.get("run", "")
+        )
+        script = installation["run"]
+        for required in (
+            "--tool PSScriptAnalyzer",
+            "--tool shellcheck",
+            "--tool shfmt",
+            "$env:GITHUB_PATH",
+        ):
+            self.assertIn(required, script)
+            installation["run"] = script.replace(required, "")
+            with self.assertRaises(self.validator.ContractError):
+                self.validate("repository-audit", workflow)
+            installation["run"] = script
+
     def test_windows_and_combined_coverage_are_required_for_source(self):
         workflow = self.read_workflow("repository-audit")
         windows = workflow["jobs"]["compatibility-windows"]["steps"]

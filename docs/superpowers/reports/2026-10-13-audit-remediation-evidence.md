@@ -606,3 +606,43 @@ The earlier 597-test OS measurements and package digests remain bound to their
 recorded commits. They are not relabelled as qualification of this subsequent
 integration correction. Hosted checks and the active publication hook must
 qualify the resulting candidate before integration.
+
+## First Hosted Qualification and Windows Corrections
+
+Integration PR [#79](https://github.com/asphyx0r/git-starter-kit/pull/79) targets
+`main`; disposable PR [#80](https://github.com/asphyx0r/git-starter-kit/pull/80)
+qualifies a distributed consumer and is not an integration candidate.
+The published source input is `72a3796`; its complete active pre-push passed
+599 Python tests in 761.474 seconds (19 documented Windows skips), all four
+mandatory shell suites, workflow validation and the project runner.
+
+Hosted source run `38401129664` passed Linux but failed three Windows coverage
+artifact tests. Consumer run `38401583242` passed Linux but failed because
+ShellCheck was absent. The aggregate correctly failed when Windows failed.
+These failures prevent integration and are retained as negative evidence.
+
+The coverage defect was reproduced using actual Windows 8.3 temporary paths:
+old reporting produced zero covered branches; the alias regression and three
+existing cases failed. Absolute measurement keys now use Coverage's own
+canonical filename resolver after the existing integrity/link checks. The test
+also compares resolved physical paths. All seventeen coverage artifact tests
+pass with those actual short paths; caller measurement state and the 85% floors
+are preserved. The Windows job now provisions verified ShellCheck and shfmt
+alongside PSScriptAnalyzer and publishes the binary directory through
+`GITHUB_PATH`. The new missing-tool regression failed before this correction;
+all fifty workflow contracts, Ruff, Mypy, YAML and Actionlint checks pass after
+updating only the corresponding reviewed script seal.
+
+The live activation proofs already obtained are independent of these source
+corrections. Push run `38401174861`, observed in progress on `cc4691e`, was
+cancelled automatically after the same branch advanced. The human gate run
+`38398850025` completed build and release-event verification, then waited for
+User `83057672` on `release`. It was cancelled without approval; no publisher
+step ran and the existing release/assets were unchanged.
+
+Guarded run `38402959939` executed the immutable trusted main input `6d5b6d1`
+and rejected the fixed failing consumer head `a1341c0` with `The required check
+Repository audit has not succeeded`. App token generation and privileged merge
+were skipped; main remained unchanged. Successful hosted source/consumer runs,
+the blocked native merge on a green fixture and guarded integration remain
+required at this checkpoint.

@@ -16,6 +16,7 @@ from typing import Any
 import coverage
 from coverage import Coverage, CoverageData
 from coverage.exceptions import CoverageException
+from coverage.files import canonical_filename
 
 
 def digest(path: Path) -> str:
@@ -132,7 +133,8 @@ def combine(root: Path, directory: Path) -> dict[str, Any]:
         cov.set_option("run:relative_files", False)
         report_data = cov.get_data()
         report_data.update(
-            merged, map_path=lambda name: str(root / canonical_name(name))
+            merged,
+            map_path=lambda name: canonical_filename(str(root / canonical_name(name))),
         )
         report_path = directory / "combined.json"
         if report_path.is_symlink():
