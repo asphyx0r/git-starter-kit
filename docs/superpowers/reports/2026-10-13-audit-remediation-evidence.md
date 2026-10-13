@@ -24,6 +24,8 @@ No primary tag, push, GitHub Release or remote activation has been performed.
 | `900d77c` | OS coverage artifacts, folded project checks and push cancellation |
 | `235c5ff` | Caller-safe coverage reporting and expanded coverage/security regressions |
 | `61f08f3` | Offline npm fixtures and precise fixture routing |
+| `43ef0d9` | Isolated shell metadata and actual host CLI selection |
+| `77cf5dc` | Bounded Windows fixture cleanup with persistent-error regressions |
 
 Behavior changes include their tests and relevant source/consumer documentation.
 Future commits continue this separation; no historical commit is rewritten.
@@ -245,6 +247,30 @@ empty-directory cleanup failure is consistent with that behavior; the handle
 holder was not identified. This is a bounded test-fixture correction, not evidence
 of a production publisher leak.
 [Windows deletion semantics](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew).
+
+## Complete Hook Qualification at `77cf5dc`
+
+The real Windows pre-push wrapper completed with exit status zero for the exact
+`77cf5dcf71ef229191e151672bd83be9cdd0873f` revision against the original audit base.
+It used an isolated pushed-object clone without dependency installation. All
+588 Python tests passed with nineteen previously explained skips in 745.571
+seconds. All four mandatory shell suites, real Actionlint/workflow contracts and
+the project runner completed successfully. Each family kept its 900-second
+deadline. The canonical project explicitly warned that no application checks
+are configured; this result does not claim application or hosted validation.
+The simulated input did not perform a push.
+
+At the same exact commit, the complete Linux Coverage suite passed 588 tests
+with ten previously explained skips in 200.047 seconds. Coverage remained
+89.39% globally (6,894/7,712), 90.99% for statements (5,019/5,516), and 85.38%
+for branches (1,875/2,196). Both preserved 85% floors passed. The Windows coverage
+and combined measurements above remain their earlier, separately identified
+proofs; the plain Windows pre-push run did not collect new coverage.
+
+These local results close the observed qualification regressions at this
+revision. The substantive guard choice, regenerated final metadata, complete
+candidate profiles/packages, final OS measurements and hosted activation are
+still required. No final candidate or nineteen-finding completion is claimed.
 
 ## Governance Work Still Open
 
