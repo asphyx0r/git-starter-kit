@@ -62,7 +62,8 @@ finding still depends on the final candidate checks below.
 
 - Windows Python 3.14.8 and WSL Ubuntu Python 3.11.17 used the hashed quality lock.
   The portable Linux interpreter archive matched its published GitHub SHA-256.
-  Node 24.20.0 for Linux matched the official Node checksum; Windows uses Node 26.5.1.
+  Node 24.20.0 for Linux matched the official Node checksum. Initial Windows
+  provisioning used Node 26.5.1; current qualification uses Node 26.8.1.
 - Both actual OS runtimes passed 49 workflow-contract tests and 16 coverage-artifact
   tests. Linux passed the ten coverage-policy tests. Windows passed twenty manifest
   tests and the two strict package-distribution cases.
@@ -475,3 +476,95 @@ The correction is committed at `2a3ea20`; subsequent qualification must identify
 its regenerated candidate. The successful `5cb9994` measurements remain their
 immutable milestone; they are not relabeled as later results.
 Findings 02/11 and the separate activation/hosted/cleanup gates remain open.
+
+## Reviewed Candidate Qualification at `fd7064c`
+
+The candidate includes the final review correction `2a3ea20`. Both manifest
+validators passed on its selected index and exact commit: 168 deployment files
+and 89 core files, prepared at `2026-10-13T09:16:15Z`.
+
+Complete profiles passed on Windows and native Ubuntu. Windows ran all 597
+Python tests in 1,158.641 seconds with nineteen platform skips, then passed its
+hook suites, PowerShell static checks and project runner. Linux ran all 597 tests
+in 310.161 seconds with ten platform skips, all six shell suites, the corrected
+relative-import regression, real smoke checks and project runner. Application
+checks are not configured; that warning is retained without claiming application
+validation.
+
+Linux coverage remained 89.43% globally and 85.45% for branches. Both sealed
+measurements identify the same SHA and local run/attempt `3/1`. Their verified
+union passed the unchanged 85% floors: 90.66% globally (7,016/7,739), 92.05% for
+statements (5,093/5,533) and 87.17% for branches (1,923/2,206). These are local
+results, not hosted GitHub Actions evidence.
+
+The npm gate reported no blocked finding, retaining the raw advisories and exact
+braces attestation. Both hashed Python locks reported no known vulnerabilities.
+The actual candidate ZIP contains 100 files and has SHA-256
+`b6a3a25633f44d62acb8d30cbca6ab15d7b3293fcbe8627b3b99ecbe3d663d8a`.
+Its eleven security/runtime files and corrected hook match the exact source.
+New-consumer index preparation, cumulative upgrade and toolkit generation passed
+against the digest-verified published `v2.11.7` baseline. Customized documentation,
+tracked application content and unrelated untracked notes survived. An injected
+third-write error restored exact non-Git bytes and modes before normal application
+passed.
+
+The original Windows provisioning used Node 26.5.1; the current qualification
+observes Node 26.8.1. The supported minimum and locked CLI versions are unchanged.
+Linux uses the verified Node 24.20.0 runtime.
+
+The actual complete pre-push hook also passed at this exact revision, comparing
+against the original audit base. All 597 Python tests passed in 728.091 seconds
+with nineteen platform skips, inside the unchanged 900-second family deadline.
+All four mandatory shell suites passed, followed by the workflow/Actionlint and
+project checks. No push occurred. Expected negative fixture diagnostics are
+covered by the successful parent result; they are not hidden application errors.
+
+## Local Closure and External Gates
+
+Local implementation, both complete OS profiles, security gates, packages,
+restoration and the single final review are verified through `fd7064c`. The final
+proof consolidation changes only this source-only report and generated deployment
+metadata/checksums. Every other tracked input must remain byte-identical to the
+qualified revision. Manifest and Markdown checks qualify that consolidation;
+earlier OS data retain their tested SHA and are never relabeled.
+
+| Findings | Verified local closure | Remaining external evidence |
+| --- | --- | --- |
+| 01, 03, 13, 15 | Locks, attestation, actual dependency audits and distributed security/runtime bytes | Hosted execution after authorized integration |
+| 04, 05, 06 | Interrupt restoration, early validation, complete tests and production typing | Hosted execution after authorized integration |
+| 07, 08 | Exact-candidate manifests, both OS measurements, unchanged floors, package/init/upgrade/rollback | Integration provenance; publication remains separately controlled |
+| 09, 12, 16 | Actual locked tools, indexed configuration including relative helpers, routing and complete pre-push | Hosted execution after authorized integration |
+| 10, 14, 19 | Coherent declarations/locks, scoped commits, documentation, semantic workflow contracts and final review | Integration and hosted contract execution |
+| 17, 18 | OS project checks, fail-closed aggregate and event/concurrency contracts | Actual hosted OS/consumer execution and superseded-push cancellation |
+| 02, 11 | Reviewed activation guard and explicit single-maintainer policy | Authorized settings, administrative bypass audit, disposable PR and human release gate |
+
+No nineteen-finding completion, hosted CI success or remote activation is claimed.
+All remote changes require the separate authorization recorded in the plan.
+The administrative bypass snapshot currently exposes empty actor arrays on all
+three existing rulesets. Re-audit the complete arrays at activation and after any
+governance change; workflow permissions remain unchanged.
+
+### Concrete Activation Surface
+
+The reviewed targets above preserve every ordinary main rule and parameter
+except its allowed merge methods, narrowed to squash. Repository merge/rebase and
+auto-merge are disabled; squash stays enabled. A distinct active update-only main
+ruleset admits only owner-provided Integration ID `4355746` with `always` bypass
+and disables fetch-and-merge. Ordinary protections retain no App bypass.
+
+The release reviewer is verified User `83057672` (`asphyx0r`); self-review is
+allowed under the accepted single-maintainer exception. Existing branch/tag
+patterns `main`, `master`, and `v*` and the absence of a wait timer are preserved.
+The documented REST environment update and live GraphQL `UpdateEnvironmentInput`
+do not expose the administrative-bypass write field. Disable that bypass through
+Settings > Environments > release by clearing the corresponding protection-rule
+checkbox, then confirm `can_admins_bypass=false` through the read API. An
+unsupported REST field is not an activation mechanism.
+[GitHub environment settings](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
+The current trusted main revision `6d5b6d1` accepts an update rule while retaining
+its required-check gate. Settings can therefore be activated before using the
+new requester; no temporary guard bypass or bootstrap code change is required.
+Verify the resulting settings before any disposable native-merge test. Publishing
+this branch, creating its integration PR and running hosted evidence are separate
+external actions; no such action has occurred in this qualification.
