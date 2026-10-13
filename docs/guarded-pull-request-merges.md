@@ -46,6 +46,19 @@ queued. The final command calls `gh pr merge` with squash mode, the exact
 subject, an explicit body file, and the sealed head SHA; it supplies no auto,
 administrator, auto-disable, or branch-deletion option.
 
+Both passes also require squash as the only repository merge method and the
+only method allowed by every effective pull-request rule. The active branch
+rules must include a repository-owned `Restrict updates` ruleset, separate from
+ordinary protections, with fetch-and-merge disabled. Missing, malformed or
+incomplete activation fails before dispatch or merge.
+
+These reads preserve the workflow's existing permissions. They verify active
+rules and merge settings, but do not establish who can bypass a ruleset. GitHub
+can omit `bypass_actors` when the token cannot write that ruleset. A maintainer
+with administrative access must audit the complete bypass lists at activation
+and after any governance change; absent data is not evidence of an empty list.
+See the [GitHub ruleset API](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset).
+
 ## Prerequisites
 
 Install the locked Node dependencies and authenticate GitHub CLI:
@@ -168,7 +181,8 @@ the following steps for each target repository:
 3. Set `automations.guardedMerge` to `true` in `.starter-kit-project.json` on
    the default branch, then create a distinct default-branch ruleset that
    enables only the GitHub `Restrict updates` rule and grants bypass only to
-   the configured App.
+   the configured App, with `always` mode and fetch-and-merge disabled. Use the
+   numeric App ID from its owner settings, not its client ID or bot account ID.
 4. Keep the default branch's existing protections without a bypass actor for
    the App, so it remains subject to required checks and review controls.
 5. Disable repository auto-merge and ensure that no repository or organization
@@ -177,7 +191,12 @@ the following steps for each target repository:
    documented by [`gh pr merge`](https://cli.github.com/manual/gh_pr_merge).
 6. Disable merge-commit and rebase merge methods in repository settings,
    leaving squash merge as the supported method.
-7. Open a disposable pull request and prove that a manual merge is blocked,
+7. Use administrative credentials to inspect every applicable ruleset and its
+   complete bypass list. The distinct update-only ruleset must have exactly the
+   configured App as its sole bypass; ordinary protections must have no App
+   bypass. Record the full responses. Repeat this audit after governance changes;
+   the limited workflow tokens cannot prove the bypass configuration each time.
+8. Open a disposable pull request and prove that a manual merge is blocked,
    while the App path succeeds only after the required checks pass.
 
 Record the ruleset identities, App identity, repository settings, disposable

@@ -279,31 +279,55 @@ on main, and no release reviewer. Release admin bypass is enabled. The ordinary
 main ruleset remains active with required checks/conversation resolution and zero
 required independent approvals. These settings have not been changed.
 
-The numeric App ID must come from authoritative owner metadata. The configured
-public client ID and the bot account ID are distinct identifiers and cannot
-substitute for it. Owner input has been requested.
+The owner supplied numeric App ID `4355746` for `agent-coding-rules-sync` on
+2026-10-13. This is owner-provided identity evidence, not an independently
+confirmed API response. The public client ID and bot account ID remain distinct
+identifiers and cannot substitute for it.
 
 GitHub documents that ruleset bypass actors can be omitted when the requesting
 token lacks write access to the ruleset. The existing workflow starts with read
 permissions, then mints an App token limited to contents/pull-request writes.
-The preflight implementation must be qualified against this visibility boundary;
-missing actor data must not be presented as proof of an empty bypass list.
+The owner chose to preserve these permissions and audit complete bypass lists
+administratively at activation. The local preflight checks active rules and
+merge methods without asserting bypass visibility. Missing actor data is not
+proof of an empty bypass list. Re-audit the complete lists after any governance
+change; no automatic administrative identity is added.
 [GitHub ruleset API](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset).
 
 ### Proposed Settings
 
-These are reviewable targets, not applied changes. The owner must supply the
-numeric App identity and settle the administrative verification boundary first.
+These are reviewable targets, not applied changes. The owner supplied the App
+identity and selected administrative verification at activation. Applying these
+settings still requires separate authorization and live verification.
 
 | Setting | Current | Proposed |
 | --- | --- | --- |
 | Repository merge methods | Merge, rebase and squash enabled | Squash enabled; merge/rebase disabled; auto-merge stays disabled |
 | Main ordinary protections, ruleset `23177592` | Checks/conversation resolution, zero approvals, no bypass | Preserve these controls; allow only squash in the pull-request rule |
-| Main update restriction | Absent | Separate active branch ruleset for `refs/heads/main`, only `update`, fetch/merge bypass disabled, only the verified App with `always` bypass |
+| Main update restriction | Absent | Separate active branch ruleset for `refs/heads/main`, only `update`, fetch/merge bypass disabled, sole `Integration` actor `4355746` with `always` bypass |
 | Release reviewer | None | Required human reviewer `asphyx0r`, verified User ID `83057672`; self-approval allowed for the accepted single-maintainer policy |
 | Release admin bypass | Enabled | Disabled |
 | Release reference restrictions | Branches `main`/`master`, tags `v*` | Preserve these existing policies |
-| Workflow credential boundary | Read-only first pass; limited existing App token afterward | Preserve it; qualify visibility before selecting the full bypass-verification design |
+| Workflow credential boundary | Read-only first pass; limited existing App token afterward | Preserve it; audit complete bypass lists with administrative access at activation and after governance changes |
+
+Read-only API refresh after receiving those answers still returned the current
+settings above, including ordinary main ruleset `23177592` with no bypass,
+all three merge methods, zero required independent approvals, and release
+admin bypass enabled. No remote setting was changed.
+
+### Local Activation Guard
+
+New negative tests reproduced acceptance of missing update restrictions,
+fetch-and-merge permission, shared protection/update rulesets, unverifiable
+rule provenance and unsupported repository/pull-request merge methods. The red
+run had 21 failing assertions across eleven tests. After the correction, all
+79 guarded merge CLI tests passed. The requester, read-only execute pass and
+privileged execute pass each reject incomplete activation before mutation.
+
+The gate uses the effective active-branch-rules endpoint and repository metadata;
+it needs no administrative permission and does not claim to verify bypass actors.
+The workflow, App-token scope, immutable checkout and script seals are preserved.
+These local tests do not replace the pending activation/disposable-PR proof.
 
 Required activation evidence includes the exact settings responses, ruleset and
 App identities, a blocked native merge, the required-check run, a successful

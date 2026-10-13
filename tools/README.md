@@ -1191,7 +1191,11 @@ authenticates the dispatch origin.
 
 The CLI and workflow are inert until a separately authorized publication and
 GitHub activation configure the distinct rulesets and merge methods described
-in the operational guide.
+in the operational guide. Each preflight requires an active, separate
+update-only ruleset and squash-only repository/pull-request settings. It does
+not attest bypass identities: a maintainer must audit the complete lists with
+administrative credentials at activation and after governance changes. Workflow
+permissions remain unchanged.
 
 ## verify-repository-audit-runs.py
 

@@ -403,6 +403,52 @@ def _require_guarded_merge_enabled(repository: str, default_branch: str) -> None
         )
 
 
+def _require_guard_activation(repository: str, rules: list[dict[str, Any]]) -> None:
+    updates = [rule for rule in rules if rule["type"] == "update"]
+    if not updates or any(
+        type(rule.get("ruleset_id")) is not int or rule["ruleset_id"] <= 0
+        for rule in rules
+    ):
+        raise MergeRequestError(
+            "Restrict updates requires a verifiable, separate active ruleset."
+        )
+    for update in updates:
+        parameters = update.get("parameters")
+        source = update.get("ruleset_source")
+        if (
+            update.get("ruleset_source_type") != "Repository"
+            or not isinstance(source, str)
+            or source.lower() != repository.lower()
+            or not isinstance(parameters, dict)
+            or parameters.get("update_allows_fetch_and_merge") is not False
+            or any(
+                rule["ruleset_id"] == update["ruleset_id"] and rule["type"] != "update"
+                for rule in rules
+            )
+        ):
+            raise MergeRequestError(
+                "Restrict updates must be repository-owned, separate from ordinary "
+                "protections, with fetch-and-merge disabled."
+            )
+
+    pull_request_rules = [rule for rule in rules if rule["type"] == "pull_request"]
+    if not pull_request_rules or any(
+        not isinstance(rule.get("parameters"), dict)
+        or rule["parameters"].get("allowed_merge_methods") != ["squash"]
+        for rule in pull_request_rules
+    ):
+        raise MergeRequestError("Effective pull-request rules must allow squash only.")
+
+    settings = _run_gh_json(["api", f"repos/{repository}"])
+    if (
+        not isinstance(settings, dict)
+        or settings.get("allow_merge_commit") is not False
+        or settings.get("allow_rebase_merge") is not False
+        or settings.get("allow_squash_merge") is not True
+    ):
+        raise MergeRequestError("Repository settings must allow squash merge only.")
+
+
 def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:
     _require_repository_auto_merge_disabled(repository)
     encoded_branch = quote(default_branch, safe="")
@@ -417,8 +463,9 @@ def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:
     if not isinstance(pages, list) or not all(isinstance(page, list) for page in pages):
         raise MergeRequestError("GitHub returned invalid effective branch rules.")
 
+    rules = [rule for page in pages for rule in page]
     required_checks: set[str] = set()
-    for rule in (rule for page in pages for rule in page):
+    for rule in rules:
         if not isinstance(rule, dict) or not isinstance(rule.get("type"), str):
             raise MergeRequestError("GitHub returned invalid effective branch rules.")
         if rule["type"] == "merge_queue":
@@ -455,6 +502,7 @@ def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:
                     "GitHub returned an unsupported required-status-check rule shape."
                 )
             required_checks.add(configured_check["context"])
+    _require_guard_activation(repository, rules)
     return frozenset(required_checks)
 
 

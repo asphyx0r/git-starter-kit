@@ -105,6 +105,43 @@ def valid_policy():
     return frozenset({"Repository audit"})
 
 
+def activated_rules(required_checks=None):
+    return [
+        {
+            "type": "update",
+            "ruleset_id": 43,
+            "ruleset_source_type": "Repository",
+            "ruleset_source": REPOSITORY,
+            "parameters": {"update_allows_fetch_and_merge": False},
+        },
+        {
+            "type": "pull_request",
+            "ruleset_id": 42,
+            "ruleset_source_type": "Repository",
+            "ruleset_source": REPOSITORY,
+            "parameters": {"allowed_merge_methods": ["squash"]},
+        },
+        {
+            "type": "required_status_checks",
+            "ruleset_id": 42,
+            "ruleset_source_type": "Repository",
+            "ruleset_source": REPOSITORY,
+            "parameters": {
+                "required_status_checks": required_checks
+                or [{"context": "Repository audit", "integration_id": None}]
+            },
+        },
+    ]
+
+
+def valid_merge_methods():
+    return {
+        "allow_merge_commit": False,
+        "allow_rebase_merge": False,
+        "allow_squash_merge": True,
+    }
+
+
 def load_module(test_case):
     tools_path = str(MODULE_PATH.parent)
     if tools_path not in sys.path:
@@ -861,22 +898,190 @@ class MergePullRequestTests(unittest.TestCase):
                     ):
                         self.module._load_guard_policy(REPOSITORY, "main")
 
-    def test_guard_policy_reads_all_effective_default_branch_rules(self):
-        required_rule = {
-            "type": "required_status_checks",
-            "parameters": {
-                "required_status_checks": [
-                    {"context": "Repository audit", "integration_id": None},
-                    {"context": "Unit tests", "integration_id": None},
-                ]
-            },
-        }
+    def test_guard_policy_rejects_missing_update_restriction(self):
         with patch.object(
             self.module,
             "_run_gh_json",
             side_effect=[
                 {"data": {"repository": {"autoMergeAllowed": False}}},
-                [[required_rule], [{"type": "pull_request", "parameters": {}}]],
+                [activated_rules()[1:]],
+            ],
+        ):
+            with self.assertRaisesRegex(
+                self.module.MergeRequestError, "Restrict updates"
+            ):
+                self.module._load_guard_policy(REPOSITORY, "main")
+
+    def test_guard_policy_rejects_fetch_merge_or_shared_update_ruleset(self):
+        for mutation in ("fetch", "missing parameter", "mixed rules"):
+            with self.subTest(mutation=mutation):
+                rules = activated_rules()
+                if mutation == "fetch":
+                    rules[0]["parameters"]["update_allows_fetch_and_merge"] = True
+                elif mutation == "missing parameter":
+                    rules[0]["parameters"] = {}
+                else:
+                    rules[1]["ruleset_id"] = 43
+                with patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        [rules],
+                    ],
+                ):
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "Restrict updates"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
+
+    def test_guard_policy_rejects_unverifiable_update_ruleset_identity(self):
+        for field, value in (
+            ("ruleset_id", True),
+            ("ruleset_id", 0),
+            ("ruleset_id", "43"),
+            ("ruleset_source_type", "Organization"),
+            ("ruleset_source", "other/repository"),
+            ("ruleset_source", None),
+            ("ruleset_source", 43),
+        ):
+            with self.subTest(field=field, value=value):
+                rules = activated_rules()
+                rules[0][field] = value
+                with patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        [rules],
+                    ],
+                ):
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "Restrict updates"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
+
+    def test_guard_policy_requires_squash_only_pull_request_rules(self):
+        for methods in (None, [], ["merge", "squash"], ["rebase"], "squash"):
+            with self.subTest(methods=methods):
+                rules = activated_rules()
+                if methods is None:
+                    rules.pop(1)
+                else:
+                    rules[1]["parameters"]["allowed_merge_methods"] = methods
+                with patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        [rules],
+                    ],
+                ):
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "pull-request rules"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
+
+    def test_guard_policy_rejects_non_squash_repository_merge_methods(self):
+        for field, value in (
+            ("allow_merge_commit", True),
+            ("allow_rebase_merge", True),
+            ("allow_squash_merge", False),
+            ("allow_merge_commit", 0),
+            ("allow_squash_merge", 1),
+            ("allow_rebase_merge", None),
+        ):
+            with self.subTest(field=field, value=value):
+                policy = valid_merge_methods()
+                policy[field] = value
+                with patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        [activated_rules()],
+                        policy,
+                    ],
+                ):
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "squash merge only"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
+
+    def test_guard_policy_accepts_activation_without_claiming_bypass_visibility(self):
+        with patch.object(
+            self.module,
+            "_run_gh_json",
+            side_effect=[
+                {"data": {"repository": {"autoMergeAllowed": False}}},
+                [activated_rules()],
+                valid_merge_methods(),
+            ],
+        ) as gh_json:
+            self.assertEqual(
+                self.module._load_guard_policy(REPOSITORY, "main"), valid_policy()
+            )
+        self.assertEqual(gh_json.call_count, 3)
+        self.assertEqual(
+            gh_json.call_args_list[-1].args[0], ["api", "repos/owner/repository"]
+        )
+
+    def test_incomplete_activation_stops_request_and_both_execute_passes(self):
+        message = self.write_bytes(b"fix(git): reject partial activation\n")
+        event = self.write_event(valid_event())
+        for arguments in (
+            [
+                "request",
+                "--force",
+                "--repository",
+                REPOSITORY,
+                "--pull-request",
+                "17",
+                "--message-file",
+                str(message),
+            ],
+            ["--dry-run", "execute", "--event-file", str(event)],
+            ["execute", "--event-file", str(event)],
+        ):
+            with (
+                self.subTest(arguments=arguments),
+                patch.object(
+                    self.module,
+                    "_resolve_repository",
+                    return_value=(REPOSITORY, "main"),
+                ),
+                patch.object(self.module, "_validate_message_with_commitlint"),
+                patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        [activated_rules()[1:]],
+                    ],
+                ),
+                patch.object(self.module, "_dispatch_request") as dispatch,
+                patch.object(self.module, "_run_gh") as mutate,
+            ):
+                code, _, error = self.run_main(arguments)
+            self.assertEqual(code, 1, error)
+            self.assertIn("Restrict updates", error)
+            dispatch.assert_not_called()
+            mutate.assert_not_called()
+
+    def test_guard_policy_reads_all_effective_default_branch_rules(self):
+        rules = activated_rules(
+            [
+                {"context": "Repository audit", "integration_id": None},
+                {"context": "Unit tests", "integration_id": None},
+            ]
+        )
+        with patch.object(
+            self.module,
+            "_run_gh_json",
+            side_effect=[
+                {"data": {"repository": {"autoMergeAllowed": False}}},
+                [rules[:1], rules[1:]],
+                valid_merge_methods(),
             ],
         ) as gh_json:
             required_checks = self.module._load_guard_policy(
@@ -918,19 +1123,14 @@ class MergePullRequestTests(unittest.TestCase):
         for integration_id in (None, 1, 15368):
             with self.subTest(integration_id=integration_id):
                 rules = [
-                    [
-                        {
-                            "type": "required_status_checks",
-                            "parameters": {
-                                "required_status_checks": [
-                                    {
-                                        "context": "Repository audit",
-                                        "integration_id": integration_id,
-                                    }
-                                ]
-                            },
-                        }
-                    ]
+                    activated_rules(
+                        [
+                            {
+                                "context": "Repository audit",
+                                "integration_id": integration_id,
+                            }
+                        ]
+                    )
                 ]
                 with patch.object(
                     self.module,
@@ -938,6 +1138,7 @@ class MergePullRequestTests(unittest.TestCase):
                     side_effect=[
                         {"data": {"repository": {"autoMergeAllowed": False}}},
                         rules,
+                        valid_merge_methods(),
                     ],
                 ):
                     self.assertEqual(
