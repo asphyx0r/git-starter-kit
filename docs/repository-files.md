@@ -1467,6 +1467,16 @@ deferred, or explicitly excluded from the template.
   preparation remains separate from GitHub activation and publication.
 - Notes: A plan alone does not close a finding or attest completed verification.
 
+### `docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Tracks each audit finding, local changes, verification and remaining proof.
+- Usage: Read alongside the approved plan before candidate qualification or
+  GitHub activation; update it from observed results.
+- Notes: Source-only evidence, excluded from consumer packages. Separates focused
+  local tests, interrupted suites, hosted evidence and live governance settings.
+
 ### `tests/test_release_artifacts.py`
 
 - Type: `file`
