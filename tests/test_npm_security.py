@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import json
 import importlib.util
 import base64
@@ -94,6 +96,45 @@ class NpmSecurityTests(unittest.TestCase):
             check=False,
             timeout=20,
         )
+
+    def test_main_dry_run_preserves_bytes_then_patch_and_verify_succeed(self):
+        originals = {
+            path: path.read_bytes() for path in (self.package / "lib").glob("*.js")
+        }
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(
+                security.main(
+                    ["--dry-run", "patch", "--quality-root", str(self.quality)]
+                ),
+                0,
+            )
+        self.assertTrue(json.loads(output.getvalue())["dryRun"])
+        self.assertEqual({path: path.read_bytes() for path in originals}, originals)
+        for command in ("patch", "verify"):
+            with redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(
+                    security.main([command, "--quality-root", str(self.quality)]),
+                    0,
+                )
+            report = json.loads(output.getvalue())
+            self.assertEqual(report["operation"], command)
+            self.assertEqual(report["occurrences"], 1)
+
+    def test_main_rejects_unattested_bytes_without_success_output(self):
+        path = self.package / "lib/expand.js"
+        path.write_bytes(path.read_bytes() + b"\n// untrusted edit\n")
+        before = path.read_bytes()
+        with (
+            redirect_stdout(io.StringIO()) as output,
+            redirect_stderr(io.StringIO()) as errors,
+        ):
+            self.assertEqual(
+                security.main(["patch", "--quality-root", str(self.quality)]),
+                1,
+            )
+        self.assertEqual(output.getvalue(), "")
+        self.assertIn("npm security:", errors.getvalue())
+        self.assertEqual(path.read_bytes(), before)
 
     def test_patch_preserves_brace_expansion_and_compilation(self):
         result = self.cli("patch")

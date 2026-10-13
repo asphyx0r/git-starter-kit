@@ -39,7 +39,7 @@ finding still depends on the final candidate checks below.
 | 04 | 3 | Output rollback handles interrupts and independent cleanup/restoration failures; 48 release tests | Candidate full suite |
 | 05 | 3 | Shared SemVer validation precedes initializer writes/index changes; 19 initializer tests | Candidate full suite and package initialization |
 | 06 | 1 | Initializer/new tools in Mypy; tracked-tool coverage invariant; 24 files checked for both platforms | Candidate typing and scope checks |
-| 07 | 1 | Source Windows measurement plus matched OS artifacts; 10 artifact tests on both real runtimes | Complete OS measurements and combined floors at the candidate |
+| 07 | 1 | Source Windows measurement plus matched OS artifacts; artifact regressions cover input identity, OS paths and caller measurement isolation | Complete OS measurements and combined floors at the candidate |
 | 08 | 4 | Candidate preparation deliberately follows substantive changes | Regenerated metadata/checksums checked on the index and final commit |
 | 09 | 5 | Broken environment rebuilt; pinned local tools provisioned; selected real executables checked against indexed pins | Candidate hooks and runtime qualification |
 | 10 | 6 | Registry, declarations and hashed locks updated coherently; maintenance procedure documented | Integration and coordinated future bot proposals |
@@ -77,6 +77,48 @@ finding still depends on the final candidate checks below.
   PSScriptAnalyzer and affected Markdown guides passed. Git integrity checks passed.
   Betterleaks failed before scanning with Windows `NUL`; the prescribed staged
   Gitleaks fallback passed. No scanner allowlist was introduced.
+
+## Subsequent Linux Qualification
+
+A native Linux workspace was provisioned with verified Python 3.11.17,
+Node 24.20.0, PowerShell 7.6.6 and the five locked external tools. Its initial
+clone matched `9fc0fe8`. The complete runtime preflight passed. The first
+suite attempt exposed Windows PowerShell inherited through WSL's PATH; the
+qualification environment was restricted to native tools, matching Ubuntu CI.
+
+All 577 Python tests then passed with ten platform skips. Coverage still failed:
+the measurements contained 10,757 arcs, but reported zero because nested report
+generation changed Coverage's global relative directory. A regression reproduced
+that caller-state change before the fix. Report generation now uses an explicit
+source root without changing directories. Eleven artifact tests pass on Windows;
+the instrumented Linux replay measures 90 helper lines and preserves paths.
+That replay passed 578 tests with ten skips. The global score was 88.59%, but
+branch coverage was 84.65%, below the preserved 85% floor. Additional tests now
+exercise runtime-version rejection, platform validation, destination preservation,
+malformed metadata, CLI failure reporting, npm dry-run and untrusted-byte rejection.
+The expanded Linux suite passed all 585 tests with ten skips in 210.298 seconds.
+Coverage is 89.39% globally (6,894/7,712) and 85.38% for branches (1,875/2,196).
+No production source was excluded and no threshold was lowered. Complete Windows
+measurement and the matched union remain open.
+
+The Linux skips were:
+
+| Test | Reason |
+| --- | --- |
+| `test_windows_junctions_abort_before_copy` | Windows junction fixture |
+| `test_cloud_archive_integrity_collision_and_cleanup` | No authorized mounted-cloud integration target |
+| `test_windows_archive_succeeds_when_hard_links_are_unsupported` | Windows publication behavior |
+| `test_short_alias_roots_preserve_composition_paths` | Windows short paths |
+| `test_successful_build_replaces_destination_with_windows_powershell_5_1` | Windows PowerShell 5.1 |
+| `test_inventory_directory_junction_outside_target_is_refused` | Windows directory junction |
+| `test_short_alias_inventory_stays_confined` | Windows short paths |
+| `test_junction_escape_is_rejected` | Windows directory junction |
+| `test_target_rejects_existing_junction_before_reading` | Windows junction regression |
+| `test_windows_mode_only_difference_does_not_schedule_repair` | Windows mode-enforcement contract |
+
+Primary `HEAD` still fails both release checksums and the starter core inventory.
+An artifact preparation dry run succeeds, but no primary metadata has been
+regenerated while the remaining substantive guard work is undecided.
 
 ## Governance Work Still Open
 

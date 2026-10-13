@@ -120,18 +120,20 @@ def combine(root: Path, directory: Path) -> dict[str, Any]:
             raise ValueError(f"coverage source mismatch: {platform}")
         measurements.append(data)
     merged = CoverageData(no_disk=True)
-    previous = Path.cwd()
     report_data: CoverageData | None = None
     try:
         for data in measurements:
             merged.update(data, map_path=canonical_name)
-        os.chdir(root)
         cov = Coverage(
             data_file=None,
             config_file=str(root / "tools/quality/pyproject.toml"),
+            source=[str(root / "tools")],
         )
+        cov.set_option("run:relative_files", False)
         report_data = cov.get_data()
-        report_data.update(merged)
+        report_data.update(
+            merged, map_path=lambda name: str(root / canonical_name(name))
+        )
         report_path = directory / "combined.json"
         if report_path.is_symlink():
             raise ValueError("linked combined coverage report")
@@ -141,7 +143,6 @@ def combine(root: Path, directory: Path) -> dict[str, Any]:
         if report_data is not None:
             report_data.close(force=True)
         merged.close(force=True)
-        os.chdir(previous)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import gc
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,7 @@ import warnings
 from unittest import mock
 
 from coverage import CoverageData
+from coverage.files import relative_directory
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "tools/quality/coverage-artifacts.py"
@@ -70,8 +73,12 @@ class CoverageArtifactsTests(unittest.TestCase):
         report = self.artifacts.combine(self.root, self.output)
         self.assertEqual(report["totals"]["covered_branches"], 2)
         self.assertEqual(report["totals"]["num_branches"], 2)
+        paths = [Path(name.replace("\\", "/")) for name in report["files"]]
         self.assertEqual(
-            {name.replace("\\", "/") for name in report["files"]},
+            {
+                (path.relative_to(self.root) if path.is_absolute() else path).as_posix()
+                for path in paths
+            },
             {"tools/example.py"},
         )
 
@@ -84,6 +91,11 @@ class CoverageArtifactsTests(unittest.TestCase):
         self.assertFalse(
             [notice for notice in notices if notice.category is ResourceWarning]
         )
+
+    def test_combination_preserves_callers_measurement_paths(self):
+        before = (Path.cwd(), relative_directory())
+        self.artifacts.combine(self.root, self.output)
+        self.assertEqual((Path.cwd(), relative_directory()), before)
 
     def test_missing_platform_measurement_is_rejected(self):
         (self.output / "windows/metadata.json").unlink()
@@ -140,6 +152,59 @@ class CoverageArtifactsTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"AUDIT_COMMIT_SHA": "main"}):
             with self.assertRaises(ValueError):
                 self.artifacts.combine(self.root, self.output)
+
+    def test_runtime_version_mismatch_is_rejected(self):
+        path = self.root / "tools/quality/versions.json"
+        path.write_text(json.dumps({"python": {"coverage": "0.0.0"}}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "runtime"):
+            self.artifacts.combine(self.root, self.output)
+
+    def test_export_rejects_bad_platform_and_existing_destination(self):
+        before = (self.output / "linux/metadata.json").read_bytes()
+        for platform, error in (("unknown", ValueError), ("linux", FileExistsError)):
+            with self.subTest(platform=platform), self.assertRaises(error):
+                self.artifacts.export(
+                    self.root,
+                    self.root / ".coverage.linux",
+                    self.output / "linux",
+                    platform,
+                )
+        self.assertEqual((self.output / "linux/metadata.json").read_bytes(), before)
+
+    def test_non_mapping_metadata_is_rejected(self):
+        (self.output / "windows/metadata.json").write_text("[]\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "metadata"):
+            self.artifacts.combine(self.root, self.output)
+
+    def test_main_validates_and_writes_both_operations(self):
+        destination = self.output / "direct-linux"
+        for arguments in (
+            [
+                "export",
+                str(self.root / ".coverage.linux"),
+                str(destination),
+                "--platform",
+                "linux",
+            ],
+            ["combine", str(self.output)],
+        ):
+            with mock.patch.object(Path, "cwd", return_value=self.root):
+                self.assertEqual(self.artifacts.main(arguments), 0)
+        self.assertTrue((destination / "metadata.json").is_file())
+        report = json.loads((self.output / "combined.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["totals"]["covered_branches"], 2)
+
+    def test_main_reports_failed_validation_without_success_output(self):
+        with (
+            mock.patch.object(Path, "cwd", return_value=self.root),
+            mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "0"}),
+            redirect_stderr(io.StringIO()) as stderr,
+            redirect_stdout(io.StringIO()) as stdout,
+        ):
+            self.assertEqual(self.artifacts.main(["combine", str(self.output)]), 1)
+        self.assertIn("require a full SHA, run and attempt", stderr.getvalue())
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertFalse((self.output / "combined.json").exists())
 
     def test_cli_reports_invalid_metadata_and_help(self):
         (self.output / "windows/metadata.json").write_text("[]\n", encoding="utf-8")
