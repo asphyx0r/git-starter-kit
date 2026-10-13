@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.12.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 1a01ace | docs(release): enable unattended publication | asphyx |
+
 ## v2.12.0
 
 | References | Description | Author(s) |
