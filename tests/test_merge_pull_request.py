@@ -2338,14 +2338,22 @@ class MergePullRequestTests(unittest.TestCase):
         self.assertIn("default branch", error_output)
         gh.assert_not_called()
 
-    def test_execute_uses_exact_merge_arguments_and_empty_body_file(self):
+    def test_execute_uses_server_merge_api_and_explicit_empty_message(self):
         event_path = self.write_event(valid_event())
         observed_temporary_paths = []
 
         def run_gh(arguments, **_kwargs):
-            body_path = pathlib.Path(arguments[arguments.index("--body-file") + 1])
+            body_path = pathlib.Path(arguments[arguments.index("--input") + 1])
             observed_temporary_paths.append(body_path)
-            self.assertEqual(body_path.read_bytes(), b"")
+            self.assertEqual(
+                json.loads(body_path.read_text(encoding="utf-8")),
+                {
+                    "sha": HEAD_OID,
+                    "merge_method": "squash",
+                    "commit_title": "fix(git): guard squash merges",
+                    "commit_message": "",
+                },
+            )
             return completed(arguments)
 
         def validate_message(path):
@@ -2382,18 +2390,12 @@ class MergePullRequestTests(unittest.TestCase):
         self.assertEqual(
             merge_arguments,
             [
-                "pr",
-                "merge",
-                "17",
-                "--repo",
-                REPOSITORY,
-                "--squash",
-                "--subject",
-                "fix(git): guard squash merges",
-                "--body-file",
+                "api",
+                "--method",
+                "PUT",
+                f"repos/{REPOSITORY}/pulls/17/merge",
+                "--input",
                 str(observed_temporary_paths[1]),
-                "--match-head-commit",
-                HEAD_OID,
             ],
         )
         self.assertNotIn("--auto", merge_arguments)
@@ -2415,14 +2417,15 @@ class MergePullRequestTests(unittest.TestCase):
         self.assertEqual(len(observed_temporary_paths), 3)
         self.assertTrue(all(not path.exists() for path in observed_temporary_paths))
 
-    def test_execute_preserves_exact_nonempty_body_file(self):
+    def test_execute_preserves_exact_nonempty_api_message(self):
         raw = b"fix(git): preserve body\n\nLine one.\nLine two.\n"
         event_path = self.write_event(valid_event(raw))
         observed_body = []
 
         def run_gh(arguments, **_kwargs):
-            body_path = pathlib.Path(arguments[arguments.index("--body-file") + 1])
-            observed_body.append(body_path.read_bytes())
+            body_path = pathlib.Path(arguments[arguments.index("--input") + 1])
+            payload = json.loads(body_path.read_text(encoding="utf-8"))
+            observed_body.append(payload["commit_message"].encode("utf-8"))
             return completed(arguments)
 
         with (

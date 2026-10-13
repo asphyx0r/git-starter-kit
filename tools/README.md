@@ -1130,8 +1130,9 @@ to revalidate and merge.
 
 The message file accepts exactly `subject\n` or `subject\n\nbody\n`, without
 normalization. It must be non-empty UTF-8 without BOM or NUL, use LF only, and
-end in exactly one LF. Both merge subject and body file are always explicit;
-subject-only messages use an empty body file.
+end in exactly one LF. The merge API receives the sealed SHA, squash method,
+subject and body through an explicit JSON file; subject-only messages use an
+empty body. Server-side rules apply with the current App identity.
 
 ### Usage/Examples
 

@@ -646,3 +646,34 @@ Repository audit has not succeeded`. App token generation and privileged merge
 were skipped; main remained unchanged. Successful hosted source/consumer runs,
 the blocked native merge on a green fixture and guarded integration remain
 required at this checkpoint.
+
+## Guarded Merge Transport Correction
+
+Final source runs `38410760735` (pull request) and `38410749328` (push) succeeded
+on `ef97b78`. Hosted Windows ran 601 tests in 390.200 seconds with fourteen
+platform-specific skips; Ubuntu ran 601 tests in 248.846 seconds with ten skips.
+The sealed union passed at global 90.66% (7,021/7,744), statements 92.07%
+(5,097/5,536) and branches 87.14% (1,924/2,208), retaining both 85% floors.
+The active local pre-push passed 601 tests in 875.397 seconds with nineteen
+Windows skips and all four mandatory shell suites. An earlier concurrent run
+hit the unchanged 900-second bound; it was rerun without local heavy work.
+
+Guarded run `38412499603` passed read-only validation, minted the configured App
+token and passed privileged validation, but GitHub CLI refused its `BLOCKED`
+merge state before submitting a merge mutation. Main remained `6d5b6d1`.
+GitHub CLI's merge implementation performs this client precheck. The executor
+now calls the ordinary merge API with a JSON payload containing exactly the
+sealed head SHA, squash method, subject and body. Both validation passes and
+exact postcondition checks are retained; there is no administrator flag, queue,
+auto-merge, branch deletion or additional token permission. The new transport
+regression failed before the fix; all 81 guarded CLI tests, Ruff and Mypy pass.
+
+The immutable old main executor uses that rejected client command, so first
+integration requires a narrowly scoped temporary bootstrap. It must check out
+that exact trusted main, validate the same fixed PR/head/message before and after
+minting the existing limited App token, submit the same server-evaluated merge
+API request, then verify the real merge message with the trusted main helper.
+It must not execute PR code under the token, disable a ruleset or grant any new
+bypass. The temporary fixture workflow must be removed after qualification.
+The permanent API transport, its final checks and this bootstrap result remain
+separate evidence gates at this checkpoint.

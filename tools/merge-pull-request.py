@@ -1190,10 +1190,20 @@ def _execute(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(prefix="guarded-merge-") as temporary_directory:
         temporary_root = Path(temporary_directory)
         candidate_path = temporary_root / "candidate-message.txt"
-        body_path = temporary_root / "body.txt"
+        payload_path = temporary_root / "merge.json"
         actual_path = temporary_root / "actual-message.txt"
         candidate_path.write_bytes(request.message.raw)
-        body_path.write_bytes(request.message.body)
+        payload_path.write_text(
+            json.dumps(
+                {
+                    "sha": request.expected_head_oid,
+                    "merge_method": "squash",
+                    "commit_title": request.message.subject,
+                    "commit_message": request.message.body.decode("utf-8"),
+                }
+            ),
+            encoding="utf-8",
+        )
         _validate_message_with_commitlint(candidate_path)
         _validate_pull_request(
             request.repository,
@@ -1211,18 +1221,12 @@ def _execute(args: argparse.Namespace) -> int:
         try:
             _run_gh(
                 [
-                    "pr",
-                    "merge",
-                    str(request.pull_request),
-                    "--repo",
-                    request.repository,
-                    "--squash",
-                    "--subject",
-                    request.message.subject,
-                    "--body-file",
-                    str(body_path),
-                    "--match-head-commit",
-                    request.expected_head_oid,
+                    "api",
+                    "--method",
+                    "PUT",
+                    f"repos/{request.repository}/pulls/{request.pull_request}/merge",
+                    "--input",
+                    str(payload_path),
                 ]
             )
         except GitHubCommandStartedError as merge_error:

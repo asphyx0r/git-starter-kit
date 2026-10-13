@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T13:23:13Z",
+    "release_date": "2026-10-13T14:38:41Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2851139,
-            "built_at": "2026-10-13T13:23:13Z",
-            "sha256": "77adc43fa56eeab1d842ba249e8255e3734a618802fd14224b1a76b1333971ab",
+            "size_bytes": 2853716,
+            "built_at": "2026-10-13T14:38:41Z",
+            "sha256": "67cb62e918751755e199d0738224019797e3b2fb806e7ad1ab059832fa2a717d",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -470,11 +470,11 @@
                 },
                 {
                     "relative_path": "docs/guarded-pull-request-merges.md",
-                    "size_bytes": 10790,
+                    "size_bytes": 10900,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7262616b52478b4d61689e4fffccde7f5c8ef99a16e9314765d34eedcbdbca74",
+                    "sha256": "86a5159ffa033dcbb640771f76982f3e1696c56e91daa07bd41be1ecd1d77cf1",
                     "mode": "644"
                 },
                 {
@@ -533,11 +533,11 @@
                 },
                 {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
-                    "size_bytes": 42960,
+                    "size_bytes": 44991,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "fe1862a22199007465bb7b80067eaa18785112bcd9e48c27e6350548b65b77c4",
+                    "sha256": "d8417968ce6219b6c2587ea4899b57da44d35dd5e2a6ff0d1eb3829abdbfaf7d",
                     "mode": "644"
                 },
                 {
@@ -555,7 +555,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "bcebd5131a8f430f10c27d58dbf2332586464dc5bbf32692906683f59a4f1449",
+                    "sha256": "1a13262f8dedf411374480b58e43cdb73784f1a366e25436a57e1234edb8505b",
                     "mode": "644"
                 },
                 {
@@ -938,11 +938,11 @@
                 },
                 {
                     "relative_path": "tests/test_merge_pull_request.py",
-                    "size_bytes": 116822,
+                    "size_bytes": 117023,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "b34993af894e2ec71a4b39814556edfe6a263ee21dbd6c8936d4f7bbee5357b9",
+                    "sha256": "7abbc9c388507d38ce210b536f3657f6df3a96c061b8ddd88cc2eda4f507a695",
                     "mode": "644"
                 },
                 {
@@ -1064,11 +1064,11 @@
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 84074,
+                    "size_bytes": 84172,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "42f660e65e7ebfed6f7b33b8d81ea8107f4d4b242c43f7ef48b6c6222f653b38",
+                    "sha256": "2682d2df34425651ad36467e186ae54d1af1adb4a3f3d8931c9f35555b86a9f6",
                     "mode": "644"
                 },
                 {
@@ -1163,11 +1163,11 @@
                 },
                 {
                     "relative_path": "tools/merge-pull-request.py",
-                    "size_bytes": 46345,
+                    "size_bytes": 46482,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a577f5a3cddf9768006fc06623b7fa2178d0ea91eca22239af385c8ec93f93d6",
+                    "sha256": "64fcf56d3b47775441811d0f787991fd4468f27d9ecf33fa2f14f52a7df2401d",
                     "mode": "644"
                 },
                 {
