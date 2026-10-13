@@ -26,6 +26,7 @@ No primary tag, push, GitHub Release or remote activation has been performed.
 | `61f08f3` | Offline npm fixtures and precise fixture routing |
 | `43ef0d9` | Isolated shell metadata and actual host CLI selection |
 | `77cf5dc` | Bounded Windows fixture cleanup with persistent-error regressions |
+| `e4ca84c` | Reject incomplete guarded activation; preserve permissions and document administrative bypass verification |
 
 Behavior changes include their tests and relevant source/consumer documentation.
 Future commits continue this separation; no historical commit is rewritten.
@@ -38,13 +39,13 @@ finding still depends on the final candidate checks below.
 | ID | Axis | Implementation and evidence | Remaining proof |
 | --- | --- | --- | --- |
 | 01 | 2 | Local braces walkers, exact upstream provenance and attestation gate; 18 security tests and 3,315 differential API cases | Exact-candidate dependency audit and distribution |
-| 02 | 6 | Current settings read; no effective Restrict updates rule on main | Guard preflight, authoritative App ID, activation and disposable-PR proof |
+| 02 | 6 | Local preflight rejects incomplete rules/settings; owner supplied App ID 4355746; current main restriction is absent | Authorized activation, full administrative bypass audit and disposable-PR proof |
 | 03 | 2 | smol-toml 1.9.1 pinned in registry/overrides/lock; installed occurrences checked | Candidate audit and integration |
 | 04 | 3 | Output rollback handles interrupts and independent cleanup/restoration failures; 48 release tests | Candidate full suite |
 | 05 | 3 | Shared SemVer validation precedes initializer writes/index changes; 19 initializer tests | Candidate full suite and package initialization |
 | 06 | 1 | Initializer/new tools in Mypy; tracked-tool coverage invariant; 24 files checked for both platforms | Candidate typing and scope checks |
 | 07 | 1 | Source Windows measurement plus matched OS artifacts; artifact regressions cover input identity, OS paths and caller measurement isolation | Complete OS measurements and combined floors at the candidate |
-| 08 | 4 | Candidate preparation deliberately follows substantive changes | Regenerated metadata/checksums checked on the index and final commit |
+| 08 | 4 | v2.12.0 metadata/checksums prepared after substantive changes; both selected-index checks passed | Final commit checks and exact-candidate package qualification |
 | 09 | 5 | Broken environment rebuilt; pinned local tools provisioned; selected real executables checked against indexed pins | Candidate hooks and runtime qualification |
 | 10 | 6 | Registry, declarations and hashed locks updated coherently; maintenance procedure documented | Integration and coordinated future bot proposals |
 | 11 | 6 | Single-maintainer review exception accepted; release environment still has no reviewer | Documented human gate, live reviewer and disabled admin bypass |
@@ -328,6 +329,29 @@ The gate uses the effective active-branch-rules endpoint and repository metadata
 it needs no administrative permission and does not claim to verify bypass actors.
 The workflow, App-token scope, immutable checkout and script seals are preserved.
 These local tests do not replace the pending activation/disposable-PR proof.
+
+The local guard commit `e4ca84c` passed its active pre-commit and commit-message
+hooks, the configured Ruff checks, Mypy for all 24 production files, Markdown
+validation and all 49 workflow-contract tests on native Windows. The initial
+sandbox contract run failed MSYS object creation; the native retry passed.
+Betterleaks failed before scanning because of `NUL`; the prescribed staged
+Gitleaks fallback passed. No hook was bypassed.
+
+### Candidate Preparation Policy
+
+Preparation targets `v2.12.0` with the actual UTC preparation timestamp and
+updated remediation notes/ZIP identity. The existing stable channel,
+`critical_update=false`, minimum source version `2.4.2`, patch strategy, backup
+and rollback policy, platform target and support/license metadata are retained.
+This candidate does not impose a forced upgrade or assert publication. Both
+manifests/checksums must be checked against the selected index and final commit;
+package, initialization, upgrade and restoration qualification remains required.
+
+The first candidate preparation used `2026-10-13T06:30:43Z`. The deployment
+manifest inventories 167 files; the starter core manifest inventories 89 files.
+Both validators passed on the selected index/tree. The preparation date is
+retained while consolidating this evidence into the same candidate. No primary
+`v2.12.0` tag exists, and these generated files are candidate metadata only.
 
 Required activation evidence includes the exact settings responses, ruleset and
 App identities, a blocked native merge, the required-check run, a successful
