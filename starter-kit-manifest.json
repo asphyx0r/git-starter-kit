@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T20:59:06Z"
+    "generatedAt": "2026-10-13T21:27:53Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T20:59:06Z"
+    "generatedAt": "2026-10-13T21:27:53Z"
   },
   "files": [
     {
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "898379a621736837de6fd958c3df8dbd9346faca89505981ab90093131306cfe",
-      "canonicalSha256": "898379a621736837de6fd958c3df8dbd9346faca89505981ab90093131306cfe",
+      "sha256": "83fcfded76b72891c86eaac594f382820b55beb11e26b4043cc6316c3a361ac5",
+      "canonicalSha256": "83fcfded76b72891c86eaac594f382820b55beb11e26b4043cc6316c3a361ac5",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
