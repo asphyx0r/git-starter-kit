@@ -36,6 +36,14 @@ commands, bad paths and failed checks block. CI runs declared commands on the
 verified PR head or event revision. Full/readonly local audits only show a plan.
 Empty checks warn and cannot be described as passed application regression tests.
 
+Declared checks run in the existing Linux quality and Windows compatibility jobs.
+Each job retains a 45-minute total deadline: the former 25-minute quality budget
+plus the former 20-minute project-check budget. Local hook family and project
+command timeouts remain 900 seconds.
+Windows installs the pinned ShellCheck, shfmt and PSScriptAnalyzer tools before
+validating managed core files and running project checks. Projects must still
+provide setup commands for their application-specific dependencies.
+
 ## Ignore policy
 
 The root `.gitignore` provides Bash, PowerShell, Perl, Python, Java, Rust, Go,

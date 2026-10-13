@@ -167,6 +167,10 @@ def require_planned_file_state(
         )
     if actual_digest != action.get("localCanonicalSha256"):
         raise UpgradeError(f"Target changed after planning: {action['path']}")
+    if os.name != "nt" and "localMode" in action:
+        actual_mode = snapshot.mode if snapshot is not None else None
+        if actual_mode != action["localMode"]:
+            raise UpgradeError(f"Target changed after planning: {action['path']}")
     return snapshot
 
 
@@ -232,7 +236,10 @@ def apply_upgrade(
             )
             local_content = original.content if original is not None else None
             content = files[entry["payload"]]
-            if action["action"] == "merge":
+            if action.get("modeOnly", False):
+                assert original is not None
+                content = original.content
+            elif action["action"] == "merge":
                 base_payload = entry.get("basePayload")
                 if not isinstance(base_payload, str) or local_content is None:
                     raise UpgradeError(f"Missing merge baseline for {relative}.")
@@ -253,15 +260,35 @@ def apply_upgrade(
             elif entry["strategy"] == "agent-rules" and relative == PROVENANCE_PATH:
                 content = updated_agent_rules_provenance(local_content, content)
             originals[relative] = original
-            writer(target_path(root, relative), content, entry["mode"])
+            if action.get("modeOnly", False):
+                assert original is not None
+                mode = (
+                    original.mode | 0o111
+                    if entry["mode"] == "100755"
+                    else original.mode & ~0o111
+                )
+                destination.chmod(mode)
+                if bool(destination.stat().st_mode & stat.S_IXUSR) != (
+                    entry["mode"] == "100755"
+                ):
+                    raise UpgradeError(f"Executable mode was not applied: {relative}")
+            else:
+                writer(destination, content, entry["mode"])
             if journal is not None:
                 written_kind, written_canonical_digest = content_metadata(content)
+                written_mode = (
+                    stat.S_IMODE(destination.stat().st_mode)
+                    if os.name != "nt"
+                    else None
+                )
                 journal.write(
                     "INFO",
                     "file",
                     (
                         f"path={relative} action={action['action'].upper()} "
                         f"result=WRITTEN mode={entry['mode']} "
+                        f"modeOnly={action.get('modeOnly', False)} "
+                        f"localMode={written_mode} "
                         f"contentKind={written_kind} size={len(content)} "
                         f"sha256={sha256_bytes(content)} "
                         f"canonicalSha256={written_canonical_digest}"

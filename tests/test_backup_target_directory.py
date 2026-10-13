@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import unittest
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -18,6 +19,8 @@ from tempfile import TemporaryDirectory, gettempdir
 from threading import Barrier
 from types import SimpleNamespace
 from unittest import mock
+
+from fixture_cleanup import cleanup_temporary_directory
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1] / "tools" / "backup-target-directory.py"
@@ -900,7 +903,7 @@ class LocalBackupPublicationTest(unittest.TestCase):
     def setUp(self) -> None:
         self.script = load_script_module()
         self.fixture = TemporaryDirectory(prefix="backup-regression-")
-        self.addCleanup(self.fixture.cleanup)
+        self.addCleanup(self.cleanup_fixture)
         self.root = Path(self.fixture.name).resolve()
         self.source = self.root / "source"
         self.target = self.root / "target"
@@ -911,6 +914,47 @@ class LocalBackupPublicationTest(unittest.TestCase):
         self.archive = self.target / "backup.zip"
         self.output = io.StringIO()
         self.logger = self.script.Logger(False, self.output)
+
+    def cleanup_fixture(self) -> None:
+        cleanup_temporary_directory(self.fixture)
+
+    def test_transient_windows_directory_cleanup_is_retried(self) -> None:
+        failure = OSError(errno.ENOTEMPTY, "pending Windows deletion")
+        failure.winerror = 145
+        original_cleanup = self.fixture.cleanup
+        calls = 0
+
+        def cleanup():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise failure
+            original_cleanup()
+
+        with mock.patch.object(self.fixture, "cleanup", side_effect=cleanup):
+            try:
+                self.cleanup_fixture()
+            except OSError as error:
+                self.fail(f"Transient cleanup error escaped: {error}")
+        self.assertEqual(calls, 2)
+        self.assertFalse(self.root.exists())
+
+    def test_persistent_and_other_cleanup_errors_are_not_hidden(self) -> None:
+        for winerror, expected_calls in ((145, 3), (5, 1), (None, 1)):
+            with self.subTest(winerror=winerror):
+                failure = OSError(errno.ENOTEMPTY, "cleanup failed")
+                if winerror is not None:
+                    failure.winerror = winerror
+                with (
+                    mock.patch.object(
+                        self.fixture, "cleanup", side_effect=failure
+                    ) as cleanup,
+                    mock.patch.object(time, "sleep"),
+                    self.assertRaises(OSError) as caught,
+                ):
+                    self.cleanup_fixture()
+                self.assertIs(caught.exception, failure)
+                self.assertEqual(cleanup.call_count, expected_calls)
 
     def assert_no_archive_temporaries(self) -> None:
         self.assertEqual(

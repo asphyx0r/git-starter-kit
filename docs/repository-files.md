@@ -260,13 +260,18 @@ deferred, or explicitly excluded from the template.
   integrity-pinned external-tool installer without a Go bootstrap. Download
   caches use the dependency locks and runtime policy; installs still verify
   hashes and disable npm lifecycle scripts. Each dependency family is installed
-  once per isolated job. Only superseded PR runs are cancelled. The
+  once per isolated job. Superseded PR and ordinary branch-push runs are cancelled;
+  tags, releases, manual runs and release-preflight branches retain their evidence.
+  Project checks execute inside both OS jobs, including in consumers. Source
+  coverage is measured on both OSes; Linux keeps its floors and the aggregate
+  verifies matching artifact inputs before enforcing the combined floors. The
   aggregate requires both environments and uses `Repository audit` for
   automatic events and `Repository audit (manual)` for manual runs. Read-only
   permissions, disabled checkout credential persistence, and the absence of a
   forwarded workflow token keep checked-out audit code unprivileged. Linux also
-  runs `npm audit --audit-level=high --include=dev --prefix tools/quality`:
-  high or critical advisories and verification errors block the job. Ordinary
+  runs the attested `npm-security.py audit` gate and pip-audit on both Python
+  locks: unhandled high/critical npm advisories and verification errors block
+  the job; the attested upstream braces report remains visible. Ordinary
   branch pushes and PRs have separate runs. Existing branch pushes validate
   the pushed commit range. CI retrieves the exact previous commit if a rewritten
   push left it outside the checkout; retrieval failures block the audit. Local
@@ -776,6 +781,18 @@ deferred, or explicitly excluded from the template.
 - Notes: Rejects missing or inconsistent measurements and writes its verdict
   to the GitHub Actions job summary when available.
 
+### `tools/quality/coverage-artifacts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Binds and combines source coverage measurements across Linux and Windows.
+- Usage: CI exports one successful OS measurement, then combines both matching
+  platform directories before running `check-coverage.py`.
+- Notes: Source-only tool, excluded from consumer packages. Requires exact
+  commit/run/attempt identity, locked Coverage and policy,
+  data/source hashes and safe relative source paths. Rejects missing or stale
+  inputs; produces the union report without relaxing Linux coverage floors.
+
 ### `tools/quality/check-versions.py`
 
 - Type: `file`
@@ -783,7 +800,9 @@ deferred, or explicitly excluded from the template.
 - Goal: Detects drift between the quality registry, dependency locks, and
   policy settings.
 - Usage: Run without options to validate declarations or with `--runtime` to
-  validate installed tool versions as well.
+  validate installed tool versions as well. Repeat `--tool` for selected runtimes;
+  `--runtime-root` separates installed packages from expected indexed declarations,
+  and `--executable TOOL=PATH` probes the exact selected command.
 - Notes: Uses bounded runtime probes and fails on missing, extra, malformed, or
   inconsistent direct declarations.
 
@@ -831,6 +850,38 @@ deferred, or explicitly excluded from the template.
 - Notes: The empty settings map intentionally retains the analyzer's default
   rules without repository-wide exclusions or suppressions.
 
+### `tools/quality/npm-security.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Applies and attests the local braces stack-exhaustion fix, then evaluates
+  the complete npm advisory graph without blanket exclusions.
+- Usage: Run `patch` explicitly after npm ci, `verify` for local integrity, and
+  `audit` for a bounded registry check. See [the tool guide](../tools/README.md#qualitynpm-securitypy).
+- Notes: Rejects unexpected bytes, links and unlocked occurrences; rollback
+  preserves interrupts and foreign edits. Raw upstream findings remain visible.
+
+### `tools/quality/patches/braces-3.0.3/`
+
+- Type: `directory`
+- Status: `required`
+- Goal: Distributes the fixed package payload, provenance and upstream license.
+- Usage: `npm-security.py` consumes `manifest.json`, `lib/compile.js`,
+  `lib/expand.js`, `lib/stringify.js` and `lib/utils.js`; `LICENSE` retains MIT terms.
+- Notes: Records canonical archive integrity and every upstream file's original
+  and fixed hashes. The original package version and advisory remain unchanged.
+
+### `tools/initialize-repository.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Validates generated package ownership and prepares the exact initial
+  system index used by the public initializers.
+- Usage: Use the public initializer normally; helper `validate` and `prepare`
+  accept `--path`, with `--tag` and a side-effect-free `--dry-run`.
+- Notes: Reuses the release SemVer validator before changelog, chmod or index
+  mutations. The required sibling release/runtime files travel with the package.
+
 ### `tools/quality/pyproject.toml`
 
 - Type: `file`
@@ -838,7 +889,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Defines scoped Ruff, Mypy, and branch-coverage policy for maintained
   Python code.
 - Usage: Pass it explicitly to the corresponding quality commands.
-- Notes: Targets Python 3.11 and lists maintained production modules for Mypy.
+- Notes: Targets Python 3.11 and covers every tracked production Python module,
+  including the initializer; a test prevents future omissions from Mypy.
   It enables branch measurement and the 85 percent global threshold;
   `check-coverage.py` additionally enforces the separate 85 percent branch
   threshold across `tools/`.
@@ -878,7 +930,9 @@ deferred, or explicitly excluded from the template.
   Shfmt, PSScriptAnalyzer, ShellCheck, and Gitleaks. Optional platform `variants`
   override only artifact fields; version/probe pins remain shared. The updated
   reader accepts old records without variants; distribute reader and registry
-  together. Windows executable ZIP variants declare exact allowed payloads.
+  together. Optional `nodeOverrides` pins transitive npm versions; declarations
+  and all matching lock entries must agree. Windows executable ZIP variants
+  declare exact allowed payloads.
 
 ### `tools/quality/yamllint.yaml`
 
@@ -962,6 +1016,9 @@ deferred, or explicitly excluded from the template.
   retains release-tag artifact validation. Clone guards compare directory
   identities so equivalent Git Bash mount paths remain valid. One affected-path
   mapping selects snapshots and test modules for both hooks.
+  Source test edits select their own suite; initializer tools select initializer
+  tests. Hook wrappers select common and focused shell suites. Shared/unknown
+  paths retain all Python tests and all four shell suites; missing selections fail.
 
 ### `tools/repository-audit/profiles.sh`
 
@@ -997,7 +1054,10 @@ deferred, or explicitly excluded from the template.
   available.
 - Notes: Verifies distribution strategies and package contents against the
   maintained manifests while keeping mutations inside audit-owned temporary
-  directories.
+  directories. Initializer fixtures carry the tracked quality declarations and
+  checker plus lock-derived test metadata; the real locked host CLI remains the
+  executor. Installed-dependency metadata is ignored and excluded from the
+  synthetic package inventory. No hook installs dependencies.
 
 ### `tools/repository-audit/workflow-contracts.py`
 
@@ -1007,8 +1067,10 @@ deferred, or explicitly excluded from the template.
 - Usage: Invoke directly with Python, or through the audit contract wrappers;
   `--workflow` selects one contract and `--path` accepts its fixture file.
 - Notes: Uses safe YAML loading with duplicate-key rejection. Presentation
-  changes do not require policy updates; permissions, dependencies, action SHAs,
-  credential placement and executed guards remain enforced. Runtime versions
+  changes and bounded download-cache edits do not require policy updates;
+  permissions, dependencies, action SHAs, credential placement and executed
+  guards remain enforced. Named script seals hash normalized shell structure and
+  embedded Python syntax trees without duplicating the executable bodies. Runtime versions
   come from the quality registry. Default selection preserves the source-only
   release workflow boundary; explicit workflow selection remains strict.
 
@@ -1065,7 +1127,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Seals, dispatches, revalidates, and confirms exact squash merges.
 - Usage: Use `request` with a positive pull request number and exact message
   file; the repository-owned workflow uses `execute --event-file`.
-- Notes: Validates Commitlint before the first `gh` call, requires an open
+- Notes: Validates Commitlint after immutable configuration reads and before
+  dispatch, requires an open
   non-draft default-branch pull request and every effective required check,
   rejects repository auto-merge and applicable merge queues, supports forks
   without running their code, never retries a dispatch, and returns `3` when a
@@ -1256,7 +1319,22 @@ deferred, or explicitly excluded from the template.
   `python -B -m unittest discover -s tests -p "test_backup_target_directory.py"`.
 - Notes: Uses only `unittest` and the Python standard library. Git-dependent
   and symbolic-link cases skip only when the required platform capability is
-  unavailable.
+  unavailable. The publication fixture retries only Windows cleanup error 145,
+  at most three attempts with two 10 ms waits; persistent and other cleanup errors
+  still fail. It uses the shared test-only cleanup helper below and does not
+  alter production backup publication or cleanup.
+
+### `tests/fixture_cleanup.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Cleans owned temporary directories for the backup-publication and npm
+  fixtures, preserving persistent and non-Windows deletion errors.
+- Usage: Imported by the corresponding unittest suites; no standalone CLI.
+- Notes: Retries only Windows error 145, at most three attempts with two 10 ms
+  waits. Regression tests exercise the registered cleanup callback and original
+  exception propagation. Shared test changes retain the complete hook-test
+  fallback. This source-maintenance helper is excluded from consumer packages.
 
 ### `tests/test_build_release_package.py`
 
@@ -1279,12 +1357,13 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Reproduces overlong commit bodies and verifies forced hooks, exact
   message-file commits, preflight ranges, tag ranges, and first-release ranges.
-- Usage: Run `bash tests/test_commit_message_validation.sh` with Git, Bash, and
-  Node.js after installing the locked Node quality dependencies.
+- Usage: Run `bash tests/test_commit_message_validation.sh` with Git, Bash, Python
+  and Node.js after provisioning the locked Commitlint CLI in the host environment.
 - Notes: Reproduces PR #17 with the valid branch message and invalid squash
-  message, requires the latter to fail on `body-max-line-length` before any
-  `gh` call, uses only temporary Git repositories, and is included in packages
-  for derived repositories.
+  message; the latter must fail on `body-max-line-length` after bounded immutable
+  configuration reads and before dispatch. The source clone has no dependency
+  installation; fixture metadata comes from its lock and the proxy invokes the
+  real host CLI. Uses only temporary Git repositories and is source-only.
 
 ### `tests/test_merge_pull_request.py`
 
@@ -1323,6 +1402,9 @@ deferred, or explicitly excluded from the template.
   PowerShell, configuration, and release-artifact paths while proving that
   unstaged working-tree content does not replace the staged snapshot. The
   `--windows` subset covers Git Bash paths, staging and cleanup behavior.
+  Real Markdown checks preserve the CLI selected from the host environment
+  before isolating the source/fixture repositories; no dependency installation
+  in the pushed clone is required.
 
 ### `tests/test_quality_pre_push.sh`
 
@@ -1347,6 +1429,15 @@ deferred, or explicitly excluded from the template.
 - Notes: Covers threshold boundaries, invalid measurements, misleading global
   scores, command exit status, and the CI summary verdict.
 
+### `tests/test_coverage_artifacts.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects coverage artifact identity and cross-platform branch combination.
+- Usage: Run through Python unittest discovery with the locked Coverage runtime.
+- Notes: Covers OS path normalization, unioned branches, absent/stale/wrong-SHA
+  measurements, altered source/data, malformed metadata, unsafe paths and CLI errors.
+
 ### `tests/test_workflow_contracts.py`
 
 - Type: `file`
@@ -1369,6 +1460,73 @@ deferred, or explicitly excluded from the template.
   coverage policy, HTTPS redirects, archive safety, symlink rejection,
   staged probes, atomic publication, and bounded diagnostics.
 
+### `tests/test_npm_security.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Proves patch compatibility, bounded traversal, provenance and fail-closed
+  advisory attribution.
+- Usage: Run `python -B -m unittest discover -s tests -p test_npm_security.py` with
+  Python and Node.js. Exact archive fixtures keep the suite offline and independent
+  of checkout dependency installation.
+- Notes: Exercises interruption rollback, preserved foreign edits, nested and
+  unlocked packages, idempotence, stale counts and unknown/cyclic advisories.
+  Registered cleanup uses the bounded shared fixture helper; transient cleanup
+  is tested without hiding persistent or other errors.
+
+### `tests/fixtures/braces-3.0.3.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Keeps the exact original npm archive and walkers as compatibility
+  oracles for the corrected package.
+- Usage: Only the npm security tests consume these files; production never does.
+- Notes: The deliberate small binary fixture has the canonical integrity
+  recorded in the patch manifest and contains the upstream MIT license.
+
+### `tests/fixtures/fill-range-7.1.1.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Supplies the exact upstream braces range dependency to isolated tests.
+- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
+- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
+
+### `tests/fixtures/to-regex-range-5.0.1.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Supplies the exact upstream range conversion dependency to isolated tests.
+- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
+- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
+
+### `tests/fixtures/is-number-7.0.0.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Supplies the exact upstream numeric predicate dependency to isolated tests.
+- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
+- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
+
+### `docs/superpowers/plans/2026-10-12-audit-remediation.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the approved remediation scope, decisions and proof requirements.
+- Usage: Follow its eight tasks and nineteen finding identifiers; candidate
+  preparation remains separate from GitHub activation and publication.
+- Notes: A plan alone does not close a finding or attest completed verification.
+
+### `docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Tracks each audit finding, local changes, verification and remaining proof.
+- Usage: Read alongside the approved plan before candidate qualification or
+  GitHub activation; update it from observed results.
+- Notes: Source-only evidence, excluded from consumer packages. Separates focused
+  local tests, interrupted suites, hosted evidence and live governance settings.
+
 ### `tests/test_release_artifacts.py`
 
 - Type: `file`
@@ -1389,7 +1547,9 @@ deferred, or explicitly excluded from the template.
 - Usage: Run with Bash from the repository root.
 - Notes: Exercises missing, malformed, and failing modules without changing a
   sourcing caller's shell state, plus guarded-merge, workflow, and distribution
-  mutations with exact failure diagnostics.
+  mutations with exact failure diagnostics. `--initializer-fixture` focuses the
+  locked fixture inputs and real initial commit-message hook; the full suite
+  includes that regression.
 
 ### `tests/test_verify_repository_audit_runs.py`
 

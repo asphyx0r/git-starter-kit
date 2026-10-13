@@ -70,6 +70,7 @@ jobs:
           python -m pip install --disable-pip-version-check --no-input \
             --require-hashes -r tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
+          python tools/quality/npm-security.py patch
 
       - name: Resolve release inputs
         id: refs

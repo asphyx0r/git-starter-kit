@@ -25,7 +25,7 @@ classify_hook_path() {
     scope="$(resolve_validation_scope)" || return
     [[ "${scope}" == source ]] || return 0
   fi
-  local module=''
+  local module='' shell_module=''
   case "${changed_path}" in
   tools/backup-target-directory.py | tests/test_backup_target_directory.py)
     module=test_backup_target_directory.py
@@ -48,6 +48,21 @@ classify_hook_path() {
   tools/build-release-package.ps1 | tests/test_build_release_package.py)
     module=test_build_release_package.py
     ;;
+  tools/initialize-repository.py | tools/git-init.sh | tools/git-init.ps1 | tests/test_git_init.py)
+    module=test_git_init.py
+    ;;
+  tools/quality/npm-security.py | tools/quality/patches/braces-3.0.3/* | tests/fixtures/braces-3.0.3.tgz | tests/fixtures/fill-range-7.1.1.tgz | tests/fixtures/to-regex-range-5.0.1.tgz | tests/fixtures/is-number-7.0.0.tgz)
+    module=test_npm_security.py
+    ;;
+  .githooks/pre-commit)
+    shell_module='test_quality_hooks.sh test_quality_pre_commit.sh'
+    ;;
+  .githooks/pre-push)
+    shell_module='test_quality_hooks.sh test_quality_pre_push.sh'
+    ;;
+  .githooks/commit-msg)
+    shell_module='test_quality_hooks.sh test_commit_message_validation.sh'
+    ;;
   .github/workflows/* | tools/repository-audit/workflow-contracts.py | tests/test_workflow_contracts.py)
     module=test_workflow_contracts.py
     run_workflows=true
@@ -55,26 +70,53 @@ classify_hook_path() {
   tools/quality/check-coverage.py | tests/test_coverage_policy.py)
     module=test_coverage_policy.py
     ;;
+  tests/test_*.py)
+    module="${changed_path#tests/}"
+    if [[ ! "${module}" =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
+      module='*'
+      shell_module='*'
+    fi
+    ;;
+  tests/test_*.sh)
+    shell_module="${changed_path#tests/}"
+    if [[ ! "${shell_module}" =~ ^test_[A-Za-z0-9_]+\.sh$ ]]; then
+      module='*'
+      shell_module='*'
+    fi
+    ;;
   tools/quality/* | tools/git_objects.py | tools/process_runner.py | .codespellrc | \
     tools/repository-audit.sh | tools/repository-audit/* | .githooks/* | \
     .gitleaks.toml | .gitleaksignore | .betterleaks.toml | \
     commitlint.config.cjs | .markdownlint-cli2.yaml | \
     tools/release-artifacts-requirements.txt | VERSION | SHA256SUMS | manifest.json)
     module='*'
-    run_shell=true
+    shell_module='*'
     ;;
   *.md)
     ;;
   *.sh)
-    run_shell=true
+    shell_module='*'
     ;;
   *.yml | *.yaml)
     ;;
   *)
     module='*'
-    run_shell=true
+    shell_module='*'
     ;;
   esac
+  if [[ -n "${shell_module}" ]]; then
+    run_shell=true
+    if [[ "${shell_module}" == '*' || "${shell_modules:-}" == '*' ]]; then
+      shell_modules='*'
+    else
+      local selected_shell
+      for selected_shell in ${shell_module}; do
+        if [[ " ${shell_modules:-} " != *" ${selected_shell} "* ]]; then
+          shell_modules="${shell_modules:+${shell_modules} }${selected_shell}"
+        fi
+      done
+    fi
+  fi
   if [[ -n "${module}" ]]; then
     run_python=true
     full_snapshot=true
@@ -271,6 +313,9 @@ run_hook_powershell_static() {
   pwsh_cmd="$(resolve_powershell_command)" || return
   local settings_path
   settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1" "${pwsh_cmd}")" || return
+  local python_cmd pssa_version
+  python_cmd="$(resolve_hook_python)" || return
+  pssa_version="$("${python_cmd}" -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["external"]["PSScriptAnalyzer"]["version"])' "${staged_root}/tools/quality/versions.json")" || return
   local file_path
   for file_path in "$@"; do
     if [[ "${file_path#./}" == tools/quality/PSScriptAnalyzerSettings.psd1 ]]; then
@@ -281,9 +326,10 @@ run_hook_powershell_static() {
     host_path="$(to_hook_host_path "${staged_root}/${file_path#./}" "${pwsh_cmd}")" || return
     # PowerShell expands its environment variables in the single-quoted script.
     # shellcheck disable=SC2016
-    AUDIT_PS_PATH="${host_path}" AUDIT_PS_SETTINGS="${settings_path}" \
+    AUDIT_PS_PATH="${host_path}" AUDIT_PS_SETTINGS="${settings_path}" AUDIT_PSSA_VERSION="${pssa_version}" \
       "${pwsh_cmd}" -NoProfile -Command '
 $ErrorActionPreference = "Stop"
+Import-Module PSScriptAnalyzer -RequiredVersion $env:AUDIT_PSSA_VERSION -Force -ErrorAction Stop
 $null = Get-Content -LiteralPath $env:AUDIT_PS_PATH -Raw
 $null = Get-Content -LiteralPath $env:AUDIT_PS_SETTINGS -Raw
 $findings = Invoke-ScriptAnalyzer `
@@ -303,11 +349,15 @@ run_hook_powershell_settings() {
   pwsh_cmd="$(resolve_powershell_command)" || return
   local settings_path
   settings_path="$(to_hook_host_path "${staged_root}/tools/quality/PSScriptAnalyzerSettings.psd1" "${pwsh_cmd}")" || return
+  local python_cmd pssa_version
+  python_cmd="$(resolve_hook_python)" || return
+  pssa_version="$("${python_cmd}" -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["external"]["PSScriptAnalyzer"]["version"])' "${staged_root}/tools/quality/versions.json")" || return
   # PowerShell expands its environment variables in the single-quoted script.
   # shellcheck disable=SC2016
-  AUDIT_PS_SETTINGS="${settings_path}" \
+  AUDIT_PS_SETTINGS="${settings_path}" AUDIT_PSSA_VERSION="${pssa_version}" \
     "${pwsh_cmd}" -NoProfile -Command '
 $ErrorActionPreference = "Stop"
+Import-Module PSScriptAnalyzer -RequiredVersion $env:AUDIT_PSSA_VERSION -Force -ErrorAction Stop
 $null = Invoke-ScriptAnalyzer `
     -ScriptDefinition "`$null = `$null" `
     -Settings $env:AUDIT_PS_SETTINGS
@@ -381,6 +431,53 @@ run_hook_markdown_configuration() {
   )
 }
 
+run_hook_runtime_preflight() {
+  local staged_root="$1"
+  local -a selected=() arguments=()
+  if ((${#markdown_paths[@]} > 0)) || [[ "${run_markdown_configuration}" == true ]]; then
+    selected+=(markdownlint-cli2)
+  fi
+  if ((${#yaml_paths[@]} > 0)); then selected+=(yamllint); fi
+  if ((${#python_paths[@]} > 0)); then
+    selected+=(ruff)
+    local path
+    for path in "${python_paths[@]}"; do
+      if [[ "${path}" == ./tools/* ]]; then
+        selected+=(mypy)
+        break
+      fi
+    done
+  fi
+  if ((${#shell_paths[@]} > 0)); then selected+=(shellcheck shfmt); fi
+  if ((${#javascript_paths[@]} > 0)); then selected+=(node); fi
+  if ((${#powershell_paths[@]} > 0)) || [[ "${run_powershell_settings}" == true ]]; then
+    selected+=(PSScriptAnalyzer)
+  fi
+  if [[ "${run_spelling_configuration}" == true ]]; then selected+=(codespell); fi
+  if [[ "${run_commitlint_configuration}" == true ]]; then selected+=('@commitlint/cli'); fi
+  if [[ "${run_workflows}" == true ]]; then selected+=(actionlint); fi
+  ((${#selected[@]} > 0)) || return 0
+  local tool command python_cmd runtime_root="${repository_root}/tools/quality"
+  python_cmd="$(resolve_hook_python)" || return
+  for tool in "${selected[@]}"; do
+    case "${tool}" in
+    markdownlint-cli2) command="$(resolve_hook_node_tool markdownlint-cli2)" || return ;;
+    '@commitlint/cli') command="$(resolve_hook_node_tool commitlint)" || return ;;
+    PSScriptAnalyzer) command="$(resolve_powershell_command)" || return ;;
+    ruff | mypy | yamllint | codespell) command="$(resolve_hook_command python "${tool}" "${tool}.exe")" || return ;;
+    *) command="$(resolve_hook_command system "${tool}" "${tool}.exe")" || return ;;
+    esac
+    if [[ "${command}" == */node_modules/.bin/* ]]; then
+      runtime_root="${command%/node_modules/.bin/*}"
+    fi
+    command="$(to_hook_host_path "${command}" "${python_cmd}")" || return
+    arguments+=(--tool "${tool}" --executable "${tool}=${command}")
+  done
+  "${python_cmd}" -B "${audit_script_dir}/quality/check-versions.py" \
+    --quality-root "${staged_root}/tools/quality" --runtime \
+    --runtime-root "${runtime_root}" "${arguments[@]}"
+}
+
 run_hook_pre_commit() (
   local staged_file
   local hook_temp
@@ -432,7 +529,7 @@ run_hook_pre_commit() (
   local configuration_names="${hook_temp}/configuration.names"
   local release_names="${hook_temp}/release.names"
   local run_python=false run_shell=false run_workflows=false
-  local full_snapshot=false python_modules=''
+  local full_snapshot=false python_modules='' shell_modules=''
   local selection_names="${hook_temp}/selection.names"
 
   git diff --cached --name-only -z --diff-filter=ACMR \
@@ -520,7 +617,10 @@ run_hook_pre_commit() (
   else
     local export_names="${hook_temp}/export.names"
     cp "${staged_names}" "${export_names}" || return
-    local -a export_configs=(.gitleaks.toml .gitleaksignore tools/quality/versions.json)
+    local -a export_configs=(.gitleaks.toml .gitleaksignore tools/quality/versions.json
+      tools/quality/check-versions.py tools/quality/install-external-tools.py
+      tools/process_runner.py tools/quality/requirements.in tools/quality/requirements.lock
+      tools/quality/package.json tools/quality/package-lock.json tools/quality/pyproject.toml)
     if ((${#markdown_paths[@]} > 0)); then
       export_configs+=(.gitignore '**/.gitignore' '.markdownlint*' '**/.markdownlint*')
     fi
@@ -543,6 +643,9 @@ run_hook_pre_commit() (
   fi
   if ((check_status == 0)); then
     run_hook_secret_scan "${staged_root}" || check_status=$?
+  fi
+  if ((check_status == 0)); then
+    run_hook_runtime_preflight "${staged_root}" || check_status=$?
   fi
   if ((check_status == 0)); then
     for staged_file in "${required_configuration_paths[@]}"; do
@@ -613,25 +716,58 @@ require_commit_message_file() {
 
 run_hook_commitlint() {
   local commit_message_file="$1"
+  local expected_root="${2:-${repository_root}}"
   local commitlint_cmd
   commitlint_cmd="$(resolve_hook_node_tool commitlint)" || return
-  local commitlint_config="${repository_root}/commitlint.config.cjs"
+  local commitlint_config="${expected_root}/commitlint.config.cjs"
   if [[ ! -f "${commitlint_config}" ]]; then
     printf 'commit-msg: commitlint config does not exist: %s\n' \
       "${commitlint_config}" >&2
     return 1
   fi
+  local python_cmd runtime_root="${repository_root}/tools/quality"
+  python_cmd="$(resolve_hook_python)" || return
+  if [[ "${commitlint_cmd}" == */node_modules/.bin/* ]]; then
+    runtime_root="${commitlint_cmd%/node_modules/.bin/*}"
+  fi
+  local host_command
+  host_command="$(to_hook_host_path "${commitlint_cmd}" "${python_cmd}")" || return
+  "${python_cmd}" -B "${audit_script_dir}/quality/check-versions.py" \
+    --quality-root "${expected_root}/tools/quality" --runtime \
+    --runtime-root "${runtime_root}" --tool '@commitlint/cli' \
+    --executable "@commitlint/cli=${host_command}" || return
   printf '%s\n' 'commit-msg: running commitlint on commit message.'
   "${commitlint_cmd}" \
     --edit "${commit_message_file}" \
     --config "${commitlint_config}"
 }
 
-run_hook_commit_msg() {
+run_hook_commit_msg() (
   local commit_message_file="${1:-}"
   require_commit_message_file "${commit_message_file}" || return
-  run_hook_commitlint "${commit_message_file}"
-}
+  local message_temp
+  message_temp="$(mktemp -d "${TMPDIR:-/tmp}/commit-message-index.XXXXXX")" || return
+  # The generated path is owned by this subshell's EXIT trap.
+  # shellcheck disable=SC2329
+  cleanup_message_index() {
+    case "${message_temp}" in
+    "${TMPDIR:-/tmp}"/commit-message-index.*) rm -rf -- "${message_temp}" ;;
+    *)
+      printf 'Refusing unexpected message snapshot: %s\n' "${message_temp}" >&2
+      return 1
+      ;;
+    esac
+  }
+  trap cleanup_message_index EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  local expected_root="${message_temp}/index"
+  mkdir -p "${expected_root}" || return
+  # Configurations can import any other tracked file from this index.
+  git checkout-index -a --prefix="${expected_root}/" || return
+  run_hook_commitlint "${commit_message_file}" "${expected_root}"
+)
 
 list_hook_push_changes() {
   local local_object_id="$1"
@@ -646,6 +782,10 @@ merge_hook_test_update() {
   local run_shell_for_object="$3"
   local modules_for_object="${4-*}"
   local workflows_for_object="${5:-false}"
+  local shells_for_object="${6-*}"
+  if [[ "${run_shell_for_object}" != true ]]; then
+    shells_for_object=''
+  fi
   local object_index
 
   for ((object_index = 0; object_index < ${#test_object_ids[@]}; object_index += 1)); do
@@ -655,6 +795,11 @@ merge_hook_test_update() {
       fi
       if [[ "${run_shell_for_object}" == true ]]; then
         test_shell_flags[object_index]=true
+        if [[ "${shells_for_object}" == '*' || "${test_shell_modules[object_index]:-}" == '*' ]]; then
+          test_shell_modules[object_index]='*'
+        else
+          test_shell_modules[object_index]+=" ${shells_for_object}"
+        fi
       fi
       if [[ "${workflows_for_object}" == true ]]; then
         test_workflow_flags[object_index]=true
@@ -671,6 +816,7 @@ merge_hook_test_update() {
   test_object_ids+=("${object_id}")
   test_python_flags+=("${run_python_for_object}")
   test_shell_flags+=("${run_shell_for_object}")
+  test_shell_modules+=("${shells_for_object}")
   test_python_modules+=("${modules_for_object}")
   test_workflow_flags+=("${workflows_for_object}")
 }
@@ -740,6 +886,7 @@ run_hook_affected_tests() {
   local run_shell="$3"
   local modules="${4:-*}"
   local run_workflows="${5:-false}"
+  local shell_modules="${6-*}"
   local python_cmd
   if [[ "${run_python}" == true ]]; then
     python_cmd="$(resolve_hook_python)" || return
@@ -764,18 +911,28 @@ run_hook_affected_tests() {
     ' hook-python-family "${pushed_root}" "${python_cmd}" "${modules}" || return
   fi
   if [[ "${run_shell}" == true ]]; then
+    if [[ -z "${shell_modules}" ]]; then
+      printf '%s\n' 'pre-push: mandatory shell selection is empty.' >&2
+      return 1
+    fi
     printf '%s\n' 'pre-push: running affected shell tests.'
     # The child Bash expands its positional arguments.
     # shellcheck disable=SC2016
     run_hook_test_family Shell bash -c '
       cd -- "$1" || exit
-      shift
-      for shell_test in "$@"; do
-        bash "${shell_test}" || exit $?
+      modules="$2"
+      if [[ "$modules" == "*" ]]; then
+        modules="test_quality_hooks.sh test_commit_message_validation.sh test_quality_pre_commit.sh test_quality_pre_push.sh"
+      fi
+      read -r -a selected_modules <<<"${modules}"
+      seen_modules=" "
+      for shell_test in "${selected_modules[@]}"; do
+        [[ "${seen_modules}" != *" ${shell_test} "* ]] || continue
+        seen_modules+="${shell_test} "
+        [[ -f "tests/${shell_test}" ]] || { printf "Missing affected test: %s\n" "$shell_test" >&2; exit 1; }
+        bash "tests/${shell_test}" || exit $?
       done
-    ' hook-shell-family "${pushed_root}" \
-      tests/test_quality_hooks.sh \
-      tests/test_commit_message_validation.sh || return $?
+    ' hook-shell-family "${pushed_root}" "${shell_modules}" || return $?
   fi
   if [[ "${run_workflows}" == true ]]; then
     run_hook_workflows "${pushed_root}" || return
@@ -878,6 +1035,7 @@ run_hook_pre_push() (
   local -a test_object_ids=()
   local -a test_python_flags=()
   local -a test_shell_flags=()
+  local -a test_shell_modules=()
   local -a test_python_modules=()
   local -a test_workflow_flags=()
   local -a release_updates=()
@@ -897,11 +1055,12 @@ run_hook_pre_push() (
     fi
     local run_python=false
     local run_shell=false
-    local run_workflows=false full_snapshot=false python_modules=''
+    local run_workflows=false full_snapshot=false python_modules='' shell_modules=''
     if is_hook_zero_object_id "${remote_object_id}"; then
       run_python=true
       run_shell=true
       python_modules='*'
+      shell_modules='*'
       run_workflows=true
     else
       local changes_path="${hook_temp}/changes.${update_index}"
@@ -918,7 +1077,7 @@ run_hook_pre_push() (
     fi
     merge_hook_test_update \
       "${local_object_id}" "${run_python}" "${run_shell}" \
-      "${python_modules}" "${run_workflows}"
+      "${python_modules}" "${run_workflows}" "${shell_modules}"
     update_index=$((update_index + 1))
   done
 
@@ -970,7 +1129,8 @@ run_hook_pre_push() (
           "${test_python_flags[update_index]}" \
           "${test_shell_flags[update_index]}" \
           "${test_python_modules[update_index]}" \
-          "${test_workflow_flags[update_index]}" || return
+          "${test_workflow_flags[update_index]}" \
+          "${test_shell_modules[update_index]}" || return
       else
         (
           repository_root="${validated_hook_root}"

@@ -93,7 +93,9 @@ jobs:
             tools/quality/versions.json
 
       - name: Install locked Commitlint
-        run: npm ci --ignore-scripts --prefix tools/quality
+        run: |
+          npm ci --ignore-scripts --prefix tools/quality
+          python tools/quality/npm-security.py patch
 
       - name: Validate guarded merge without privileged credentials
         shell: bash

@@ -240,6 +240,30 @@ tool does not preserve NTFS ACLs, alternate data streams, creation/access
 times, or a cryptographic manifest. The `v0.0.0` placeholder is also
 indistinguishable in the filename from a real tag with that exact name.
 
+## initialize-repository.py
+
+This helper validates a generated release package or prepares its initial system
+index. Normal users should run `git-init.sh` or `git-init.ps1`, which manage the
+interactive confirmations and Git initialization around these operations.
+
+```text
+usage: python tools/initialize-repository.py [-h] [--version] [--dry-run] [-v] \
+  {validate,prepare} --path PATH [--tag TAG]
+```
+
+`validate` reads the package inventory, paths, modes and repository schema.
+`prepare` requires an initialized Git repository, writes the initial changelog,
+sets declared modes, stages the exact system inventory and prepares/checks release
+artifacts from that index. It does not create a commit or tag. `--tag` defaults to
+`v1.0.0`; prepare validates the shared release tool's strict v-prefixed SemVer
+contract before writes, chmod or index updates. Its dry-run rejects invalid tags
+too and makes no mutations. The selected Python needs the locked jsonschema
+dependency; the distributed release helper and runtime modules must be present.
+
+Exit status is `0` on successful validation/preparation/preview, `1` on a target,
+tag or dependency failure, and `2` on invalid command-line syntax. `-v` enables
+debug logging. See [project initialization](../docs/project-configuration.md).
+
 ## release-artifacts.py
 
 ### Features
@@ -255,6 +279,8 @@ indistinguishable in the filename from a real tag with that exact name.
 - Requires release-specific business metadata from an external JSON file and
   never derives unknown values from repository content.
 - Supports side-effect-free preparation and exact index or tag validation.
+- Restores replaced outputs after Python exceptions, including KeyboardInterrupt,
+  while retaining the original exception and restoration/cleanup diagnostics.
 
 ### Synopsis
 
@@ -795,6 +821,14 @@ When an initialization-only file changed upstream, the plan reports
 `review-initialize-only` without blocking or writing the target. This makes
 required local review visible while preserving repository ownership.
 
+On POSIX systems, the plan also checks the owner execute bit against the
+package's Git mode. Each action records `localMode`, `modeAligned` and
+`modeOnly`. A mode-only `update` changes execute permissions in place,
+preserving exact local bytes and other permission bits. Initialize-only files
+remain subject to local review, and agent-rule files remain delegated.
+Application rejects permission changes made after planning and verifies each
+mode repair. Windows reports `localMode: null` and does not enforce POSIX modes.
+
 The tool performs no deletion, commit, tag, push, or network operation. Any
 conflict blocks application. An error or interruption during writes triggers
 restoration of the original content, modes and adoption state, including a
@@ -1049,7 +1083,8 @@ when the target path is a native Windows path.
 ### Features
 
 - Validates one exact UTF-8 squash message with the repository-pinned
-  Commitlint before contacting GitHub.
+  Commitlint after reading immutable default-branch configuration and before
+  dispatching the guarded workflow.
 - Seals an open, non-draft pull request number, its 40-character head SHA, the
   message SHA-256 digest, and a UUID in a typed repository dispatch.
 - Reconciles effective default-branch required checks with current check rows,
@@ -1095,8 +1130,9 @@ to revalidate and merge.
 
 The message file accepts exactly `subject\n` or `subject\n\nbody\n`, without
 normalization. It must be non-empty UTF-8 without BOM or NUL, use LF only, and
-end in exactly one LF. Both merge subject and body file are always explicit;
-subject-only messages use an empty body file.
+end in exactly one LF. The merge API receives the sealed SHA, squash method,
+subject and body through an explicit JSON file; subject-only messages use an
+empty body. Server-side rules apply with the current App identity.
 
 ### Usage/Examples
 
@@ -1156,7 +1192,11 @@ authenticates the dispatch origin.
 
 The CLI and workflow are inert until a separately authorized publication and
 GitHub activation configure the distinct rulesets and merge methods described
-in the operational guide.
+in the operational guide. Each preflight requires an active, separate
+update-only ruleset and squash-only repository/pull-request settings. It does
+not attest bypass identities: a maintainer must audit the complete lists with
+administrative credentials at activation and after governance changes. Workflow
+permissions remain unchanged.
 
 ## verify-repository-audit-runs.py
 
@@ -1274,6 +1314,45 @@ unreadable or malformed reports produce a diagnostic on standard error. The
 complete audit generates this
 report in its temporary directory and removes it during cleanup.
 
+## quality/coverage-artifacts.py
+
+This CI helper seals successful source-repository coverage measurements and
+combines the Linux and Windows branch data using the installed Coverage.py API.
+It belongs to the source repository and is excluded from consumer packages.
+Run it from the repository root with the locked quality environment. It requires
+`AUDIT_COMMIT_SHA`, `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT`; the workflow first
+verifies that the checkout matches that full commit SHA.
+
+```bash
+python tools/quality/coverage-artifacts.py export /path/to/.coverage /path/to/coverage/linux --platform linux
+python tools/quality/coverage-artifacts.py export /path/to/.coverage.windows /path/to/coverage/windows --platform windows
+python tools/quality/coverage-artifacts.py combine /path/to/coverage
+python tools/quality/check-coverage.py /path/to/coverage/combined.json
+```
+
+`export` requires a new destination directory and writes `.coverage` and
+`metadata.json`. Metadata binds the data and measured source hashes to the
+commit, run, attempt, Coverage version and policy hash. `combine` requires both
+platform subdirectories with matching metadata and unchanged data/source files;
+it rejects absent, linked, unsafe, empty or line-only inputs. It unions normalized
+OS paths in memory and writes `combined.json`. It returns `0` for a valid export
+or combination, `1` for validation/access errors, and `2` for invalid arguments.
+Use `--help`, `export --help` or `combine --help` for the command syntax.
+Report generation uses an explicit source root and preserves the calling
+process's directory and measurement paths, including when its tests run under
+Coverage. Absolute measurement keys use Coverage's canonical filename resolution,
+including Windows 8.3 aliases, before reporting. OS collection retains the
+configured relative-path policy.
+
+Linux still enforces the existing global and branch floors. Windows publishes
+its own report without a separate new floor; the aggregate enforces both floors
+again on the union. Artifacts are scoped to the exact run attempt and commit,
+retained for seven days, and never downloaded from another workflow run.
+Consumer repositories skip source coverage but execute their declared project
+checks in both existing OS jobs. Ordinary branch pushes cancel superseded runs;
+PR, tag, release, manual and release-preflight evidence retain distinct groups.
+Tag, release, manual and release-preflight runs are never cancelled by this policy.
+
 ## quality/check-versions.py
 
 `quality/check-versions.py` detects drift between `quality/versions.json` and
@@ -1285,14 +1364,35 @@ downloading, or modifying anything.
 ### Synopsis
 
 ```text
-usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime]
+usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime] \
+  [--tool NAME] [--runtime-root PATH] [--executable TOOL=PATH]
 ```
 
 `--quality-root PATH` selects another quality configuration directory. The
 default is the script directory. `--runtime` additionally checks installed
-Python distributions, packages under `tools/quality/node_modules`, and the
-registry-owned external tools through bounded local version probes. It does
-not install missing tools.
+Python distributions, installed Node packages and the actual selected Python,
+Node and external CLI executables through bounded local version probes. It does
+not install missing tools. Every locked occurrence of an npm override is also
+checked against its installed package version, including nested occurrences.
+
+Repeat `--tool NAME` to limit runtime probes to the named registry tools;
+unselected tools are not required. Node-based tools also check the minimum Node
+version and installed override pins. `--runtime-root PATH` selects the installed
+quality tree when `--quality-root` points to immutable index metadata. Repeat
+`--executable TOOL=PATH` to probe the exact command selected by a caller. Unknown
+tools, conflicting overrides and scoped options without `--runtime` fail.
+Python libraries with no CLI retain distribution checks.
+Explicit relative paths such as `./tool` launch the requested file even when
+`PATH` contains a namesake executable.
+
+Each version probe has a 15-second deadline containing its process tree and
+inherited output pipes. Windows npm shims run through the verified Git Bash
+installation; explicit paths take precedence over PATHEXT substitution. An
+unlaunchable, silent or mismatched executable is a failure with its diagnostic.
+
+```bash
+python -B tools/quality/check-versions.py --runtime --tool ruff --tool mypy
+```
 
 ### Exit Status
 
@@ -1317,7 +1417,7 @@ pinned with the generator so its recorded command does not add an unused
 
 ```bash
 python -m pip install "pip-tools==7.6.1" "click==8.2.1"
-pip-compile --generate-hashes \
+pip-compile --allow-unsafe --generate-hashes \
   --output-file=tools/quality/requirements.lock --strip-extras \
   tools/quality/requirements.in
 python tools/quality/check-versions.py
@@ -1329,12 +1429,89 @@ upgrade, then verify a clean installation and its advisories:
 
 ```bash
 npm ci --ignore-scripts --prefix tools/quality
-npm audit --audit-level=high --include=dev --prefix tools/quality
+python tools/quality/npm-security.py patch
+python tools/quality/npm-security.py audit
 python tools/quality/check-versions.py
 ```
 
-The Linux CI job requires the npm audit to succeed; high or critical
-vulnerabilities and errors preventing verification block integration.
+Use exact `nodeOverrides` entries in the registry for transitive npm pins;
+`package.json` overrides and every matching lock entry must agree. The Python
+lock generator's `--allow-unsafe` includes a hashed pip pin required by pip-api;
+installation continues to require hashes for every dependency.
+
+The Linux CI job requires the attested npm audit and audits of both Python
+locks to succeed. High or critical npm findings and verification errors block
+integration, except the precisely attested braces advisory described below.
+
+## quality/npm-security.py
+
+This tool applies and verifies the local fix for braces 3.0.3's recursive
+stack exhaustion, then evaluates npm's complete advisory graph. It preserves
+the upstream package version, npm integrity, MIT license and raw advisory
+report. It does not install packages or enable lifecycle scripts.
+
+### Synopsis
+
+```text
+usage: python tools/quality/npm-security.py [-h] [--version] [--dry-run] [-v] \
+  {patch,verify,audit} [--quality-root PATH] [--dry-run]
+```
+
+Apply `patch` explicitly after each `npm ci --ignore-scripts`. `verify` checks
+every installed braces occurrence against the recorded hashes. `audit` first
+verifies those bytes, then queries the npm registry with a 120-second deadline
+and a temporary download cache. `--dry-run` makes no writes or network calls;
+audit dry-run prints the planned command after local verification. `-v` shows
+the exception details on a failure. `--quality-root` defaults to this tool's
+directory and selects another installed quality tree with its lockfile.
+
+The patch manifest records the canonical npm archive URL and SHA512 integrity,
+the advisory `GHSA-vfj7-8cjw-p6xm`, and before/after SHA256 hashes for all ten
+upstream files. Replacement walkers use iterative traversal, retaining outputs,
+ordering, options and range limits. Frozen upstream walkers in the test fixtures
+support differential compatibility checks. License and provenance live under
+`quality/patches/braces-3.0.3/`.
+
+The security tests reconstruct braces and its three dependencies from exact
+upstream archives under `tests/fixtures/`. They verify each archive's SHA512
+against the lockfile before extracting it into a temporary dependency tree.
+The suite needs Python and Node.js, but no checkout `node_modules`, npm install
+or network access. If one of these four locked versions changes, refresh its
+matching archive and rerun the isolated suite before committing the lock update.
+
+Unexpected files, hashes, linked directories, wrong lock provenance or unlocked
+braces copies stop patching. Application is idempotent; an interruption restores
+already replaced files and preserves the original exception. Concurrent foreign
+edits are preserved with an explicit incomplete-restoration diagnostic. Keep
+installation and patching exclusive of other writes to that dependency tree.
+
+An npm high finding is attested only when every advisory leaf is that exact
+braces advisory and all affected installed occurrences have the recorded fix.
+Other high or critical advisories block. Missing or cyclic attribution, malformed
+reports, stale counts and registry failures block as well. The JSON output keeps
+`rawReport` and `rawCounts` alongside `attested` and `blocked`; upstream findings
+remain visible. No advisory is silently suppressed. Remove the local patch when
+an upstream fixed release passes the same compatibility and security checks.
+
+Audit both fully hashed Python environments without installation or resolution:
+
+```bash
+python -m pip_audit --require-hashes --disable-pip \
+  --cache-dir /path/to/task-cache -r tools/quality/requirements.lock
+python -m pip_audit --require-hashes --disable-pip \
+  --cache-dir /path/to/task-cache -r tools/release-artifacts-requirements.txt
+```
+
+These network checks supplement local audit profiles. They do not mutate locks,
+run automatic fixes, or replace hooks and full qualification.
+
+### Exit Status
+
+- `0`: patch/verification succeeded, no unhandled high/critical advisory remains,
+  or the requested dry-run completed.
+- `1`: verification, registry audit or patch application failed, or blocking
+  advisories remain. Incomplete restoration details accompany the original error.
+- `2`: command-line arguments are invalid.
 
 ## quality/install-external-tools.py
 
@@ -1536,16 +1713,48 @@ and ignore files come from the index, including when the working tree differs.
 Simple Markdown, Bash, and YAML checks export only required indexed files and
 configuration; checks that need repository context use the full index.
 `hook-commit-msg MESSAGE_FILE` validates the message file named by its required
-positional argument. `hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
+positional argument against the indexed Commitlint configuration. It exports the
+complete index so tracked relative imports retain their context, snapshots the
+quality declarations and checks the actual Commitlint first. Pre-commit
+checks only the executables its selected validators will use, with expected pins
+from the same indexed snapshot; no installation occurs. PowerShell validation
+loads the registry's exact PSScriptAnalyzer version.
+`hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
 `LOCAL_REF LOCAL_OBJECT_ID REMOTE_REF REMOTE_OBJECT_ID` quadruplets from
 standard input, runs affected test families from the exact pushed objects with
 a 900-second timeout per selected family, and validates new SemVer release tags.
 Both hooks use one affected-path mapping. A standalone Python tool selects its
-test module, upgrade changes select the upgrade suite, and workflow changes
-select Actionlint and semantic workflow contracts. Shared runtime,
-configuration, and unknown paths select the complete Python suite and the
-existing hook and commit-message shell suites. The exhaustive shell behavior
+test module; isolated test changes select that test. Both public initializers
+and their helper select the initializer suite. Upgrade changes select the upgrade
+suite, and workflow changes select Actionlint and semantic workflow contracts.
+Each hook wrapper selects the common hook suite and its own focused suite.
+Shared runtime, configuration and unknown paths select the complete Python suite
+and all four shell suites: common hooks, commit messages, pre-commit and pre-push.
+Selections are combined for repeated pushed objects and executed once per suite;
+missing suites or an empty mandatory selection fail. The exhaustive shell behavior
 and audit suites remain mandatory in Linux CI.
+
+Workflow contracts retain explicit events, check names, dependencies, permissions,
+action pins, trusted refs and credential boundaries. The validator stores named
+SHA256 seals of normalized executable scripts instead of second copies of those
+scripts. Shell normalization retains quoted values and statement boundaries;
+embedded Python compares parsed syntax trees with a stable representation across
+supported Python versions. Step removal, reordering, added
+privileged execution and changed guards still fail closed.
+
+Setup-Python and Setup-Node download caches may be omitted or use the declared
+lock/registry paths in a different order. Configure `cache` and
+`cache-dependency-path` together, or omit both. Runtime versions, action identities,
+other inputs and steps remain protected. Cache paths outside the known locks,
+credential expressions and unknown paths are rejected.
+
+When a planned workflow change alters execution, review the YAML change and its
+security/functional tests before updating only the affected entry in
+`SEALED_SCRIPTS` in `repository-audit/workflow-contracts.py`. Compute its digest as
+`"sha256:" + hashlib.sha256(normalize_script(run, shell).encode("utf-8")).hexdigest()`
+using that module's normalizer. The explicit algorithm prefix identifies checksum
+data, including roles whose names mention credentials. A matching digest is a contract check, not a substitute
+for reviewing the changed behavior. Presentation/cache edits need no new seal.
 
 ### Prerequisites
 
@@ -1559,6 +1768,7 @@ python -m pip install \
   --require-hashes \
   --requirement tools/quality/requirements.lock
 npm ci --ignore-scripts --prefix tools/quality
+python tools/quality/npm-security.py patch
 ```
 
 The external versions declared in `tools/quality/versions.json` must also be
@@ -1574,7 +1784,7 @@ environment for the supplemental prechecks, separately and in order:
 
 ```bash
 python -B tools/quality/check-versions.py --runtime
-npm audit --audit-level=high --include=dev --prefix tools/quality
+python tools/quality/npm-security.py audit
 bash tools/repository-audit.sh fast
 mypy --config-file tools/quality/pyproject.toml --platform linux
 mypy --config-file tools/quality/pyproject.toml --platform win32
@@ -1595,6 +1805,9 @@ the npm key also includes the declared runtime policy. Installation still uses
 `--require-hashes` and `npm ci --ignore-scripts`. The workflow uses no Go setup or
 dynamic `go install`; every external binary or module comes from the registry
 entry whose HTTPS artifact digest and runtime probe were validated.
+Each Linux/Windows job has a 45-minute total deadline, preserving the combined
+former 25-minute quality and 20-minute project-check budgets. Local hook family
+and project-command timeouts remain 900 seconds.
 
 Only the exhaustive profile's release-package smoke test uses network access.
 It requests `releases/latest` metadata for `asphyx0r/agent-coding-rules` from

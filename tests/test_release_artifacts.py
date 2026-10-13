@@ -1102,6 +1102,300 @@ class RepositoryArtifactTests(unittest.TestCase):
         self.assertEqual(self.check("--index")[0], 1)
 
 
+class ReleaseArtifactOutputTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.cleanup_temporary_directory)
+        self.root = Path(self.temporary.name)
+        self.outputs = {
+            "VERSION": b"new version\n",
+            "SHA256SUMS": b"new checksums\n",
+            "manifest.json": b"new manifest\n",
+        }
+        self.originals = {
+            "VERSION": b"old version\n",
+            "SHA256SUMS": b"old checksums\n",
+            "manifest.json": b"old manifest\n",
+        }
+        for name, content in self.originals.items():
+            (self.root / name).write_bytes(content)
+        self.replace = os.replace
+        self.replacement_error = OSError("blocked manifest replacement")
+
+    def cleanup_temporary_directory(self):
+        for attempt in range(3):
+            try:
+                self.temporary.cleanup()
+                return
+            except OSError:
+                if attempt == 2:
+                    raise
+                time.sleep(0.1)
+
+    def test_cleanup_retries_transient_directory_error(self):
+        with (
+            patch.object(
+                self.temporary,
+                "cleanup",
+                side_effect=[OSError(145, "directory not empty"), None],
+            ) as cleanup,
+            patch("time.sleep") as sleep,
+        ):
+            self.cleanup_temporary_directory()
+        self.assertEqual(cleanup.call_count, 2)
+        sleep.assert_called_once_with(0.1)
+
+    def replace_until_manifest(self, source, destination):
+        if Path(destination) == self.root / "manifest.json":
+            raise self.replacement_error
+        self.replace(source, destination)
+
+    def test_write_outputs_removes_temp_after_fsync_failure(self):
+        error = OSError("simulated disk full")
+        with patch.object(ARTIFACTS.os, "fsync", side_effect=error):
+            with self.assertRaises(ARTIFACTS.ReleaseArtifactError) as raised:
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertIs(raised.exception.__cause__, error)
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+        for name, content in self.originals.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+
+    def test_write_outputs_cleans_all_staged_files_after_later_fsync_failure(self):
+        with patch.object(
+            ARTIFACTS.os, "fsync", side_effect=[None, OSError("simulated disk full")]
+        ):
+            with self.assertRaises(ARTIFACTS.ReleaseArtifactError):
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+        for name, content in self.originals.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+
+    def test_write_outputs_replaces_outputs_without_temp_residue(self):
+        ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+        for name, content in self.outputs.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+
+    def test_write_outputs_preserves_preexisting_temporary_file(self):
+        unrelated = self.root / ".VERSION.unrelated.tmp"
+        unrelated.write_bytes(b"unrelated\n")
+        with patch.object(ARTIFACTS.os, "fsync", side_effect=OSError("disk full")):
+            with self.assertRaises(ARTIFACTS.ReleaseArtifactError):
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertEqual(unrelated.read_bytes(), b"unrelated\n")
+        self.assertEqual(list(self.root.glob(".*.tmp")), [unrelated])
+
+    def test_write_outputs_restores_all_outputs_after_replace_failure(self):
+        with patch.object(ARTIFACTS.os, "replace", self.replace_until_manifest):
+            with self.assertRaises(ARTIFACTS.ReleaseArtifactError) as raised:
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertIs(raised.exception.__cause__, self.replacement_error)
+        for name, content in self.originals.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
+    def test_write_outputs_restores_every_output_after_interrupt_at_each_replace(self):
+        for interrupted_at in range(1, len(self.outputs) + 1):
+            with self.subTest(interrupted_at=interrupted_at):
+                error = KeyboardInterrupt("publication interrupted")
+                calls = 0
+
+                def interrupt(source, destination):
+                    nonlocal calls
+                    calls += 1
+                    if calls == interrupted_at:
+                        raise error
+                    self.replace(source, destination)
+
+                with patch.object(ARTIFACTS.os, "replace", side_effect=interrupt):
+                    with self.assertRaises(KeyboardInterrupt) as raised:
+                        ARTIFACTS.write_outputs(self.root, self.outputs)
+                self.assertIs(raised.exception, error)
+                for name, content in self.originals.items():
+                    self.assertEqual((self.root / name).read_bytes(), content)
+                self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
+    def test_interrupt_keeps_primary_restore_and_cleanup_diagnostics(self):
+        error = KeyboardInterrupt("publication interrupted")
+        write_bytes = Path.write_bytes
+        unlink = Path.unlink
+
+        def interrupt(source, destination):
+            if Path(destination).name == "manifest.json":
+                raise error
+            self.replace(source, destination)
+
+        def restore(path, content):
+            if path == self.root / "VERSION":
+                raise OSError("restore blocked")
+            return write_bytes(path, content)
+
+        def cleanup(path, *args, **kwargs):
+            if path.name.startswith(".manifest.json."):
+                raise OSError("cleanup blocked")
+            return unlink(path, *args, **kwargs)
+
+        with (
+            patch.object(ARTIFACTS.os, "replace", side_effect=interrupt),
+            patch.object(Path, "write_bytes", restore),
+            patch.object(Path, "unlink", cleanup),
+        ):
+            with self.assertRaises(KeyboardInterrupt) as raised:
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+        self.assertIs(raised.exception, error)
+        self.assertEqual(
+            (self.root / "SHA256SUMS").read_bytes(), self.originals["SHA256SUMS"]
+        )
+        notes = " ".join(raised.exception.__notes__)
+        self.assertIn("restore blocked", notes)
+        self.assertIn("cleanup blocked", notes)
+
+    def test_interrupt_after_atomic_replacement_still_restores_the_target(self):
+        error = KeyboardInterrupt("interrupted after replacement")
+
+        def interrupt(source, destination):
+            self.replace(source, destination)
+            raise error
+
+        with patch.object(ARTIFACTS.os, "replace", side_effect=interrupt):
+            with self.assertRaises(KeyboardInterrupt) as raised:
+                ARTIFACTS.write_outputs(self.root, self.outputs)
+        self.assertIs(raised.exception, error)
+        for name, content in self.originals.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
+    def test_write_outputs_restores_other_files_when_one_restore_fails(self):
+        write_bytes = Path.write_bytes
+
+        def fail_checksum_restore(path, content):
+            if path == self.root / "SHA256SUMS":
+                raise PermissionError("blocked checksum restoration")
+            return write_bytes(path, content)
+
+        with (
+            patch.object(ARTIFACTS.os, "replace", self.replace_until_manifest),
+            patch.object(Path, "write_bytes", fail_checksum_restore),
+            self.assertRaises(Exception) as raised,
+        ):
+            ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertEqual((self.root / "VERSION").read_bytes(), b"old version\n")
+        self.assertEqual((self.root / "SHA256SUMS").read_bytes(), b"new checksums\n")
+        self.assertEqual((self.root / "manifest.json").read_bytes(), b"old manifest\n")
+        self.assertIsInstance(raised.exception, ARTIFACTS.ReleaseArtifactError)
+        self.assertIs(raised.exception.__cause__, self.replacement_error)
+        self.assertIn("blocked manifest replacement", str(raised.exception))
+        self.assertIn("SHA256SUMS", str(raised.exception))
+        self.assertIn("blocked checksum restoration", str(raised.exception))
+        self.assertEqual(list(self.root.glob(".*.tmp")), [])
+
+    def test_write_outputs_removes_new_output_despite_another_restore_failure(self):
+        (self.root / "VERSION").unlink()
+        write_bytes = Path.write_bytes
+
+        def fail_checksum_restore(path, content):
+            if path == self.root / "SHA256SUMS":
+                raise PermissionError("blocked checksum restoration")
+            return write_bytes(path, content)
+
+        with (
+            patch.object(ARTIFACTS.os, "replace", self.replace_until_manifest),
+            patch.object(Path, "write_bytes", fail_checksum_restore),
+            self.assertRaises(Exception) as raised,
+        ):
+            ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertFalse((self.root / "VERSION").exists())
+        self.assertIsInstance(raised.exception, ARTIFACTS.ReleaseArtifactError)
+        self.assertIs(raised.exception.__cause__, self.replacement_error)
+
+    def test_write_outputs_continues_cleanup_without_masking_write_failure(self):
+        unlink = Path.unlink
+        write_error = OSError("simulated disk full")
+
+        def fail_version_cleanup(path, *args, **kwargs):
+            if path.parent == self.root and path.name.startswith(".VERSION."):
+                raise PermissionError("blocked temporary cleanup")
+            return unlink(path, *args, **kwargs)
+
+        with (
+            patch.object(ARTIFACTS.os, "fsync", side_effect=[None, write_error]),
+            patch.object(Path, "unlink", fail_version_cleanup),
+            self.assertRaises(Exception) as raised,
+        ):
+            ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        remaining = list(self.root.glob(".*.tmp"))
+        self.assertEqual(len(remaining), 1)
+        self.assertTrue(remaining[0].name.startswith(".VERSION."))
+        self.assertIsInstance(raised.exception, ARTIFACTS.ReleaseArtifactError)
+        self.assertIs(raised.exception.__cause__, write_error)
+        self.assertIn("simulated disk full", str(raised.exception))
+        self.assertIn(str(remaining[0]), str(raised.exception))
+        self.assertIn("blocked temporary cleanup", str(raised.exception))
+
+    def test_write_outputs_reports_write_restore_and_cleanup_failures(self):
+        write_bytes = Path.write_bytes
+        unlink = Path.unlink
+
+        def fail_checksum_restore(path, content):
+            if path == self.root / "SHA256SUMS":
+                raise PermissionError("blocked checksum restoration")
+            return write_bytes(path, content)
+
+        def fail_manifest_cleanup(path, *args, **kwargs):
+            if path.parent == self.root and path.name.startswith(".manifest.json."):
+                raise PermissionError("blocked temporary cleanup")
+            return unlink(path, *args, **kwargs)
+
+        with (
+            patch.object(ARTIFACTS.os, "replace", self.replace_until_manifest),
+            patch.object(Path, "write_bytes", fail_checksum_restore),
+            patch.object(Path, "unlink", fail_manifest_cleanup),
+            self.assertRaises(Exception) as raised,
+        ):
+            ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        self.assertEqual((self.root / "VERSION").read_bytes(), b"old version\n")
+        self.assertIsInstance(raised.exception, ARTIFACTS.ReleaseArtifactError)
+        self.assertIs(raised.exception.__cause__, self.replacement_error)
+        diagnostic = str(raised.exception)
+        for detail in (
+            "blocked manifest replacement",
+            "SHA256SUMS",
+            "blocked checksum restoration",
+            ".manifest.json.",
+            "blocked temporary cleanup",
+        ):
+            self.assertIn(detail, diagnostic)
+
+    def test_write_outputs_reports_cleanup_failure_after_successful_replacement(self):
+        unlink = Path.unlink
+
+        def fail_version_cleanup(path, *args, **kwargs):
+            if path.parent == self.root and path.name.startswith(".VERSION."):
+                raise PermissionError("blocked temporary cleanup")
+            return unlink(path, *args, **kwargs)
+
+        with (
+            patch.object(Path, "unlink", fail_version_cleanup),
+            self.assertRaises(Exception) as raised,
+        ):
+            ARTIFACTS.write_outputs(self.root, self.outputs)
+
+        for name, content in self.outputs.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+        self.assertIsInstance(raised.exception, ARTIFACTS.ReleaseArtifactError)
+        self.assertIn(".VERSION.", str(raised.exception))
+        self.assertIn("blocked temporary cleanup", str(raised.exception))
+
+
 class ReleaseDependencyTests(unittest.TestCase):
     def test_release_lock_preserves_shared_versions_and_hashes_without_linters(self):
         def declarations(path):

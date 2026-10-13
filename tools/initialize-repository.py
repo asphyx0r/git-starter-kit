@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import logging
 import os
@@ -218,6 +219,19 @@ def validate(root: Path) -> dict[str, str]:
     return modes
 
 
+def validate_tag(tag: str) -> None:
+    """Use the release tool's SemVer contract before initialization mutates anything."""
+    path = Path(__file__).with_name("release-artifacts.py")
+    spec = importlib.util.spec_from_file_location("initializer_release_artifacts", path)
+    assert spec is not None and spec.loader is not None
+    artifacts = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(artifacts)
+    try:
+        artifacts.version_from_ref(tag)
+    except artifacts.ReleaseArtifactError as error:
+        raise InitializationError(str(error)) from error
+
+
 def prepare_text(root: Path, tag: str, release_date: str) -> None:
     (root / "CHANGELOG.md").write_text(
         "# Changelog\n\n"
@@ -230,6 +244,7 @@ def prepare_text(root: Path, tag: str, release_date: str) -> None:
 
 
 def prepare_index(root: Path, tag: str, release_date: str) -> None:
+    validate_tag(tag)
     modes = validate(root)
     prepare_text(root, tag, release_date)
     # Exact inventory paths prevent application files from being added implicitly.
@@ -294,6 +309,8 @@ def main() -> int:
     try:
         root = args.path.resolve()
         if args.dry_run:
+            if args.operation == "prepare":
+                validate_tag(args.tag)
             validate(root)
             print(
                 f"Dry run: prepare system text and release artifacts from the main index for {args.tag}."

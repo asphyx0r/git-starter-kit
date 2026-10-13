@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import http.client
@@ -15,6 +16,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -29,9 +31,16 @@ DECLARED_VERSIONS = json.loads(
 )
 DECLARED_PYTHON_REQUIREMENTS = DECLARED_VERSIONS["python"]
 DECLARED_NODE_REQUIREMENTS = DECLARED_VERSIONS["node"]
+DECLARED_NODE_OVERRIDES = DECLARED_VERSIONS.get("nodeOverrides", {})
 DECLARED_NODE_MINIMUM = DECLARED_VERSIONS["policy"]["nodeMinimum"]
 DECLARED_NODE_CI_VERSION = DECLARED_VERSIONS["policy"]["nodeCiVersion"]
 DECLARED_EXTERNAL_TOOLS = DECLARED_VERSIONS["external"]
+PYTHON_CLI_NAMES = ("codespell", "coverage", "mypy", "pip-audit", "ruff", "yamllint")
+CLI_VERSIONS = {
+    **{name: DECLARED_PYTHON_REQUIREMENTS[name] for name in PYTHON_CLI_NAMES},
+    "commitlint": DECLARED_NODE_REQUIREMENTS["@commitlint/cli"],
+    "markdownlint-cli2": DECLARED_NODE_REQUIREMENTS["markdownlint-cli2"],
+}
 
 
 class FakeResponse(io.BytesIO):
@@ -211,6 +220,40 @@ class QualityToolchainTests(unittest.TestCase):
             "package.json: node engine expected >=22.12.0",
         )
 
+    def test_declaration_checker_rejects_undeclared_npm_overrides(self) -> None:
+        def mutate_override(quality_root: Path) -> None:
+            package_path = quality_root / "package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["overrides"] = {"smol-toml": "1.9.1"}
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+
+        self.check_mutated_quality(
+            mutate_override, "package.json: overrides differ from versions.json"
+        )
+
+    def test_declaration_checker_rejects_nested_override_version_drift(self) -> None:
+        def mutate_override(quality_root: Path) -> None:
+            registry_path = quality_root / "versions.json"
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+            registry["nodeOverrides"] = {"smol-toml": "1.9.1"}
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            package_path = quality_root / "package.json"
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+            package["overrides"] = registry["nodeOverrides"]
+            package_path.write_text(json.dumps(package), encoding="utf-8")
+            lock_path = quality_root / "package-lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["packages"]["node_modules/nested/node_modules/smol-toml"] = {
+                "version": "1.8.0",
+                "integrity": "sha512-owned-test-fixture",
+                "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.8.0.tgz",
+            }
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+
+        self.check_mutated_quality(
+            mutate_override, "package-lock.json: smol-toml override expected 1.9.1"
+        )
+
     def test_declaration_checker_rejects_lock_and_policy_mutations(self) -> None:
         def mutate_lock(field: str, value: object) -> callable:
             def mutation(quality_root: Path) -> None:
@@ -309,7 +352,7 @@ class QualityToolchainTests(unittest.TestCase):
         with (
             mock.patch.object(module.shutil, "which", return_value="tool"),
             mock.patch.object(
-                module.subprocess, "run", return_value=completed
+                module.process_runner, "run", return_value=completed
             ) as run_mock,
         ):
             result = module.command_version(["tool", "--version"])
@@ -319,7 +362,7 @@ class QualityToolchainTests(unittest.TestCase):
         with (
             mock.patch.object(module.shutil, "which", return_value="tool"),
             mock.patch.object(
-                module.subprocess,
+                module.process_runner,
                 "run",
                 side_effect=subprocess.TimeoutExpired(["tool"], 1),
             ),
@@ -344,7 +387,10 @@ class QualityToolchainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             quality_copy = Path(temporary_directory) / "quality"
             copy_quality_configuration(quality_copy)
-            for name, version in DECLARED_NODE_REQUIREMENTS.items():
+            for name, version in {
+                **DECLARED_NODE_REQUIREMENTS,
+                **DECLARED_NODE_OVERRIDES,
+            }.items():
                 package_path = quality_copy / "node_modules" / name / "package.json"
                 package_path.parent.mkdir(parents=True)
                 package_path.write_text(
@@ -365,6 +411,10 @@ class QualityToolchainTests(unittest.TestCase):
             ) -> object:
                 if command == ["node", "--version"]:
                     return module.VersionProbe("24.20.0", "matched")
+                if expected_line is None:
+                    return module.VersionProbe(
+                        CLI_VERSIONS[Path(command[0]).stem], "matched"
+                    )
                 assert expected_line is not None
                 return module.VersionProbe(line_versions[expected_line], "matched")
 
@@ -385,6 +435,10 @@ class QualityToolchainTests(unittest.TestCase):
             ) -> object:
                 if command == ["node", "--version"]:
                     return module.VersionProbe("22.11.0", "matched")
+                if expected_line is None:
+                    return module.VersionProbe(
+                        CLI_VERSIONS[Path(command[0]).stem], "matched"
+                    )
                 assert expected_line is not None
                 return module.VersionProbe(line_versions[expected_line], "matched")
 
@@ -404,11 +458,17 @@ class QualityToolchainTests(unittest.TestCase):
             old_node_errors,
             ["runtime: node expected >=22.12.0, found 22.11.0 (matched)"],
         )
-        self.assertEqual(version_mock.call_count, 1 + len(DECLARED_EXTERNAL_TOOLS))
+        self.assertEqual(
+            version_mock.call_count,
+            1 + len(CLI_VERSIONS) + len(DECLARED_EXTERNAL_TOOLS),
+        )
         self.assertEqual(
             [call.args for call in version_mock.call_args_list],
             [
                 (["node", "--version"],),
+                *[([name, "--version"],) for name in PYTHON_CLI_NAMES],
+                (["commitlint", "--version"],),
+                (["markdownlint-cli2", "--version"],),
                 *[
                     (
                         commands[name],
@@ -443,7 +503,7 @@ class QualityToolchainTests(unittest.TestCase):
         with (
             mock.patch.object(module.shutil, "which", return_value="tool"),
             mock.patch.object(
-                module.subprocess, "run", side_effect=complete_after_cold_start
+                module.process_runner, "run", side_effect=complete_after_cold_start
             ),
         ):
             result = module.command_version(["tool", "--version"])
@@ -489,6 +549,7 @@ class QualityToolchainTests(unittest.TestCase):
                 )
 
     def test_declaration_checker_reports_every_manifest_drift(self) -> None:
+        ruff_version = DECLARED_PYTHON_REQUIREMENTS["ruff"]
         checker = load_script_module(
             QUALITY_ROOT / "check-versions.py",
             "quality_versions_manifest_drift",
@@ -500,7 +561,8 @@ class QualityToolchainTests(unittest.TestCase):
             requirements_path = quality_copy / "requirements.in"
             requirements = requirements_path.read_text(encoding="utf-8")
             requirements_path.write_text(
-                requirements.replace("ruff==0.16.8\n", "") + "unexpected==9.9.9\n",
+                requirements.replace(f"ruff=={ruff_version}\n", "")
+                + "unexpected==9.9.9\n",
                 encoding="utf-8",
             )
 
@@ -531,9 +593,9 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertEqual(
             errors,
             [
-                "requirements.in: expected direct requirement ruff==0.16.8",
+                f"requirements.in: expected direct requirement ruff=={ruff_version}",
                 "requirements.in: unexpected direct requirement unexpected",
-                "requirements.in: ruff expected 0.16.8, found None",
+                f"requirements.in: ruff expected {ruff_version}, found None",
                 "requirements.in: unexpected expected None, found 9.9.9",
                 "package-lock.json: node engine expected >=22.12.0",
                 "package-lock.json: root dependencies differ from versions.json",
@@ -618,7 +680,7 @@ class QualityToolchainTests(unittest.TestCase):
                 self.subTest(diagnostic=diagnostic),
                 mock.patch.object(checker.shutil, "which", return_value="tool"),
                 mock.patch.object(
-                    checker.subprocess,
+                    checker.process_runner,
                     "run",
                     return_value=completed,
                 ),
@@ -628,6 +690,34 @@ class QualityToolchainTests(unittest.TestCase):
                     expected_line,
                 )
             self.assertEqual(result, checker.VersionProbe(None, diagnostic))
+
+    def test_relative_version_probe_ignores_a_namesake_on_path(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_versions_relative_probe"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            other = root / "other"
+            other.mkdir()
+            for path, version in (
+                (root / "version-probe", "1.2.3"),
+                (other / "version-probe", "9.9.9"),
+            ):
+                path.write_text(
+                    f"#!/bin/sh\nprintf 'tool {version}\\n'\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                path.chmod(0o755)
+            with (
+                contextlib.chdir(root),
+                mock.patch.dict(
+                    os.environ,
+                    {"PATH": str(other) + os.pathsep + os.environ["PATH"]},
+                ),
+            ):
+                result = checker.command_version(["./version-probe", "--version"])
+        self.assertEqual(result, checker.VersionProbe("1.2.3", "matched"))
 
     def test_runtime_checker_reports_each_missing_or_mismatched_family(self) -> None:
         checker = load_script_module(
@@ -653,6 +743,10 @@ class QualityToolchainTests(unittest.TestCase):
         ) -> object:
             if command == ["node", "--version"]:
                 return checker.VersionProbe(None, "command not found")
+            if expected_line is None:
+                return checker.VersionProbe(
+                    CLI_VERSIONS[Path(command[0]).stem], "matched"
+                )
             assert expected_line is not None
             version = external_versions[expected_line]
             if expected_line == "1.7.12":
@@ -692,9 +786,163 @@ class QualityToolchainTests(unittest.TestCase):
                 "runtime: codespell expected 2.4.3, found None",
                 "runtime: @commitlint/cli expected 21.2.3, found None",
                 "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
+                "runtime: node_modules/katex expected 0.18.2, found None",
+                "runtime: node_modules/smol-toml expected 1.9.1, found None",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],
         )
+
+    def test_runtime_checker_rejects_nested_override_drift(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_versions_installed_overrides"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            quality_copy = Path(temporary) / "quality"
+            copy_quality_configuration(quality_copy)
+            for name, version in DECLARED_NODE_OVERRIDES.items():
+                package = quality_copy / "node_modules" / name / "package.json"
+                package.parent.mkdir(parents=True)
+                package.write_text(json.dumps({"version": version}), encoding="utf-8")
+            self.assertEqual(checker.check_installed_node_overrides(quality_copy), [])
+            lock_path = quality_copy / "package-lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            nested = "node_modules/other/node_modules/smol-toml"
+            lock["packages"][nested] = {"version": DECLARED_NODE_OVERRIDES["smol-toml"]}
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            package = quality_copy / nested / "package.json"
+            package.parent.mkdir(parents=True)
+            package.write_text('{"version":"1.8.0"}', encoding="utf-8")
+            self.assertEqual(
+                checker.check_installed_node_overrides(quality_copy),
+                [f"runtime: {nested} expected 1.9.1, found 1.8.0"],
+            )
+
+    def test_scoped_runtime_checks_the_selected_executable(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_selected_executable"
+        )
+        with (
+            mock.patch.object(
+                checker.importlib.metadata,
+                "version",
+                return_value=DECLARED_PYTHON_REQUIREMENTS["mypy"],
+            ),
+            mock.patch.object(
+                checker,
+                "command_version",
+                return_value=checker.VersionProbe("0.0.0", "matched"),
+            ) as probe,
+        ):
+            errors = checker.check_runtime(
+                QUALITY_ROOT, tools=["mypy"], executables={"mypy": "selected-mypy"}
+            )
+        self.assertEqual(
+            errors, ["runtime executable: mypy expected 2.4.0, found 0.0.0 (matched)"]
+        )
+        probe.assert_called_once_with(["selected-mypy", "--version"])
+
+    def test_scoped_runtime_uses_expected_pins_and_separate_installation(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_separate_runtime_root"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            expected = Path(temporary) / "index/quality"
+            installed = Path(temporary) / "installed/quality"
+            copy_quality_configuration(expected)
+            for name, version in {
+                "markdownlint-cli2": DECLARED_NODE_REQUIREMENTS["markdownlint-cli2"],
+                **DECLARED_NODE_OVERRIDES,
+            }.items():
+                path = installed / "node_modules" / name / "package.json"
+                path.parent.mkdir(parents=True)
+                path.write_text(json.dumps({"version": version}), encoding="utf-8")
+
+            def version(command, expected_line=None):
+                value = (
+                    "26.5.1"
+                    if command == ["node", "--version"]
+                    else DECLARED_NODE_REQUIREMENTS["markdownlint-cli2"]
+                )
+                return checker.VersionProbe(value, "matched")
+
+            with mock.patch.object(
+                checker, "command_version", side_effect=version
+            ) as probe:
+                self.assertEqual(
+                    checker.check_runtime(
+                        expected,
+                        tools=["markdownlint-cli2"],
+                        runtime_root=installed,
+                        executables={"markdownlint-cli2": "selected-markdownlint"},
+                    ),
+                    [],
+                )
+            self.assertEqual(
+                probe.call_args_list[-1].args, (["selected-markdownlint", "--version"],)
+            )
+
+    def test_unknown_scoped_runtime_never_launches_a_probe(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_unknown_runtime"
+        )
+        with mock.patch.object(checker, "command_version") as probe:
+            with self.assertRaisesRegex(ValueError, "unknown"):
+                checker.check_runtime(QUALITY_ROOT, tools=["unknown-tool"])
+        probe.assert_not_called()
+
+    def test_runtime_probe_deadline_includes_descendant_output_pipes(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_probe_descendants"
+        )
+        script = (
+            "import subprocess,sys; "
+            "subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+            "print('tool 1.2.3',flush=True)"
+        )
+        started = time.monotonic()
+        with mock.patch.object(checker, "COMMAND_TIMEOUT_SECONDS", 1):
+            result = checker.command_version([sys.executable, "-c", script])
+        self.assertEqual(result, checker.VersionProbe(None, "timed out"))
+        self.assertLess(time.monotonic() - started, 4)
+
+    def test_scoped_cli_rejects_invalid_options_before_probing(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "quality_scoped_cli_errors"
+        )
+        cases = (
+            (["--tool", "mypy"], "require --runtime"),
+            (["--runtime", "--executable", "mypy"], "unique TOOL=PATH"),
+            (
+                [
+                    "--runtime",
+                    "--tool",
+                    "mypy",
+                    "--executable",
+                    "mypy=a",
+                    "--executable",
+                    "mypy=b",
+                ],
+                "unique TOOL=PATH",
+            ),
+            (["--runtime", "--tool", "unknown"], "unknown runtime tool"),
+            (
+                ["--runtime", "--tool", "mypy", "--executable", "ruff=a"],
+                "selected tool",
+            ),
+        )
+        for arguments, diagnostic in cases:
+            with self.subTest(arguments=arguments):
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(checker, "command_version") as probe,
+                    mock.patch.object(sys, "stderr", stderr),
+                ):
+                    result = checker.main(
+                        ["--quality-root", str(QUALITY_ROOT), *arguments]
+                    )
+                self.assertEqual(result, 1)
+                self.assertIn(diagnostic, stderr.getvalue())
+                probe.assert_not_called()
 
     def test_semver_parser_rejects_ambiguous_runtime_versions(self) -> None:
         checker = load_script_module(
@@ -865,6 +1113,34 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertIn("files", pyproject["tool"]["mypy"])
         self.assertNotIn("exclude", pyproject["tool"]["mypy"])
         self.assertNotIn("ignore_missing_imports", pyproject["tool"]["mypy"])
+
+    def test_mypy_covers_every_tracked_production_python_file(self) -> None:
+        configured = tomllib.loads(
+            (QUALITY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )["tool"]["mypy"]["files"]
+        tracked = (
+            subprocess.check_output(
+                ["git", "--no-optional-locks", "ls-files", "-z", "--", "tools"],
+                cwd=SOURCE_ROOT,
+            )
+            .decode("utf-8")
+            .split("\0")
+        )
+        expected = {name for name in tracked if name.endswith(".py")}
+        covered = set()
+        for name in configured:
+            target = SOURCE_ROOT / name
+            if target.is_dir():
+                covered.update(
+                    path.relative_to(SOURCE_ROOT).as_posix()
+                    for path in target.rglob("*.py")
+                )
+            else:
+                covered.add(name)
+        self.assertTrue(
+            expected <= covered,
+            f"Production files missing from Mypy: {sorted(expected - covered)}",
+        )
 
     def test_coverage_threshold_fails_below_85_and_accepts_85_or_more(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

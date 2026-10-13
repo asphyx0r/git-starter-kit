@@ -155,6 +155,61 @@ class InitializerTests(unittest.TestCase):
             for path in self.root.rglob("*")
         }
 
+    def test_invalid_helper_tags_preserve_files_index_and_modes(self):
+        self.git("init", "--quiet", "--initial-branch=main")
+        self.git("add", "--", "README.md")
+        before = self.snapshot()
+        modes = {name: (self.root / name).stat().st_mode for name in before}
+        for tag in ("1.0.0", "v01.2.3", "v1.2.3-01", "v1.2.3+", "v1.2.3\njunk"):
+            with self.subTest(tag=tag):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(SOURCE / "tools/initialize-repository.py"),
+                        "prepare",
+                        "--path",
+                        str(self.root),
+                        "--tag",
+                        tag,
+                    ],
+                    env=self.env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=30,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("SemVer", result.stderr)
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(
+                    {name: (self.root / name).stat().st_mode for name in before}, modes
+                )
+
+    def test_invalid_prepare_preview_rejects_tag_without_mutation(self):
+        before = self.snapshot()
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(SOURCE / "tools/initialize-repository.py"),
+                "--dry-run",
+                "prepare",
+                "--path",
+                str(self.root),
+                "--tag",
+                "v01.0.0",
+            ],
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SemVer", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
     def test_helper_standard_flags_report_version_and_preview_without_mutation(self):
         helper = SOURCE / "tools/initialize-repository.py"
         version = subprocess.run(

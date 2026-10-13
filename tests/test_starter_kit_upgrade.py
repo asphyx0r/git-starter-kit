@@ -229,6 +229,255 @@ class StarterKitUpgradeTests(unittest.TestCase):
         manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
         return manifest, files, UPGRADE.evaluate_target(manifest, files, target)
 
+    def build_mode_upgrade(self, path="a.txt", mode="100755"):
+        self.new_files[path] = self.base_files[path]
+        files_manifest = json.loads(self.new_files["_starter-kit-files.json"])
+        for entry in files_manifest["files"]:
+            if entry["path"] == path:
+                entry["mode"] = mode
+                entry["sha256"] = UPGRADE.sha256_bytes(self.new_files[path])
+                entry["contentKind"], entry["canonicalSha256"] = (
+                    UPGRADE.content_metadata(self.new_files[path])
+                )
+        self.new_files["_starter-kit-files.json"] = json_bytes(files_manifest)
+        self.write_zip(self.new_package, self.new_files)
+        self.upgrade_package.unlink()
+        self.build_upgrade()
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_mode_only_update_enables_execution_and_saves_rollback(self):
+        self.build_mode_upgrade()
+        target = self.create_target()
+        path = target / "a.txt"
+        path.chmod(0o640)
+        manifest, files, plan = self.load_plan(target)
+        action = next(item for item in plan["actions"] if item["path"] == "a.txt")
+        self.assertEqual(action["action"], "update")
+        self.assertEqual(action.get("localMode"), 0o640)
+        self.assertIs(action.get("modeOnly"), True)
+        self.assertIs(action.get("modeAligned"), False)
+        self.assertEqual(
+            UPGRADE.exact_release_alignment({"actions": [action]}), "NOT_ALIGNED"
+        )
+        self.assertEqual(UPGRADE.operational_compliance(plan), "NON_COMPLIANT")
+
+        backup = UPGRADE.apply_upgrade(
+            manifest, files, target, plan, self.backup_directory
+        )
+
+        self.assertEqual(path.read_bytes(), b"base a\n")
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o751)
+        with zipfile.ZipFile(backup) as archive:
+            self.assertEqual(archive.read("files/a.txt"), b"base a\n")
+            self.assertEqual(
+                stat.S_IMODE(archive.getinfo("files/a.txt").external_attr >> 16), 0o640
+            )
+        _, _, post_plan = self.load_plan(target)
+        post_action = next(
+            item for item in post_plan["actions"] if item["path"] == "a.txt"
+        )
+        self.assertEqual(post_action["action"], "aligned")
+        self.assertIs(post_action["modeAligned"], True)
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_mode_only_update_removes_execution_and_preserves_other_bits(self):
+        self.build_mode_upgrade(mode="100644")
+        target = self.create_target()
+        path = target / "a.txt"
+        path.chmod(0o751)
+        self.run_git(target, "add", "a.txt")
+        self.run_git(target, "commit", "-m", "test: executable baseline")
+        manifest, files, plan = self.load_plan(target)
+        action = next(item for item in plan["actions"] if item["path"] == "a.txt")
+        self.assertEqual(action["action"], "update")
+        self.assertIs(action.get("modeOnly"), True)
+
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+
+        self.assertEqual(path.read_bytes(), b"base a\n")
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_mode_only_update_preserves_crlf_bytes(self):
+        self.build_mode_upgrade()
+        target = self.create_target()
+        path = target / "a.txt"
+        path.write_bytes(b"base a\r\n")
+        self.run_git(target, "add", "a.txt")
+        self.run_git(target, "commit", "-m", "test: CRLF baseline")
+        manifest, files, plan = self.load_plan(target)
+        action = next(item for item in plan["actions"] if item["path"] == "a.txt")
+        self.assertIs(action.get("modeOnly"), True)
+
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+
+        self.assertEqual(path.read_bytes(), b"base a\r\n")
+        self.assertTrue(path.stat().st_mode & stat.S_IXUSR)
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_mode_only_update_preserves_accepted_merge_customization(self):
+        self.build_mode_upgrade(path="merge.txt")
+        target = self.create_target()
+        path = target / "merge.txt"
+        custom = b"first base\r\nstable one\r\nstable two\r\nlast local\r\n"
+        path.write_bytes(custom)
+        self.run_git(target, "add", "merge.txt")
+        self.run_git(target, "commit", "-m", "test: local merge customization")
+        manifest, files, plan = self.load_plan(target)
+        action = next(item for item in plan["actions"] if item["path"] == "merge.txt")
+        self.assertIs(action.get("modeOnly"), True)
+
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+
+        self.assertEqual(path.read_bytes(), custom)
+        self.assertTrue(path.stat().st_mode & stat.S_IXUSR)
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_matching_git_mode_leaves_custom_execute_bits_unchanged(self):
+        self.build_mode_upgrade()
+        target = self.create_target()
+        path = target / "a.txt"
+        path.chmod(0o740)
+        self.run_git(target, "add", "a.txt")
+        self.run_git(target, "commit", "-m", "test: custom executable permissions")
+        manifest, files, plan = self.load_plan(target)
+        action = next(item for item in plan["actions"] if item["path"] == "a.txt")
+        self.assertEqual(action["action"], "aligned")
+        self.assertIs(action.get("modeOnly"), False)
+        self.assertEqual(
+            UPGRADE.exact_release_alignment({"actions": [action]}), "ALIGNED"
+        )
+
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o740)
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_permission_change_after_planning_blocks_application(self):
+        self.build_mode_upgrade()
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        path = target / "a.txt"
+        path.chmod(0o640)
+
+        with self.assertRaisesRegex(
+            UPGRADE.UpgradeError, "Target changed after planning: a.txt"
+        ):
+            UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+
+        self.assertEqual(path.read_bytes(), b"base a\n")
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+        self.assertEqual(
+            (target / "merge.txt").read_bytes(), self.base_files["merge.txt"]
+        )
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_failed_or_ineffective_chmod_rolls_back(self):
+        self.build_mode_upgrade()
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        path = target / "a.txt"
+        chmod = Path.chmod
+        for failure in (PermissionError("blocked mode repair"), None):
+            with self.subTest(failure=failure):
+                blocked = False
+
+                def block_first_repair(destination, mode, **kwargs):
+                    nonlocal blocked
+                    if destination == path and not blocked:
+                        blocked = True
+                        if failure is not None:
+                            raise failure
+                        return
+                    chmod(destination, mode, **kwargs)
+
+                with mock.patch.object(Path, "chmod", block_first_repair):
+                    with self.assertRaises(
+                        PermissionError if failure else UPGRADE.UpgradeError
+                    ):
+                        UPGRADE.apply_upgrade(
+                            manifest, files, target, plan, self.backup_directory
+                        )
+                self.assertTrue(blocked)
+                self.assertEqual(path.read_bytes(), b"base a\n")
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
+                for backup in self.backup_directory.glob("*.zip"):
+                    backup.unlink()
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_later_write_failure_restores_mode_only_update_exactly(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        self.build_mode_upgrade()
+        target = self.create_target()
+        path = target / "a.txt"
+        path.chmod(0o640)
+        manifest, files, plan = self.load_plan(target)
+
+        def fail_new_file(destination, content, mode):
+            if destination == target / "new.txt":
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o751)
+                raise OSError("blocked later write")
+            UPGRADE.write_payload(destination, content, mode)
+
+        with self.assertRaisesRegex(OSError, "blocked later write"):
+            application.apply_upgrade(
+                manifest,
+                files,
+                target,
+                plan,
+                self.backup_directory,
+                payload_writer=fail_new_file,
+            )
+
+        self.assertEqual(path.read_bytes(), b"base a\n")
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_mode_only_drift_preserves_initialize_only_and_delegated_files(self):
+        self.build_mode_upgrade(path="README.md")
+        self.build_mode_upgrade(path="AGENTS.md")
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        readme = next(item for item in plan["actions"] if item["path"] == "README.md")
+        self.assertEqual(readme["action"], "review-initialize-only")
+        self.assertIs(readme.get("modeOnly"), False)
+        agents = next(item for item in plan["actions"] if item["path"] == "AGENTS.md")
+        self.assertEqual(agents["action"], "delegate-agent-rules")
+        self.assertIs(agents.get("modeAligned"), False)
+
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+
+        self.assertEqual((target / "README.md").read_bytes(), b"base readme\n")
+        self.assertFalse((target / "README.md").stat().st_mode & stat.S_IXUSR)
+        self.assertEqual((target / "AGENTS.md").read_bytes(), b"base agents\n")
+
+    @unittest.skipUnless(os.name == "nt", "Windows mode enforcement contract")
+    def test_windows_mode_only_difference_does_not_schedule_repair(self):
+        self.build_mode_upgrade()
+        target = self.create_target()
+        _, _, plan = self.load_plan(target)
+        action = next(item for item in plan["actions"] if item["path"] == "a.txt")
+        self.assertEqual(action["action"], "aligned")
+        self.assertIn("localMode", action)
+        self.assertIsNone(action["localMode"])
+        self.assertIs(action.get("modeAligned"), True)
+        self.assertIs(action.get("modeOnly"), False)
+
+    def test_exact_alignment_accepts_legacy_actions_without_mode_fields(self):
+        self.assertEqual(
+            UPGRADE.exact_release_alignment(
+                {
+                    "actions": [
+                        {
+                            "localCanonicalSha256": "same",
+                            "newCanonicalSha256": "same",
+                        }
+                    ]
+                }
+            ),
+            "ALIGNED",
+        )
+
     def run_main(self, arguments):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -1447,11 +1696,14 @@ print(upgrade.VERSION)
     def test_interruption_after_adoption_write_restores_all_originals(self):
         application = importlib.import_module("starter_kit_upgrade.application")
         target = self.create_target()
+        if os.name != "nt":
+            (target / "a.txt").chmod(0o751)
+            self.run_git(target, "add", "a.txt")
+            self.run_git(target, "commit", "-m", "test: executable rollback baseline")
         manifest, files, plan = self.load_plan(target)
         adoption_path = target / UPGRADE.ADOPTION_PATH
         adoption_path.write_bytes(b'{"original": true}\n')
         if os.name != "nt":
-            (target / "a.txt").chmod(0o751)
             adoption_path.chmod(0o600)
         before = {
             p: UPGRADE.snapshot_file(target / p)
@@ -1784,9 +2036,11 @@ print(upgrade.VERSION)
     @unittest.skipIf(os.name == "nt", "POSIX file modes are unavailable on Windows")
     def test_failed_write_restores_exact_posix_mode(self):
         target = self.create_target()
-        manifest, files, plan = self.load_plan(target)
         path = target / "a.txt"
         path.chmod(0o751)
+        self.run_git(target, "add", "a.txt")
+        self.run_git(target, "commit", "-m", "test: executable rollback baseline")
+        manifest, files, plan = self.load_plan(target)
         real_write = UPGRADE.write_payload
         calls = 0
 

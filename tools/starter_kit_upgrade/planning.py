@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path, PurePosixPath
+import stat
 import subprocess
 import tempfile
 from typing import Any
@@ -255,6 +257,15 @@ def evaluate_target(
             raise UpgradeError(f"Duplicate canonical destination: {relative}")
         destinations.add(destination_key)
         local_content = local_path.read_bytes() if local_path.is_file() else None
+        local_mode = (
+            stat.S_IMODE(local_path.stat().st_mode)
+            if os.name != "nt" and local_content is not None
+            else None
+        )
+        mode_aligned = os.name == "nt" or (
+            local_mode is not None
+            and bool(local_mode & stat.S_IXUSR) == (entry["mode"] == "100755")
+        )
         content_kind = str(entry.get("contentKind", "binary"))
         schema_version = int(manifest.get("schemaVersion", 1))
         local_digest = (
@@ -344,6 +355,13 @@ def evaluate_target(
                 action = "merge"
         else:
             action = "conflict-modified"
+        mode_only = False
+        if action == "aligned" and not mode_aligned:
+            if strategy == "initialize-only":
+                action = "review-initialize-only"
+            else:
+                action = "update"
+                mode_only = True
         actions.append(
             {
                 "path": relative,
@@ -352,6 +370,9 @@ def evaluate_target(
                 "localCanonicalSha256": local_digest,
                 "baseCanonicalSha256": base_digest,
                 "newCanonicalSha256": new_digest,
+                "localMode": local_mode,
+                "modeAligned": mode_aligned,
+                "modeOnly": mode_only,
             }
         )
         if journal is not None:
@@ -362,7 +383,9 @@ def evaluate_target(
                     f"path={relative} action={action} strategy={strategy} "
                     f"localCanonicalSha256={local_digest} "
                     f"baseCanonicalSha256={base_digest} "
-                    f"targetCanonicalSha256={new_digest}"
+                    f"targetCanonicalSha256={new_digest} "
+                    f"localMode={local_mode} targetMode={entry['mode']} "
+                    f"modeAligned={mode_aligned} modeOnly={mode_only}"
                 ),
             )
 
@@ -457,6 +480,7 @@ def exact_release_alignment(plan: dict[str, Any]) -> str:
         "ALIGNED"
         if all(
             action["localCanonicalSha256"] == action["newCanonicalSha256"]
+            and action.get("modeAligned", True)
             for action in plan["actions"]
         )
         else "NOT_ALIGNED"

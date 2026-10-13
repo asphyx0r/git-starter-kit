@@ -395,14 +395,19 @@ def available_platforms(record: dict[str, Any]) -> set[str]:
 
 def validate_registry(registry: object) -> dict[str, Any]:
     """Validate and return the schema-2 quality-tool registry."""
-    value = _require_exact_keys(registry, REGISTRY_KEYS, "versions.json")
+    keys = REGISTRY_KEYS | (
+        {"nodeOverrides"}
+        if isinstance(registry, dict) and "nodeOverrides" in registry
+        else set()
+    )
+    value = _require_exact_keys(registry, keys, "versions.json")
     if (
         type(value["schemaVersion"]) is not int
         or value["schemaVersion"] != SCHEMA_VERSION
     ):
         raise InstallerError("schemaVersion must be 2")
-    for section in ("python", "node"):
-        declarations = value[section]
+    for section in ("python", "node", "nodeOverrides"):
+        declarations = value.get(section, {})
         if not isinstance(declarations, dict):
             raise InstallerError(f"versions.json: {section} must be an object")
         for name, version in declarations.items():

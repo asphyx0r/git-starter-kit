@@ -265,6 +265,60 @@ PY
   printf '%s\n' 'PASS: historical manifest authentication and release policy; strict untagged candidate'
 )
 
+run_initializer_fixture_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  initialize_repository_root
+  local fixture="${test_temp}/initializer fixture"
+  local host_commitlint
+  host_commitlint="$(resolve_hook_node_tool commitlint)"
+  export AUDIT_COMMITLINT_COMMAND="${host_commitlint}"
+  mkdir -p "${test_temp}/initializer-bin"
+  cat >"${test_temp}/initializer-bin/commitlint" <<'COMMITLINT'
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$AUDIT_COMMITLINT_COMMAND" "$@"
+COMMITLINT
+  chmod +x "${test_temp}/initializer-bin/commitlint"
+  export GIT_AUTHOR_NAME=Codex GIT_AUTHOR_EMAIL=codex@example.com
+  export GIT_COMMITTER_NAME=Codex GIT_COMMITTER_EMAIL=codex@example.com
+  prepare_initializer_validation_fixture "${fixture}"
+  local required
+  for required in check-versions.py install-external-tools.py versions.json \
+    package.json package-lock.json requirements.in requirements.lock pyproject.toml; do
+    [[ -f "${fixture}/tools/quality/${required}" ]] || fail "initializer fixture omits ${required}"
+  done
+  [[ -f "${fixture}/.gitignore" ]] || fail 'initializer fixture does not ignore installed dependencies'
+  python -B - "${fixture}" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+quality = root / "tools/quality"
+lock = json.loads((quality / "package-lock.json").read_bytes())
+for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+    metadata = json.loads((quality / "node_modules" / name / "package.json").read_bytes())
+    assert metadata["version"] == lock["packages"][f"node_modules/{name}"]["version"]
+inventory = json.loads((root / "_starter-kit-files.json").read_bytes())
+assert not any("node_modules" in Path(entry["path"]).parts for entry in inventory["files"])
+PY
+  if ! printf 'y\ny\n' | PATH="${test_temp}/initializer-bin:$PATH" \
+    bash tools/git-init.sh --path "${fixture}" --tag v1.0.0 \
+    >"${test_temp}/initializer-fixture.out" 2>"${test_temp}/initializer-fixture.err"; then
+    cat "${test_temp}/initializer-fixture.err" >&2
+    fail 'locked initializer fixture failed its real commit-msg hook'
+  fi
+  [[ "$(git -C "${fixture}" log -1 --format=%s)" == 'chore(git): initialize repository' ]] ||
+    fail 'initializer fixture did not commit the validated message'
+  printf '%s\n' 'PASS: initializer fixture carries locked runtime inputs without distributing dependencies'
+)
+
+if [[ "${1:-}" == --initializer-fixture ]]; then
+  run_initializer_fixture_checks
+  exit
+fi
+
 if [[ "${1:-}" == --manifest-smoke ]]; then
   run_manifest_smoke_checks
   exit
@@ -277,6 +331,7 @@ if [[ "${1:-}" == --profile-failures ]]; then
 fi
 
 run_manifest_smoke_checks
+run_initializer_fixture_checks
 
 run_powershell_host_checks() (
   # shellcheck disable=SC1090

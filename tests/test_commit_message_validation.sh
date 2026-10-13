@@ -52,7 +52,26 @@ initialize_fixture() {
   cp -R "$source_root/tools/repository-audit" \
     "$fixture_root/tools/repository-audit"
   cp "$source_root/commitlint.config.cjs" "$fixture_root/commitlint.config.cjs"
+  mkdir -p "$fixture_root/tools/quality"
+  find "$source_root/tools/quality" -maxdepth 1 -type f \
+    -exec cp -- {} "$fixture_root/tools/quality/" \;
+  cp "$source_root/tools/process_runner.py" "$fixture_root/tools/process_runner.py"
+  # The real CLI proxy uses test metadata derived from the tracked lock.
+  python -B - "$fixture_root/tools/quality" <<'PYTHON_METADATA'
+import json
+from pathlib import Path
+import sys
+
+quality = Path(sys.argv[1])
+lock = json.loads((quality / "package-lock.json").read_text(encoding="utf-8"))
+for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+    package = quality / "node_modules" / name / "package.json"
+    package.parent.mkdir(parents=True, exist_ok=True)
+    version = lock["packages"][f"node_modules/{name}"]["version"]
+    package.write_text(json.dumps({"version": version}), encoding="utf-8")
+PYTHON_METADATA
   chmod +x "$fixture_root/.githooks/commit-msg"
+  git -C "$fixture_root" add -- commitlint.config.cjs tools .githooks
 }
 
 commit_without_repository_hooks() {
@@ -88,6 +107,10 @@ write_valid_message() {
 require_test_command git
 require_test_command python
 locked_commitlint_command="$(resolve_hook_node_tool commitlint)"
+
+source_without_install="$test_temp/source without install"
+git clone -q --no-hardlinks -- "$source_root" "$source_without_install"
+source_root="$source_without_install"
 
 test_bin="$test_temp/bin"
 mkdir -p "$test_bin"
@@ -437,5 +460,48 @@ actual_message="$(git -C "$hook_fixture" log -1 --format=%B | tr -d '\r')"
 if [ "$actual_message" != "$expected_message" ]; then
   fail "committed message differs from the validated file"
 fi
+
+relative_fixture="$test_temp/relative-config-fixture"
+initialize_fixture "$relative_fixture"
+cp "$script_dir/../tools/repository-audit/hooks.sh" \
+  "$relative_fixture/tools/repository-audit/hooks.sh"
+mkdir -p "$relative_fixture/config"
+printf '["hooks"]\n' >"$relative_fixture/config/commit-scopes.json"
+git -C "$relative_fixture" add -- config/commit-scopes.json
+commit_without_repository_hooks "$relative_fixture" "$initial_message"
+cat >"$relative_fixture/commitlint.config.cjs" <<'RELATIVE_CONFIG'
+module.exports = {
+  rules: { 'scope-enum': [2, 'always', require('./config/commit-scopes.json')] },
+};
+RELATIVE_CONFIG
+git -C "$relative_fixture" add -- commitlint.config.cjs
+printf 'throw new Error("unstaged configuration must not run");\n' \
+  >"$relative_fixture/commitlint.config.cjs"
+printf '["worktree"]\n' >"$relative_fixture/config/commit-scopes.json"
+relative_message="$test_temp/relative-config-message.txt"
+printf 'fix(hooks): validate indexed helper\n' >"$relative_message"
+relative_output="$test_temp/relative-config.out"
+if ! git -c core.hooksPath=.githooks -C "$relative_fixture" commit \
+  --file="$relative_message" --cleanup=verbatim --quiet \
+  >"$relative_output" 2>&1; then
+  cat "$relative_output" >&2
+  fail "commit-msg lost a tracked relative helper or used unstaged content"
+fi
+printf '["other"]\n' >"$relative_fixture/config/commit-scopes.json"
+git -C "$relative_fixture" add -- config/commit-scopes.json
+printf '["hooks"]\n' >"$relative_fixture/config/commit-scopes.json"
+relative_head="$(git -C "$relative_fixture" rev-parse HEAD)"
+relative_index="$(git -C "$relative_fixture" write-tree)"
+if git -c core.hooksPath=.githooks -C "$relative_fixture" commit \
+  --file="$relative_message" --cleanup=verbatim --quiet \
+  >"$relative_output" 2>&1; then
+  fail "commit-msg accepted a message forbidden by the indexed relative helper"
+fi
+grep -F 'scope-enum' "$relative_output" >/dev/null ||
+  fail "indexed relative helper rejection did not report scope-enum"
+[[ "$(git -C "$relative_fixture" rev-parse HEAD)" == "$relative_head" ]] ||
+  fail "relative helper rejection changed HEAD"
+[[ "$(git -C "$relative_fixture" write-tree)" == "$relative_index" ]] ||
+  fail "relative helper rejection changed the index"
 
 printf '%s\n' 'PASS: commit message and release range validation'

@@ -42,9 +42,28 @@ token, limited to `contents: write` and `pull-requests: write`. It repeats every
 validation with that token. Each pass also requires repository auto-merge to
 be disabled, rejects every effective merge-queue rule on the trusted default
 branch, and rejects a pull request that already has auto-merge enabled or is
-queued. The final command calls `gh pr merge` with squash mode, the exact
-subject, an explicit body file, and the sealed head SHA; it supplies no auto,
-administrator, auto-disable, or branch-deletion option.
+queued. The final command calls the GitHub merge API through `gh api`, with
+squash mode, the exact subject/body and the sealed head SHA in a JSON file.
+The server evaluates the App's separate update-rule bypass and all ordinary
+protections. No administrator, auto-merge or branch-deletion option is used.
+
+Both passes also require squash as the only repository merge method and the
+only method allowed by every effective pull-request rule. The active branch
+rules must include a repository-owned `Restrict updates` ruleset, separate from
+ordinary protections, with fetch-and-merge disabled. Missing, malformed or
+incomplete activation fails before dispatch or merge.
+
+GitHub can omit the update rule's parameters for a repository without an
+upstream. The guard accepts that representation only when repository metadata
+explicitly identifies a non-fork. Forks still require the explicit disabled
+parameter; null or malformed parameters are rejected.
+
+These reads preserve the workflow's existing permissions. They verify active
+rules and merge settings, but do not establish who can bypass a ruleset. GitHub
+can omit `bypass_actors` when the token cannot write that ruleset. A maintainer
+with administrative access must audit the complete bypass lists at activation
+and after any governance change; absent data is not evidence of an empty list.
+See the [GitHub ruleset API](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset).
 
 ## Prerequisites
 
@@ -52,6 +71,7 @@ Install the locked Node dependencies and authenticate GitHub CLI:
 
 ```bash
 npm ci --ignore-scripts --prefix tools/quality
+python tools/quality/npm-security.py patch
 gh auth status
 ```
 
@@ -83,8 +103,8 @@ body
 
 The second form may contain multiple body lines. Commitlint still enforces the
 repository limits, including the 72-character body-line maximum. The tool
-always supplies both the subject and `--body-file`; subject-only messages use an
-empty body file so GitHub cannot generate default text.
+always supplies both `commit_title` and `commit_message`; subject-only messages
+use an explicit empty message so GitHub cannot generate default text.
 
 ## Request a merge
 
@@ -141,7 +161,7 @@ for the exact `Guarded merge <UUID>` run and inspect the pull request. A repeate
 dispatch uses a new UUID and can race with the original request; UUID and hash
 values provide correlation and integrity, not origin authentication.
 
-After `gh pr merge` returns, and after any correlated workflow result including
+After the merge API returns, and after any correlated workflow result including
 `success`, the requester or executor requires the pull request to be merged,
 still targets the trusted default branch with the sealed head, reads the real
 merge commit, validates its message with Commitlint, and compares it
@@ -167,7 +187,8 @@ the following steps for each target repository:
 3. Set `automations.guardedMerge` to `true` in `.starter-kit-project.json` on
    the default branch, then create a distinct default-branch ruleset that
    enables only the GitHub `Restrict updates` rule and grants bypass only to
-   the configured App.
+   the configured App, with `always` mode and fetch-and-merge disabled. Use the
+   numeric App ID from its owner settings, not its client ID or bot account ID.
 4. Keep the default branch's existing protections without a bypass actor for
    the App, so it remains subject to required checks and review controls.
 5. Disable repository auto-merge and ensure that no repository or organization
@@ -176,7 +197,12 @@ the following steps for each target repository:
    documented by [`gh pr merge`](https://cli.github.com/manual/gh_pr_merge).
 6. Disable merge-commit and rebase merge methods in repository settings,
    leaving squash merge as the supported method.
-7. Open a disposable pull request and prove that a manual merge is blocked,
+7. Use administrative credentials to inspect every applicable ruleset and its
+   complete bypass list. The distinct update-only ruleset must have exactly the
+   configured App as its sole bypass; ordinary protections must have no App
+   bypass. Record the full responses. Repeat this audit after governance changes;
+   the limited workflow tokens cannot prove the bypass configuration each time.
+8. Open a disposable pull request and prove that a manual merge is blocked,
    while the App path succeeds only after the required checks pass.
 
 Record the ruleset identities, App identity, repository settings, disposable

@@ -6,7 +6,8 @@ application runtimes and application test commands before accepting contribution
 ## Development
 
 Install the locked hook dependencies with
-`npm ci --ignore-scripts --prefix tools/quality`. Run
+`npm ci --ignore-scripts --prefix tools/quality`, then explicitly apply
+`python tools/quality/npm-security.py patch`. Run
 `bash tools/repository-audit.sh fast` for core checks and
 `bash tools/repository-audit.sh project-checks` for explicitly declared
 application validation. Empty checks warn; they do not prove regressions passed.
@@ -24,7 +25,9 @@ fix(auth): reject expired tokens
 ```
 
 Hooks enforce syntax and content constraints through Commitlint. Choose scopes
-that describe your application. Pull requests require the project's review and
+that describe your application. Commitlint configuration and its tracked relative
+imports are read from the Git index; stage their intended contents together.
+Pull requests require the project's review and
 validation policy. Optional guarded merge activation uses trusted default-branch
 settings; ordinary reviews remain necessary when it is disabled.
 

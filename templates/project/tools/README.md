@@ -4,6 +4,11 @@ These tools initialize this project, validate its managed core, run declared
 application checks and prepare verifiable release artifacts. Run examples from
 the repository root and consult each tool's `--help` before mutation.
 
+The initializer helper rejects invalid v-prefixed SemVer tags before changelog,
+file-mode or index changes, including prepare dry-runs. Release output writes
+restore replaced files after Python interruptions; failures in restoration or
+temporary cleanup accompany the original error. Use one writer during preparation.
+
 ## Tool index
 
 | Tool | Purpose | Runtime |
@@ -20,6 +25,7 @@ the repository root and consult each tool's `--help` before mutation.
 | `backup-target-directory.py` | Local directory backup | Python |
 | `quality/check-versions.py` | Verify pinned tools | Python |
 | `quality/install-external-tools.py` | Verified external tool installation | Python |
+| `quality/npm-security.py` | Attested npm fix and security gate | Python / Node.js |
 | `git_objects.py` / `process_runner.py` | Shared runtime modules | Python |
 
 ## Requirements
@@ -32,6 +38,11 @@ Use its active `python` for
 `python -m pip install --require-hashes --requirement tools/quality/requirements.lock`;
 the initializer requires `jsonschema`, not provided by standard Python. Install
 locked Node dependencies with `npm ci --ignore-scripts --prefix tools/quality`.
+Apply `python tools/quality/npm-security.py patch` after that installation.
+`verify` validates every installed braces occurrence; `audit` queries npm and
+blocks other high/critical advisories while retaining the attested upstream
+braces finding in its raw report. Use `--help` for dry-run and diagnostics.
+The fix, hashes and MIT license live in `quality/patches/braces-3.0.3/`.
 Full/static audits also require the pinned tools in `quality/versions.json` and
 PSScriptAnalyzer where PowerShell files are audited. See each CLI's help for
 installation roots and platform selection, and
@@ -126,6 +137,29 @@ The exact inventory is [Managed files](../docs/repository-files.md).
 
 ## Common usage and tool reference
 
+Managed workflow contracts use named hashes of normalized executable scripts,
+with embedded Python checked as syntax trees. Permissions, pinned actions, refs,
+credential boundaries and step order remain protected. Setup download caches may
+vary only across declared lock/registry paths. Configure `cache` and
+`cache-dependency-path` together, or omit both. Review execution changes and their
+tests before updating the corresponding seal; a matching hash does not prove the
+changed behavior is correct.
+
+Source-maintenance hooks select each changed test's family and the focused
+pre-commit/pre-push suites for those wrappers, combining repeated pushed objects.
+Shared or unknown source changes retain all Python and four shell suites. Consumer
+projects keep their managed-core scope and explicitly declared application checks.
+
+Pre-commit probes only its selected executables against indexed pins before
+linting. Commit-msg checks the actual Commitlint and indexed configuration.
+PowerShell validation loads the exact pinned PSScriptAnalyzer module. Use
+`python -B tools/quality/check-versions.py --runtime --tool NAME` for a focused
+runtime check; repeat `--tool` as needed. `--runtime-root` separates installed
+packages from expected metadata, and `--executable TOOL=PATH` names the exact
+caller-selected command. These checks never install missing tools.
+Explicit relative paths such as `./tool` launch that file even when `PATH`
+contains a namesake executable.
+
 ```bash
 bash tools/git-init.sh --path . --dry-run
 bash tools/git-init.sh --path .
@@ -153,6 +187,13 @@ bash tools/repository-audit.sh project-checks
 
 Core success and successful eligible application checks are separate results.
 An empty-check warning never proves application regressions passed.
+
+The audit workflow executes declared project checks in its existing Linux and
+Windows jobs; either failure blocks the aggregate `Repository audit` check.
+Source maintenance coverage artifacts and their combined floors are conditional
+on source scope and do not require consumer test files. Superseded ordinary
+branch pushes are cancelled by ref; tag, release, manual and release-preflight
+evidence remains separate and is not cancelled by that policy.
 
 Prepare application dependencies in the environment that runs each declared
 check. Exact pre-push snapshots do not inherit ignored dependencies from your
