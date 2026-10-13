@@ -4,13 +4,15 @@
 
 This record tracks the nineteen findings from the 2026-10-12 audit and the
 [approved implementation plan](../plans/2026-10-12-audit-remediation.md).
-It records local implementation evidence as of 2026-10-13. It does not close
+It records local implementation and activation evidence as of 2026-10-13. It does not close
 findings that still require candidate qualification, integration or live settings.
 
 The original base is `bace76a55c165d18b67bdc9e25b224dc725d4286`. Work is isolated on
 `fix/audit-remediation`. Published history and unrelated repositories are preserved.
 The proposed candidate is `v2.12.0`; the published baseline remains `v2.11.7`.
-No primary tag, push, GitHub Release or remote activation has been performed.
+No primary tag or GitHub Release has been performed. Authorized remote settings
+were activated after the local candidate; publication and hosted proof remain
+separate gates.
 
 ## Local Deliverables
 
@@ -39,7 +41,7 @@ finding still depends on the final candidate checks below.
 | ID | Axis | Implementation and evidence | Remaining proof |
 | --- | --- | --- | --- |
 | 01 | 2 | Local braces walkers, exact upstream provenance and attestation gate; 18 security tests and 3,315 differential API cases | Exact-candidate dependency audit and distribution |
-| 02 | 6 | Local preflight rejects incomplete rules/settings; owner supplied App ID 4355746; current main restriction is absent | Authorized activation, full administrative bypass audit and disposable-PR proof |
+| 02 | 6 | Local preflight rejects incomplete rules/settings; owner supplied App ID 4355746; separate main restriction activated as ruleset 24996187 | Administrative bypass audit and disposable-PR proof |
 | 03 | 2 | smol-toml 1.9.1 pinned in registry/overrides/lock; installed occurrences checked | Candidate audit and integration |
 | 04 | 3 | Output rollback handles interrupts and independent cleanup/restoration failures; 48 release tests | Candidate full suite |
 | 05 | 3 | Shared SemVer validation precedes initializer writes/index changes; 19 initializer tests | Candidate full suite and package initialization |
@@ -48,7 +50,7 @@ finding still depends on the final candidate checks below.
 | 08 | 4 | v2.12.0 metadata/checksums prepared after substantive changes; both selected-index checks passed | Final commit checks and exact-candidate package qualification |
 | 09 | 5 | Broken environment rebuilt; pinned local tools provisioned; selected real executables checked against indexed pins | Candidate hooks and runtime qualification |
 | 10 | 6 | Registry, declarations and hashed locks updated coherently; maintenance procedure documented | Integration and coordinated future bot proposals |
-| 11 | 6 | Single-maintainer review exception accepted; release environment still has no reviewer | Documented human gate, live reviewer and disabled admin bypass |
+| 11 | 6 | Single-maintainer review exception accepted; release reviewer asphyx0r configured with self-review allowed | Disabled admin bypass and live gate proof |
 | 12 | 5 | Focused pre-commit/pre-push suites selected with shared conservative fallback | Candidate pre-push qualification |
 | 13 | 2 | KaTeX 0.18.2 override checked against the lock and installed tree; real Markdownlint runs pass | Candidate dependency and CLI checks |
 | 14 | 4 | Local commits separate responsibilities; code/tests/docs accompany behavior | Final branch review and evidence completeness |
@@ -568,3 +570,39 @@ new requester; no temporary guard bypass or bootstrap code change is required.
 Verify the resulting settings before any disposable native-merge test. Publishing
 this branch, creating its integration PR and running hosted evidence are separate
 external actions; no such action has occurred in this qualification.
+
+## Authorized External Activation
+
+The owner authorized branch publication, its PR and guarded integration, the
+four proposed GitHub settings payloads, administrative bypass auditing and
+hosted/disposable-PR qualification. Primary tags and GitHub Releases remain
+outside that authorization.
+
+The pre-activation main SHA was
+`6d5b6d1fe992022157e0f3ef4b0366836aa713a5`; the task branch was absent remotely.
+Repository settings now permit squash only, with auto-merge disabled. Ordinary
+main ruleset `23177592` retains its required `Repository audit` check from
+Integration `15368`, conversation resolution and all other existing parameters;
+only allowed merge methods were narrowed. Separate update-only ruleset
+`24996187` permits only Integration `4355746` to bypass that restriction.
+The release environment now requires User `83057672` (`asphyx0r`), permits
+self-review and retains the existing `main`, `master` and `v*` restrictions.
+Administrative bypass is still true at this checkpoint and requires the
+supported settings UI, whose accessible browser is unauthenticated.
+
+Live GitHub GET responses omit the update rule's parameters for this non-fork
+repository, including with API version `2026-03-10`. The documented flag controls
+pulling from an upstream repository. The prior guard incorrectly rejected this
+representation. A regression test failed with `Restrict updates` before the
+fix. The guard now accepts absent parameters only after a repository GET proves
+`fork=false`; explicit null, malformed/empty parameters, enabled fetch-and-merge,
+forks and missing/ambiguous fork metadata still fail. All 81 guard CLI tests
+pass on native Windows; the actual activated API policy resolves to
+`Repository audit`. Workflow permissions and ordinary protections are unchanged.
+The sandbox run failed fixture writes with access-denied errors; the native
+regression and complete focused suite are the applicable evidence.
+
+The earlier 597-test OS measurements and package digests remain bound to their
+recorded commits. They are not relabelled as qualification of this subsequent
+integration correction. Hosted checks and the active publication hook must
+qualify the resulting candidate before integration.

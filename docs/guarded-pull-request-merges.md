@@ -52,6 +52,11 @@ rules must include a repository-owned `Restrict updates` ruleset, separate from
 ordinary protections, with fetch-and-merge disabled. Missing, malformed or
 incomplete activation fails before dispatch or merge.
 
+GitHub can omit the update rule's parameters for a repository without an
+upstream. The guard accepts that representation only when repository metadata
+explicitly identifies a non-fork. Forks still require the explicit disabled
+parameter; null or malformed parameters are rejected.
+
 These reads preserve the workflow's existing permissions. They verify active
 rules and merge settings, but do not establish who can bypass a ruleset. GitHub
 can omit `bypass_actors` when the token cannot write that ruleset. A maintainer

@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T10:13:36Z",
+    "release_date": "2026-10-13T12:09:42Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2842179,
-            "built_at": "2026-10-13T10:13:36Z",
-            "sha256": "3d7c4d257bbc1f2236d7c8fbbc4bfeebc19418d800d560b94d6c8e805e8546e5",
+            "size_bytes": 2846862,
+            "built_at": "2026-10-13T12:09:42Z",
+            "sha256": "0de4e528d9e1217c62c58961ce0dbd0e76baf0dcc6d299beea5fed5611498222",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -470,11 +470,11 @@
                 },
                 {
                     "relative_path": "docs/guarded-pull-request-merges.md",
-                    "size_bytes": 10508,
+                    "size_bytes": 10790,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "948937f8e72a775b77fa9c6f55b137055fef274ef225c5dfae651f0d27276417",
+                    "sha256": "7262616b52478b4d61689e4fffccde7f5c8ef99a16e9314765d34eedcbdbca74",
                     "mode": "644"
                 },
                 {
@@ -533,11 +533,11 @@
                 },
                 {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
-                    "size_bytes": 38151,
+                    "size_bytes": 40463,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "230d669f0e0b80e8282bb6976aab227311922d0e72533b5c3316b89d7c6bdfef",
+                    "sha256": "8d3f62d00fb763755ce73cfbbf5f640d599807f153cb7bad61c396ee6df985e3",
                     "mode": "644"
                 },
                 {
@@ -555,7 +555,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "544058942e4d33f0b6f70f313ceabc90584c6ba4a747619eb22da8636e829174",
+                    "sha256": "7d27272f5ee2b067e9d1bc1a8189c7e6c7287781288ad112b92202e8030005d7",
                     "mode": "644"
                 },
                 {
@@ -938,11 +938,11 @@
                 },
                 {
                     "relative_path": "tests/test_merge_pull_request.py",
-                    "size_bytes": 115188,
+                    "size_bytes": 116822,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c539621ca694d081bba7ec4df7f4aea708b0fc600a033854d68c96357a62b1b8",
+                    "sha256": "b34993af894e2ec71a4b39814556edfe6a263ee21dbd6c8936d4f7bbee5357b9",
                     "mode": "644"
                 },
                 {
@@ -1163,11 +1163,11 @@
                 },
                 {
                     "relative_path": "tools/merge-pull-request.py",
-                    "size_bytes": 45890,
+                    "size_bytes": 46345,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "aa4b1928ff699cb1841887897358063aeb71bd2b2d34befb42113dd48d4dd2e8",
+                    "sha256": "a577f5a3cddf9768006fc06623b7fa2178d0ea91eca22239af385c8ec93f93d6",
                     "mode": "644"
                 },
                 {

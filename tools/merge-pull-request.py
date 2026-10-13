@@ -419,8 +419,13 @@ def _require_guard_activation(repository: str, rules: list[dict[str, Any]]) -> N
             update.get("ruleset_source_type") != "Repository"
             or not isinstance(source, str)
             or source.lower() != repository.lower()
-            or not isinstance(parameters, dict)
-            or parameters.get("update_allows_fetch_and_merge") is not False
+            or (
+                "parameters" in update
+                and (
+                    not isinstance(parameters, dict)
+                    or parameters.get("update_allows_fetch_and_merge") is not False
+                )
+            )
             or any(
                 rule["ruleset_id"] == update["ruleset_id"] and rule["type"] != "update"
                 for rule in rules
@@ -447,6 +452,15 @@ def _require_guard_activation(repository: str, rules: list[dict[str, Any]]) -> N
         or settings.get("allow_squash_merge") is not True
     ):
         raise MergeRequestError("Repository settings must allow squash merge only.")
+
+    # GitHub omits update parameters for repositories without an upstream.
+    if (
+        any("parameters" not in update for update in updates)
+        and settings.get("fork") is not False
+    ):
+        raise MergeRequestError(
+            "Omitted fetch-and-merge parameters require a verified non-fork repository."
+        )
 
 
 def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:

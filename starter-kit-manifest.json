@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T09:16:17Z"
+    "generatedAt": "2026-10-13T12:09:41Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T09:16:17Z"
+    "generatedAt": "2026-10-13T12:09:41Z"
   },
   "files": [
     {
@@ -303,8 +303,8 @@
     },
     {
       "path": "docs/guarded-pull-request-merges.md",
-      "sha256": "948937f8e72a775b77fa9c6f55b137055fef274ef225c5dfae651f0d27276417",
-      "canonicalSha256": "948937f8e72a775b77fa9c6f55b137055fef274ef225c5dfae651f0d27276417",
+      "sha256": "7262616b52478b4d61689e4fffccde7f5c8ef99a16e9314765d34eedcbdbca74",
+      "canonicalSha256": "7262616b52478b4d61689e4fffccde7f5c8ef99a16e9314765d34eedcbdbca74",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -463,8 +463,8 @@
     },
     {
       "path": "tools/merge-pull-request.py",
-      "sha256": "aa4b1928ff699cb1841887897358063aeb71bd2b2d34befb42113dd48d4dd2e8",
-      "canonicalSha256": "aa4b1928ff699cb1841887897358063aeb71bd2b2d34befb42113dd48d4dd2e8",
+      "sha256": "a577f5a3cddf9768006fc06623b7fa2178d0ea91eca22239af385c8ec93f93d6",
+      "canonicalSha256": "a577f5a3cddf9768006fc06623b7fa2178d0ea91eca22239af385c8ec93f93d6",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"

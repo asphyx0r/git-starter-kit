@@ -913,13 +913,20 @@ class MergePullRequestTests(unittest.TestCase):
                 self.module._load_guard_policy(REPOSITORY, "main")
 
     def test_guard_policy_rejects_fetch_merge_or_shared_update_ruleset(self):
-        for mutation in ("fetch", "missing parameter", "mixed rules"):
+        for mutation in (
+            "fetch",
+            "missing parameter",
+            "null parameters",
+            "mixed rules",
+        ):
             with self.subTest(mutation=mutation):
                 rules = activated_rules()
                 if mutation == "fetch":
                     rules[0]["parameters"]["update_allows_fetch_and_merge"] = True
                 elif mutation == "missing parameter":
                     rules[0]["parameters"] = {}
+                elif mutation == "null parameters":
+                    rules[0]["parameters"] = None
                 else:
                     rules[1]["ruleset_id"] = 43
                 with patch.object(
@@ -1025,6 +1032,42 @@ class MergePullRequestTests(unittest.TestCase):
         self.assertEqual(
             gh_json.call_args_list[-1].args[0], ["api", "repos/owner/repository"]
         )
+
+    def test_guard_policy_accepts_omitted_update_parameters_for_non_fork(self):
+        rules = activated_rules()
+        del rules[0]["parameters"]
+        settings = valid_merge_methods() | {"fork": False}
+        with patch.object(
+            self.module,
+            "_run_gh_json",
+            side_effect=[
+                {"data": {"repository": {"autoMergeAllowed": False}}},
+                [rules],
+                settings,
+            ],
+        ):
+            self.assertEqual(
+                self.module._load_guard_policy(REPOSITORY, "main"), valid_policy()
+            )
+
+    def test_guard_policy_rejects_omitted_parameters_without_non_fork_proof(self):
+        for metadata in ({}, {"fork": True}, {"fork": None}, {"fork": 0}):
+            with self.subTest(metadata=metadata):
+                rules = activated_rules()
+                del rules[0]["parameters"]
+                with patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        [rules],
+                        valid_merge_methods() | metadata,
+                    ],
+                ):
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "fetch-and-merge"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
 
     def test_incomplete_activation_stops_request_and_both_execute_passes(self):
         message = self.write_bytes(b"fix(git): reject partial activation\n")
