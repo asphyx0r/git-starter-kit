@@ -1443,8 +1443,9 @@ deferred, or explicitly excluded from the template.
 - Status: `required`
 - Goal: Proves patch compatibility, bounded traversal, provenance and fail-closed
   advisory attribution.
-- Usage: Run `python -B -m unittest discover -s tests -p test_npm_security.py` after
-  installing the locked npm dependencies.
+- Usage: Run `python -B -m unittest discover -s tests -p test_npm_security.py` with
+  Python and Node.js. Exact archive fixtures keep the suite offline and independent
+  of checkout dependency installation.
 - Notes: Exercises interruption rollback, preserved foreign edits, nested and
   unlocked packages, idempotence, stale counts and unknown/cyclic advisories.
 
@@ -1457,6 +1458,30 @@ deferred, or explicitly excluded from the template.
 - Usage: Only the npm security tests consume these files; production never does.
 - Notes: The deliberate small binary fixture has the canonical integrity
   recorded in the patch manifest and contains the upstream MIT license.
+
+### `tests/fixtures/fill-range-7.1.1.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Supplies the exact upstream braces range dependency to isolated tests.
+- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
+- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
+
+### `tests/fixtures/to-regex-range-5.0.1.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Supplies the exact upstream range conversion dependency to isolated tests.
+- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
+- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
+
+### `tests/fixtures/is-number-7.0.0.tgz`
+
+- Type: `file`
+- Status: `required`
+- Goal: Supplies the exact upstream numeric predicate dependency to isolated tests.
+- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
+- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
 
 ### `docs/superpowers/plans/2026-10-12-audit-remediation.md`
 

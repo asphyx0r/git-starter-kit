@@ -51,7 +51,7 @@ classify_hook_path() {
   tools/initialize-repository.py | tools/git-init.sh | tools/git-init.ps1 | tests/test_git_init.py)
     module=test_git_init.py
     ;;
-  tools/quality/npm-security.py | tools/quality/patches/braces-3.0.3/* | tests/fixtures/braces-3.0.3.tgz)
+  tools/quality/npm-security.py | tools/quality/patches/braces-3.0.3/* | tests/fixtures/braces-3.0.3.tgz | tests/fixtures/fill-range-7.1.1.tgz | tests/fixtures/to-regex-range-5.0.1.tgz | tests/fixtures/is-number-7.0.0.tgz)
     module=test_npm_security.py
     ;;
   .githooks/pre-commit)

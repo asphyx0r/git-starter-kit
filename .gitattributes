@@ -13,5 +13,6 @@
 *.pdf binary
 *.zip binary
 *.gz binary
+*.tgz binary
 *.7z binary
 *.jar binary

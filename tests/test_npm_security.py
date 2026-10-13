@@ -9,7 +9,7 @@ import importlib.util
 import base64
 import hashlib
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import sys
@@ -33,36 +33,39 @@ class NpmSecurityTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.quality = Path(self.temporary.name) / "quality"
-        package = self.quality / "node_modules/braces"
-        package.parent.mkdir(parents=True)
-        archive_path = ROOT / "tests/fixtures/braces-3.0.3.tgz"
-        source_integrity = "sha512-" + base64.b64encode(
-            hashlib.sha512(archive_path.read_bytes()).digest()
-        ).decode("ascii")
+        lock = json.loads((QUALITY / "package-lock.json").read_text(encoding="utf-8"))
         provenance = json.loads(
             (QUALITY / "patches/braces-3.0.3/manifest.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(source_integrity, provenance["sourceIntegrity"])
-        source_names = ("compile.js", "expand.js", "stringify.js", "utils.js")
-        shutil.copytree(
-            QUALITY / "node_modules/braces",
-            package,
-            ignore=shutil.ignore_patterns(*source_names),
-        )
-        with tarfile.open(archive_path, "r:gz") as archive:
-            for name in source_names:
-                member = archive.extractfile(f"package/lib/{name}")
-                assert member is not None
-                with member:
-                    (package / "lib" / name).write_bytes(member.read())
-        self.package = package
+        for name in ("braces", "fill-range", "to-regex-range", "is-number"):
+            entry = lock["packages"][f"node_modules/{name}"]
+            archive_path = ROOT / "tests/fixtures" / f"{name}-{entry['version']}.tgz"
+            integrity = "sha512-" + base64.b64encode(
+                hashlib.sha512(archive_path.read_bytes()).digest()
+            ).decode("ascii")
+            self.assertEqual(integrity, entry["integrity"])
+            if name == "braces":
+                self.assertEqual(integrity, provenance["sourceIntegrity"])
+            package = self.quality / "node_modules" / name
+            with tarfile.open(archive_path, "r:gz") as archive:
+                for member in archive:
+                    if member.isdir():
+                        continue
+                    relative = PurePosixPath(member.name).relative_to("package")
+                    self.assertNotIn("..", relative.parts)
+                    self.assertTrue(member.isfile())
+                    target = package / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    content = archive.extractfile(member)
+                    assert content is not None
+                    with content:
+                        target.write_bytes(content.read())
+        self.package = self.quality / "node_modules/braces"
         (self.quality / "package-lock.json").write_text(
             json.dumps(
                 {
                     "packages": {
-                        "node_modules/braces": json.loads(
-                            (QUALITY / "package-lock.json").read_text(encoding="utf-8")
-                        )["packages"]["node_modules/braces"]
+                        "node_modules/braces": lock["packages"]["node_modules/braces"]
                     }
                 }
             ),
@@ -87,7 +90,7 @@ class NpmSecurityTests(unittest.TestCase):
         )
 
     def node(self, script):
-        environment = dict(os.environ, NODE_PATH=str(QUALITY / "node_modules"))
+        environment = dict(os.environ, NODE_PATH=str(self.quality / "node_modules"))
         return subprocess.run(
             ["node", "-e", script, str(self.package)],
             env=environment,
@@ -304,6 +307,22 @@ class NpmSecurityTests(unittest.TestCase):
 
 
 class NpmAuditPolicyTests(unittest.TestCase):
+    def test_security_cases_run_without_a_checkout_dependency_install(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            isolated_quality = Path(temporary) / "source/tools/quality"
+            shutil.copytree(QUALITY / "patches", isolated_quality / "patches")
+            shutil.copyfile(
+                QUALITY / "package-lock.json", isolated_quality / "package-lock.json"
+            )
+            with patch.dict(globals(), {"QUALITY": isolated_quality}):
+                result = unittest.TestResult()
+                NpmSecurityTests(
+                    "test_patch_preserves_brace_expansion_and_compilation"
+                ).run(result)
+            self.assertFalse(
+                result.errors + result.failures, result.errors + result.failures
+            )
+
     def report(self):
         return {
             "auditReportVersion": 2,

@@ -199,6 +199,9 @@ if [[ "${1:-}" == --selection ]]; then
   assert_selection tools/git-init.ps1 test_git_init.py true false ''
   assert_selection tools/quality/npm-security.py test_npm_security.py true false ''
   assert_selection tests/fixtures/braces-3.0.3.tgz test_npm_security.py true false ''
+  assert_selection tests/fixtures/fill-range-7.1.1.tgz test_npm_security.py true false ''
+  assert_selection tests/fixtures/to-regex-range-5.0.1.tgz test_npm_security.py true false ''
+  assert_selection tests/fixtures/is-number-7.0.0.tgz test_npm_security.py true false ''
   assert_selection tests/test_quality_pre_commit.sh '' false false test_quality_pre_commit.sh
   assert_selection tests/test_quality_pre_push.sh '' false false test_quality_pre_push.sh
   assert_selection .githooks/pre-commit '' false false 'test_quality_hooks.sh test_quality_pre_commit.sh'

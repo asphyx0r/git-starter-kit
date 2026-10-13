@@ -1462,6 +1462,13 @@ ordering, options and range limits. Frozen upstream walkers in the test fixtures
 support differential compatibility checks. License and provenance live under
 `quality/patches/braces-3.0.3/`.
 
+The security tests reconstruct braces and its three dependencies from exact
+upstream archives under `tests/fixtures/`. They verify each archive's SHA512
+against the lockfile before extracting it into a temporary dependency tree.
+The suite needs Python and Node.js, but no checkout `node_modules`, npm install
+or network access. If one of these four locked versions changes, refresh its
+matching archive and rerun the isolated suite before committing the lock update.
+
 Unexpected files, hashes, linked directories, wrong lock provenance or unlocked
 braces copies stop patching. Application is idempotent; an interruption restores
 already replaced files and preserves the original exception. Concurrent foreign

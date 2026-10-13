@@ -34,7 +34,7 @@ finding still depends on the final candidate checks below.
 
 | ID | Axis | Implementation and evidence | Remaining proof |
 | --- | --- | --- | --- |
-| 01 | 2 | Local braces walkers, exact upstream provenance and attestation gate; 17 security tests and 3,315 differential API cases | Exact-candidate dependency audit and distribution |
+| 01 | 2 | Local braces walkers, exact upstream provenance and attestation gate; 18 security tests and 3,315 differential API cases | Exact-candidate dependency audit and distribution |
 | 02 | 6 | Current settings read; no effective Restrict updates rule on main | Guard preflight, authoritative App ID, activation and disposable-PR proof |
 | 03 | 2 | smol-toml 1.9.1 pinned in registry/overrides/lock; installed occurrences checked | Candidate audit and integration |
 | 04 | 3 | Output rollback handles interrupts and independent cleanup/restoration failures; 48 release tests | Candidate full suite |
@@ -181,6 +181,23 @@ part of the exact final candidate gate.
 Primary `HEAD` still fails both release checksums and the starter core inventory.
 An artifact preparation dry run succeeds, but no primary metadata has been
 regenerated while the remaining substantive guard work is undecided.
+
+## Isolated Pre-Push Regression
+
+A complete Windows pre-push simulation of `235c5ff` failed thirteen npm test
+setups among 585 tests in 849.808 seconds. The isolated pushed clone has no
+`node_modules`; those setups incorrectly copied the prepared checkout's braces
+package. The failure occurred within the unchanged 900-second family deadline.
+No push was performed, and shell/workflow families were not reached.
+
+A new regression reproduced the dependency on a checkout installation before
+the fix. The suite now reconstructs braces and its three actual dependencies from
+four exact upstream archives, verifies their locked SHA512 values and confines
+extraction to its temporary tree. The three added fixtures total 16,932 bytes,
+include their upstream MIT licenses and remain source-only. Hook routing includes
+each fixture in the npm suite; hooks still install nothing. All eighteen npm
+tests pass on Windows and Linux without a checkout dependency tree. A complete pre-push
+replay of the correction remains required.
 
 ## Governance Work Still Open
 
