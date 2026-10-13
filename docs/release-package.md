@@ -133,7 +133,12 @@ downloaded artifact code. The package builder also rejects a different slug or
 Runs for the same release tag share one non-cancelling concurrency group. The
 tracked `environment: release` boundary does not prove that the corresponding
 GitHub environment or its protection rules are configured. Verify those
-settings on GitHub after workflow publication. With the sole CODEOWNER
+settings on GitHub after workflow publication. Configure the canonical
+repository's environment without required reviewers or a wait timer, with
+administrator bypass disabled and deployment policies restricted to branches
+`main` and `master` and tags `v*`. Keep the environment attached to `publish`.
+This removes the manual `Review deployments` step while retaining all automated
+release checks. With the sole CODEOWNER
 `@asphyx0r`, the CODEOWNERS assignment alone does not provide an independent
 human approval. The maintainer explicitly accepts this residual risk under the
 single-maintainer model; automated checks and protected branches do not replace
@@ -317,7 +322,11 @@ Use this mode for the normal release process.
 After the prerelease is published, GitHub starts the `Release package`
 workflow automatically. Automatic releases intentionally use `latest` so the
 package always includes the latest published full `agent-coding-rules`
-release.
+release. With the environment policy above, the remaining jobs run without a
+human approval. A failure in ZIP generation, integrity validation, required
+release checks, or asset upload prevents promotion to stable/latest. Resolve
+the failure and rerun the original release-event workflow; do not bypass the
+checks to force promotion.
 
 The workflow then:
 
