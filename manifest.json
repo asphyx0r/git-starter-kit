@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T18:55:07Z",
+    "release_date": "2026-10-13T21:27:53Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -33,9 +33,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2858940,
-            "built_at": "2026-10-13T18:55:07Z",
-            "sha256": "9934a9b02d2166638dbb5da5e4efebf224be1ca3dd09c6420616f515c702e0be",
+            "size_bytes": 2862633,
+            "built_at": "2026-10-13T21:27:53Z",
+            "sha256": "90e50c1a5fb4812518c65117cfac1be5b56a404c42660a30a6477201b423ee03",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -318,11 +318,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15201,
+                    "size_bytes": 15266,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e458f311bdfa3a8cc008ab18047225fd12018c8c14872a39fbb4174128101417",
+                    "sha256": "83fcfded76b72891c86eaac594f382820b55beb11e26b4043cc6316c3a361ac5",
                     "mode": "644"
                 },
                 {
@@ -471,11 +471,11 @@
                 },
                 {
                     "relative_path": "docs/guarded-pull-request-merges.md",
-                    "size_bytes": 10900,
+                    "size_bytes": 11218,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "86a5159ffa033dcbb640771f76982f3e1696c56e91daa07bd41be1ecd1d77cf1",
+                    "sha256": "a4c7af66148c548c3ded55e15d8dbf27517e57ed042f138466c76bc8fa3fdb34",
                     "mode": "644"
                 },
                 {
@@ -556,7 +556,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6f8b0bbd1b13d9a284bdbf687d325db97dc8dae399da9163562960770e7c0c9c",
+                    "sha256": "6eb214c7afe6104eccffee51e2e6e31b05a56516987a5df0f92f3fd43006ff60",
                     "mode": "644"
                 },
                 {
@@ -939,11 +939,11 @@
                 },
                 {
                     "relative_path": "tests/test_merge_pull_request.py",
-                    "size_bytes": 117023,
+                    "size_bytes": 120093,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7abbc9c388507d38ce210b536f3657f6df3a96c061b8ddd88cc2eda4f507a695",
+                    "sha256": "5ab37cc9d9fcbef541ecc408d52706f881af8d059c6a0f3438dfe4a166001385",
                     "mode": "644"
                 },
                 {
@@ -1164,11 +1164,11 @@
                 },
                 {
                     "relative_path": "tools/merge-pull-request.py",
-                    "size_bytes": 46482,
+                    "size_bytes": 46722,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "64fcf56d3b47775441811d0f787991fd4468f27d9ecf33fa2f14f52a7df2401d",
+                    "sha256": "8654412118930ec4cc67b3ed4044a5c5164309fa5c5c81f023c4f9419396fe08",
                     "mode": "644"
                 },
                 {

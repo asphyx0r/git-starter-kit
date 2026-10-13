@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T18:54:06Z"
+    "generatedAt": "2026-10-13T21:27:53Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T18:54:06Z"
+    "generatedAt": "2026-10-13T21:27:53Z"
   },
   "files": [
     {
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "e458f311bdfa3a8cc008ab18047225fd12018c8c14872a39fbb4174128101417",
-      "canonicalSha256": "e458f311bdfa3a8cc008ab18047225fd12018c8c14872a39fbb4174128101417",
+      "sha256": "83fcfded76b72891c86eaac594f382820b55beb11e26b4043cc6316c3a361ac5",
+      "canonicalSha256": "83fcfded76b72891c86eaac594f382820b55beb11e26b4043cc6316c3a361ac5",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -303,8 +303,8 @@
     },
     {
       "path": "docs/guarded-pull-request-merges.md",
-      "sha256": "86a5159ffa033dcbb640771f76982f3e1696c56e91daa07bd41be1ecd1d77cf1",
-      "canonicalSha256": "86a5159ffa033dcbb640771f76982f3e1696c56e91daa07bd41be1ecd1d77cf1",
+      "sha256": "a4c7af66148c548c3ded55e15d8dbf27517e57ed042f138466c76bc8fa3fdb34",
+      "canonicalSha256": "a4c7af66148c548c3ded55e15d8dbf27517e57ed042f138466c76bc8fa3fdb34",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -463,8 +463,8 @@
     },
     {
       "path": "tools/merge-pull-request.py",
-      "sha256": "64fcf56d3b47775441811d0f787991fd4468f27d9ecf33fa2f14f52a7df2401d",
-      "canonicalSha256": "64fcf56d3b47775441811d0f787991fd4468f27d9ecf33fa2f14f52a7df2401d",
+      "sha256": "8654412118930ec4cc67b3ed4044a5c5164309fa5c5c81f023c4f9419396fe08",
+      "canonicalSha256": "8654412118930ec4cc67b3ed4044a5c5164309fa5c5c81f023c4f9419396fe08",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"

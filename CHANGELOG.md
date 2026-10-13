@@ -6,6 +6,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| 13fa0cb | fix(git): read merge settings via GraphQL | asphyx |
 | 3608793 | fix(audit): remediate code and automation | asphyx |
 
 ## v2.11.7
