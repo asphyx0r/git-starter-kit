@@ -1316,7 +1316,9 @@ deferred, or explicitly excluded from the template.
   `python -B -m unittest discover -s tests -p "test_backup_target_directory.py"`.
 - Notes: Uses only `unittest` and the Python standard library. Git-dependent
   and symbolic-link cases skip only when the required platform capability is
-  unavailable.
+  unavailable. The publication fixture retries only Windows cleanup error 145,
+  at most three attempts with two 10 ms waits; persistent and other cleanup errors
+  still fail. This does not alter production backup publication or cleanup.
 
 ### `tests/test_build_release_package.py`
 

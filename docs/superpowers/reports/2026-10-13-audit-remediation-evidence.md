@@ -224,6 +224,28 @@ family executor in a clone with no `node_modules`. Its 900-second deadline was
 preserved. These component results do not replace the complete corrected hook
 replay or final candidate qualification.
 
+The complete replay of `43ef0d9` then stopped after 586 Python tests in
+722.191 seconds: one error occurred in cleanup of the concurrent-backup fixture,
+with nineteen existing skips. The production backup source and its test body
+matched the original audit base. Publication assertions passed and both executor
+workers had finished; the residual target directory was empty. The same cleanup
+error reproduced at iteration 58 under Windows Python 3.14 and iteration 187
+under Python 3.11. Subsequent empty-directory removal succeeded.
+
+The fixture now retries only `WinError 145`, at most three times with two 10 ms
+waits. A regression failed before that change; persistent error 145 and all other
+cleanup errors still propagate unchanged. Production backup behavior, test
+assertions and family deadlines are preserved. All 48 backup tests pass on both
+OSes, with three individually applicable platform/capability skips. The unchanged
+concurrent-publication assertions and corrected fixture cleanup also pass 1,000
+times on each Windows interpreter. The full corrected pre-push remains required.
+
+Windows documents deferred deletion until the final handle closes. The observed
+empty-directory cleanup failure is consistent with that behavior; the handle
+holder was not identified. This is a bounded test-fixture correction, not evidence
+of a production publisher leak.
+[Windows deletion semantics](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew).
+
 ## Governance Work Still Open
 
 Live reads still show all repository merge methods enabled, no update restriction
