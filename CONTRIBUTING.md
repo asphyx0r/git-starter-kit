@@ -54,7 +54,9 @@ It routes staged Markdown, YAML, Python, Bash or hook, JavaScript, and
 PowerShell files to their language-specific checks. It also validates relevant
 quality configuration and release artifacts, and never auto-formats files. The
 commit-msg hook requires `commitlint` and rejects messages that do not match the
-repository-specific scoped Conventional Commit rules.
+repository-specific scoped Conventional Commit rules. It reads the configuration
+and its tracked relative imports from the same complete index snapshot; keep
+those imported files tracked and stage their intended contents.
 
 The pre-push hook selects the affected Python and/or shell test families from
 each pushed branch update and runs them at the pushed commit in disposable

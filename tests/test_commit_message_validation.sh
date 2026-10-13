@@ -461,4 +461,47 @@ if [ "$actual_message" != "$expected_message" ]; then
   fail "committed message differs from the validated file"
 fi
 
+relative_fixture="$test_temp/relative-config-fixture"
+initialize_fixture "$relative_fixture"
+cp "$script_dir/../tools/repository-audit/hooks.sh" \
+  "$relative_fixture/tools/repository-audit/hooks.sh"
+mkdir -p "$relative_fixture/config"
+printf '["hooks"]\n' >"$relative_fixture/config/commit-scopes.json"
+git -C "$relative_fixture" add -- config/commit-scopes.json
+commit_without_repository_hooks "$relative_fixture" "$initial_message"
+cat >"$relative_fixture/commitlint.config.cjs" <<'RELATIVE_CONFIG'
+module.exports = {
+  rules: { 'scope-enum': [2, 'always', require('./config/commit-scopes.json')] },
+};
+RELATIVE_CONFIG
+git -C "$relative_fixture" add -- commitlint.config.cjs
+printf 'throw new Error("unstaged configuration must not run");\n' \
+  >"$relative_fixture/commitlint.config.cjs"
+printf '["worktree"]\n' >"$relative_fixture/config/commit-scopes.json"
+relative_message="$test_temp/relative-config-message.txt"
+printf 'fix(hooks): validate indexed helper\n' >"$relative_message"
+relative_output="$test_temp/relative-config.out"
+if ! git -c core.hooksPath=.githooks -C "$relative_fixture" commit \
+  --file="$relative_message" --cleanup=verbatim --quiet \
+  >"$relative_output" 2>&1; then
+  cat "$relative_output" >&2
+  fail "commit-msg lost a tracked relative helper or used unstaged content"
+fi
+printf '["other"]\n' >"$relative_fixture/config/commit-scopes.json"
+git -C "$relative_fixture" add -- config/commit-scopes.json
+printf '["hooks"]\n' >"$relative_fixture/config/commit-scopes.json"
+relative_head="$(git -C "$relative_fixture" rev-parse HEAD)"
+relative_index="$(git -C "$relative_fixture" write-tree)"
+if git -c core.hooksPath=.githooks -C "$relative_fixture" commit \
+  --file="$relative_message" --cleanup=verbatim --quiet \
+  >"$relative_output" 2>&1; then
+  fail "commit-msg accepted a message forbidden by the indexed relative helper"
+fi
+grep -F 'scope-enum' "$relative_output" >/dev/null ||
+  fail "indexed relative helper rejection did not report scope-enum"
+[[ "$(git -C "$relative_fixture" rev-parse HEAD)" == "$relative_head" ]] ||
+  fail "relative helper rejection changed HEAD"
+[[ "$(git -C "$relative_fixture" write-tree)" == "$relative_index" ]] ||
+  fail "relative helper rejection changed the index"
+
 printf '%s\n' 'PASS: commit message and release range validation'

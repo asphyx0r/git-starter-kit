@@ -423,3 +423,55 @@ locked inputs, excluded dependency metadata and real initial commit-message hook
 Ruff, the repository's `shfmt -i 2` policy, ShellCheck and Markdown checks passed.
 The failed npm fixture residue was removed only after its owned absolute path,
 regular-directory type and absence of links were checked; absence was verified.
+
+## Candidate Qualification at `5cb9994`
+
+The regenerated candidate inventories 168 deployment files and 89 core files.
+Both validators and active commit hooks passed on its index and final commit.
+The actual preparation timestamp is `2026-10-13T08:21:49Z`.
+
+The complete Linux profile passed all 597 Python tests in 231.934 seconds, with
+the ten previously explained skips, all six shell suites and real smoke checks.
+Linux coverage retained 89.43% globally and 85.45% for branches. The Windows
+profile passed all 597 tests in 1,227.674 seconds with nineteen explained skips,
+then passed the Windows hook suites, PowerShell static checks and project runner.
+The project runner's warning remains explicit: no application checks are
+configured, so application validation did not run.
+
+The sealed measurements use the same candidate SHA and local run/attempt `2/1`.
+Their verified union passed the unchanged 85% floors: 90.66% globally
+(7,016/7,739), 92.05% for statements (5,093/5,533), and 87.17% for branches
+(1,923/2,206). These are local qualification results, not hosted CI evidence.
+
+The npm gate again returned no blocked finding while retaining the raw advisories
+and exact braces attestation. Both hashed Python locks reported no known
+vulnerabilities. The actual 100-file package has SHA-256
+`7461a1af1d89a8cd2038aa7a8d0d8745a36eaf00e408c752f48898e90dce90fc`;
+all eleven security/runtime files match its exact source. New-consumer index
+preparation, cumulative upgrade and toolkit generation passed against the
+digest-verified published baseline. Customized, tracked and unrelated untracked
+consumer content survived. Failure on the third write restored exact non-Git
+bytes and modes before the normal application passed.
+
+## Final Branch Review
+
+One fresh read-only review covered 63 changed files and all nineteen domains
+across the seventeen commits through `5cb9994`. It found no critical or minor
+issue and one important compatibility regression: the closed `commit-msg`
+snapshot omitted files imported relatively by Commitlint configuration. The
+review did not replay complete suites or claim external activation.
+
+A regression through the real forced Git hook reproduced `MODULE_NOT_FOUND` for
+a tracked JSON helper. The configuration and helper in the worktree deliberately
+differ from their indexed versions. The targeted correction exports the complete
+index while retaining the isolated snapshot, locked runtime preflight and cleanup.
+The negative case checks indexed helper rejection without moving HEAD or changing
+the index. Source and consumer contribution guides describe the same contract.
+
+The corrected complete commit-message suite passed on Windows and Linux,
+including the relative helper acceptance/rejection cases. ShellCheck, the
+repository's `shfmt -i 2` checks and all four changed Markdown files passed.
+The review correction still requires refreshed candidate metadata and
+exact-candidate qualification. The successful `5cb9994` measurements remain their
+immutable milestone; they are not relabeled as later results.
+Findings 02/11 and the separate activation/hosted/cleanup gates remain open.

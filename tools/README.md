@@ -1708,8 +1708,9 @@ and ignore files come from the index, including when the working tree differs.
 Simple Markdown, Bash, and YAML checks export only required indexed files and
 configuration; checks that need repository context use the full index.
 `hook-commit-msg MESSAGE_FILE` validates the message file named by its required
-positional argument against the indexed Commitlint configuration. It snapshots
-the quality declarations and checks the actual Commitlint first. Pre-commit
+positional argument against the indexed Commitlint configuration. It exports the
+complete index so tracked relative imports retain their context, snapshots the
+quality declarations and checks the actual Commitlint first. Pre-commit
 checks only the executables its selected validators will use, with expected pins
 from the same indexed snapshot; no installation occurs. PowerShell validation
 loads the registry's exact PSScriptAnalyzer version.

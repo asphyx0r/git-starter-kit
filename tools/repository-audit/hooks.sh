@@ -764,11 +764,8 @@ run_hook_commit_msg() (
   trap 'exit 143' TERM
   local expected_root="${message_temp}/index"
   mkdir -p "${expected_root}" || return
-  git ls-files -z -- commitlint.config.cjs tools/quality/versions.json \
-    tools/quality/check-versions.py tools/quality/install-external-tools.py \
-    tools/process_runner.py tools/quality/requirements.in tools/quality/requirements.lock \
-    tools/quality/package.json tools/quality/package-lock.json tools/quality/pyproject.toml |
-    git checkout-index -z --stdin --prefix="${expected_root}/" || return
+  # Configurations can import any other tracked file from this index.
+  git checkout-index -a --prefix="${expected_root}/" || return
   run_hook_commitlint "${commit_message_file}" "${expected_root}"
 )
 

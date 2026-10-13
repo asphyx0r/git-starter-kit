@@ -25,7 +25,9 @@ fix(auth): reject expired tokens
 ```
 
 Hooks enforce syntax and content constraints through Commitlint. Choose scopes
-that describe your application. Pull requests require the project's review and
+that describe your application. Commitlint configuration and its tracked relative
+imports are read from the Git index; stage their intended contents together.
+Pull requests require the project's review and
 validation policy. Optional guarded merge activation uses trusted default-branch
 settings; ordinary reviews remain necessary when it is disabled.
 
