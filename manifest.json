@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T16:14:22Z",
+    "release_date": "2026-10-13T21:09:43Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,10 +32,10 @@
                 "min_os_version": "not-applicable"
             },
             "format": "git-tree",
-            "total_files": 168,
-            "size_bytes": 2858801,
-            "built_at": "2026-10-13T16:14:22Z",
-            "sha256": "0f18fe88de28e1fdf9dbc3d5cd71926c2706a7eabb5981155d73ac1f834b1708",
+            "total_files": 169,
+            "size_bytes": 2870027,
+            "built_at": "2026-10-13T21:09:43Z",
+            "sha256": "cd0e2ff119f7f57cd86337d86a30c8c8c589900cb6c7cea14cca7f75a0b2fbc4",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -197,6 +197,15 @@
                     "line_ending": "LF",
                     "encoding": "UTF-8",
                     "sha256": "0e2cf2c3745da6cda502e817da75a49711c153bc4e1d377d4ef0ef90ea450e03",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": ".github/workflows/guard-policy-bootstrap.yml",
+                    "size_bytes": 10893,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "eef7aa29e05ae0c6002ca6b6301aa30558c295d616f0fbb75fea50a3e23ccde9",
                     "mode": "644"
                 },
                 {
@@ -552,11 +561,11 @@
                 },
                 {
                     "relative_path": "starter-kit-manifest.json",
-                    "size_bytes": 28902,
+                    "size_bytes": 29235,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "da9537af400e953304da14baef1089fdf91fab2208e8c48417b06192f05734a7",
+                    "sha256": "c694084cf89bd92a5615796006157143ed8c9f4f422591d2d17318670c75184a",
                     "mode": "644"
                 },
                 {
