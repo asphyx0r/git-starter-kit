@@ -305,7 +305,7 @@ SEALED_SCRIPTS = {
     "repository-audit/activation/activation": "sha256:bfde8d77e709627edd96a2a0452d069e083bc08d7fe3990bd3d441de6c862e94",
     "repository-audit/activation/resolve": "sha256:1116d9de267a68cef6c2ee1e2935be6ab250739384141c93d3f2d57bb218ee31",
     "repository-audit/compatibility-windows/analyze-powershell-on-windows": "sha256:ea7625b2558eb3a6a01170181e9ec5f0439887175427665494a1f8b39db1eeb2",
-    "repository-audit/compatibility-windows/install-verified-powershell-analyzer": "sha256:ae239cbd7dc6da006d9e30de4114392c1e630ee2ea7d2adde8f8c92fc9179269",
+    "repository-audit/compatibility-windows/install-verified-powershell-and-shell-tools": "sha256:dd0f5ee141930a13f99b52ef6f6984e66aaf9b7ccc7cb170258f55395c1d1fdd",
     "repository-audit/compatibility-windows/run-cross-platform-compatibility-checks": "sha256:072fc07820540ec821834c712d23affc7d258008a43a08b1aeada0b69015e479",
     "repository-audit/compatibility-windows/measure-windows-python-coverage": "sha256:8894a1e8135769f649e62ddd31fb92fa9c38b1debf6325d3bdd79f706d906899",
     "repository-audit/compatibility-windows/scope": "sha256:0cbf4de9b6d95efb15fcef6bac5d89cadcc6bb988415b6422f8ec0b23ac7fd40",
@@ -917,7 +917,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     {
                         "shell": "pwsh",
                         "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/install-verified-powershell-analyzer"
+                            "repository-audit/compatibility-windows/install-verified-powershell-and-shell-tools"
                         ],
                     },
                     {

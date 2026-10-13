@@ -1,16 +1,16 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-10-13T12:18:07.1058200Z",
+  "generatedAt": "2026-10-13T13:28:18.7745648Z",
   "repository": {
     "name": "git-starter-kit",
     "slug": "asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
-    "commit": "72a3796d9461a4262db4b3cea93c5d7d64814d56"
+    "commit": "ef97b78e41657197e50677117e40a2ac79ccc562"
   },
   "starterKit": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
-    "commit": "72a3796d9461a4262db4b3cea93c5d7d64814d56"
+    "commit": "ef97b78e41657197e50677117e40a2ac79ccc562"
   },
   "agentRules": {
     "repository": "https://github.com/asphyx0r/agent-coding-rules",

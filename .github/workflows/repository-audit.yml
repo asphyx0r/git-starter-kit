@@ -264,13 +264,16 @@ jobs:
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
           python tools/quality/npm-security.py patch
-      - name: Install verified PowerShell analyzer
+      - name: Install verified PowerShell and shell tools
         shell: pwsh
         run: |
           python tools/quality/install-external-tools.py `
             --platform windows-x64 `
             --tool PSScriptAnalyzer `
+            --tool shellcheck `
+            --tool shfmt `
             --install-root "$env:RUNNER_TEMP/quality-tools"
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP/quality-tools/bin"
           Add-Content $env:GITHUB_ENV `
             "PSModulePath=$env:RUNNER_TEMP/quality-tools/Modules$([IO.Path]::PathSeparator)$env:PSModulePath"
       - name: Run cross-platform compatibility checks

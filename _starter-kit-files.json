@@ -1,16 +1,16 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-10-13T12:18:07.1058200Z",
+  "generatedAt": "2026-10-13T13:28:18.7745648Z",
   "repository": {
     "name": "git-starter-kit",
     "slug": "asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
-    "commit": "72a3796d9461a4262db4b3cea93c5d7d64814d56"
+    "commit": "ef97b78e41657197e50677117e40a2ac79ccc562"
   },
   "starterKit": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
-    "commit": "72a3796d9461a4262db4b3cea93c5d7d64814d56"
+    "commit": "ef97b78e41657197e50677117e40a2ac79ccc562"
   },
   "agentRules": {
     "repository": "https://github.com/asphyx0r/agent-coding-rules",
@@ -164,8 +164,8 @@
     },
     {
       "path": ".github/workflows/repository-audit.yml",
-      "sha256": "a1758d234fc122983cd976fd2a6ec047fcd933299142526d07b2762a0d27e7f2",
-      "canonicalSha256": "a1758d234fc122983cd976fd2a6ec047fcd933299142526d07b2762a0d27e7f2",
+      "sha256": "611245b0c81305f91b8ce61bb76733763cd65e51066cd7d6a40c85390da8f15f",
+      "canonicalSha256": "611245b0c81305f91b8ce61bb76733763cd65e51066cd7d6a40c85390da8f15f",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "merge"
@@ -340,8 +340,8 @@
     },
     {
       "path": "_agent-rules-source.json",
-      "sha256": "39f19e77a7d12b8d75a2f636fd2288e22d5698bb0355691b83b98bd33dad36c8",
-      "canonicalSha256": "4dfa7c6c791fe4d5282f72d411a3f679c28fe3b9ea790d386d412d6914196be4",
+      "sha256": "ee6361166d06d12a35639b7c74975b658361d64ac408a5b4e2a691a3324ac7fc",
+      "canonicalSha256": "b1a39586464c77147873ed3c33fe2d3fab127ebe896e83cd73a4af34e296cd68",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "agent-rules"
@@ -380,8 +380,8 @@
     },
     {
       "path": "docs/project-configuration.md",
-      "sha256": "6ce5b2fc96d440b0073e6b832e64ec13f637213fc46684979c0f1257a50d257a",
-      "canonicalSha256": "6ce5b2fc96d440b0073e6b832e64ec13f637213fc46684979c0f1257a50d257a",
+      "sha256": "85ca5ba1d63ae0623bff350659d942d6d7689edaae5aef5330dbdc855dd016f6",
+      "canonicalSha256": "85ca5ba1d63ae0623bff350659d942d6d7689edaae5aef5330dbdc855dd016f6",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -404,8 +404,8 @@
     },
     {
       "path": "starter-kit-manifest.json",
-      "sha256": "d2361bc07cdae36184004692cc933e09374b82b459526aed1f82d7792f436551",
-      "canonicalSha256": "d2361bc07cdae36184004692cc933e09374b82b459526aed1f82d7792f436551",
+      "sha256": "126ab68053e669ed8a798281ae88d2586fabe5aa8640603bf4350d389e6ccdcc",
+      "canonicalSha256": "126ab68053e669ed8a798281ae88d2586fabe5aa8640603bf4350d389e6ccdcc",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "starter-kit-state"
@@ -796,8 +796,8 @@
     },
     {
       "path": "tools/repository-audit/workflow-contracts.py",
-      "sha256": "cc5ee61a215ecdd3b560b197420e8fb796ef9f0e9587d65762bec90a03ef8f3b",
-      "canonicalSha256": "cc5ee61a215ecdd3b560b197420e8fb796ef9f0e9587d65762bec90a03ef8f3b",
+      "sha256": "267e66e21437bbf5e89a2e22bde50dccf8cd76001ff95f2dfb40dc3a7022f8e6",
+      "canonicalSha256": "267e66e21437bbf5e89a2e22bde50dccf8cd76001ff95f2dfb40dc3a7022f8e6",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"

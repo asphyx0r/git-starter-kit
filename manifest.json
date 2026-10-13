@@ -2,7 +2,7 @@
     "manifest_version": "3.0.0",
     "release_kind": "repository",
     "version": "2.12.0",
-    "release_date": "2026-10-13T12:34:34Z",
+    "release_date": "2026-10-13T13:31:12Z",
     "artifact": {
         "format": "git-tree",
         "files": [
@@ -170,11 +170,11 @@
             },
             {
                 "relative_path": ".github/workflows/repository-audit.yml",
-                "size_bytes": 15998,
+                "size_bytes": 16140,
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "a1758d234fc122983cd976fd2a6ec047fcd933299142526d07b2762a0d27e7f2",
+                "sha256": "611245b0c81305f91b8ce61bb76733763cd65e51066cd7d6a40c85390da8f15f",
                 "mode": "644"
             },
             {
@@ -260,11 +260,11 @@
             },
             {
                 "relative_path": "CHANGELOG.md",
-                "size_bytes": 203,
+                "size_bytes": 135,
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "5fc2ec0a1135812d17d824c60667f17fe9d8ef6152ec2b50f025816d7324af02",
+                "sha256": "e82aa35f9f50311d56e8e3a5454b18d021e999547ada1dd99be01a4fed34633e",
                 "mode": "644"
             },
             {
@@ -381,7 +381,7 @@
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "60708bde2f0d63be1e13633cb61e639c398e17b602a915724d47f8fadff45b36",
+                "sha256": "1a6d0739752988d72c1d7707009f5761634ab188991d1fbd2b6e2dfc4cf17c84",
                 "mode": "644"
             },
             {
@@ -390,7 +390,7 @@
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "3e0a0bfebc5f2f178e35e3af9eab1682999a5e466083b679077797b5db22c594",
+                "sha256": "4c5ba602596c632de7742e91d1d8ab55338dc31e4dc5e3db7b55d62c993ddf3f",
                 "mode": "644"
             },
             {
@@ -431,11 +431,11 @@
             },
             {
                 "relative_path": "docs/project-configuration.md",
-                "size_bytes": 9434,
+                "size_bytes": 9743,
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "6ce5b2fc96d440b0073e6b832e64ec13f637213fc46684979c0f1257a50d257a",
+                "sha256": "85ca5ba1d63ae0623bff350659d942d6d7689edaae5aef5330dbdc855dd016f6",
                 "mode": "644"
             },
             {
@@ -462,7 +462,7 @@
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "d2361bc07cdae36184004692cc933e09374b82b459526aed1f82d7792f436551",
+                "sha256": "126ab68053e669ed8a798281ae88d2586fabe5aa8640603bf4350d389e6ccdcc",
                 "mode": "644"
             },
             {
@@ -899,11 +899,11 @@
             },
             {
                 "relative_path": "tools/repository-audit/workflow-contracts.py",
-                "size_bytes": 58832,
+                "size_bytes": 58846,
                 "file_type": "text",
                 "line_ending": "LF",
                 "encoding": "UTF-8",
-                "sha256": "cc5ee61a215ecdd3b560b197420e8fb796ef9f0e9587d65762bec90a03ef8f3b",
+                "sha256": "267e66e21437bbf5e89a2e22bde50dccf8cd76001ff95f2dfb40dc3a7022f8e6",
                 "mode": "644"
             },
             {
@@ -917,8 +917,8 @@
             }
         ],
         "total_files": 101,
-        "size_bytes": 1266622,
-        "sha256": "321c71aa7e974f25759e25f1a920a338c25846a8e31a24786957addc8be006b2",
-        "built_at": "2026-10-13T12:34:34Z"
+        "size_bytes": 1267019,
+        "sha256": "4e96ec709971892b3f2f994e528b4871adc99e3034054d5e409e0712c10d2e1f",
+        "built_at": "2026-10-13T13:31:12Z"
     }
 }
