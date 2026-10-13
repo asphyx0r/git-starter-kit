@@ -44,9 +44,10 @@ PAYLOAD_FIELDS = {
     "message_base64",
 }
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY_AUTO_MERGE_POLICY_QUERY = (
-    "query RepositoryAutoMergePolicy($owner: String!, $repository: String!) { "
-    "repository(owner: $owner, name: $repository) { autoMergeAllowed } }"
+REPOSITORY_MERGE_POLICY_QUERY = (
+    "query RepositoryMergePolicy($owner: String!, $repository: String!) { "
+    "repository(owner: $owner, name: $repository) { autoMergeAllowed "
+    "mergeCommitAllowed rebaseMergeAllowed squashMergeAllowed } }"
 )
 PULL_REQUEST_MUTATION_STATE_QUERY = """query PullRequestMergeQueueState(
   $owner: String!
@@ -356,14 +357,14 @@ def _resolve_repository(repository: str | None) -> tuple[str, str]:
     return resolved_repository, default_branch
 
 
-def _require_repository_auto_merge_disabled(repository: str) -> None:
+def _require_repository_merge_policy(repository: str) -> None:
     owner, repository_name = repository.split("/", maxsplit=1)
     value = _run_gh_json(
         [
             "api",
             "graphql",
             "-f",
-            f"query={REPOSITORY_AUTO_MERGE_POLICY_QUERY}",
+            f"query={REPOSITORY_MERGE_POLICY_QUERY}",
             "-F",
             f"owner={owner}",
             "-F",
@@ -378,16 +379,26 @@ def _require_repository_auto_merge_disabled(repository: str) -> None:
         or not isinstance(data, dict)
         or set(data) != {"repository"}
         or not isinstance(repository_value, dict)
-        or set(repository_value) != {"autoMergeAllowed"}
-        or not isinstance(repository_value["autoMergeAllowed"], bool)
+        or set(repository_value)
+        != {
+            "autoMergeAllowed",
+            "mergeCommitAllowed",
+            "rebaseMergeAllowed",
+            "squashMergeAllowed",
+        }
+        or any(type(field) is not bool for field in repository_value.values())
     ):
-        raise MergeRequestError(
-            "GitHub returned an invalid repository auto-merge policy."
-        )
+        raise MergeRequestError("GitHub returned an invalid repository merge policy.")
     if repository_value["autoMergeAllowed"]:
         raise MergeRequestError(
             "Repository auto-merge must be disabled before guarded merges."
         )
+    if (
+        repository_value["mergeCommitAllowed"] is not False
+        or repository_value["rebaseMergeAllowed"] is not False
+        or repository_value["squashMergeAllowed"] is not True
+    ):
+        raise MergeRequestError("Repository settings must allow squash merge only.")
 
 
 def _require_guarded_merge_enabled(repository: str, default_branch: str) -> None:
@@ -445,13 +456,8 @@ def _require_guard_activation(repository: str, rules: list[dict[str, Any]]) -> N
         raise MergeRequestError("Effective pull-request rules must allow squash only.")
 
     settings = _run_gh_json(["api", f"repos/{repository}"])
-    if (
-        not isinstance(settings, dict)
-        or settings.get("allow_merge_commit") is not False
-        or settings.get("allow_rebase_merge") is not False
-        or settings.get("allow_squash_merge") is not True
-    ):
-        raise MergeRequestError("Repository settings must allow squash merge only.")
+    if not isinstance(settings, dict):
+        raise MergeRequestError("GitHub returned invalid repository metadata.")
 
     # GitHub omits update parameters for repositories without an upstream.
     if (
@@ -464,7 +470,7 @@ def _require_guard_activation(repository: str, rules: list[dict[str, Any]]) -> N
 
 
 def _load_guard_policy(repository: str, default_branch: str) -> frozenset[str]:
-    _require_repository_auto_merge_disabled(repository)
+    _require_repository_merge_policy(repository)
     encoded_branch = quote(default_branch, safe="")
     pages = _run_gh_json(
         [
