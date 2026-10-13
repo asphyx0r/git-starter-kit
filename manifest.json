@@ -2,16 +2,15 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.12.0",
-    "release_date": "2026-10-13T21:27:53Z",
+    "version": "2.12.1",
+    "release_date": "2026-10-13T23:30:41Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Apply attested braces fixes and synchronized dependency security gates.",
-        "Preserve rollback and validate initialization before repository changes.",
-        "Verify locked hook runtimes and focused tests; qualify both OS coverage paths.",
-        "Reject incomplete guarded activation without expanding workflow permissions.",
-        "Retain quality/project budgets and paired cache locks; probe explicit files."
+        "Publish verified release packages without a manual deployment review.",
+        "Keep ZIP integrity and exact-release CI checks mandatory.",
+        "Document release-environment preflight checks.",
+        "Preserve administrator-bypass restrictions and deployment reference policies."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -25,7 +24,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.12.0-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.12.1-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -33,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2862633,
-            "built_at": "2026-10-13T21:27:53Z",
-            "sha256": "90e50c1a5fb4812518c65117cfac1be5b56a404c42660a30a6477201b423ee03",
+            "size_bytes": 2864236,
+            "built_at": "2026-10-13T23:30:41Z",
+            "sha256": "f1fb41a04ada32559c32cad6eaba673c3c44079946b58f8245ee070c0d28e572",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -66,11 +65,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 13102,
+                    "size_bytes": 13888,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "e41f5ffef0a3e0c306397e1c3640e00196a36a6c7583b57aa0fcf48502b3e977",
+                    "sha256": "20eaa0ce79e2795a92efe13edd0ba5c9c4486578bb80723e387cea329274c9d1",
                     "mode": "644"
                 },
                 {
@@ -318,11 +317,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15266,
+                    "size_bytes": 15408,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "83fcfded76b72891c86eaac594f382820b55beb11e26b4043cc6316c3a361ac5",
+                    "sha256": "4a1677e871977a4b5645bdb1889ee7da68e477b1f296d1f2312d3ea9bb28fad0",
                     "mode": "644"
                 },
                 {
@@ -430,7 +429,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "140288f526a0978bcba7f2f8d2c2585faf05ce088087b54c161050d6366eab4b",
+                    "sha256": "6d83386e2438a41efc82d6b4018bf4aaa95b0ccc405ba835d779ff08a31bac80",
                     "mode": "644"
                 },
                 {
@@ -489,11 +488,11 @@
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 23849,
+                    "size_bytes": 24524,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "9fe126a0f682b65ab96cb5abeee3ee940c981a1abf4116c5769b432f0034a0cc",
+                    "sha256": "c959462f543c79e967e3976dd05355fc6fb685d7d70dce111a7b9c340056f106",
                     "mode": "644"
                 },
                 {
@@ -556,7 +555,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6eb214c7afe6104eccffee51e2e6e31b05a56516987a5df0f92f3fd43006ff60",
+                    "sha256": "a4ea003b286202bd77de1ad44d88049080e39e34a2093604b90b6a0d75a053e1",
                     "mode": "644"
                 },
                 {
