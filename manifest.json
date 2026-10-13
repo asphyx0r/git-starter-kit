@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T16:14:22Z",
+    "release_date": "2026-10-13T18:55:07Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -33,9 +33,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2858801,
-            "built_at": "2026-10-13T16:14:22Z",
-            "sha256": "0f18fe88de28e1fdf9dbc3d5cd71926c2706a7eabb5981155d73ac1f834b1708",
+            "size_bytes": 2858940,
+            "built_at": "2026-10-13T18:55:07Z",
+            "sha256": "9934a9b02d2166638dbb5da5e4efebf224be1ca3dd09c6420616f515c702e0be",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -318,11 +318,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15062,
+                    "size_bytes": 15201,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "898379a621736837de6fd958c3df8dbd9346faca89505981ab90093131306cfe",
+                    "sha256": "e458f311bdfa3a8cc008ab18047225fd12018c8c14872a39fbb4174128101417",
                     "mode": "644"
                 },
                 {
@@ -556,7 +556,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "da9537af400e953304da14baef1089fdf91fab2208e8c48417b06192f05734a7",
+                    "sha256": "6f8b0bbd1b13d9a284bdbf687d325db97dc8dae399da9163562960770e7c0c9c",
                     "mode": "644"
                 },
                 {
