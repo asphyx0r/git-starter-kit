@@ -349,9 +349,10 @@ package, initialization, upgrade and restoration qualification remains required.
 
 The first candidate preparation used `2026-10-13T06:30:43Z`. The deployment
 manifest inventories 167 files; the starter core manifest inventories 89 files.
-Both validators passed on the selected index/tree. The preparation date is
-retained while consolidating this evidence into the same candidate. No primary
-`v2.12.0` tag exists, and these generated files are candidate metadata only.
+Both validators passed on the selected index/tree. That date identifies the
+first candidate snapshot. Fixture corrections committed at `7458aff` require
+fresh metadata with its actual preparation timestamp. No primary `v2.12.0` tag
+exists, and these generated files are candidate metadata only.
 
 Required activation evidence includes the exact settings responses, ruleset and
 App identities, a blocked native merge, the required-check run, a successful

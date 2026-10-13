@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.12.0",
-    "release_date": "2026-10-13T06:30:43Z",
+    "release_date": "2026-10-13T08:21:49Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -31,10 +31,10 @@
                 "min_os_version": "not-applicable"
             },
             "format": "git-tree",
-            "total_files": 167,
-            "size_bytes": 2820329,
-            "built_at": "2026-10-13T06:30:43Z",
-            "sha256": "62e379ffe82163b2a5e0399cff3180c845c71e0ee5c2b7e91c3fc8caf65f228e",
+            "total_files": 168,
+            "size_bytes": 2830403,
+            "built_at": "2026-10-13T08:21:49Z",
+            "sha256": "7919d80b7b9089605a7454d0b535320b20821b7f071feb3c4b2a0623e1a5f533",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -497,11 +497,11 @@
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 79293,
+                    "size_bytes": 80502,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "52af8ef5dc54ced01f0ad88059ad657fe0c47ad69081794d429778e2f9463cea",
+                    "sha256": "ecfc3974703ffbb0b7a6662a12b88f05d1b5ed6d8df6d5415618922e8163c13b",
                     "mode": "644"
                 },
                 {
@@ -533,11 +533,11 @@
                 },
                 {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
-                    "size_bytes": 25180,
+                    "size_bytes": 28707,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f565ae9c330e322cafecb0afb2818376e19d0912d459965bd2d657c307470a17",
+                    "sha256": "400dde23f29d97c2e6362c805653113b42e9e645b8f171a9dffa56d8a854b1a5",
                     "mode": "644"
                 },
                 {
@@ -555,7 +555,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1fb16eecf17ecfd52ac12e48eef939a2552b547ee300a9913f7c4b2b7b16b4b2",
+                    "sha256": "aa09bd63bb1ddf745a9e3818f6d980918e3b38c26194c3dbdccbd9212218a3ae",
                     "mode": "644"
                 },
                 {
@@ -793,6 +793,15 @@
                     "mode": "644"
                 },
                 {
+                    "relative_path": "tests/fixture_cleanup.py",
+                    "size_bytes": 564,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "ff52dc170c4f19b564ad093d14dec9561eae7de8985d19c8884581dc15b81206",
+                    "mode": "644"
+                },
+                {
                     "relative_path": "tests/fixtures/braces-3.0.3.tgz",
                     "size_bytes": 13972,
                     "file_type": "binary",
@@ -848,11 +857,11 @@
                 },
                 {
                     "relative_path": "tests/test_backup_target_directory.py",
-                    "size_bytes": 58552,
+                    "size_bytes": 58290,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "b603515ee119f1b3083e2461e0acf7c9728cc8333c3f55f134c9617289c718c0",
+                    "sha256": "a033408c990f2c2d9fdcbc410bc8de381a33669c6e5c47b96bbf630a68e1bbff",
                     "mode": "644"
                 },
                 {
@@ -938,11 +947,11 @@
                 },
                 {
                     "relative_path": "tests/test_npm_security.py",
-                    "size_bytes": 17515,
+                    "size_bytes": 19265,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "995fdcf16aadeddf56e8baeefb9da33d4d2344eb258a8479ca8ced121bacdb1c",
+                    "sha256": "ce4bf1ffa7cac28db57be4d29fd7c80cc74902a65c62a761b1c2ffd08ded8434",
                     "mode": "644"
                 },
                 {
@@ -1010,11 +1019,11 @@
                 },
                 {
                     "relative_path": "tests/test_repository_audit.sh",
-                    "size_bytes": 80817,
+                    "size_bytes": 83325,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "007ab0ad1abe85021885afef9dc650a707f093ae6a9a0b11f2b75597f1abdc75",
+                    "sha256": "4a5acda3f1dcd8e8355416c3b6226068611518bcac11c922ee89c14566d2d2e7",
                     "mode": "644"
                 },
                 {
@@ -1442,11 +1451,11 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/smoke.sh",
-                    "size_bytes": 32849,
+                    "size_bytes": 33627,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "0a19c4ac2217ff93e9afc79c165589a4bf763d33563e9ed878e849effb0059d4",
+                    "sha256": "5304462438ca3f436ff3afab39fdc02adaca987aa413c01381b235d8efcfb347",
                     "mode": "644"
                 },
                 {

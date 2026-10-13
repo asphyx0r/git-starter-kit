@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T06:29:00Z"
+    "generatedAt": "2026-10-13T08:21:50Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T06:29:00Z"
+    "generatedAt": "2026-10-13T08:21:50Z"
   },
   "files": [
     {
@@ -319,8 +319,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "52af8ef5dc54ced01f0ad88059ad657fe0c47ad69081794d429778e2f9463cea",
-      "canonicalSha256": "52af8ef5dc54ced01f0ad88059ad657fe0c47ad69081794d429778e2f9463cea",
+      "sha256": "ecfc3974703ffbb0b7a6662a12b88f05d1b5ed6d8df6d5415618922e8163c13b",
+      "canonicalSha256": "ecfc3974703ffbb0b7a6662a12b88f05d1b5ed6d8df6d5415618922e8163c13b",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -703,8 +703,8 @@
     },
     {
       "path": "tools/repository-audit/smoke.sh",
-      "sha256": "0a19c4ac2217ff93e9afc79c165589a4bf763d33563e9ed878e849effb0059d4",
-      "canonicalSha256": "0a19c4ac2217ff93e9afc79c165589a4bf763d33563e9ed878e849effb0059d4",
+      "sha256": "5304462438ca3f436ff3afab39fdc02adaca987aa413c01381b235d8efcfb347",
+      "canonicalSha256": "5304462438ca3f436ff3afab39fdc02adaca987aa413c01381b235d8efcfb347",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
