@@ -48,8 +48,12 @@ The server evaluates the App's separate update-rule bypass and all ordinary
 protections. No administrator, auto-merge or branch-deletion option is used.
 
 Both passes also require squash as the only repository merge method and the
-only method allowed by every effective pull-request rule. The active branch
-rules must include a repository-owned `Restrict updates` ruleset, separate from
+only method allowed by every effective pull-request rule. The repository policy
+read uses GraphQL's `autoMergeAllowed`, `mergeCommitAllowed`,
+`rebaseMergeAllowed` and `squashMergeAllowed` booleans together, because REST can
+omit merge-method settings for the read-only workflow identity. Missing or
+non-boolean values fail validation; no additional permissions are requested.
+The active branch rules must include a repository-owned `Restrict updates` ruleset, separate from
 ordinary protections, with fetch-and-merge disabled. Missing, malformed or
 incomplete activation fails before dispatch or merge.
 

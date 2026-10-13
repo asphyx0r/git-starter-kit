@@ -134,6 +134,19 @@ def activated_rules(required_checks=None):
     ]
 
 
+def valid_repository_merge_policy(auto_merge=False):
+    return {
+        "data": {
+            "repository": {
+                "autoMergeAllowed": auto_merge,
+                "mergeCommitAllowed": False,
+                "rebaseMergeAllowed": False,
+                "squashMergeAllowed": True,
+            }
+        }
+    }
+
+
 def valid_merge_methods():
     return {
         "allow_merge_commit": False,
@@ -877,12 +890,12 @@ class MergePullRequestTests(unittest.TestCase):
         for diagnostic, repository_value, rules in (
             (
                 "auto-merge",
-                {"data": {"repository": {"autoMergeAllowed": True}}},
+                valid_repository_merge_policy(auto_merge=True),
                 [[required_rule]],
             ),
             (
                 "merge queue",
-                {"data": {"repository": {"autoMergeAllowed": False}}},
+                valid_repository_merge_policy(),
                 [[required_rule, {"type": "merge_queue", "parameters": {}}]],
             ),
         ):
@@ -903,7 +916,7 @@ class MergePullRequestTests(unittest.TestCase):
             self.module,
             "_run_gh_json",
             side_effect=[
-                {"data": {"repository": {"autoMergeAllowed": False}}},
+                valid_repository_merge_policy(),
                 [activated_rules()[1:]],
             ],
         ):
@@ -933,7 +946,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         [rules],
                     ],
                 ):
@@ -959,7 +972,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         [rules],
                     ],
                 ):
@@ -980,7 +993,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         [rules],
                     ],
                 ):
@@ -991,36 +1004,65 @@ class MergePullRequestTests(unittest.TestCase):
 
     def test_guard_policy_rejects_non_squash_repository_merge_methods(self):
         for field, value in (
-            ("allow_merge_commit", True),
-            ("allow_rebase_merge", True),
-            ("allow_squash_merge", False),
-            ("allow_merge_commit", 0),
-            ("allow_squash_merge", 1),
-            ("allow_rebase_merge", None),
+            ("mergeCommitAllowed", True),
+            ("rebaseMergeAllowed", True),
+            ("squashMergeAllowed", False),
         ):
             with self.subTest(field=field, value=value):
-                policy = valid_merge_methods()
-                policy[field] = value
+                policy = valid_repository_merge_policy()
+                policy["data"]["repository"][field] = value
                 with patch.object(
-                    self.module,
-                    "_run_gh_json",
-                    side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
-                        [activated_rules()],
-                        policy,
-                    ],
-                ):
+                    self.module, "_run_gh_json", return_value=policy
+                ) as gh_json:
                     with self.assertRaisesRegex(
                         self.module.MergeRequestError, "squash merge only"
                     ):
                         self.module._load_guard_policy(REPOSITORY, "main")
+                self.assertEqual(gh_json.call_count, 1)
+
+    def test_guard_policy_rejects_malformed_repository_merge_flags(self):
+        for field in valid_repository_merge_policy()["data"]["repository"]:
+            for value in (None, 0, 1, "false", [], {}):
+                with self.subTest(field=field, value=value):
+                    policy = valid_repository_merge_policy()
+                    policy["data"]["repository"][field] = value
+                    with patch.object(
+                        self.module, "_run_gh_json", return_value=policy
+                    ) as gh_json:
+                        with self.assertRaisesRegex(
+                            self.module.MergeRequestError,
+                            "invalid repository merge policy",
+                        ):
+                            self.module._load_guard_policy(REPOSITORY, "main")
+                    self.assertEqual(gh_json.call_count, 1)
+
+    def test_guard_policy_rejects_missing_or_extra_repository_merge_flags(self):
+        for field in valid_repository_merge_policy()["data"]["repository"]:
+            with self.subTest(missing=field):
+                policy = valid_repository_merge_policy()
+                del policy["data"]["repository"][field]
+                with patch.object(
+                    self.module, "_run_gh_json", return_value=policy
+                ) as gh_json:
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "invalid repository merge policy"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
+                self.assertEqual(gh_json.call_count, 1)
+        policy = valid_repository_merge_policy()
+        policy["data"]["repository"]["unexpected"] = False
+        with patch.object(self.module, "_run_gh_json", return_value=policy):
+            with self.assertRaisesRegex(
+                self.module.MergeRequestError, "invalid repository merge policy"
+            ):
+                self.module._load_guard_policy(REPOSITORY, "main")
 
     def test_guard_policy_accepts_activation_without_claiming_bypass_visibility(self):
         with patch.object(
             self.module,
             "_run_gh_json",
             side_effect=[
-                {"data": {"repository": {"autoMergeAllowed": False}}},
+                valid_repository_merge_policy(),
                 [activated_rules()],
                 valid_merge_methods(),
             ],
@@ -1033,6 +1075,37 @@ class MergePullRequestTests(unittest.TestCase):
             gh_json.call_args_list[-1].args[0], ["api", "repos/owner/repository"]
         )
 
+    def test_guard_policy_accepts_rest_metadata_without_merge_method_fields(self):
+        with patch.object(
+            self.module,
+            "_run_gh_json",
+            side_effect=[
+                valid_repository_merge_policy(),
+                [activated_rules()],
+                {"fork": False},
+            ],
+        ):
+            self.assertEqual(
+                self.module._load_guard_policy(REPOSITORY, "main"), valid_policy()
+            )
+
+    def test_guard_policy_rejects_invalid_rest_repository_metadata(self):
+        for settings in (None, [], False, "repository"):
+            with self.subTest(settings=settings):
+                with patch.object(
+                    self.module,
+                    "_run_gh_json",
+                    side_effect=[
+                        valid_repository_merge_policy(),
+                        [activated_rules()],
+                        settings,
+                    ],
+                ):
+                    with self.assertRaisesRegex(
+                        self.module.MergeRequestError, "invalid repository metadata"
+                    ):
+                        self.module._load_guard_policy(REPOSITORY, "main")
+
     def test_guard_policy_accepts_omitted_update_parameters_for_non_fork(self):
         rules = activated_rules()
         del rules[0]["parameters"]
@@ -1041,7 +1114,7 @@ class MergePullRequestTests(unittest.TestCase):
             self.module,
             "_run_gh_json",
             side_effect=[
-                {"data": {"repository": {"autoMergeAllowed": False}}},
+                valid_repository_merge_policy(),
                 [rules],
                 settings,
             ],
@@ -1059,7 +1132,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         [rules],
                         valid_merge_methods() | metadata,
                     ],
@@ -1098,7 +1171,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         [activated_rules()[1:]],
                     ],
                 ),
@@ -1122,7 +1195,7 @@ class MergePullRequestTests(unittest.TestCase):
             self.module,
             "_run_gh_json",
             side_effect=[
-                {"data": {"repository": {"autoMergeAllowed": False}}},
+                valid_repository_merge_policy(),
                 [rules[:1], rules[1:]],
                 valid_merge_methods(),
             ],
@@ -1142,10 +1215,11 @@ class MergePullRequestTests(unittest.TestCase):
                 "api",
                 "graphql",
                 "-f",
-                "query=query RepositoryAutoMergePolicy("
+                "query=query RepositoryMergePolicy("
                 "$owner: String!, $repository: String!) { "
                 "repository(owner: $owner, name: $repository) { "
-                "autoMergeAllowed } }",
+                "autoMergeAllowed mergeCommitAllowed "
+                "rebaseMergeAllowed squashMergeAllowed } }",
                 "-F",
                 "owner=owner",
                 "-F",
@@ -1179,7 +1253,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         rules,
                         valid_merge_methods(),
                     ],
@@ -1210,7 +1284,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module,
                     "_run_gh_json",
                     side_effect=[
-                        {"data": {"repository": {"autoMergeAllowed": False}}},
+                        valid_repository_merge_policy(),
                         rules,
                     ],
                 ):
@@ -1226,7 +1300,7 @@ class MergePullRequestTests(unittest.TestCase):
             self.module,
             "_run_gh_json",
             side_effect=[
-                {"data": {"repository": {"autoMergeAllowed": False}}},
+                valid_repository_merge_policy(),
                 rules,
             ],
         ):
@@ -1236,7 +1310,7 @@ class MergePullRequestTests(unittest.TestCase):
             ):
                 self.module._load_guard_policy(REPOSITORY, "main")
 
-    def test_guard_policy_rejects_missing_or_ambiguous_auto_merge_policy(self):
+    def test_guard_policy_rejects_missing_or_ambiguous_repository_merge_policy(self):
         for response in (
             None,
             [],
@@ -1250,7 +1324,7 @@ class MergePullRequestTests(unittest.TestCase):
             {"data": {"repository": {"autoMergeAllowed": 0}}},
             {"data": {"repository": {"autoMergeAllowed": "false"}}},
             {
-                "data": {"repository": {"autoMergeAllowed": False}},
+                **valid_repository_merge_policy(),
                 "errors": [{"message": "Policy access denied"}],
             },
         ):
@@ -1259,7 +1333,7 @@ class MergePullRequestTests(unittest.TestCase):
                     self.module, "_run_gh_json", return_value=response
                 ) as gh_json:
                     with self.assertRaisesRegex(
-                        self.module.MergeRequestError, "auto-merge policy"
+                        self.module.MergeRequestError, "repository merge policy"
                     ):
                         self.module._load_guard_policy(REPOSITORY, "main")
                 self.assertEqual(gh_json.call_count, 1)
