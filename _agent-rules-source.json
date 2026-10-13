@@ -1,41 +1,41 @@
 {
-  "schemaVersion": 3,
-  "generatedAt": "2026-10-13T13:28:18.7745648Z",
-  "repository": {
-    "name": "git-starter-kit",
-    "slug": "asphyx0r/git-starter-kit",
-    "ref": "v2.12.0",
-    "commit": "ef97b78e41657197e50677117e40a2ac79ccc562"
-  },
-  "starterKit": {
-    "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.12.0",
-    "commit": "ef97b78e41657197e50677117e40a2ac79ccc562"
-  },
-  "agentRules": {
-    "repository": "https://github.com/asphyx0r/agent-coding-rules",
-    "requestedRef": "v1.42.0",
-    "ref": "v1.42.0",
-    "commit": "7cdf1cb2688813694c4982f909bf79be52880f22",
-    "releaseUrl": "https://github.com/asphyx0r/agent-coding-rules/releases/tag/v1.42.0",
-    "releaseDate": "08/21/2026 20:11:11",
-    "files": [
-      "AGENTS.md",
-      "BRANCH_RULES.md",
-      "CODING_RULES.md",
-      "COMMIT_RULES.md",
-      "DOCUMENTATION_RULES.md",
-      "LANGUAGE_RULES.md",
-      "RELEASE_RULES.md"
-    ],
-    "fileHashes": {
-      "AGENTS.md": "b72ceedbe6b83ac41aff63fe45716b5b99f418bcf26020c65dea0cb8c3b7c9e6",
-      "BRANCH_RULES.md": "e74fb9ff6ad9e5aa5aa4f2d3a63399932874aaa8378a29c521753eab088b5b80",
-      "CODING_RULES.md": "c550d0a6c60c64b1ed1bb7ce0e0f305225648d261dbbf855a83952d70b84a241",
-      "COMMIT_RULES.md": "9c0b84eaa56c6c46d32db444129c42a1d6c90e35f6bec0e3521a50ef6889df52",
-      "DOCUMENTATION_RULES.md": "a1bd7eb55d64c102285b4bf50207094de2781eca0383624f98c2d9bf64e6425f",
-      "LANGUAGE_RULES.md": "8493bf17910c22ed9a4d7ede25e7f528de1f89efca0c6de8837655854b2744ed",
-      "RELEASE_RULES.md": "8b76e33f4597e0b963e0151fb37c1b171578fc61d49d680d37281c50bc6ce16f"
-    }
-  }
+    "schemaVersion":  3,
+    "generatedAt":  "2026-10-13T16:41:03.6352941Z",
+    "repository":  {
+                       "name":  "git-starter-kit",
+                       "slug":  "asphyx0r/git-starter-kit",
+                       "ref":  "v2.12.0",
+                       "commit":  "0f70396e18838814bc5446766ffed5f1e61bd5b4"
+                   },
+    "starterKit":  {
+                       "repository":  "https://github.com/asphyx0r/git-starter-kit",
+                       "ref":  "v2.12.0",
+                       "commit":  "0f70396e18838814bc5446766ffed5f1e61bd5b4"
+                   },
+    "agentRules":  {
+                       "repository":  "https://github.com/asphyx0r/agent-coding-rules",
+                       "requestedRef":  "v1.42.0",
+                       "ref":  "v1.42.0",
+                       "commit":  "7cdf1cb2688813694c4982f909bf79be52880f22",
+                       "releaseUrl":  "https://github.com/asphyx0r/agent-coding-rules/releases/tag/v1.42.0",
+                       "releaseDate":  "2026-08-21T20:11:11Z",
+                       "files":  [
+                                     "AGENTS.md",
+                                     "BRANCH_RULES.md",
+                                     "CODING_RULES.md",
+                                     "COMMIT_RULES.md",
+                                     "DOCUMENTATION_RULES.md",
+                                     "LANGUAGE_RULES.md",
+                                     "RELEASE_RULES.md"
+                                 ],
+                       "fileHashes":  {
+                                          "AGENTS.md":  "b72ceedbe6b83ac41aff63fe45716b5b99f418bcf26020c65dea0cb8c3b7c9e6",
+                                          "BRANCH_RULES.md":  "e74fb9ff6ad9e5aa5aa4f2d3a63399932874aaa8378a29c521753eab088b5b80",
+                                          "CODING_RULES.md":  "c550d0a6c60c64b1ed1bb7ce0e0f305225648d261dbbf855a83952d70b84a241",
+                                          "COMMIT_RULES.md":  "9c0b84eaa56c6c46d32db444129c42a1d6c90e35f6bec0e3521a50ef6889df52",
+                                          "DOCUMENTATION_RULES.md":  "a1bd7eb55d64c102285b4bf50207094de2781eca0383624f98c2d9bf64e6425f",
+                                          "LANGUAGE_RULES.md":  "8493bf17910c22ed9a4d7ede25e7f528de1f89efca0c6de8837655854b2744ed",
+                                          "RELEASE_RULES.md":  "8b76e33f4597e0b963e0151fb37c1b171578fc61d49d680d37281c50bc6ce16f"
+                                      }
+                   }
 }

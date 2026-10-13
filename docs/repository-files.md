@@ -6,8 +6,6 @@ manufacturing commands and maintenance history are excluded. Files outside this
 inventory belong to the application, regardless of their directory name.
 
 ```text
-_agent-rules-source.json
-_starter-kit-files.json
 .agents/skills/git-commit-push-tag/agents/openai.yaml
 .agents/skills/git-commit-push-tag/references/git-commit-push-tag.txt
 .agents/skills/git-commit-push-tag/SKILL.md
@@ -34,6 +32,8 @@ _starter-kit-files.json
 .starter-kit-project.json
 .vscode/extensions.json
 .vscode/settings.json
+_agent-rules-source.json
+_starter-kit-files.json
 AGENTS.md
 audits/.gitkeep
 BRANCH_RULES.md
@@ -79,8 +79,8 @@ tools/project_validation.py
 tools/quality/check-versions.py
 tools/quality/install-external-tools.py
 tools/quality/npm-security.py
-tools/quality/package-lock.json
 tools/quality/package.json
+tools/quality/package-lock.json
 tools/quality/patches/braces-3.0.3/lib/compile.js
 tools/quality/patches/braces-3.0.3/lib/expand.js
 tools/quality/patches/braces-3.0.3/lib/stringify.js
@@ -94,8 +94,8 @@ tools/quality/requirements.lock
 tools/quality/versions.json
 tools/quality/yamllint.yaml
 tools/README.md
-tools/release-artifacts-requirements.txt
 tools/release-artifacts.py
+tools/release-artifacts-requirements.txt
 tools/repository-audit.sh
 tools/repository-audit/agent-rules-transfer.sh
 tools/repository-audit/common.sh

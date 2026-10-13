@@ -42,9 +42,10 @@ token, limited to `contents: write` and `pull-requests: write`. It repeats every
 validation with that token. Each pass also requires repository auto-merge to
 be disabled, rejects every effective merge-queue rule on the trusted default
 branch, and rejects a pull request that already has auto-merge enabled or is
-queued. The final command calls `gh pr merge` with squash mode, the exact
-subject, an explicit body file, and the sealed head SHA; it supplies no auto,
-administrator, auto-disable, or branch-deletion option.
+queued. The final command calls the GitHub merge API through `gh api`, with
+squash mode, the exact subject/body and the sealed head SHA in a JSON file.
+The server evaluates the App's separate update-rule bypass and all ordinary
+protections. No administrator, auto-merge or branch-deletion option is used.
 
 Both passes also require squash as the only repository merge method and the
 only method allowed by every effective pull-request rule. The active branch
@@ -102,8 +103,8 @@ body
 
 The second form may contain multiple body lines. Commitlint still enforces the
 repository limits, including the 72-character body-line maximum. The tool
-always supplies both the subject and `--body-file`; subject-only messages use an
-empty body file so GitHub cannot generate default text.
+always supplies both `commit_title` and `commit_message`; subject-only messages
+use an explicit empty message so GitHub cannot generate default text.
 
 ## Request a merge
 
@@ -160,7 +161,7 @@ for the exact `Guarded merge <UUID>` run and inspect the pull request. A repeate
 dispatch uses a new UUID and can race with the original request; UUID and hash
 values provide correlation and integrity, not origin authentication.
 
-After `gh pr merge` returns, and after any correlated workflow result including
+After the merge API returns, and after any correlated workflow result including
 `success`, the requester or executor requires the pull request to be merged,
 still targets the trusted default branch with the sealed head, reads the real
 merge commit, validates its message with Commitlint, and compares it

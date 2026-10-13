@@ -178,6 +178,10 @@ def without_cache(step: dict, kind: str, context: str) -> dict:
     inputs = step.get("with")
     if not isinstance(inputs, dict):
         raise ContractError(f"{context}/with: action inputs must be a mapping")
+    if ("cache" in inputs) != ("cache-dependency-path" in inputs):
+        raise ContractError(
+            f"{context}/with: cache and dependency path require each other"
+        )
     if "cache" in inputs and inputs["cache"] != kind:
         raise ContractError(f"{context}/with/cache: unexpected cache kind")
     if "cache-dependency-path" in inputs:
@@ -814,7 +818,7 @@ def repository_audit_contract(node_version: str) -> dict:
             "quality-linux": {
                 "name": "Quality - Ubuntu 24.04 / Python 3.11",
                 "runs-on": "ubuntu-24.04",
-                "timeout-minutes": 25,
+                "timeout-minutes": 45,
                 "outputs": {"scope": "${{ steps.scope.outputs.scope }}"},
                 "steps": [
                     checkout(
@@ -890,7 +894,7 @@ def repository_audit_contract(node_version: str) -> dict:
             "compatibility-windows": {
                 "name": "Compatibility - Windows 2025 / Python 3.14",
                 "runs-on": "windows-2025",
-                "timeout-minutes": 25,
+                "timeout-minutes": 45,
                 "steps": [
                     checkout(
                         **{

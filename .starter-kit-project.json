@@ -13,7 +13,7 @@
       "argv": [
         "python",
         "-c",
-        "import hashlib; from pathlib import Path; assert hashlib.sha256(Path('tools/merge-pull-request.py').read_bytes()).hexdigest() == 'a577f5a3cddf9768006fc06623b7fa2178d0ea91eca22239af385c8ec93f93d6'; print('Consumer guard bytes validated')"
+        "import hashlib; from pathlib import Path; assert hashlib.sha256(Path('tools/merge-pull-request.py').read_bytes()).hexdigest() == '64fcf56d3b47775441811d0f787991fd4468f27d9ecf33fa2f14f52a7df2401d'; print('Consumer guard bytes validated')"
       ],
       "workingDirectory": ".",
       "platforms": [
