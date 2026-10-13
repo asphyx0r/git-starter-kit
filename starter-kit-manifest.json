@@ -4,13 +4,13 @@
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T21:09:43Z"
+    "generatedAt": "2026-10-13T16:14:21Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
     "ref": "v2.12.0",
     "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.0",
-    "generatedAt": "2026-10-13T21:09:43Z"
+    "generatedAt": "2026-10-13T16:14:21Z"
   },
   "files": [
     {
@@ -137,14 +137,6 @@
       "path": ".github/workflows/agent-rules-update.yml",
       "sha256": "0e2cf2c3745da6cda502e817da75a49711c153bc4e1d377d4ef0ef90ea450e03",
       "canonicalSha256": "0e2cf2c3745da6cda502e817da75a49711c153bc4e1d377d4ef0ef90ea450e03",
-      "contentKind": "text",
-      "mode": "100644",
-      "strategy": "replace"
-    },
-    {
-      "path": ".github/workflows/guard-policy-bootstrap.yml",
-      "sha256": "eef7aa29e05ae0c6002ca6b6301aa30558c295d616f0fbb75fea50a3e23ccde9",
-      "canonicalSha256": "eef7aa29e05ae0c6002ca6b6301aa30558c295d616f0fbb75fea50a3e23ccde9",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
