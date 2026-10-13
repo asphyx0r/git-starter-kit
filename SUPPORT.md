@@ -1,34 +1,8 @@
 # Support
 
-## Getting help
+Project maintainers must fill in the project's issue tracker, documentation URL,
+supported versions and help channel. No project support channel is configured.
 
-This repository is a starter kit for Git and GitHub projects. Before asking for
-help, review:
-
-- `README.md` for usage and purpose.
-- `docs/repository-files.md` for the file inventory.
-- `CONTRIBUTING.md` for contribution expectations.
-- `SECURITY.md` for security-related reports.
-
-## Scope
-
-Support for this repository covers:
-
-- Understanding the included files and templates.
-- Reusing the starter kit for a new project.
-- Reporting documentation gaps or confusing defaults.
-
-Support does not cover downstream project-specific code, dependencies, hosting,
-or production incidents.
-
-## Questions and issues
-
-Use repository issues or discussions when they are enabled by the repository
-owner.
-
-Do not share secrets, tokens, passwords, private keys, or sensitive environment
-values in public support requests.
-
-## Security reports
-
-Use `SECURITY.md` for suspected vulnerabilities or sensitive reports.
+Include reproduction steps, expected behavior and relevant logs without secrets.
+See [README](README.md) and [Tools](tools/README.md) for the supplied workflows.
+The upstream links are legal attribution and provenance, not application support.

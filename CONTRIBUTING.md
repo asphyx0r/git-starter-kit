@@ -1,142 +1,37 @@
 # Contributing
 
-Thank you for helping improve this repository template.
+Project maintainers: fill in your repository URL, review process, supported
+application runtimes and application test commands before accepting contributions.
 
-## Contribution principles
+## Development
 
-- Keep changes small, explicit, and reusable.
-- Prefer generic Git and GitHub conventions over project-specific rules.
-- Avoid adding language-specific tooling unless it has been explicitly approved.
-- Do not commit secrets, tokens, passwords, or real environment values.
-- Update `docs/repository-files.md` when repository files are added or changed.
+Install the locked hook dependencies with
+`npm ci --ignore-scripts --prefix tools/quality`, then explicitly apply
+`python tools/quality/npm-security.py patch`. Run
+`bash tools/repository-audit.sh fast` for core checks and
+`bash tools/repository-audit.sh project-checks` for explicitly declared
+application validation. Empty checks warn; they do not prove regressions passed.
+See [Project configuration](docs/project-configuration.md).
 
-## Before changing files
+## Commits and reviews
 
-Review the existing repository context first:
+Follow [Commit rules](COMMIT_RULES.md), [Branch rules](BRANCH_RULES.md) and
+[Code quality rules](CODING_RULES.md). Subjects use English, meaningful lower-case
+scopes and at most 50 characters. For example:
 
-- `README.md` for the repository purpose.
-- `AGENTS.md` for coding-agent instructions.
-- `docs/repository-files.md` for the file inventory.
-
-## Commit messages
-
-Use `.gitmessage` as a starting point when helpful, but write the complete
-candidate message to a temporary file outside the working tree. Validate and
-commit that exact file from the repository root:
-
-```bash
-commitlint --edit /path/to/commit-message.txt
-git -c core.hooksPath=.githooks commit \
-  --file=/path/to/commit-message.txt \
-  --cleanup=verbatim
+```text
+feat(api): add health endpoint
+fix(auth): reject expired tokens
 ```
 
-Commit messages must use scoped Conventional Commit headers that follow the
-rules in `commitlint.config.cjs`, for example `docs(readme): update usage`.
-Never use `-m` or `--no-verify`. A Commitlint or hook failure blocks the commit
-and requires correcting and revalidating the same candidate file.
+Hooks enforce syntax and content constraints through Commitlint. Choose scopes
+that describe your application. Commitlint configuration and its tracked relative
+imports are read from the Git index; stage their intended contents together.
+Pull requests require the project's review and
+validation policy. Optional guarded merge activation uses trusted default-branch
+settings; ordinary reviews remain necessary when it is disabled.
 
-The non-conventional historical commit
-`2fbb9bcb749db1d9e2a9a79403246ba20884a90a`
-(`Rename GitHub release notes template`, 2026-06-18) predates this strict
-policy. It remains a retained exception and must never be rewritten.
+## Community and security
 
-## Git hooks
-
-Enable the repository hook path for ordinary local Git commands:
-
-```bash
-git config core.hooksPath .githooks
-```
-
-The pre-commit hook checks only a temporary staged snapshot from the Git index.
-It routes staged Markdown, YAML, Python, Bash or hook, JavaScript, and
-PowerShell files to their language-specific checks. It also validates relevant
-quality configuration and release artifacts, and never auto-formats files. The
-commit-msg hook requires `commitlint` and rejects messages that do not match the
-repository-specific scoped Conventional Commit rules. It reads the configuration
-and its tracked relative imports from the same complete index snapshot; keep
-those imported files tracked and stage their intended contents.
-
-The pre-push hook selects the affected Python and/or shell test families from
-each pushed branch update and runs them at the pushed commit in disposable
-detached clones. Each selected test family has a 900-second timeout. The hook
-removes those clones when it exits. It also validates `VERSION`, `SHA256SUMS`,
-and `manifest.json` for pushed SemVer tags. Guarded repository tools force this
-hook path independently of local Git configuration.
-
-## Release tags
-
-Create all new SemVer release tags as annotated tags. The published `v1.2.1`,
-`v1.2.2`, and `v1.3.0` tags are historical lightweight exceptions and must not
-be rewritten.
-
-Before creating a new release tag, resolve manifest values from authoritative
-project sources, exact release facts, or a non-conflicting previous manifest.
-Ask the user only for unresolved or contradictory values, require explicit
-validation, and commit the generated `VERSION`, `SHA256SUMS`, and
-`manifest.json` together. Never invent missing release metadata.
-
-## Pull requests
-
-`.github/CODEOWNERS` assigns every path to `@asphyx0r`. This provides ownership
-and review traceability, but does not provide an independent approval by
-another person. Branch protection, required reviews, and required conversation
-resolution are GitHub repository settings. Configure and verify them on GitHub;
-this document does not assert that they are enabled.
-
-A good pull request should explain:
-
-- What changed.
-- Why the change is useful.
-- How the change was verified.
-- Whether any files were intentionally deferred, rejected, or removed.
-
-## Guarded squash merges
-
-Prepare the complete squash message in a UTF-8 LF file and validate the request
-through `tools/merge-pull-request.py`. The command preserves the exact message,
-requires the pull request head and required checks to remain unchanged, and
-routes the write through the repository-owned workflow:
-
-```bash
-python tools/merge-pull-request.py request \
-  --pull-request 17 \
-  --message-file /path/to/merge-message.txt \
-  --repository owner/repository
-```
-
-See [Guarded pull request merges](docs/guarded-pull-request-merges.md) for the
-message contract, dry-run procedure, exit statuses, indeterminate-result
-handling, and activation proof.
-
-This path is not enforced merely because the files are present. Publication
-and GitHub activation require separate authorization. On the default branch,
-set `automations.guardedMerge` to `true` in `.starter-kit-project.json`, create
-a distinct `Restrict updates` ruleset with only the existing App as bypass, and
-keep the branch's existing protections without an App bypass. Disable
-auto-merge and every applicable merge queue, disable merge-commit and rebase
-methods, and use a disposable pull request to prove that manual merge is
-blocked while the App remains subject to required checks.
-
-## Verification
-
-The supported CI gate runs the exhaustive profile on Ubuntu 24.04 with Python
-3.11 and runs the fast profile, complete Python suite, and PSScriptAnalyzer on
-Windows 2025 with Python 3.14. Both jobs use Node.js 24.20.0, install the locked
-dependencies and integrity-verified external tools without a generic cache,
-and must pass before the aggregate `Repository audit` check succeeds.
-
-Before submitting changes, run the applicable focused hook profiles and the
-complete local audit when its required tools are available, then check that:
-
-- Only expected files changed.
-- Markdown and configuration files are readable and valid.
-- The repository inventory matches the files present in the repository.
-- `bash tools/repository-audit.sh full` succeeds in the locked quality
-  environment.
-
-Record a complete audit separately from focused checks and retries. A passing
-isolated test does not replace a failed complete audit. For the canonical
-repository's early prechecks and evidence rules, see
-[Validation evidence and optimization pilot](docs/release-package.md#validation-evidence-and-optimization-pilot).
+See [Code of conduct](CODE_OF_CONDUCT.md), [Support](SUPPORT.md) and
+[Security](SECURITY.md). Preserve the legal notices in [LICENSE](LICENSE).

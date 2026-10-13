@@ -1,11 +1,25 @@
 {
   "schemaVersion": 1,
-  "repositoryRole": "source",
-  "releaseKind": "deployment",
+  "repositoryRole": "project",
+  "releaseKind": "repository",
   "automations": {
-    "agentRulesSync": true,
-    "guardedMerge": true,
-    "releasePreflight": true
+    "agentRulesSync": false,
+    "guardedMerge": false,
+    "releasePreflight": false
   },
-  "checks": []
+  "checks": [
+    {
+      "name": "audit-consumer-integrity",
+      "argv": [
+        "python",
+        "-c",
+        "import hashlib; from pathlib import Path; assert hashlib.sha256(Path('tools/merge-pull-request.py').read_bytes()).hexdigest() == 'a577f5a3cddf9768006fc06623b7fa2178d0ea91eca22239af385c8ec93f93d6'; print('Consumer guard bytes validated')"
+      ],
+      "workingDirectory": ".",
+      "platforms": [
+        "linux",
+        "windows"
+      ]
+    }
+  ]
 }

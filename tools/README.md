@@ -1,1569 +1,92 @@
-# Tools
-
-<!-- markdownlint-disable MD024 -->
-
-This directory contains small repository management tools for the Git starter
-kit. Each tool is documented as an operational reference: what it does, how to
-run it, which options it accepts, how it exits, and what practices keep usage
-safe.
-
-## backup-target-directory.py
-
-### Features
-
-- Copies an entire source directory tree into a local temporary staging directory.
-- Includes Git metadata, hidden files, and tracked, untracked, or ignored files
-  that are present during the copy.
-- Creates and closes a compressed ZIP locally before transferring it to an
-  existing target directory and publishing it without overwriting an archive.
-- Rejects symbolic links and Windows junctions in the source tree by default.
-- Names archives with the source directory, timestamp, Git `HEAD`, and an exact
-  matching SemVer tag.
-- Supports a side-effect-free dry run and an optional local staging parent.
-
-### Synopsis
-
-```text
-usage: python tools/backup-target-directory.py [options]
-
-options:
-  -h, --help                       show help and exit
-  --version                        show version and exit
-  --dry-run                        simulate execution without modifying data
-  -v, --verbose                    enable DEBUG logs
-  -d, --source-directory BASEDIR   existing source directory tree to back up
-  -t, --target-directory TARGETDIR existing directory for the ZIP archive
-  -b, --buffer-directory BUFFERDIR existing local staging parent directory
-```
-
-### Description
-
-`backup-target-directory.py` creates a staged ZIP backup of an existing
-directory tree. The target and staging directories must remain outside the
-source so the generated data cannot enter the backup. The script copies the
-source to local temporary staging, creates and closes the ZIP beside the staged
-source, then copies it to an exclusively created temporary file in the target
-directory. Once the transfer is closed, Windows publishes it with a rename
-that refuses an existing destination. Linux uses a hard link for the same
-no-overwrite guarantee because POSIX rename can replace an existing file.
-
-The local ZIP stays outside the staged source and cannot include itself. Local
-storage must accommodate both the staged tree and its compressed ZIP; the
-target must accommodate the transferred ZIP. Ordinary failures clean up the
-execution's temporary files. A cleanup failure reports the affected path and
-returns an error. An abrupt process termination can leave temporary files.
-
-The source root is inspected before path resolution, and tree entries are
-inspected before descent. A symbolic link or Windows junction aborts the whole
-backup, including in dry-run mode; it is neither skipped nor followed. The
-checks recognize symbolic-link and mount-point reparse tags, rather than
-rejecting every Windows reparse point.
-
-When the source belongs to a readable Git repository, the archive name records
-the 12-character abbreviated `HEAD`. It includes a SemVer tag only when that
-tag points exactly to the captured commit. Every final archive uses this
-format:
-
-```text
-<SOURCE>-<YYYYMMDD>-<HHMMSS>-<HEAD>-<SEMVER-TAG>.zip
-```
-
-For example:
-
-```text
-git-starter-kit-20260730-165813-0d3ae03a4a86-v2.0.3.zip
-```
-
-When no commit can be read, `<HEAD>` is `000000000000`. When no matching
-SemVer tag can be read, `<SEMVER-TAG>` is `v0.0.0`. These placeholders keep
-the filename structure stable.
-
-After staging, the script resolves the source Git identity again. It stops
-before ZIP creation if `HEAD` or the selected tag changed during the copy.
-
-### Usage/Examples
-
-Preview a backup of the current repository into an existing sibling
-directory:
-
-```bash
-python tools/backup-target-directory.py \
-  --dry-run \
-  --source-directory . \
-  --target-directory ../backups
-```
-
-Create the archive:
-
-```bash
-python tools/backup-target-directory.py \
-  --source-directory . \
-  --target-directory ../backups
-```
-
-Use an existing local staging parent on another volume:
-
-```bash
-python tools/backup-target-directory.py \
-  --source-directory . \
-  --target-directory ../backups \
-  --buffer-directory /path/to/staging
-```
-
-### Options
-
-- `-h`, `--help`: prints the version and usage information, then exits.
-- `--version`: prints script version `0.1.0`, then exits.
-- `--dry-run`: validates the source, target, local staging location, symbolic-link
-  and junction policy, Git identity, and final name without creating files or
-  directories, including temporary-directory probes.
-- `-v`, `--verbose`: prints DEBUG logs in addition to normal status messages.
-- `-d PATH`, `--source-directory PATH`: existing directory tree to back up.
-  This option is required.
-- `-t PATH`, `--target-directory PATH`: existing directory where the ZIP is
-  created. This option is required and must not be inside the source.
-- `-b PATH`, `--buffer-directory PATH`: optional existing local staging parent
-  for both the source copy and ZIP creation. An unusable, remote, or unclassified
-  filesystem produces a warning and falls back to a verified local temporary
-  directory. If none is available outside the source, the backup fails before
-  copying data.
-
-Temporary candidates are existing directories from `TMPDIR`, `TEMP`, and `TMP`,
-in that order, followed by `LOCALAPPDATA/Temp` and `SystemRoot/Temp` on Windows,
-or `/tmp`, `/var/tmp`, and `/usr/tmp` on Linux. Selection checks accessibility
-and locality without creating candidates or write probes. Actual allocation or
-write errors can still occur during execution.
-
-On Windows, locality uses the directory's containing volume, its drive type,
-and its remote-storage flag. Fixed, removable, and RAM drives are accepted
-unless remote storage is advertised; network or unknown volumes are refused.
-A fixed drive type alone does not establish locality: a cloud filesystem can
-report that type. On Linux, `/proc/self/mountinfo` identifies the most specific
-mount. Accepted local types are `ext2`, `ext3`, `ext4`, `xfs`, `btrfs`, `zfs`,
-`tmpfs`, `ramfs`, `overlay`, `vfat`, `exfat`, `ntfs`, and `ntfs3`. Network, FUSE,
-unknown types, or unavailable mount information are not assumed local.
-
-### Exit Status
-
-- `0`: help or version was shown, the dry run completed, or the archive was
-  created successfully.
-- `1`: path or filesystem validation failed, a symbolic link or junction was
-  found, the Git identity changed during staging, an archive already exists,
-  or staging, ZIP creation, transfer, publication, or cleanup failed.
-- `2`: command-line argument parsing failed.
-
-The script also refuses to run with effective user ID `0` on Linux.
-
-### Publication regression and correction
-
-Commit `36a2ced76898f631184664f65d61510336f0a317` replaced an existence check
-followed by `Path.replace()` with `os.link()`. The intent was to prevent a
-concurrent backup from being overwritten between the check and publication.
-The accompanying collision test protects that behavior.
-
-That safeguard was present in starter kit v2.11.2 and propagated to
-`vendor-interface-validation` by migration commit
-`b139262313d3c84b8bd7139859fb21cb6098e671` on September 23, 2026. It remains
-in the unpatched v2.11.4 backup script. The affected Google Drive mount reports
-a FAT32 filesystem without hard-link support, so publication fails after ZIP
-creation. The arrow in the exception identifies the two paths passed to
-`os.link()`; it does not prove a rename was attempted.
-
-The reported failure starts with this verbatim French message:
-
-`[FATAL] Filesystem error: [WinError 1] Fonction incorrecte:` <!-- codespell:ignore fonction -->
-
-It then identifies the two paths, illustrated here with anonymized values:
-
-```text
-'G:\Backup\.example.00000000000000000000000000000001.zip.tmp'
--> 'G:\Backup\example.zip'
-```
-
-Creating the ZIP locally reduces cloud writes during compression, but does not
-by itself fix the unsupported hard-link operation. The corrected Windows flow
-copies the completed ZIP to a temporary file on the destination volume and
-then renames it without replacing an existing archive. This preserves the
-concurrency safeguard without requiring hard links on Windows. See the
-[Python rename contract](https://docs.python.org/3/library/os.html#os.rename).
-
-Linux publication still requires destination hard-link support and fails
-without publishing a final archive when it is unavailable. Success on a
-mounted cloud drive confirms local filesystem publication, not completion of
-the provider's remote synchronization or durability after a power failure.
-
-The default junction checks were ported from `vendor-interface-validation`
-commit `487a41ce6bccddfcd1e83e5a53cd981805472e9e`. This correction changes only
-starter kit files; dependent repositories need a separate future migration.
-
-### Testing
-
-Run the focused regression suite from the repository root:
-
-```bash
-python -B -m unittest discover -s tests -p test_backup_target_directory.py -v
-```
-
-It covers local ZIP creation, incomplete transfers, concurrent publication,
-cleanup, local-buffer selection, and source link rejection. Real junction
-fixtures run on Windows; real symbolic-link fixtures require link privileges.
-
-To additionally test a mounted cloud destination on Windows, set an existing
-parent directory explicitly (this example path is illustrative):
-
-```powershell
-$env:BACKUP_TEST_CLOUD_TARGET = 'G:\Backup'
-python -B -m unittest discover -s tests -p test_backup_target_directory.py -v
-Remove-Item Env:BACKUP_TEST_CLOUD_TARGET
-```
-
-The opt-in test creates synthetic local data and its own randomly named target
-subdirectory. It compares the local and published ZIP SHA256 values, checks
-ZIP integrity and contents, verifies collision refusal, and removes its
-fixtures. Existing backups are not used. Leave the variable unset to skip the
-cloud test in normal development and CI.
-
-### Appendix
-
-This is a staged filesystem copy, not a transactional repository snapshot.
-The post-copy check detects changes to `HEAD` or the selected tag, but not
-concurrent edits to working-tree files, the index, other refs, or reflogs. Stop
-repository writers while the backup runs when a restorable point-in-time copy
-is required.
-
-The archive includes `.git` when it is contained in the source. Linked
-worktrees and submodules may instead use a `.git` file that refers to metadata
-outside the source; such an archive is not self-contained.
-
-ZIP preserves file bytes and modification times at ZIP precision, but this
-tool does not preserve NTFS ACLs, alternate data streams, creation/access
-times, or a cryptographic manifest. The `v0.0.0` placeholder is also
-indistinguishable in the filename from a real tag with that exact name.
-
-## initialize-repository.py
-
-This helper validates a generated release package or prepares its initial system
-index. Normal users should run `git-init.sh` or `git-init.ps1`, which manage the
-interactive confirmations and Git initialization around these operations.
-
-```text
-usage: python tools/initialize-repository.py [-h] [--version] [--dry-run] [-v] \
-  {validate,prepare} --path PATH [--tag TAG]
-```
-
-`validate` reads the package inventory, paths, modes and repository schema.
-`prepare` requires an initialized Git repository, writes the initial changelog,
-sets declared modes, stages the exact system inventory and prepares/checks release
-artifacts from that index. It does not create a commit or tag. `--tag` defaults to
-`v1.0.0`; prepare validates the shared release tool's strict v-prefixed SemVer
-contract before writes, chmod or index updates. Its dry-run rejects invalid tags
-too and makes no mutations. The selected Python needs the locked jsonschema
-dependency; the distributed release helper and runtime modules must be present.
-
-Exit status is `0` on successful validation/preparation/preview, `1` on a target,
-tag or dependency failure, and `2` on invalid command-line syntax. `-v` enables
-debug logging. See [project initialization](../docs/project-configuration.md).
-
-## release-artifacts.py
-
-### Features
-
-- Generates root `VERSION`, `SHA256SUMS`, and `manifest.json` files for one
-  exact SemVer release.
-- Reads Git blobs from `HEAD`, the index, or a selected tree instead of hashing
-  untracked, ignored, or checkout-normalized files.
-- Builds inventory metadata incrementally without retaining every blob's
-  content in memory.
-- Generates the manifest from `templates/release/manifest.template.json` and
-  validates it against `templates/release/manifest.schema.json`.
-- Requires release-specific business metadata from an external JSON file and
-  never derives unknown values from repository content.
-- Supports side-effect-free preparation and exact index or tag validation.
-- Restores replaced outputs after Python exceptions, including KeyboardInterrupt,
-  while retaining the original exception and restoration/cleanup diagnostics.
-
-### Synopsis
-
-```text
-usage: python tools/release-artifacts.py [options] COMMAND
-
-options:
-  -h, --help    show help and exit
-  --version     show version and exit
-  --dry-run     validate and print the execution plan without writing
-  -v, --verbose show additional diagnostics
-  --force       write without interactive confirmation
-
-commands:
-  prepare prepare release artifacts
-  check   validate release artifacts
-```
-
-Install the pinned validator first:
-
-```bash
-python -m pip install \
-  --no-input \
-  --require-hashes \
-  --requirement tools/release-artifacts-requirements.txt
-```
-
-### Metadata Contract
-
-`prepare` requires a UTF-8 JSON object outside the repository with exactly
-these fields:
-
-```json
-{
-  "program_id": "example-app",
-  "name": "Example App",
-  "channel": "stable",
-  "critical_update": false,
-  "release_notes": ["Describe an actual release change."],
-  "update": {
-    "min_source_version": "1.0.0",
-    "strategy": "patch",
-    "preserve_paths": [],
-    "remove_obsolete_files": false,
-    "backup_required": false,
-    "restart_required": false,
-    "rollback_supported": false,
-    "migrations": []
-  },
-  "artifact": {
-    "id": "source-tree",
-    "target": {
-      "os": "any",
-      "arch": "any",
-      "min_os_version": "not-applicable"
-    }
-  },
-  "metadata": {
-    "author": "Example Maintainers",
-    "license": "MIT",
-    "support_url": "https://example.com/support"
-  }
-}
-```
-
-This object illustrates the required types only. None of its values is a
-default. The caller must provide every exact value. The canonical release
-workflow resolves provable values from explicit current input, authoritative
-project sources, exact release facts, or a non-conflicting previous manifest.
-It asks the user only for unresolved or contradictory values and requires
-explicit validation. Do not copy illustrative values into a real release.
-
-### Usage/Examples
-
-Preview generation with one recorded UTC timestamp:
-
-```bash
-python tools/release-artifacts.py --dry-run prepare \
-  --release-ref v1.2.3 \
-  --release-date 2026-08-18T12:00:00Z \
-  --metadata-file /external/path/release-metadata.json
-```
-
-Generate the three files after the preview succeeds:
-
-```bash
-python tools/release-artifacts.py --force prepare \
-  --release-ref v1.2.3 \
-  --release-date 2026-08-18T12:00:00Z \
-  --metadata-file /external/path/release-metadata.json
-```
-
-Validate the staged files before committing them:
-
-```bash
-python tools/release-artifacts.py check \
-  --expected-ref v1.2.3 \
-  --index
-```
-
-Validate the immutable tag tree:
-
-```bash
-python tools/release-artifacts.py check \
-  --expected-ref v1.2.3 \
-  --treeish v1.2.3
-```
-
-### Artifact Scope
-
-The generated inventory contains every supported Git blob in the candidate
-release tree, plus the generated `VERSION`. Gitlinks and untracked, ignored, or
-absent paths are excluded. `SHA256SUMS` and `manifest.json` are also excluded
-from the checksum inventory because either digest would create a
-self-reference. The SHA-256 recorded for the `git-tree` artifact is the digest
-of the exact `SHA256SUMS` bytes.
-
-Git requests are limited to 30 seconds; inventory listings and object batches
-have a 300-second limit. Expiration produces a contextual error and stops the
-Git process and its ordinary descendants, including processes holding captured
-streams open. Git for Windows uses its native executable when the installed
-launcher has a verified native sibling.
-The deadline starts after synchronous process creation and containment; this
-helper cannot cancel the native process creation call itself.
-
-### Options
-
-- `--release-ref TAG`: exact SemVer release tag, including the leading `v`.
-- `--release-date TIMESTAMP`: exact UTC release timestamp in
-  `YYYY-MM-DDTHH:MM:SSZ` format.
-- `--metadata-file PATH`: required release-specific JSON file outside the Git
-  root.
-- `--expected-ref TAG`: exact tag required by `check`; otherwise the manifest
-  version determines the expected tag.
-- `--index`: validate staged Git content.
-- `--treeish REF`: validate one committed tree or tag. It is mutually exclusive
-  with `--index`.
-- `--repository-root PATH`: exact Git root. Defaults to the current directory.
-
-### Exit Status
-
-- `0`: help or version was shown, the dry run succeeded, or all requested
-  artifacts were prepared or validated.
-- `1`: metadata, SemVer, Git content, checksum, template, schema, confirmation,
-  or write validation failed.
-- `2`: command-line argument parsing failed.
-
-## starter-kit-manifest.py
-
-This is a `git-starter-kit` source-repository tool. It prepares and validates
-the tracked core release manifest. The tool is excluded from packages, while
-the generated `starter-kit-manifest.json` is distributed to derived
-repositories.
-
-### Features
-
-- Records separate immutable `source` and updatable `current` releases.
-- Inventories core paths with raw and canonical SHA-256 digests, Git modes,
-  content kinds, and upgrade strategies.
-- Reads committed or staged Git blobs so the inventory is independent of
-  checkout line endings, without retaining all blob contents in memory.
-- Preserves an existing generation timestamp when the selected ref and core
-  inventory are unchanged.
-- Allows read-only validation in forks but permits preparation only with the
-  exact canonical `asphyx0r/git-starter-kit` `origin`.
-- Uses only the Python standard library.
-
-### Synopsis
-
-```text
-usage: python tools/starter-kit-manifest.py [options] COMMAND
-
-options:
-  -h, --help    show help and exit
-  --version     show version and exit
-  --dry-run     validate and print the execution plan without writing
-  -v, --verbose show additional diagnostics
-
-commands:
-  prepare prepare the tracked manifest
-  check   validate the tracked manifest
-```
-
-### Usage/Examples
-
-Preview preparation for an exact release tag:
-
-```bash
-python tools/starter-kit-manifest.py --dry-run prepare \
-  --release-ref v2.4.0
-```
-
-Prepare and validate the manifest after all other release content is
-committed:
-
-```bash
-python tools/starter-kit-manifest.py prepare --release-ref v2.4.0
-python tools/starter-kit-manifest.py check \
-  --expected-ref v2.4.0 \
-  --treeish HEAD
-```
-
-By default, `check` validates the core against the tag recorded in `current`
-when that tag exists locally. This keeps the last published baseline valid on
-a development branch containing later unreleased changes.
-
-### Options
-
-- `--release-ref TAG`: exact SemVer release tag for `prepare`, including the
-  leading `v`.
-- `--expected-ref TAG`: optional exact `current` ref required by `check`.
-- `--repository-root PATH`: Git repository root. Defaults to the current
-  directory.
-- `--treeish REF`: Git tree whose committed blobs define the core. `prepare`
-  otherwise reads staged index blobs; `check` otherwise resolves the recorded
-  release tag or uses the index when that tag does not exist.
-
-### Exit Status
-
-- `0`: the manifest was prepared or validated successfully.
-- Non-zero: repository identity, schema, release metadata, Git inventory, or
-  digest validation failed.
-
-## build-release-package.ps1
-
-This is a `git-starter-kit` source-repository tool. It is intentionally absent
-from packages distributed to derived repositories.
-
-### Features
-
-- Builds an enriched repository ZIP package.
-- Copies manifest-declared core files into a temporary staging directory for
-  SemVer releases and tracked files for local smoke packages.
-- Validates tracked coding-agent rule files against their source provenance.
-- Writes `_agent-rules-source.json` with repository, starter-kit, resolved
-  rule provenance, and any preserved customization records.
-- Writes schema 3 `_starter-kit-files.json` with managed-file hashes, modes,
-  upgrade strategies, and `starter-kit-state` handling.
-- Verifies required files before and after ZIP creation.
-- Builds and validates a sibling temporary ZIP before atomically publishing it;
-  a failed build, validation, or replacement preserves an existing destination.
-- Emits GitHub Actions outputs when `GITHUB_OUTPUT` is set.
-- Rejects every repository slug and `origin` except the canonical
-  `asphyx0r/git-starter-kit` repository.
-- Excludes source-only workflow, builder, upgrade, test, and operator
-  documentation paths, plus the canonical repository's generated `VERSION`,
-  `SHA256SUMS`, and `manifest.json`, from the distributed package and its
-  manifest.
-
-### Synopsis
-
-```text
-usage: powershell -NoProfile -File tools\build-release-package.ps1 [options]
-
-options:
-  -RepositoryRoot PATH        repository root to package
-  -OutputDirectory PATH       directory where the ZIP is written
-  -PackageName NAME           ZIP file name, with .zip appended if needed
-  -RepositoryRef REF          packaged repository ref
-  -RepositorySlug OWNER/NAME  packaged GitHub repository
-  -StarterKitRepository NAME  upstream starter-kit owner/name
-  -StarterKitRef REF          upstream starter-kit ref
-  -StarterKitCommit SHA       upstream starter-kit commit
-  -AgentRulesRepository NAME  owner/name repository for agent rules
-  -AgentRulesRef REF          latest or SemVer agent-rules tag
-```
-
-### Description
-
-`build-release-package.ps1` creates the release asset used by the
-`Release package` GitHub Actions workflow. It packages files reported by
-`starter-kit-manifest.json` for SemVer releases, plus the required coding-agent
-rule files already tracked by the repository. Non-SemVer local smoke packages
-continue to use `git ls-files` minus the explicit starter-only exclusion list.
-It resolves an `agent-coding-rules` release only to assert
-that provenance and canonical rule hashes are current. The generated ZIP
-includes the normal repository content, the required rule files,
-`starter-kit-manifest.json`, `_agent-rules-source.json`, and the per-file
-`_starter-kit-files.json` upgrade manifest. For a SemVer package, the tracked
-core manifest must identify the exact packaged ref and match `HEAD`; the tag
-must resolve to `HEAD`, and every packaged path must match its filtered `HEAD`
-blob. The builder accepts only the exact canonical starter repository slug and
-HTTPS `origin`; derived repositories cannot use it to create their own release
-package.
-
-The script resolves the latest published agent-rules release once through the
-GitHub releases API for every build. An explicit `-AgentRulesRef` must identify
-that same latest SemVer tag; an older release is rejected.
-Branch names and other refs are rejected to keep package inputs reproducible.
-The latest-release HTTP request has a 60-second limit. Git requests have a
-30-second limit, or 300 seconds for inventory listings. The deadline includes
-captured output and process cleanup; an expired process and its ordinary
-descendants are stopped, and temporary output is cleaned up. Unix execution
-requires the native `setsid` utility, provided by the Ubuntu CI runner; the
-script checks for it before starting Git. Windows PowerShell 5.1 needs no
-additional runtime for process containment.
-The deadline starts after synchronous process creation and containment; native
-process creation itself is outside that cancellable execution budget.
-
-### Usage/Examples
-
-Create a local test package in the ignored `.tmp/` directory:
-
-```powershell
-powershell -NoProfile -File tools\build-release-package.ps1 `
-  -RepositoryRef local-test `
-  -RepositorySlug asphyx0r/git-starter-kit `
-  -OutputDirectory .tmp\release-package-test `
-  -PackageName test-release-package.zip
-```
-
-Create a package with a specific agent-rules release:
-
-```powershell
-powershell -NoProfile -File tools\build-release-package.ps1 `
-  -RepositoryRef v1.5.0 `
-  -RepositorySlug asphyx0r/git-starter-kit `
-  -AgentRulesRef latest `
-  -OutputDirectory dist
-```
-
-Inspect the generated archive:
-
-```powershell
-tar -tf .tmp\release-package-test\test-release-package.zip
-tar -xOf .tmp\release-package-test\test-release-package.zip `
-  _agent-rules-source.json
-```
-
-### Options
-
-- `-RepositoryRoot PATH`: repository root to package. Defaults to the current
-  working directory.
-- `-OutputDirectory PATH`: output directory for the generated ZIP. Defaults to
-  `dist` under the current working directory. The directory is created when
-  needed.
-- `-PackageName NAME`: output file name. When omitted, the script derives
-  `{RepositoryName}-{RepositoryRef}-with-agent-rules.zip`. If the provided
-  name does not end with `.zip`, the extension is appended.
-- `-RepositoryRef REF`: packaged repository ref recorded in the manifest and
-  used in the default package name. `-StarterRef` remains an alias for
-  compatibility. Defaults to `GITHUB_REF_NAME`; if that is empty, the script
-  uses the short current commit SHA.
-- `-RepositorySlug OWNER/NAME`: packaged GitHub repository. It must resolve
-  exactly to `asphyx0r/git-starter-kit`. In Actions it defaults to
-  `GITHUB_REPOSITORY`; local invocations must pass the canonical slug. The
-  repository root must also use the canonical HTTPS `origin`.
-- `-StarterKitRepository OWNER/NAME`: upstream starter-kit repository recorded
-  in the provenance. Defaults to `asphyx0r/git-starter-kit`.
-- `-StarterKitRef REF`: upstream starter-kit ref. Defaults to the packaged
-  repository ref when the packaged repository is the starter kit.
-- `-StarterKitCommit SHA`: upstream starter-kit commit. Defaults to the
-  packaged repository commit when the packaged repository is the starter kit.
-- `-AgentRulesRepository NAME`: GitHub `owner/name` repository used as the
-  agent-rules source. Defaults to `asphyx0r/agent-coding-rules`.
-- `-AgentRulesRef REF`: agent-rules reference to package. Defaults to
-  `latest`. Accepted values are `latest` or the same latest published SemVer tag.
-- `GITHUB_TOKEN`: optional environment variable used as a bearer token for the
-  public GitHub release and immutable Git-object APIs on every build; no token
-  is required for the canonical public source.
-- `GITHUB_OUTPUT`: optional environment variable used by GitHub Actions. When
-  set, the script writes `package_path`, `package_name`, `agent_rules_ref`,
-  and `agent_rules_commit`.
-
-### Exit Status
-
-- `0`: the package was created successfully.
-- Non-zero: validation failed, Git failed, GitHub API resolution failed,
-  required rule files were missing, archive verification failed, or another
-  terminating PowerShell error occurred.
-
-### Consumer composition
-
-The builder overlays `templates/project/`, calls the shared
-`default_project_configuration()` and generates inventories afterward.
-Consumer Commitlint retains mandatory syntax, type and length checks while
-omitting the source-only scope whitelist. `.starter-kit-project.json` is
-initialize-only; existing configuration and missing-file legacy mode require
-review rather than automatic activation. Source tests, manufacturing commands,
-migration journals and template source inputs are excluded. Audit runtime
-modules and release schemas remain managed; ZIP bytes and Unix executable modes
-are verified against the final inventory. The upgrade toolkit embeds this exact
-ZIP and keeps the existing updater strategies.
-
-Packaging is verification, not rule synchronization: the canonical checkout
-must already match the latest immutable upstream rules. Modified preserved-rule
-customizations cannot be exported as upstream truth. Markdown CRLF checkout
-conversion is accepted, but the ZIP stores the exact authenticated LF blobs.
-
-### Appendix
-
-Use this script from a clean, committed repository when preparing release
-assets. Local untracked files are intentionally excluded because package
-content comes from `git ls-files`.
-
-Use `latest` for normal release automation so packaging fails if tracked rules
-lag behind the latest full `agent-coding-rules` release. Use an explicit SemVer
-tag only to assert the same latest published release.
-
-Treat failures as release blockers. The script verifies the resolved
-agent-rules tag, immutable commit/tree/blob identities, faithful rule bytes and
-provenance hashes, and the generated archive so that a broken package is not uploaded silently.
-
-## starter-kit-upgrade.py
-
-This is a `git-starter-kit` source-repository tool. It is excluded from the
-full package and supplied separately inside the upgrade toolkit so derived
-repositories do not track the toolkit builder or applier.
-
-### Features
-
-- Builds cumulative upgrade ZIPs from exact base and new release packages.
-- Verifies release provenance, managed-file hashes, and archive paths.
-- Produces a per-file plan without modifying the target.
-- Compares text through canonical UTF-8, LF, and final-newline hashes.
-- Updates unchanged files and three-way merges explicitly merge-managed files.
-- Delegates the seven root rule files to the target repository's autonomous rule
-  synchronization workflow.
-- Refreshes only the starter-owned `repository` and `starterKit` sections in
-  `_agent-rules-source.json` while preserving agent-rule and target-owned data.
-- Preserves `starter-kit-manifest.json.source` while replacing `current` and
-  the core inventory from the new release.
-- Preserves initialization-only, deleted, additional, unrelated untracked, and
-  conflicting locally modified files.
-- Requires no tracked worktree changes, an external rollback directory, and
-  zero conflicts before application.
-- Bundles the updater and a complete new package as a release toolkit.
-- Writes a detailed, release-specific execution log for every non-dry-run
-  command.
-
-### Synopsis
-
-```text
-usage: python tools/starter-kit-upgrade.py [options] COMMAND
-
-options:
-  -h, --help    show help and exit
-  --version     show version and exit
-  --dry-run     validate and print the execution plan without writing
-  -v, --verbose show additional diagnostics
-
-commands:
-  build   build a cumulative upgrade ZIP
-  toolkit bundle the updater and a new full package
-  plan    inspect a target without writing
-  apply   apply a conflict-free upgrade
-```
-
-### Usage/Examples
-
-Build an upgrade from the exact package used for initialization:
-
-```bash
-python tools/starter-kit-upgrade.py build \
-  --base-package git-starter-kit-v2.0.3-with-agent-rules.zip \
-  --new-package git-starter-kit-v2.1.0-with-agent-rules.zip \
-  --output git-starter-kit-v2.0.3-to-v2.1.0-upgrade.zip
-```
-
-Inspect a target without modifying it:
-
-```bash
-python tools/starter-kit-upgrade.py plan \
-  --upgrade-package git-starter-kit-v2.0.3-to-v2.1.0-upgrade.zip \
-  --target ../example-repository
-```
-
-Apply a conflict-free plan while creating a rollback archive outside the
-target:
-
-```bash
-python tools/starter-kit-upgrade.py apply \
-  --upgrade-package git-starter-kit-v2.0.3-to-v2.1.0-upgrade.zip \
-  --target ../example-repository \
-  --backup-directory ../upgrade-backups
-```
-
-### Execution Log
-
-Every non-dry-run `build`, `toolkit`, `plan`, and `apply` command creates a
-UTF-8 log below `logs/` in the current directory. Its name uses the validated
-target release and local start time:
-
-```text
-starter-kit-upgrade-vX.Y.Z-YYYYMMDD-HHMMSS.log
-```
-
-Every displayed log timestamp uses `YYYY-MM-DD HH:MM:SS`; the compact form is
-used only in the required filename. The tool reports the absolute log path on
-standard error so JSON and other normal standard output remain unchanged.
-
-The log records command context, release provenance, archive hashes, processing
-phases, and one action with relevant hashes for every inspected, preserved,
-delegated, backed-up, or written file. Its final summary distinguishes the
-operation status, strategy-aware operational compliance, and exact file
-alignment with the target release. A successful operational result can still
-require agent-rule synchronization or an explicit `initialize-only` review,
-and exact alignment reports those intentional differences independently.
-Final `NON_COMPLIANT` produces status `FAILED` and a nonzero exit code;
-`COMPLIANT_WITH_FOLLOW_UP` and `NOT_ALIGNED` remain valid when the file
-strategies are respected. Concurrent user changes detected by that final
-check are preserved.
-
-`--dry-run` remains side-effect free and creates no log. Help, version,
-argument-parser exits, and failures that occur before a valid target release
-can be resolved also create no log. A failure after release resolution is
-recorded with its exception and traceback. If the log cannot be created, the
-tool stops before writing an artifact or target file.
-
-### Safety Model
-
-The starter-kit commit recorded inside target `_agent-rules-source.json` must
-match the base package. Agent-rule version changes and newline-only differences
-do not invalidate this starter provenance. Older repositories can instead use
-a reviewed `.starter-kit-adoption.json` that records the base archive hash,
-starter-kit commit, and an ancestor commit containing the audited baseline.
-Successful application writes the next adoption baseline, including hashes for
-preserved merge-managed customizations.
-
-The `starter-kit-state` strategy handles `starter-kit-manifest.json`
-separately from ordinary file replacement. A legacy package without that file
-receives `source` from the exact base-package provenance. Later upgrades
-preserve `source`, replace `current` and `files`, and reject changes outside
-the expected source-only difference. The adoption manifest anchors the
-preserved source descriptor so a later local alteration is a conflict.
-
-The distribution classifications are explicit. `.github/CODEOWNERS`, the
-release-package workflow, packaging and upgrade sources, their
-repository-specific tests, and package operator guides are source-only.
-`.github/dependabot.yml` is merge-managed, `tools/quality/` is replaced as one
-baseline, and the repository-audit dispatcher and modules are replace-managed
-as one operational runtime. The updater therefore installs the complete audit
-dependency set while preserving downstream inventories and operator
-documentation. Any downstream audit-runtime change is a blocking conflict and
-is not overwritten.
-
-When an initialization-only file changed upstream, the plan reports
-`review-initialize-only` without blocking or writing the target. This makes
-required local review visible while preserving repository ownership.
-
-On POSIX systems, the plan also checks the owner execute bit against the
-package's Git mode. Each action records `localMode`, `modeAligned` and
-`modeOnly`. A mode-only `update` changes execute permissions in place,
-preserving exact local bytes and other permission bits. Initialize-only files
-remain subject to local review, and agent-rule files remain delegated.
-Application rejects permission changes made after planning and verifies each
-mode repair. Windows reports `localMode: null` and does not enforce POSIX modes.
-
-The tool performs no deletion, commit, tag, push, or network operation. Any
-conflict blocks application. An error or interruption during writes triggers
-restoration of the original content, modes and adoption state, including a
-partially written file. Restoration continues after individual failures and
-reports the paths it could not restore. The external rollback ZIP remains
-available for operator-controlled recovery.
-
-Archive limits, Windows path restrictions, legacy manifest validation and
-bounded Git operations are documented in the
-[upgrade safety guide](../docs/upgrade-toolkit.md#sécurité).
-
-## git-init.ps1
-
-### Features
-
-- Initializes an existing non-empty directory as a Git repository.
-- Previews committable files before creating target Git metadata.
-- Requires explicit confirmation before initialization and commit.
-- Warns before committing risky credential, archive, cache, or runtime paths.
-- Validates one temporary message file with Commitlint before committing it
-  through the forced repository hooks.
-- Creates the first Conventional Commit on `main`.
-- Creates an annotated SemVer tag and optionally pushes to `origin`.
-
-### Synopsis
-
-```text
-usage: powershell -NoProfile -File tools\git-init.ps1 [options]
-
-options:
-  -h, --help       show version and help
-      --version    show version only
-  -v, --verbose    show additional execution traces
-  -p, --path PATH  target repository root, required
-  -r, --remote URL optional origin remote URL
-  -t, --tag TAG    SemVer Git tag, default: v1.0.0
-```
-
-### Description
-
-`git-init.ps1` is the PowerShell initializer for creating the first Git history
-in a target project directory. It requires the target directory to already
-exist and contain files. If `.git` metadata already exists, it must be readable
-and the repository must not already have commits.
-
-The script asks for confirmation, previews files Git can commit, asks for a
-second confirmation, warns on risky paths when needed, then creates the initial
-commit from the exact temporary file accepted by `commitlint --edit` and the
-forced `.githooks/commit-msg` hook. It compares the recorded message with that
-file before renaming the branch to `main` and creating an annotated tag. It
-pushes only when `--remote` is provided.
-
-### Usage/Examples
-
-Initialize a local target directory:
-
-```powershell
-powershell -NoProfile -File tools\git-init.ps1 `
-  --path ..\example-app `
-  --tag v1.0.0
-```
-
-Initialize and push to a remote repository:
-
-```powershell
-powershell -NoProfile -File tools\git-init.ps1 `
-  --path ..\example-app `
-  --tag v1.0.0 `
-  --remote https://github.com/example/example-app.git
-```
-
-Show version and help:
-
-```powershell
-powershell -NoProfile -File tools\git-init.ps1 --help
-powershell -NoProfile -File tools\git-init.ps1 --version
-```
-
-### Options
-
-- `-h`, `--help`: prints the version and usage information, then exits.
-- `--version`: prints the script version, then exits.
-- `-v`, `--verbose`: prints Git commands before running them.
-- `-p PATH`, `--path PATH`: target repository root. This option is required.
-  The path must be an existing non-empty directory.
-- `-r URL`, `--remote URL`: optional remote URL. When provided, the script adds
-  it as `origin` and runs `git push -u origin main --tags`.
-- `-t TAG`, `--tag TAG`: annotated Git tag to create. Defaults to `v1.0.0`.
-  The tag must be a SemVer tag prefixed with `v`.
-
-### Exit Status
-
-- `0`: help or version was shown, the user cancelled safely, or initialization
-  completed successfully.
-- Non-zero: an argument was invalid, the target directory was invalid, Git
-  metadata was unreadable, the repository already had commits, the tag already
-  existed, no committable files were found, Commitlint or a Git hook failed,
-  Git failed, or another terminating PowerShell error occurred.
-
-### Troubleshooting
-
-When `git-init.ps1` comes from a downloaded GitHub release ZIP, PowerShell may
-block it before the script starts. The error can be localized, but it usually
-includes `PSSecurityException`, `UnauthorizedAccess`, and text similar to:
-
-```text
-.\git-init.ps1 : File C:\Path\To\Project\tools\git-init.ps1 cannot be loaded.
-The file C:\Path\To\Project\tools\git-init.ps1 is not digitally signed. You
-cannot run this script on the current system.
-FullyQualifiedErrorId : UnauthorizedAccess
-```
-
-PowerShell is enforcing the current execution policy or the downloaded-file
-mark on the extracted script. Inspect the active policies, then use a per-user
-`RemoteSigned` policy and unblock the trusted script file:
-
-```powershell
-Get-ExecutionPolicy -List
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-Unblock-File -Path .\tools\git-init.ps1
-powershell -NoProfile -File .\tools\git-init.ps1 `
-  --path ..\example-app `
-  --tag v1.0.0
-```
-
-Use the actual path where you extracted or copied `git-init.ps1`; for example,
-replace `.\tools\git-init.ps1` with `.\scripts\git-init.ps1` if the script was
-copied to `scripts`. Unblock only files from a trusted release package. If an
-organization manages execution policy through `MachinePolicy` or `UserPolicy`,
-follow that policy instead of bypassing it.
-
-### Appendix
-
-Review the file preview before confirming the commit. If risky paths are
-reported, inspect them carefully and cancel unless they are intentional.
-
-The target must contain readable `.githooks/commit-msg` and
-`commitlint.config.cjs` files. Install Commitlint and every tool required by
-the target hooks before initialization. Any Commitlint or hook failure blocks
-`HEAD`, the tag, and the optional push.
-
-Use `--remote` only after checking that the target remote URL is correct. When
-`--remote` is omitted, the initializer creates only local Git history.
-
-Run from PowerShell when working primarily on Windows paths. Use
-`git-init.sh` when a Bash environment is the better fit.
-
-## git-init.sh
-
-### Features
-
-- Initializes an existing non-empty directory as a Git repository from Bash.
-- Previews committable files before creating target Git metadata.
-- Requires explicit confirmation before initialization and commit.
-- Warns before committing risky credential, archive, cache, or runtime paths.
-- Validates one temporary message file with Commitlint before committing it
-  through the forced repository hooks.
-- Creates the first Conventional Commit on `main`.
-- Creates an annotated SemVer tag and optionally pushes to `origin`.
-
-### Synopsis
-
-```text
-usage: bash tools/git-init.sh [options]
-
-options:
-  -h, --help       show version and help
-      --version    show version only
-  -v, --verbose    show additional execution traces
-  -p, --path PATH  target repository root, required
-  -r, --remote URL optional origin remote URL
-  -t, --tag TAG    SemVer Git tag, default: v1.0.0
-```
-
-### Description
-
-`git-init.sh` is the Bash initializer for creating the first Git history in a
-target project directory. It requires Bash 4 or newer, an existing non-empty
-target directory, and readable `.git` metadata if `.git` already exists. The
-target repository must not already have commits.
-
-The script asks for confirmation, previews files Git can commit, asks for a
-second confirmation, warns on risky paths when needed, then creates the initial
-commit from the exact temporary file accepted by `commitlint --edit` and the
-forced `.githooks/commit-msg` hook. It compares the recorded message with that
-file before renaming the branch to `main` and creating an annotated tag. It
-pushes only when `--remote` is provided.
-
-### Usage/Examples
-
-Initialize a local target directory:
-
-```bash
-bash tools/git-init.sh --path ../example-app --tag v1.0.0
-```
-
-Initialize and push to a remote repository:
-
-```bash
-bash tools/git-init.sh \
-  --path ../example-app \
-  --tag v1.0.0 \
-  --remote https://github.com/example/example-app.git
-```
-
-Show version and help:
-
-```bash
-bash tools/git-init.sh --help
-bash tools/git-init.sh --version
-```
-
-### Options
-
-- `-h`, `--help`: prints the version and usage information, then exits.
-- `--version`: prints the script version, then exits.
-- `-v`, `--verbose`: prints Git commands before running them.
-- `-p PATH`, `--path PATH`: target repository root. This option is required.
-  The path must be an existing non-empty directory.
-- `-r URL`, `--remote URL`: optional remote URL. When provided, the script adds
-  it as `origin` and runs `git push -u origin main --tags`.
-- `-t TAG`, `--tag TAG`: annotated Git tag to create. Defaults to `v1.0.0`.
-  The tag must be a SemVer tag prefixed with `v`.
-
-### Exit Status
-
-- `0`: help or version was shown, the user cancelled safely, or initialization
-  completed successfully.
-- `1`: an argument was invalid, the target directory was invalid, Git metadata
-  was unreadable, the repository already had commits, the tag already existed,
-  no committable files were found, Commitlint or a Git hook failed, Git failed,
-  or another checked failure occurred.
-
-### Appendix
-
-Review the file preview before confirming the commit. If risky paths are
-reported, inspect them carefully and cancel unless they are intentional.
-
-The target must contain readable and executable `.githooks/commit-msg` and a
-readable `commitlint.config.cjs`. Install Commitlint and every tool required by
-the target hooks before initialization. Any Commitlint or hook failure blocks
-`HEAD`, the tag, and the optional push.
-
-Use `--remote` only after checking that the target remote URL is correct. When
-`--remote` is omitted, the initializer creates only local Git history.
-
-Run from Bash 4 or newer. On Windows, the PowerShell initializer may be easier
-when the target path is a native Windows path.
-
-## merge-pull-request.py
-
-### Features
-
-- Validates one exact UTF-8 squash message with the repository-pinned
-  Commitlint after reading immutable default-branch configuration and before
-  dispatching the guarded workflow.
-- Seals an open, non-draft pull request number, its 40-character head SHA, the
-  message SHA-256 digest, and a UUID in a typed repository dispatch.
-- Reconciles effective default-branch required checks with current check rows,
-  including the exact `Repository audit` workflow check from `pull_request`.
-- Refuses repository auto-merge, effective merge-queue rules, and pull requests
-  that already have auto-merge enabled or are queued.
-- Supports fork pull requests without checking out or executing their code.
-- Revalidates the sealed request before an exact squash merge and verifies the
-  real merge commit message afterward.
-
-### Synopsis
-
-```text
-usage: merge-pull-request.py [-h] [--version] [--dry-run] [-v]
-                             {request,execute} ...
-
-request:
-  --force
-  --pull-request NUMBER
-  --message-file PATH
-  [--repository OWNER/REPO]
-  [--timeout-seconds SECONDS]
-
-execute:
-  --event-file PATH
-```
-
-### Description
-
-`merge-pull-request.py` provides the local request side and workflow execution
-side of the guarded squash merge path. `request` validates the exact message,
-repository, default branch, pull request head, effective required-check
-contexts, repository auto-merge setting, and applicable merge-queue rules
-before it sends one `guarded-squash-merge` repository dispatch. It then waits
-for the workflow-specific `Guarded merge <UUID>` run.
-
-`execute` accepts only the trusted event file supplied by GitHub Actions. It
-uses the top-level event repository and default branch, never payload values,
-and rejects any payload field outside the sealed five-field contract. The
-workflow first invokes it with `--dry-run` and the read-only workflow token,
-mints the existing App token only after that succeeds, then invokes it again
-to revalidate and merge.
-
-The message file accepts exactly `subject\n` or `subject\n\nbody\n`, without
-normalization. It must be non-empty UTF-8 without BOM or NUL, use LF only, and
-end in exactly one LF. Both merge subject and body file are always explicit;
-subject-only messages use an empty body file.
-
-### Usage/Examples
-
-Preview a request without dispatching:
-
-```bash
-python tools/merge-pull-request.py --dry-run request \
-  --pull-request 17 \
-  --message-file /path/to/merge-message.txt \
-  --repository owner/repository
-```
-
-Dispatch after an uppercase `Y` confirmation and wait up to 900 seconds:
-
-```bash
-python tools/merge-pull-request.py request \
-  --pull-request 17 \
-  --message-file /path/to/merge-message.txt \
-  --repository owner/repository \
-  --timeout-seconds 900
-```
-
-See [Guarded pull request merges](../docs/guarded-pull-request-merges.md) for
-the activation procedure and repository ruleset boundary.
-
-### Options
-
-- `-h`, `--help`: shows help and exits.
-- `--version`: prints `v0.1.0` and exits.
-- `--dry-run`: performs all applicable read-only validation without dispatching
-  or merging.
-- `-v`, `--verbose`: reports workflow polling progress.
-- `--force`: request-only; skips the uppercase `Y` prompt without bypassing any
-  validation.
-- `--pull-request NUMBER`: selects the positive pull request number.
-- `--message-file PATH`: selects the exact candidate squash message.
-- `--repository OWNER/REPO`: selects the target repository; omission uses the
-  repository resolved by `gh`.
-- `--timeout-seconds SECONDS`: bounds the post-dispatch wait; it must convert
-  to a finite, non-negative value before dispatch; default `900`.
-- `--event-file PATH`: execute-only; selects the GitHub Actions event file.
-
-### Exit Status
-
-- `0`: help, version, dry-run, or the requested operation succeeded.
-- `1`: validation or the requested operation failed.
-- `2`: command-line usage was invalid.
-- `3`: a dispatch or merge may have started, but the exact remote outcome is
-  unavailable or conflicting.
-
-### Appendix
-
-Status `3` always reports the exact UUID and must not trigger an automatic
-retry. Inspect the exact correlated workflow, pull request, and merge commit
-first. The UUID identifies the run and SHA-256 seals the message; neither
-authenticates the dispatch origin.
-
-The CLI and workflow are inert until a separately authorized publication and
-GitHub activation configure the distinct rulesets and merge methods described
-in the operational guide. Each preflight requires an active, separate
-update-only ruleset and squash-only repository/pull-request settings. It does
-not attest bypass identities: a maintainer must audit the complete lists with
-administrative credentials at activation and after governance changes. Workflow
-permissions remain unchanged.
-
-## verify-repository-audit-runs.py
-
-### Features
-
-- Queries and paginates GitHub Actions through the authenticated `gh` CLI
-  without mutation.
-- Selects runs by workflow ID, `push` or `release` event, exact SHA, expected ref, and
-  inclusive creation timestamp.
-- Requires exactly one completed successful run for every repeated `--ref`.
-- Rejects missing, ambiguous, failed, cancelled, skipped, or neutral runs.
-- Ignores manual, scheduled, stale, unrelated-workflow, and unrelated-ref runs.
-
-### Synopsis
-
-```text
-usage: verify-repository-audit-runs.py [-h] [--version] [--dry-run] [-v]
-                                       --repository OWNER/REPO
-                                       --workflow-id ID --sha SHA --ref REF
-                                       [--event {push,release}]
-                                       --created-after UTC
-                                       [--timeout-seconds SECONDS]
-                                       [--poll-seconds SECONDS]
-```
-
-### Description
-
-`verify-repository-audit-runs.py` is the read-only CI gate used by the guarded
-release skill before a tag and after the final atomic push. It prevents a green
-run for the same SHA from masking a failed required run on another ref. The
-caller resolves the exact `Repository audit` workflow ID, records the UTC time
-immediately before the corresponding push, and supplies every expected branch
-or tag with a separate `--ref` argument. Every `gh api` subprocess receives at
-most 30 seconds and never more than the remaining global timeout.
-
-The release-package workflow also calls this verifier with `--event release`
-for each required workflow, using the original release publication timestamp.
-The default remains `push` for existing preflight and final-push callers.
-
-Use one verifier instance for each exact repository/workflow/event/SHA/ref set
-and creation-time bound. Keep its process handle and default 5-second polling;
-parallel outer `gh run list` or `gh run view` loops add no gate evidence. Read
-additional logs when diagnosing a failure.
-
-### Usage/Examples
-
-Preview a preflight verification without contacting GitHub:
-
-```bash
-python tools/verify-repository-audit-runs.py \
-  --dry-run \
-  --repository example/project \
-  --workflow-id 123456 \
-  --sha 0123456789abcdef0123456789abcdef01234567 \
-  --ref codex/release-preflight-v1.2.3-0123456 \
-  --created-after 2026-08-02T12:00:00Z
-```
-
-Wait for both final push runs:
-
-```bash
-python tools/verify-repository-audit-runs.py \
-  --repository example/project \
-  --workflow-id 123456 \
-  --sha 0123456789abcdef0123456789abcdef01234567 \
-  --ref main \
-  --ref v1.2.3 \
-  --created-after 2026-08-02T12:05:00Z
-```
-
-### Options
-
-- `-h`, `--help`: shows help and exits.
-- `--version`: prints `v1.0.0` and exits.
-- `--dry-run`: prints the side-effect-free verification plan without querying
-  GitHub.
-- `-v`, `--verbose`: prints timestamped polling details.
-- `--repository OWNER/REPO`: selects the GitHub repository.
-- `--workflow-id ID`: selects the resolved numeric workflow ID.
-- `--event {push,release}`: selects the required event, default `push`.
-- `--sha SHA`: selects the exact 40-character target commit SHA.
-- `--ref REF`: declares one expected branch or tag; repeat as needed.
-- `--created-after UTC`: rejects runs created before the inclusive
-  `YYYY-MM-DDTHH:MM:SSZ` lower bound.
-- `--timeout-seconds SECONDS`: sets the maximum wait, default `600`.
-- `--poll-seconds SECONDS`: sets the polling interval, default `5`.
-
-### Exit Status
-
-- `0`: help, version, dry-run, or every expected run succeeded.
-- `1`: arguments, access, GitHub response, run identity, timeout, or run
-  conclusion failed validation.
-
-### Appendix
-
-The tool requires Python 3, `gh`, authenticated read access to Actions, and a
-workflow ID resolved independently from the tracked workflow path. It never
-reruns or cancels a workflow. Treat every nonzero exit as a release blocker.
-
-## quality/check-coverage.py
-
-`quality/check-coverage.py` validates a Coverage.py JSON report against the
-threshold in `quality/versions.json`. Both the combined instruction-and-branch
-score and the separate branch score must meet that threshold. Missing branch
-measurement, empty measurements, and inconsistent totals fail validation.
-
-```bash
-python tools/quality/check-coverage.py /path/to/coverage.json
-```
-
-The command prints the global, instruction, and branch percentages with their
-exact counts and returns `0` on success or `1` on a policy or report error. For
-valid measurements, GitHub Actions also receives the verdict in the job summary;
-unreadable or malformed reports produce a diagnostic on standard error. The
-complete audit generates this
-report in its temporary directory and removes it during cleanup.
-
-## quality/coverage-artifacts.py
-
-This CI helper seals successful source-repository coverage measurements and
-combines the Linux and Windows branch data using the installed Coverage.py API.
-It belongs to the source repository and is excluded from consumer packages.
-Run it from the repository root with the locked quality environment. It requires
-`AUDIT_COMMIT_SHA`, `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT`; the workflow first
-verifies that the checkout matches that full commit SHA.
-
-```bash
-python tools/quality/coverage-artifacts.py export /path/to/.coverage /path/to/coverage/linux --platform linux
-python tools/quality/coverage-artifacts.py export /path/to/.coverage.windows /path/to/coverage/windows --platform windows
-python tools/quality/coverage-artifacts.py combine /path/to/coverage
-python tools/quality/check-coverage.py /path/to/coverage/combined.json
-```
-
-`export` requires a new destination directory and writes `.coverage` and
-`metadata.json`. Metadata binds the data and measured source hashes to the
-commit, run, attempt, Coverage version and policy hash. `combine` requires both
-platform subdirectories with matching metadata and unchanged data/source files;
-it rejects absent, linked, unsafe, empty or line-only inputs. It unions normalized
-OS paths in memory and writes `combined.json`. It returns `0` for a valid export
-or combination, `1` for validation/access errors, and `2` for invalid arguments.
-Use `--help`, `export --help` or `combine --help` for the command syntax.
-Report generation uses an explicit source root and preserves the calling
-process's directory and measurement paths, including when its tests run under
-Coverage. OS collection retains the configured relative-path policy.
-
-Linux still enforces the existing global and branch floors. Windows publishes
-its own report without a separate new floor; the aggregate enforces both floors
-again on the union. Artifacts are scoped to the exact run attempt and commit,
-retained for seven days, and never downloaded from another workflow run.
-Consumer repositories skip source coverage but execute their declared project
-checks in both existing OS jobs. Ordinary branch pushes cancel superseded runs;
-PR, tag, release, manual and release-preflight evidence retain distinct groups.
-Tag, release, manual and release-preflight runs are never cancelled by this policy.
-
-## quality/check-versions.py
-
-`quality/check-versions.py` detects drift between `quality/versions.json` and
-the locked Python, Node, and quality-policy declarations. The default check is
-declarative: it validates the registry, requirements and package locks,
-integrity metadata, and the configured coverage threshold without installing,
-downloading, or modifying anything.
-
-### Synopsis
-
-```text
-usage: python tools/quality/check-versions.py [--quality-root PATH] [--runtime] \
-  [--tool NAME] [--runtime-root PATH] [--executable TOOL=PATH]
-```
-
-`--quality-root PATH` selects another quality configuration directory. The
-default is the script directory. `--runtime` additionally checks installed
-Python distributions, installed Node packages and the actual selected Python,
-Node and external CLI executables through bounded local version probes. It does
-not install missing tools. Every locked occurrence of an npm override is also
-checked against its installed package version, including nested occurrences.
-
-Repeat `--tool NAME` to limit runtime probes to the named registry tools;
-unselected tools are not required. Node-based tools also check the minimum Node
-version and installed override pins. `--runtime-root PATH` selects the installed
-quality tree when `--quality-root` points to immutable index metadata. Repeat
-`--executable TOOL=PATH` to probe the exact command selected by a caller. Unknown
-tools, conflicting overrides and scoped options without `--runtime` fail.
-Python libraries with no CLI retain distribution checks.
-
-Each version probe has a 15-second deadline containing its process tree and
-inherited output pipes. Windows npm shims run through the verified Git Bash
-installation; explicit paths take precedence over PATHEXT substitution. An
-unlaunchable, silent or mismatched executable is a failure with its diagnostic.
-
-```bash
-python -B tools/quality/check-versions.py --runtime --tool ruff --tool mypy
-```
-
-### Exit Status
-
-- `0`: every selected declaration and runtime check matched.
-- `1`: a declaration, policy, lock, integrity digest, or runtime version did
-  not match.
-- `2`: command-line argument parsing failed.
-
-### Updating dependency pins
-
-Prepare Dependabot proposals as complete changes before merging: update each
-direct requirement and its entry in `quality/versions.json` together, then
-regenerate the affected lock. The version checker deliberately rejects an
-incomplete proposal; keep that blocking check enabled.
-
-For Python, activate a disposable Python 3.11 virtual environment outside the
-checkout and install the pinned lock generator shown below. Keep the existing
-lock file to retain other pinned versions, then run its recorded command. The
-generator environment is separate from the locked quality runtime. Keep Click
-pinned with the generator so its recorded command does not add an unused
-`--no-index` option:
-
-```bash
-python -m pip install "pip-tools==7.6.1" "click==8.2.1"
-pip-compile --allow-unsafe --generate-hashes \
-  --output-file=tools/quality/requirements.lock --strip-extras \
-  tools/quality/requirements.in
-python tools/quality/check-versions.py
-```
-
-For npm, update the selected exact version in `quality/package.json` and the
-registry, regenerate `quality/package-lock.json` without a general dependency
-upgrade, then verify a clean installation and its advisories:
-
-```bash
-npm ci --ignore-scripts --prefix tools/quality
-python tools/quality/npm-security.py patch
-python tools/quality/npm-security.py audit
-python tools/quality/check-versions.py
-```
-
-Use exact `nodeOverrides` entries in the registry for transitive npm pins;
-`package.json` overrides and every matching lock entry must agree. The Python
-lock generator's `--allow-unsafe` includes a hashed pip pin required by pip-api;
-installation continues to require hashes for every dependency.
-
-The Linux CI job requires the attested npm audit and audits of both Python
-locks to succeed. High or critical npm findings and verification errors block
-integration, except the precisely attested braces advisory described below.
-
-## quality/npm-security.py
-
-This tool applies and verifies the local fix for braces 3.0.3's recursive
-stack exhaustion, then evaluates npm's complete advisory graph. It preserves
-the upstream package version, npm integrity, MIT license and raw advisory
-report. It does not install packages or enable lifecycle scripts.
-
-### Synopsis
-
-```text
-usage: python tools/quality/npm-security.py [-h] [--version] [--dry-run] [-v] \
-  {patch,verify,audit} [--quality-root PATH] [--dry-run]
-```
-
-Apply `patch` explicitly after each `npm ci --ignore-scripts`. `verify` checks
-every installed braces occurrence against the recorded hashes. `audit` first
-verifies those bytes, then queries the npm registry with a 120-second deadline
-and a temporary download cache. `--dry-run` makes no writes or network calls;
-audit dry-run prints the planned command after local verification. `-v` shows
-the exception details on a failure. `--quality-root` defaults to this tool's
-directory and selects another installed quality tree with its lockfile.
-
-The patch manifest records the canonical npm archive URL and SHA512 integrity,
-the advisory `GHSA-vfj7-8cjw-p6xm`, and before/after SHA256 hashes for all ten
-upstream files. Replacement walkers use iterative traversal, retaining outputs,
-ordering, options and range limits. Frozen upstream walkers in the test fixtures
-support differential compatibility checks. License and provenance live under
-`quality/patches/braces-3.0.3/`.
-
-The security tests reconstruct braces and its three dependencies from exact
-upstream archives under `tests/fixtures/`. They verify each archive's SHA512
-against the lockfile before extracting it into a temporary dependency tree.
-The suite needs Python and Node.js, but no checkout `node_modules`, npm install
-or network access. If one of these four locked versions changes, refresh its
-matching archive and rerun the isolated suite before committing the lock update.
-
-Unexpected files, hashes, linked directories, wrong lock provenance or unlocked
-braces copies stop patching. Application is idempotent; an interruption restores
-already replaced files and preserves the original exception. Concurrent foreign
-edits are preserved with an explicit incomplete-restoration diagnostic. Keep
-installation and patching exclusive of other writes to that dependency tree.
-
-An npm high finding is attested only when every advisory leaf is that exact
-braces advisory and all affected installed occurrences have the recorded fix.
-Other high or critical advisories block. Missing or cyclic attribution, malformed
-reports, stale counts and registry failures block as well. The JSON output keeps
-`rawReport` and `rawCounts` alongside `attested` and `blocked`; upstream findings
-remain visible. No advisory is silently suppressed. Remove the local patch when
-an upstream fixed release passes the same compatibility and security checks.
-
-Audit both fully hashed Python environments without installation or resolution:
-
-```bash
-python -m pip_audit --require-hashes --disable-pip \
-  --cache-dir /path/to/task-cache -r tools/quality/requirements.lock
-python -m pip_audit --require-hashes --disable-pip \
-  --cache-dir /path/to/task-cache -r tools/release-artifacts-requirements.txt
-```
-
-These network checks supplement local audit profiles. They do not mutate locks,
-run automatic fixes, or replace hooks and full qualification.
-
-### Exit Status
-
-- `0`: patch/verification succeeded, no unhandled high/critical advisory remains,
-  or the requested dry-run completed.
-- `1`: verification, registry audit or patch application failed, or blocking
-  advisories remain. Incomplete restoration details accompany the original error.
-- `2`: command-line arguments are invalid.
-
-## quality/install-external-tools.py
-
-`quality/install-external-tools.py` installs registry-pinned external quality
-tools for native Windows x64 or Linux x64; macOS is unsupported. It uses only
-the Python standard library and the distributed `process_runner.py` helper.
-Default CI mode requires an existing safe `RUNNER_TEMP` and an absent root
-strictly below it. Explicit local mode uses a chosen root without `RUNNER_TEMP`.
-
-### Synopsis
-
-```text
-usage: python tools/quality/install-external-tools.py \
-  --platform {linux-x64,windows-x64} \
-  --install-root PATH \
-  [--local] [--dry-run] [-v|--verbose] \
-  [--tool {actionlint,shfmt,PSScriptAnalyzer,shellcheck,gitleaks}]
-```
-
-Repeat `--tool` to select multiple compatible tools. When it is omitted, the
-CI installer selects every registry tool available for the chosen platform. It
-downloads only from credential-free HTTPS locations, verifies the declared
-SHA-256 digest before extraction, rejects unsafe archive layouts, stages all
-selected tools, and runs their exact version probes. The final installation
-root is atomically published without overwrite only after every probe succeeds.
-Subprocess deadlines contain child trees. Network downloads run in contained
-Python children with a 60-second deadline covering headers and body reads,
-a socket timeout and a 128 MiB size limit.
-Archives allow at most 10,000 entries and 512 MiB of expanded file data.
-
-Selecting PSScriptAnalyzer, including through the default compatible-tool
-selection on either platform, requires `pwsh` with PowerShell 7.4.6 or newer.
-CI callers keep `RUNNER_TEMP` and the installation root outside tracked content.
-`--dry-run` validates the registry, root and selection without downloads, probes,
-directories or files. `--verbose` shows platform, selection and destination;
-`--help` and `--version` are read-only. The installer does not invoke Git.
-
-### Local provisioning
-
-Use explicit `--local`, `--platform`, `--install-root` and repeated `--tool`
-selections. The requested platform must match the native x64 host. The root
-must be absent with an existing directory parent; unsafe components, symbolic
-links and Windows junctions anywhere in its path are rejected. There is no
-implicit local root. `tools/quality/external` is an explicitly ignored example;
-other destinations require a project-owned ignore decision. Existing roots
-are never overwritten or extended, so use a different absent root when changing
-the selected tool set.
-
-For example, install two selected capabilities on Linux:
+# Project tools
+
+These tools initialize this project, validate its managed core, run declared
+application checks and prepare verifiable release artifacts. Run examples from
+the repository root and consult each tool's `--help` before mutation.
+
+The initializer helper rejects invalid v-prefixed SemVer tags before changelog,
+file-mode or index changes, including prepare dry-runs. Release output writes
+restore replaced files after Python interruptions; failures in restoration or
+temporary cleanup accompany the original error. Use one writer during preparation.
+
+## Tool index
+
+| Tool | Purpose | Runtime |
+| --- | --- | --- |
+| `git-init.sh` / `git-init.ps1` | System initialization | Bash / PowerShell |
+| `initialize-repository.py` | Initializer helper | Python |
+| `project_config.py` | Read strict project settings | Python |
+| `project_validation.py` | Core ownership and declared checks | Python |
+| `automation_config.py` | Immutable workflow activation adapter | Python |
+| `repository-audit.sh` | Core checks and project plan | Bash |
+| `release-artifacts.py` | Prepare/check release artifacts | Python |
+| `merge-pull-request.py` | Reviewed exact-message squash merge | Python / gh |
+| `verify-repository-audit-runs.py` | Exact workflow-run proof | Python / gh |
+| `backup-target-directory.py` | Local directory backup | Python |
+| `quality/check-versions.py` | Verify pinned tools | Python |
+| `quality/install-external-tools.py` | Verified external tool installation | Python |
+| `quality/npm-security.py` | Attested npm fix and security gate | Python / Node.js |
+| `git_objects.py` / `process_runner.py` | Shared runtime modules | Python |
+
+## Requirements
+
+Use Windows or Linux with Git, Python 3.11+, Bash, Node.js 24 and npm.
+Windows `.ps1` tools support Windows PowerShell 5.1 or PowerShell 7; Linux `.ps1`
+tools require PowerShell 7. Before initialization, create and select the local
+Python environment described in [Installation](../README.md#installation).
+Use its active `python` for
+`python -m pip install --require-hashes --requirement tools/quality/requirements.lock`;
+the initializer requires `jsonschema`, not provided by standard Python. Install
+locked Node dependencies with `npm ci --ignore-scripts --prefix tools/quality`.
+Apply `python tools/quality/npm-security.py patch` after that installation.
+`verify` validates every installed braces occurrence; `audit` queries npm and
+blocks other high/critical advisories while retaining the attested upstream
+braces finding in its raw report. Use `--help` for dry-run and diagnostics.
+The fix, hashes and MIT license live in `quality/patches/braces-3.0.3/`.
+Full/static audits also require the pinned tools in `quality/versions.json` and
+PSScriptAnalyzer where PowerShell files are audited. See each CLI's help for
+installation roots and platform selection, and
+[Local external tools](#local-external-tools). Configure your real Git identity
+before initialization. Optional remote operations require GitHub CLI authentication.
+
+The root ignore policy protects the documented `.venv/` and
+`tools/quality/node_modules/` setup outputs. `tools/quality/external/` is an
+explicit local external-tool destination example; tools do not select it
+implicitly or install dependencies during audits. Keep other application files
+under `tools/quality/` trackable. See
+[Ignore policy](../docs/project-configuration.md#ignore-policy).
+
+## Local external tools
+
+The installer supports native Windows x64 and Linux x64; macOS is unsupported.
+Choose the tools required by your checks using repeated `--tool`. The explicit
+`--local` mode does not require `RUNNER_TEMP`, change global search paths or
+install language runtimes. Selecting PSScriptAnalyzer requires `pwsh` with
+PowerShell 7.4.6 or newer already on the current process's `PATH`.
+
+Run from the repository root. `--install-root` is mandatory; the example
+`tools/quality/external` must be absent and its parent must already exist.
+Existing destinations, unsafe paths, symlinks and junctions are rejected.
+All selected artifacts are digest-verified, safely staged and actually probed
+before atomic publication. A failed selection or tool blocks the whole install.
+Install another selection into a different absent root; installs never append
+to or overwrite an existing root.
+
+Inspect a single-tool selection without downloads or writes:
 
 ```bash
 python -B tools/quality/install-external-tools.py --local --dry-run \
-  --platform linux-x64 --install-root tools/quality/external \
-  --tool shfmt --tool gitleaks
+  --platform linux-x64 --install-root tools/quality/external --tool shfmt
+```
+
+Use `windows-x64` on Windows. For the five external tools used by full core
+audits, an actual Linux install is:
+
+```bash
 python -B tools/quality/install-external-tools.py --local \
   --platform linux-x64 --install-root tools/quality/external \
-  --tool shfmt --tool gitleaks
+  --tool actionlint --tool shfmt --tool PSScriptAnalyzer \
+  --tool shellcheck --tool gitleaks
 export PATH="$PWD/tools/quality/external/bin:$PATH"
 export PSModulePath="$PWD/tools/quality/external/Modules${PSModulePath:+:$PSModulePath}"
 ```
@@ -1572,13 +95,14 @@ For PSScriptAnalyzer on Windows, choose a short installation root when the
 repository path is deep: long nested module paths can cause `PathTooLongException`.
 Use the same absent root for `--install-root` and the session paths below.
 
-On Windows PowerShell, the equivalent selected install and session paths are:
+The equivalent Windows PowerShell session is:
 
 ```powershell
 $installerArguments = @(
     '--local', '--platform', 'windows-x64',
     '--install-root', 'tools/quality/external',
-    '--tool', 'shfmt', '--tool', 'gitleaks'
+    '--tool', 'actionlint', '--tool', 'shfmt', '--tool', 'PSScriptAnalyzer',
+    '--tool', 'shellcheck', '--tool', 'gitleaks'
 )
 python -B tools/quality/install-external-tools.py @installerArguments
 $externalRoot = (Resolve-Path tools/quality/external).Path
@@ -1586,332 +110,107 @@ $env:PATH = (Join-Path $externalRoot 'bin') + [IO.Path]::PathSeparator + $env:PA
 $env:PSModulePath = (Join-Path $externalRoot 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 ```
 
-Add `--tool actionlint`, `--tool shellcheck` and `--tool PSScriptAnalyzer` to the
-same invocation when preparing all external full-audit tools. Selecting the
-module requires the PowerShell runtime stated above. These path assignments
-affect only the current session and its children; no global environment or
-package manager is modified. Keep using the existing locked Python and Node
-setup. Application runtimes and dependencies remain project-owned.
-
-`check-versions.py --runtime` checks the complete toolchain, including missing
-unselected tools. A partial install proves only its selected capabilities;
-missing required tools still block their checks. Installer and checker share
-one schema-2 registry. Optional `variants` add platform-specific artifact URLs,
-digests, install contracts and ZIP `allowedEntries`, retaining shared version
-and probe pins. The updated reader accepts old schema-2 records without
-variants. Ship the updated registry and reader together; old readers do not
-understand new variant records.
-
-### Exit Status
-
-- `0`: every selected tool was verified and installed, or dry-run validation
-  succeeded without writes.
-- `1`: registry, path, download, digest, archive, installation, or probe
-  validation failed.
-- `2`: command-line argument parsing failed.
-
-## repository-audit/workflow-contracts.py
-
-This internal validator checks applicable GitHub workflows from safely parsed
-YAML, rejecting duplicate keys. It compares triggers, dependencies, runtime
-versions, action references, permissions and executable guards independently of
-mapping order, indentation, comments and descriptive step names. The audit's
-contract wrappers invoke it; direct execution checks the repository's workflows:
-
-```bash
-python tools/repository-audit/workflow-contracts.py
-```
-
-The four distributed workflows are always required. `release-package.yml` is
-also checked when present, and is required when either source-only tool
-`tools/build-release-package.ps1` or `tools/starter-kit-manifest.py` is present.
-Generated consumer repositories can therefore omit the source release workflow.
-An explicit `--workflow` selection always requires its workflow file.
-
-Use `--workflow release-package --path /path/to/workflow.yml` to validate one
-fixture against its contract. The locked Python environment supplies PyYAML.
-Policy changes update the corresponding contract and its mutation tests;
-presentation-only edits do not require matching YAML text in Bash.
-
-## repository-audit.sh
-
-### Features
-
-- Dispatches the shared local and CI audit suite through focused modules for
-  common services, contracts, hooks, security, smoke tests, and profiles.
-- Defaults to the exhaustive audit profile.
-- Maps `all`, `full`, and `static` to the same exhaustive profile without
-  repeating Markdown or spelling checks.
-- Provides a fast profile for declarations, Git whitespace and line endings,
-  Bash and Node syntax, Ruff, and Mypy, plus a focused PowerShell static check,
-  read-only checks, and the three Git-hook profiles.
-- Checks Markdown, spelling, whitespace, Bash, Python, PowerShell, YAML,
-  workflows, secret-scanner configuration, cross-language SemVer patterns,
-  release contracts, tests, coverage, and commit messages.
-- Resolves new-ref and stable-tag commit ranges from the highest reachable
-  stable tag, including all reachable commits for a first release.
-- Exercises exact message-file commits through the forced `commit-msg` hook in
-  isolated temporary repositories.
-- Uses installed, registry-pinned dependencies and never installs Python,
-  Node, or external tools from an audit profile.
-- Uses WSL-aware temporary paths when Windows PowerShell is invoked from WSL.
-- Resolves repository-local Node package executables before commands on
-  `PATH`.
-
-### Synopsis
-
-```text
-usage: bash tools/repository-audit.sh [mode]
-
-modes:
-  all                run the exhaustive profile, default
-  full               alias for all
-  static             alias for all
-  readonly           run installed-tool read-only checks without smoke tests
-  markdown           run Markdown lint only
-  spelling           run Codespell only
-  fast               run declaration and fast static checks
-  powershell-static  run PSScriptAnalyzer on tracked .ps1 files
-  hook-pre-commit    validate staged content for pre-commit
-  hook-commit-msg    validate one commit-message file
-  hook-pre-push      validate affected pushed objects and release tags
-  -h, --help, help   show help
-```
-
-### Description
-
-`repository-audit.sh` is the thin source-of-truth dispatcher. It loads
-`common.sh`, `contracts.sh`, `hooks.sh`, `security.sh`, `smoke.sh`, and
-`profiles.sh` from `tools/repository-audit/`; those modules own the checks and
-profile composition.
-
-The default `all` mode, `full`, and `static` all execute one exhaustive
-profile. It includes the declaration and runtime version gate, Markdown,
-spelling, YAML and workflow checks, language-specific static analysis,
-contracts, a redacted full-history Gitleaks scan, coverage, behavior tests,
-smoke tests, and commit-range validation.
-A zero `before` SHA uses the highest reachable stable tag, excluding the tag
-currently being audited; without an earlier stable tag, all reachable commits
-are checked.
-
-`fast` validates declarations, Git whitespace and line endings, Bash and Node
-syntax, Ruff, and Mypy. It intentionally omits runtime version checks,
-PSScriptAnalyzer, coverage, behavior tests, and smoke tests.
-`powershell-static` runs PSScriptAnalyzer against tracked `.ps1` files.
-`readonly` uses installed tools, disables optional Git locks, and avoids
-network access, temporary files, and mutating smoke tests.
-
-The hook profiles expose the same implementation used by `.githooks`.
-`hook-pre-commit` scans the staged index with the pinned Gitleaks version and
-checks relevant staged files from an isolated index snapshot. Scanner policy
-and ignore files come from the index, including when the working tree differs.
-Simple Markdown, Bash, and YAML checks export only required indexed files and
-configuration; checks that need repository context use the full index.
-`hook-commit-msg MESSAGE_FILE` validates the message file named by its required
-positional argument against the indexed Commitlint configuration. It exports the
-complete index so tracked relative imports retain their context, snapshots the
-quality declarations and checks the actual Commitlint first. Pre-commit
-checks only the executables its selected validators will use, with expected pins
-from the same indexed snapshot; no installation occurs. PowerShell validation
-loads the registry's exact PSScriptAnalyzer version.
-`hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
-`LOCAL_REF LOCAL_OBJECT_ID REMOTE_REF REMOTE_OBJECT_ID` quadruplets from
-standard input, runs affected test families from the exact pushed objects with
-a 900-second timeout per selected family, and validates new SemVer release tags.
-Both hooks use one affected-path mapping. A standalone Python tool selects its
-test module; isolated test changes select that test. Both public initializers
-and their helper select the initializer suite. Upgrade changes select the upgrade
-suite, and workflow changes select Actionlint and semantic workflow contracts.
-Each hook wrapper selects the common hook suite and its own focused suite.
-Shared runtime, configuration and unknown paths select the complete Python suite
-and all four shell suites: common hooks, commit messages, pre-commit and pre-push.
-Selections are combined for repeated pushed objects and executed once per suite;
-missing suites or an empty mandatory selection fail. The exhaustive shell behavior
-and audit suites remain mandatory in Linux CI.
-
-Workflow contracts retain explicit events, check names, dependencies, permissions,
-action pins, trusted refs and credential boundaries. The validator stores named
-SHA256 seals of normalized executable scripts instead of second copies of those
-scripts. Shell normalization retains quoted values and statement boundaries;
-embedded Python compares parsed syntax trees with a stable representation across
-supported Python versions. Step removal, reordering, added
-privileged execution and changed guards still fail closed.
-
-Setup-Python and Setup-Node download caches may be omitted or use the declared
-lock/registry paths in a different order. Runtime versions, action identities,
-other inputs and steps remain protected. Cache paths outside the known locks,
-credential expressions and unknown paths are rejected.
-
-When a planned workflow change alters execution, review the YAML change and its
-security/functional tests before updating only the affected entry in
-`SEALED_SCRIPTS` in `repository-audit/workflow-contracts.py`. Compute its digest as
-`"sha256:" + hashlib.sha256(normalize_script(run, shell).encode("utf-8")).hexdigest()`
-using that module's normalizer. The explicit algorithm prefix identifies checksum
-data, including roles whose names mention credentials. A matching digest is a contract check, not a substitute
-for reviewing the changed behavior. Presentation/cache edits need no new seal.
-
-### Prerequisites
-
-Install the locked Python and Node dependencies before running an exhaustive
-profile:
-
-```bash
-python -m pip install \
-  --disable-pip-version-check \
-  --no-input \
-  --require-hashes \
-  --requirement tools/quality/requirements.lock
-npm ci --ignore-scripts --prefix tools/quality
-python tools/quality/npm-security.py patch
-```
-
-The external versions declared in `tools/quality/versions.json` must also be
-installed. Audit profiles never run these installation commands or download
-tools. Smoke tests require the locked `jsonschema` package and stop with the
-installation command when it is absent.
-The pre-commit scanner also requires the exact Gitleaks version declared in
-`tools/quality/versions.json`; a missing or mismatched scanner blocks the commit
-with setup guidance. Betterleaks remains a separate manual review tool.
-
-Before the canonical repository's first long pre-push suite, use this locked
-environment for the supplemental prechecks, separately and in order:
+These search-path assignments affect only the current shell and its children.
+Success prints `external tools: installation complete`. `--verbose` shows the
+selection and destination. `--help` and `--version` are read-only. After selecting
+the locked Python/Node environments and all external tools, check them with:
 
 ```bash
 python -B tools/quality/check-versions.py --runtime
-python tools/quality/npm-security.py audit
+```
+
+This complete runtime check reports missing unselected tools; a partial install
+only proves its selected capabilities. The installer shares `versions.json`
+with the declaration/runtime checker and resolves the selected platform's
+artifact; it does not install Python/Node packages or application dependencies.
+Continue using the locked setup above and project-owned runtime/dependency setup
+for declared application checks, including Composer inside `laravel/`.
+
+CI callers omit `--local`: the new root remains strictly inside the existing
+safe `RUNNER_TEMP`; omitted `--tool` selects all compatible registry tools.
+
+## Directory layout
+
+Managed runtime modules live under `tools/`, `repository-audit/` and `quality/`.
+Application tools can use the same directories without becoming starter-owned.
+The exact inventory is [Managed files](../docs/repository-files.md).
+
+## Common usage and tool reference
+
+Managed workflow contracts use named hashes of normalized executable scripts,
+with embedded Python checked as syntax trees. Permissions, pinned actions, refs,
+credential boundaries and step order remain protected. Setup download caches may
+vary only across declared lock/registry paths. Review execution changes and their
+tests before updating the corresponding seal; a matching hash does not prove the
+changed behavior is correct.
+
+Source-maintenance hooks select each changed test's family and the focused
+pre-commit/pre-push suites for those wrappers, combining repeated pushed objects.
+Shared or unknown source changes retain all Python and four shell suites. Consumer
+projects keep their managed-core scope and explicitly declared application checks.
+
+Pre-commit probes only its selected executables against indexed pins before
+linting. Commit-msg checks the actual Commitlint and indexed configuration.
+PowerShell validation loads the exact pinned PSScriptAnalyzer module. Use
+`python -B tools/quality/check-versions.py --runtime --tool NAME` for a focused
+runtime check; repeat `--tool` as needed. `--runtime-root` separates installed
+packages from expected metadata, and `--executable TOOL=PATH` names the exact
+caller-selected command. These checks never install missing tools.
+
+```bash
+bash tools/git-init.sh --path . --dry-run
+bash tools/git-init.sh --path .
 bash tools/repository-audit.sh fast
-mypy --config-file tools/quality/pyproject.toml --platform linux
-mypy --config-file tools/quality/pyproject.toml --platform win32
+bash tools/repository-audit.sh project-checks --dry-run
+python -B tools/project_config.py --repository-root .
+python -B tools/release-artifacts.py --help
+python -B tools/quality/install-external-tools.py --help
 ```
 
-Stop on a failure before dependent work. Set `RUFF_CACHE_DIR`,
-`MYPY_CACHE_DIR` and `npm_config_cache` to task-owned temporary paths. The
-cross-platform Mypy checks do not replace tests on the corresponding systems.
-These commands do not replace hooks or the complete audit; a focused retry
-cannot make a failed complete audit successful. Evidence validity, retry
-authorization, log/resume records and cleanup are described in the
-[canonical validation pilot](../docs/release-package.md#validation-evidence-and-optimization-pilot).
+Initialization creates Git state, system release artifacts and the initial tag;
+it does not publish. `fast` checks managed core behavior. Full/readonly audits
+plan application checks; `project-checks` executes explicit commands and blocks
+on failure. Empty checks warn. Release preparation writes artifact metadata;
+`--help` is read-only. Backup creates a local archive. Merge execution can write
+reviewed GitHub state and requires separate authorization; consult
+[Guarded merges](../docs/guarded-pull-request-merges.md).
 
-In GitHub Actions, each isolated quality job installs the Python and npm locks
-once and invokes the external-tool installer once for the tools compatible with
-its platform. Setup actions cache pip and npm downloads using dependency locks;
-the npm key also includes the declared runtime policy. Installation still uses
-`--require-hashes` and `npm ci --ignore-scripts`. The workflow uses no Go setup or
-dynamic `go install`; every external binary or module comes from the registry
-entry whose HTTPS artifact digest and runtime probe were validated.
-
-Only the exhaustive profile's release-package smoke test uses network access.
-It requests `releases/latest` metadata for `asphyx0r/agent-coding-rules` from
-the GitHub API and includes `GITHUB_TOKEN` when that environment variable is
-set. It does not download release assets or dependencies. The other checks
-consume local repository content and installed dependencies.
-
-### Usage/Examples
-
-Run the default full audit:
-
-```bash
-bash tools/repository-audit.sh
-```
-
-Run the optional read-only audit:
-
-```bash
-bash tools/repository-audit.sh readonly
-```
-
-Run only Markdown checks:
-
-```bash
-bash tools/repository-audit.sh markdown
-```
-
-Run only spelling checks:
-
-```bash
-bash tools/repository-audit.sh spelling
-```
-
-Run static checks and smoke tests:
-
-```bash
-bash tools/repository-audit.sh static
-```
-
-Run the fast declaration and static subset:
+## Verification
 
 ```bash
 bash tools/repository-audit.sh fast
+bash tools/repository-audit.sh project-checks
 ```
 
-Run PSScriptAnalyzer against tracked PowerShell scripts:
+Core success and successful eligible application checks are separate results.
+An empty-check warning never proves application regressions passed.
 
-```bash
-bash tools/repository-audit.sh powershell-static
-```
+The audit workflow executes declared project checks in its existing Linux and
+Windows jobs; either failure blocks the aggregate `Repository audit` check.
+Source maintenance coverage artifacts and their combined floors are conditional
+on source scope and do not require consumer test files. Superseded ordinary
+branch pushes are cancelled by ref; tag, release, manual and release-preflight
+evidence remains separate and is not cancelled by that policy.
 
-Run the focused Git Bash compatibility cases used by the Windows CI job:
+Prepare application dependencies in the environment that runs each declared
+check. Exact pre-push snapshots do not inherit ignored dependencies from your
+worktree. A Laravel project-owned setup/test command runs inside `laravel/` and
+arranges Composer dependencies and its test environment before Artisan tests;
+CI must prepare its own dependencies too. See
+[Laravel onboarding](../docs/project-configuration.md#laravel-onboarding).
 
-```bash
-bash tests/test_quality_pre_commit.sh --windows
-bash tests/test_quality_pre_push.sh --windows
-```
+## Maintenance
 
-These cases cover paths containing spaces, alternate Git Bash mount paths,
-partial staging, pushed commits different from the checkout, and
-temporary-directory cleanup. The Linux job retains the complete hook suites
-and the full-history secret scan.
+Project maintainers own application commands and optional activation in
+[Project configuration](../docs/project-configuration.md). Update managed core
+with a reviewed companion toolkit patch on a disposable target first; preserve
+initialize-only settings, merge conflicts and obsolete files. Agent rules use
+the official upstream synchronization workflow, including intentional manual
+updates when automatic sync is disabled. Packaging never synchronizes source
+rules: stale or unverifiable latest upstream content fails the build.
 
-### Options
+## License
 
-- `all`, `full`, `static`: run the same exhaustive profile. `all` is the
-  default when no mode is provided.
-- `readonly`: runs non-mutating checks with installed tools.
-- `markdown`: runs `markdownlint-cli2` against repository Markdown files.
-- `spelling`: runs Codespell with the repository configuration.
-- `fast`: runs declaration checks and the fast static subset without runtime
-  probes, PSScriptAnalyzer, or coverage.
-- `powershell-static`: runs PSScriptAnalyzer on tracked `.ps1` files.
-- `hook-pre-commit`: validates relevant staged files.
-- `hook-commit-msg MESSAGE_FILE`: validates the required commit-message file.
-- `hook-pre-push [REMOTE_NAME REMOTE_URL]`: reads Git push-update quadruplets
-  from standard input and validates the affected pushed objects and release
-  tags.
-- `-h`, `--help`, `help`: prints usage information, then exits.
-
-### Exit Status
-
-- `0`: the selected audit mode passed, or help was shown.
-- Any nonzero status: an unknown mode, missing prerequisite, version mismatch,
-  validation, test, smoke check, or hook signal failed. The dispatcher
-  propagates the failing check's status; signal-aware hook profiles return
-  `129`, `130`, or `143` for `HUP`, `INT`, or `TERM`, respectively. A timed-out
-  pre-push test family returns `124`.
-
-### Appendix
-
-Run the audit profile required for the operation before creating a release tag
-or GitHub release. Treat any failure as a blocker until the underlying
-validation issue is understood and fixed.
-
-The GitHub Actions workflow publishes an aggregate `Repository audit` check
-for push, pull request, and published-release runs. Its manual counterpart has
-the distinct name `Repository audit (manual)` so a manual success cannot
-replace a failed automatic run for branch protection or release validation.
-
-The exhaustive audit needs local tools such as `git`, `bash`, `shellcheck`,
-`shfmt`, `actionlint`, a PowerShell command, `python`, and `node`, plus the
-locked Python and Node dependencies. On Windows, run the audit with Git Bash.
-
-Use focused modes while diagnosing failures. For example, `markdown` and
-`spelling` isolate documentation issues, while `fast` isolates declarative and
-fast static checks.
-
-On Windows, Codex may repeatedly create Git processes while a repository is
-open, as tracked in
-[openai/codex#26812](https://github.com/openai/codex/issues/26812). Treat this
-as an external, mitigated defect: before write-sensitive Git operations,
-inspect Git processes and lock files from a terminal outside Codex. If the
-behavior recurs, close Codex normally. Never terminate a process or remove a
-lock automatically; first confirm that it is orphaned and no active process
-owns it.
+Preserve the starter's MIT notices in [LICENSE](../LICENSE) and the immutable
+provenance in `_agent-rules-source.json`. Project contacts belong in
+[Support](../SUPPORT.md) and [Security](../SECURITY.md).

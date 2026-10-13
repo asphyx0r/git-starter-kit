@@ -1,10 +1,24 @@
 {
   "schemaVersion": 3,
+  "generatedAt": "2026-10-13T12:18:07.1058200Z",
+  "repository": {
+    "name": "git-starter-kit",
+    "slug": "asphyx0r/git-starter-kit",
+    "ref": "v2.12.0",
+    "commit": "72a3796d9461a4262db4b3cea93c5d7d64814d56"
+  },
+  "starterKit": {
+    "repository": "https://github.com/asphyx0r/git-starter-kit",
+    "ref": "v2.12.0",
+    "commit": "72a3796d9461a4262db4b3cea93c5d7d64814d56"
+  },
   "agentRules": {
     "repository": "https://github.com/asphyx0r/agent-coding-rules",
     "requestedRef": "v1.42.0",
     "ref": "v1.42.0",
     "commit": "7cdf1cb2688813694c4982f909bf79be52880f22",
+    "releaseUrl": "https://github.com/asphyx0r/agent-coding-rules/releases/tag/v1.42.0",
+    "releaseDate": "08/21/2026 20:11:11",
     "files": [
       "AGENTS.md",
       "BRANCH_RULES.md",
