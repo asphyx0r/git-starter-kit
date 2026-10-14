@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.12.1",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.1",
-    "generatedAt": "2026-10-13T23:29:24Z"
+    "ref": "v2.12.2",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.2",
+    "generatedAt": "2026-10-14T07:35:08Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v2.12.1",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.1",
-    "generatedAt": "2026-10-13T23:29:24Z"
+    "ref": "v2.12.2",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v2.12.2",
+    "generatedAt": "2026-10-14T07:35:08Z"
   },
   "files": [
     {
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "4a1677e871977a4b5645bdb1889ee7da68e477b1f296d1f2312d3ea9bb28fad0",
-      "canonicalSha256": "4a1677e871977a4b5645bdb1889ee7da68e477b1f296d1f2312d3ea9bb28fad0",
+      "sha256": "193f1b13d78c0d7fbe3ac9539f59756ba5240e211cc45d4c76ed521089794582",
+      "canonicalSha256": "193f1b13d78c0d7fbe3ac9539f59756ba5240e211cc45d4c76ed521089794582",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -599,24 +599,24 @@
     },
     {
       "path": "tools/quality/requirements.in",
-      "sha256": "a697a0a2d766de073f7fdbfba497e25e6f7fe05838c7268084db6e966e2d019b",
-      "canonicalSha256": "a697a0a2d766de073f7fdbfba497e25e6f7fe05838c7268084db6e966e2d019b",
+      "sha256": "1a079146fdac15f76a31a4a2ea74a0e8a02639b97028ce99ccfd787c384b205f",
+      "canonicalSha256": "1a079146fdac15f76a31a4a2ea74a0e8a02639b97028ce99ccfd787c384b205f",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/quality/requirements.lock",
-      "sha256": "122048d684bf3cb6afea65857fd3e63679d9c0d599866115d9900210f824f161",
-      "canonicalSha256": "122048d684bf3cb6afea65857fd3e63679d9c0d599866115d9900210f824f161",
+      "sha256": "0662f52ee18b91c7cbabfcc54f4aa9039b77ea33db5873f21622d22990ffee6c",
+      "canonicalSha256": "0662f52ee18b91c7cbabfcc54f4aa9039b77ea33db5873f21622d22990ffee6c",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
     },
     {
       "path": "tools/quality/versions.json",
-      "sha256": "904a919ecd90b957d50dc95bb76deaad1d4a49c7002124b0c910cea0803c1cec",
-      "canonicalSha256": "904a919ecd90b957d50dc95bb76deaad1d4a49c7002124b0c910cea0803c1cec",
+      "sha256": "44a73a1196678332e96f865aaab3bbb6e122d5947b60ff4e59b154dacd747fd5",
+      "canonicalSha256": "44a73a1196678332e96f865aaab3bbb6e122d5947b60ff4e59b154dacd747fd5",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
