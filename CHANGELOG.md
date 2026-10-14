@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.12.2
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| a79ba5b | build(tools): update ruff to 0.17.0 | dependabot[bot] |
+
 ## v2.12.1
 
 | References | Description | Author(s) |
