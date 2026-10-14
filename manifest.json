@@ -2,15 +2,13 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.12.1",
-    "release_date": "2026-10-13T23:30:41Z",
+    "version": "2.12.2",
+    "release_date": "2026-10-14T07:36:59Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Publish verified release packages without a manual deployment review.",
-        "Keep ZIP integrity and exact-release CI checks mandatory.",
-        "Document release-environment preflight checks.",
-        "Preserve administrator-bypass restrictions and deployment reference policies."
+        "Update Ruff from 0.16.10 to 0.17.0.",
+        "Align the quality registry and Python 3.11 hash lock."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -24,7 +22,7 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.12.1-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.12.2-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
@@ -32,9 +30,9 @@
             },
             "format": "git-tree",
             "total_files": 168,
-            "size_bytes": 2864236,
-            "built_at": "2026-10-13T23:30:41Z",
-            "sha256": "f1fb41a04ada32559c32cad6eaba673c3c44079946b58f8245ee070c0d28e572",
+            "size_bytes": 2864375,
+            "built_at": "2026-10-14T07:36:59Z",
+            "sha256": "57354c31e5121486f388354924a7274e374cb134c7263c5e790ed2c8a3290677",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -317,11 +315,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15408,
+                    "size_bytes": 15550,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4a1677e871977a4b5645bdb1889ee7da68e477b1f296d1f2312d3ea9bb28fad0",
+                    "sha256": "193f1b13d78c0d7fbe3ac9539f59756ba5240e211cc45d4c76ed521089794582",
                     "mode": "644"
                 },
                 {
@@ -429,7 +427,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "6d83386e2438a41efc82d6b4018bf4aaa95b0ccc405ba835d779ff08a31bac80",
+                    "sha256": "2ad2f8620587f8e46ca2561a28d4a217672ba5adf86091db48aa24ca0b9da769",
                     "mode": "644"
                 },
                 {
@@ -555,7 +553,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a4ea003b286202bd77de1ad44d88049080e39e34a2093604b90b6a0d75a053e1",
+                    "sha256": "51e4bb8df65aff4df5ed5ca4b5704eb3673fd040d1887d1419d0bbd233744d77",
                     "mode": "644"
                 },
                 {
@@ -1334,29 +1332,29 @@
                 },
                 {
                     "relative_path": "tools/quality/requirements.in",
-                    "size_bytes": 136,
+                    "size_bytes": 135,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a697a0a2d766de073f7fdbfba497e25e6f7fe05838c7268084db6e966e2d019b",
+                    "sha256": "1a079146fdac15f76a31a4a2ea74a0e8a02639b97028ce99ccfd787c384b205f",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/quality/requirements.lock",
-                    "size_bytes": 87364,
+                    "size_bytes": 87363,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "122048d684bf3cb6afea65857fd3e63679d9c0d599866115d9900210f824f161",
+                    "sha256": "0662f52ee18b91c7cbabfcc54f4aa9039b77ea33db5873f21622d22990ffee6c",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/quality/versions.json",
-                    "size_bytes": 5729,
+                    "size_bytes": 5728,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "904a919ecd90b957d50dc95bb76deaad1d4a49c7002124b0c910cea0803c1cec",
+                    "sha256": "44a73a1196678332e96f865aaab3bbb6e122d5947b60ff4e59b154dacd747fd5",
                     "mode": "644"
                 },
                 {
