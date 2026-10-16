@@ -262,7 +262,7 @@ dependency; the distributed release helper and runtime modules must be present.
 
 Exit status is `0` on successful validation/preparation/preview, `1` on a target,
 tag or dependency failure, and `2` on invalid command-line syntax. `-v` enables
-debug logging. See [project initialization](../docs/project-configuration.md).
+debug logging. See [project initialization](../templates/project/docs/project-configuration.md).
 
 ## release-artifacts.py
 
