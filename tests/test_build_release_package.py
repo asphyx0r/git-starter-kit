@@ -94,7 +94,16 @@ class BuildReleasePackageTests(unittest.TestCase):
                 ["git", "add", "--", helper, workflow], cwd=repository, check=True
             )
             subprocess.run(
-                ["git", "commit", "-qm", "test: track qualification source"],
+                [
+                    "git",
+                    "-c",
+                    "user.name=Package Test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "commit",
+                    "-qm",
+                    "test: track qualification source",
+                ],
                 cwd=repository,
                 check=True,
             )
@@ -260,9 +269,11 @@ default_project_configuration = _local_default
                         output,
                         definitions
                         + """
+$sourceRoot = (Get-Item -LiteralPath $env:QUALIFICATION_SOURCE -Force).FullName
 foreach ($reference in @('v9.0.0', 'preview')) {
-    Copy-ProjectTemplate -SourceRoot $env:QUALIFICATION_SOURCE `
-        -TargetRoot (Join-Path $PSScriptRoot $reference) `
+    $targetRoot = (Get-Item -LiteralPath (Join-Path $PSScriptRoot $reference) -Force).FullName
+    Copy-ProjectTemplate -SourceRoot $sourceRoot `
+        -TargetRoot $targetRoot `
         -RepositoryReference $reference -SnapshotRoot $env:QUALIFICATION_SNAPSHOT
 }
 """,
@@ -506,7 +517,7 @@ function Remove-Item {
 function Remove-Item {
     param([string]$LiteralPath, [switch]$Force, [switch]$Recurse)
     [IO.File]::AppendAllText($env:QUALIFICATION_CLEANUP_LOG, $LiteralPath + "`n")
-    if ($LiteralPath.EndsWith('.zip.bak')) { throw 'cleanup backup failure' }
+    if ($LiteralPath.EndsWith('.zip.bak')) { throw 'cleanup_backup_failure' }
     Microsoft.PowerShell.Management\\Remove-Item -LiteralPath $LiteralPath -Force:$Force -Recurse:$Recurse
 }
 """
@@ -525,7 +536,7 @@ function Remove-Item {
                 upstream_override=override,
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("cleanup backup failure", result.stdout + result.stderr)
+            self.assertIn("cleanup_backup_failure", result.stdout + result.stderr)
             self.assertNotIn("Created release package:", result.stdout)
             with zipfile.ZipFile(destination) as archive:
                 self.assertIsNone(archive.testzip())
