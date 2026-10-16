@@ -132,7 +132,7 @@ class QualificationWorkflowTests(unittest.TestCase):
             )
 
     def test_contract_rejects_independent_reuse_or_missing_fresh_dependency(self):
-        self.assertEqual(len(self.workflow["jobs"]), 7)
+        self.assertEqual(len(self.workflow["jobs"]), 9)
         path = ROOT / "tools/repository-audit/workflow-contracts.py"
         spec = importlib.util.spec_from_file_location("qualification_contract", path)
         validator = importlib.util.module_from_spec(spec)
@@ -147,6 +147,99 @@ class QualificationWorkflowTests(unittest.TestCase):
                         validator.validate_workflow(
                             "repository-audit", changed, registry
                         )
+
+    def test_experiment_is_opt_in_and_keeps_the_required_gate_independent(self):
+        inputs = self.workflow["on"].get("workflow_dispatch") or {}
+        self.assertEqual(
+            inputs.get("inputs", {}).get("qualification_experiment"),
+            {
+                "description": "Measure the experimental qualification protocol",
+                "type": "boolean",
+                "required": False,
+                "default": False,
+            },
+        )
+        gate = self.workflow["jobs"]["repository-audit"]
+        for name in ("qualification-experiment", "experiment-aggregate"):
+            self.assertIn(name, self.workflow["jobs"].keys())
+            self.assertNotIn(name, gate["needs"])
+        bench = self.workflow["jobs"]["qualification-experiment"]
+        self.assertIn("repository-audit", bench["needs"])
+        self.assertEqual(bench["strategy"]["matrix"]["sample"], [1, 2, 3])
+        self.assertEqual(bench["strategy"]["matrix"]["platform"], ["linux", "windows"])
+        self.assertIs(bench["strategy"]["fail-fast"], False)
+
+    def test_experiment_contract_rejects_bypassed_gates_and_unbound_artifacts(self):
+        self.assertIn("qualification-experiment", self.workflow["jobs"].keys())
+        path = ROOT / "tools/repository-audit/workflow-contracts.py"
+        spec = importlib.util.spec_from_file_location("experiment_contract", path)
+        validator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(validator)
+        registry = json.loads((ROOT / "tools/quality/versions.json").read_text())
+        validator.validate_workflow("repository-audit", self.workflow, registry)
+        for job in ("qualification-experiment", "experiment-aggregate"):
+            for change in (
+                {"if": "true"},
+                {"permissions": {"contents": "write", "actions": "read"}},
+                {"needs": ["activation"]},
+            ):
+                with self.subTest(job=job, change=change):
+                    changed = copy.deepcopy(self.workflow)
+                    changed["jobs"][job].update(change)
+                    with self.assertRaises(validator.ContractError):
+                        validator.validate_workflow(
+                            "repository-audit", changed, registry
+                        )
+        for job in ("qualification-experiment", "experiment-aggregate"):
+            changed = copy.deepcopy(self.workflow)
+            upload = next(
+                step
+                for step in changed["jobs"][job]["steps"]
+                if step.get("uses", "").startswith("actions/upload-artifact@")
+            )
+            upload["with"]["name"] = "qualification-unbound"
+            with self.subTest(job=job), self.assertRaises(validator.ContractError):
+                validator.validate_workflow("repository-audit", changed, registry)
+
+    def test_experiment_passes_current_artifacts_and_sample_to_the_cli(self):
+        self.assertIn("qualification-experiment", self.workflow["jobs"].keys())
+        step = copy.deepcopy(
+            self.step("qualification-experiment", "Measure experimental paths")
+        )
+        step["run"] = 'python() { printf "%s\\0" "$@" > "$TRACE"; }\n' + step["run"]
+        with tempfile.TemporaryDirectory(
+            prefix="qualification experiment "
+        ) as temporary:
+            trace = Path(temporary) / "trace"
+            result = self.run_step(
+                step,
+                ROOT,
+                {
+                    "RUNNER_TEMP": temporary,
+                    "EXPERIMENT_PLATFORM": "windows",
+                    "EXPERIMENT_SAMPLE": "3",
+                    "TRACE": str(trace),
+                },
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                trace.read_bytes().decode().split("\0")[:-1],
+                [
+                    "-B",
+                    "tests/qualification_experiment.py",
+                    "run",
+                    "--platform",
+                    "windows",
+                    "--sample",
+                    "3",
+                    "--measurements",
+                    temporary + "/coverage",
+                    "--fresh",
+                    temporary + "/fresh",
+                    "--output",
+                    temporary + "/experiment",
+                ],
+            )
 
     def test_local_modes_keep_complete_order_without_hosted_environment(self):
         script = """set -euo pipefail

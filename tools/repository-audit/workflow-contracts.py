@@ -1589,6 +1589,250 @@ def repository_audit_contract(node_version: str) -> dict:
             },
         },
     }
+    contract["on"]["workflow_dispatch"] = {
+        "inputs": {
+            "qualification_experiment": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+            }
+        }
+    }
+    contract["jobs"].update(
+        {
+            "qualification-experiment": {
+                "name": "Qualification experiment - ${{ matrix.platform }} / sample "
+                "${{ matrix.sample }}",
+                "needs": ["activation", "quality-linux", "repository-audit"],
+                "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                "github.event_name == 'workflow_dispatch' && "
+                "inputs.qualification_experiment && "
+                "needs.activation.outputs.enabled == 'true' && "
+                "needs.quality-linux.outputs.scope == 'source'",
+                "runs-on": "${{ matrix.runner }}",
+                "timeout-minutes": 60,
+                "permissions": {"contents": "read", "actions": "read"},
+                "strategy": {
+                    "fail-fast": False,
+                    "matrix": {
+                        "platform": ["linux", "windows"],
+                        "sample": [1, 2, 3],
+                        "include": [
+                            {
+                                "platform": "linux",
+                                "runner": "ubuntu-24.04",
+                                "python": "3.11",
+                            },
+                            {
+                                "platform": "windows",
+                                "runner": "windows-2025",
+                                "python": "3.14",
+                            },
+                        ],
+                    },
+                },
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ github.sha }}",
+                            "fetch-depth": 0,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {"AUDIT_COMMIT_SHA": "${{ github.sha }}"},
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "id": "python-runtime",
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "${{ matrix.python }}",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "id": "node-runtime",
+                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "with": {
+                            "node-version": "${{ env.NODE_VERSION }}",
+                            "cache": "npm",
+                            "cache-dependency-path": "tools/quality/package-lock.json\n"
+                            "tools/quality/versions.json\n",
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:73eabb844b919829f39796c1bc54ed77ce756fe1a5db4cd5867f94755f14728b",
+                    },
+                    {
+                        "if": "matrix.platform == 'linux'",
+                        "shell": "bash",
+                        "run": "sha256:a9940942eb7b522cb37ef4b2dea65698892e9871239c63ce6e5d53e908858606",
+                    },
+                    {
+                        "if": "matrix.platform == 'windows'",
+                        "shell": "pwsh",
+                        "run": "sha256:fa1715d8e6ba490f5e860ac8c3be55c981514777ef63346c251ad75ed2d826d7",
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "coverage-linux-${{ github.sha }}-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/coverage/linux",
+                        },
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "coverage-windows-${{ github.sha }}-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/coverage/windows",
+                        },
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-fresh-linux-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/fresh",
+                        },
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-fresh-windows-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/fresh",
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "EXPERIMENT_PLATFORM": "${{ matrix.platform }}",
+                            "PYTHON_CACHE_HIT": "${{ "
+                            "steps.python-runtime.outputs.cache-hit "
+                            "}}",
+                            "NPM_CACHE_HIT": "${{ "
+                            "steps.node-runtime.outputs.cache-hit "
+                            "}}",
+                            "EXPERIMENT_SAMPLE": "${{ matrix.sample }}",
+                            "AUDIT_COMMIT_SHA": "${{ github.sha }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                            "GIT_AUTHOR_NAME": "Codex",
+                            "GIT_AUTHOR_EMAIL": "codex@example.com",
+                            "GIT_COMMITTER_NAME": "Codex",
+                            "GIT_COMMITTER_EMAIL": "codex@example.com",
+                        },
+                        "run": "sha256:3f71c873c34e0675633415cd620a680a237f9ff9514b941d62cdc328ac2581c4",
+                    },
+                    {
+                        "if": "always()",
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "experiment-${{ matrix.platform }}-${{ "
+                            "matrix.sample }}-${{ github.run_id "
+                            "}}-${{ github.run_attempt }}",
+                            "path": "${{ runner.temp }}/experiment",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                    },
+                ],
+            },
+            "experiment-aggregate": {
+                "name": "Qualification experiment results",
+                "needs": [
+                    "activation",
+                    "quality-linux",
+                    "repository-audit",
+                    "qualification-experiment",
+                ],
+                "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                "github.event_name == 'workflow_dispatch' && "
+                "inputs.qualification_experiment && "
+                "needs.activation.outputs.enabled == 'true' && "
+                "needs.quality-linux.outputs.scope == 'source'",
+                "runs-on": "ubuntu-24.04",
+                "timeout-minutes": 10,
+                "permissions": {"contents": "read", "actions": "read"},
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ github.sha }}",
+                            "fetch-depth": 0,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {"AUDIT_COMMIT_SHA": "${{ github.sha }}"},
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.11",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "pattern": "experiment-*-${{ github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/experiment-input",
+                            "merge-multiple": True,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ github.sha }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                        },
+                        "run": "sha256:5f83579811367cd565c4281f12910b5aa6eecf7bac9138b82606ba49e84d5e03",
+                    },
+                    {
+                        "if": "always()",
+                        "shell": "bash",
+                        "run": "sha256:c8cef46594ea73ab48d9d9df9b9149cb85169cd4567e9b621f4274ba2dcdfc17",
+                    },
+                    {
+                        "if": "always()",
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "experiment-results-${{ github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/experiment-results",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                    },
+                ],
+            },
+        }
+    )
     contract["env"]["NODE_VERSION"] = node_version
     return contract
 

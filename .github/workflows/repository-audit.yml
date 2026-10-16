@@ -9,7 +9,13 @@ name: Repository audit
     branches:
       - main
       - master
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      qualification_experiment:
+        description: Measure the experimental qualification protocol
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 env:
@@ -836,3 +842,221 @@ jobs:
     permissions:
       contents: read
       actions: read
+  qualification-experiment:
+    name: Qualification experiment - ${{ matrix.platform }} / sample ${{ matrix.sample }}
+    needs:
+      - activation
+      - quality-linux
+      - repository-audit
+    if: github.repository == 'asphyx0r/git-starter-kit' && github.event_name == 'workflow_dispatch' && inputs.qualification_experiment
+      && needs.activation.outputs.enabled == 'true' && needs.quality-linux.outputs.scope == 'source'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux
+          - windows
+        sample:
+          - 1
+          - 2
+          - 3
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+            python: '3.11'
+          - platform: windows
+            runner: windows-2025
+            python: '3.14'
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact audit revision
+        shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
+      - name: Set up Python
+        id: python-runtime
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: tools/quality/requirements.lock
+      - name: Set up Node
+        id: node-runtime
+        # actions/setup-node@v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            tools/quality/package-lock.json
+            tools/quality/versions.json
+      - name: Check quality declarations
+        shell: bash
+        run: python -B tools/quality/check-versions.py
+      - name: Install locked language toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            --require-hashes --requirement tools/quality/requirements.lock
+          npm ci --ignore-scripts --prefix tools/quality
+          python tools/quality/npm-security.py patch
+      - name: Install verified Linux tools
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/quality/install-external-tools.py \
+            --platform linux-x64 --install-root "$RUNNER_TEMP/quality-tools"
+          echo "$RUNNER_TEMP/quality-tools/bin" >> "$GITHUB_PATH"
+          echo "PSModulePath=$RUNNER_TEMP/quality-tools/Modules:${PSModulePath:-}" >> "$GITHUB_ENV"
+      - name: Install verified Windows tools
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          python tools/quality/install-external-tools.py `
+            --platform windows-x64 `
+            --tool PSScriptAnalyzer --tool shellcheck --tool shfmt `
+            --install-root "$env:RUNNER_TEMP/quality-tools"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP/quality-tools/bin"
+          Add-Content $env:GITHUB_ENV `
+            "PSModulePath=$env:RUNNER_TEMP/quality-tools/Modules$([IO.Path]::PathSeparator)$env:PSModulePath"
+      - name: Download original Linux measurements
+        # actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: coverage-linux-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/coverage/linux
+      - name: Download original Windows measurements
+        # actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: coverage-windows-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/coverage/windows
+      - name: Download original fresh Linux environment
+        # actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: qualification-fresh-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fresh
+      - name: Download original fresh Windows environment
+        # actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: qualification-fresh-windows-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fresh
+      - name: Measure experimental paths
+        shell: bash
+        env:
+          EXPERIMENT_PLATFORM: ${{ matrix.platform }}
+          PYTHON_CACHE_HIT: ${{ steps.python-runtime.outputs.cache-hit }}
+          NPM_CACHE_HIT: ${{ steps.node-runtime.outputs.cache-hit }}
+          EXPERIMENT_SAMPLE: ${{ matrix.sample }}
+          AUDIT_COMMIT_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GIT_AUTHOR_NAME: Codex
+          GIT_AUTHOR_EMAIL: codex@example.com
+          GIT_COMMITTER_NAME: Codex
+          GIT_COMMITTER_EMAIL: codex@example.com
+        run: |
+          set -euo pipefail
+          python -B tests/qualification_experiment.py run \
+            --platform "$EXPERIMENT_PLATFORM" --sample "$EXPERIMENT_SAMPLE" \
+            --measurements "$RUNNER_TEMP/coverage" --fresh "$RUNNER_TEMP/fresh" \
+            --output "$RUNNER_TEMP/experiment"
+      - name: Upload experimental sample
+        if: always()
+        # actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: experiment-${{ matrix.platform }}-${{ matrix.sample }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+  experiment-aggregate:
+    name: Qualification experiment results
+    needs:
+      - activation
+      - quality-linux
+      - repository-audit
+      - qualification-experiment
+    if: github.repository == 'asphyx0r/git-starter-kit' && github.event_name == 'workflow_dispatch' && inputs.qualification_experiment
+      && needs.activation.outputs.enabled == 'true' && needs.quality-linux.outputs.scope == 'source'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact audit revision
+        shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
+      - name: Set up Python
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: tools/quality/requirements.lock
+      - name: Install locked coverage runtime
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check \
+            --require-hashes --requirement tools/quality/requirements.lock
+      - name: Download experimental samples
+        # actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: experiment-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment-input
+          merge-multiple: true
+      - name: Aggregate experimental evidence
+        shell: bash
+        env:
+          AUDIT_COMMIT_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python -B tests/qualification_experiment.py aggregate \
+            --input "$RUNNER_TEMP/experiment-input" --output "$RUNNER_TEMP/experiment-results"
+      - name: Publish experimental summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/experiment-results/result.summary.md" ]]; then
+            cat "$RUNNER_TEMP/experiment-results/result.summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload experimental results
+        if: always()
+        # actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: experiment-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment-results
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

@@ -308,9 +308,9 @@ release. PRs, manual runs, preparation branches and application consumers run
 their normal complete qualifications. Equal trees with different commit SHAs
 are insufficient.
 
-The workflow has seven jobs: activation and candidate resolution, two fresh OS
-preflights, one common decision, two conditional heavy OS jobs, and the required
-aggregate. One decision controls both heavy jobs. The aggregate accepts either
+The normal qualification has seven jobs: activation and candidate resolution,
+two fresh OS preflights, one common decision, two conditional heavy OS jobs, and
+the required aggregate. One decision controls both heavy jobs. The aggregate accepts either
 the verified original pair or both successful current heavy jobs. The required
 check names remain `Repository audit` and `Repository audit (manual)`.
 
@@ -361,6 +361,75 @@ continue to work without it and execute their own checks on both OSes. It does
 not authorize a push, release, protection change or bypass of a release gate.
 Hosted savings require measurement of a complete release sequence, including
 fallback overhead; local simulations alone do not establish that gain.
+
+### Accepted F14 experiment
+
+On 2026-10-16, the user accepted an experimental closure criterion for F14 in
+place of the original real release-sequence measurement. This acceptance does
+not change production eligibility or authorize a merge, tag or release.
+
+Use the existing manual workflow on the dedicated PR branch with the boolean
+`qualification_experiment` input enabled. Ordinary runs retain their seven
+qualification jobs. Two additional job definitions, disabled by default,
+measure three isolated samples on each OS and verify their combined results.
+Their token permissions remain read-only.
+
+```powershell
+gh workflow run repository-audit.yml `
+  --repo asphyx0r/git-starter-kit `
+  --ref codex/audit-remediation-2026-10-16 `
+  --field qualification_experiment=true
+```
+
+Freeze the harness commit for the entire series. Its normal full Linux/Windows
+qualification supplies the real warm-up and original paired measurements.
+Each sample must observe the same effective tools, locks and hosted image as
+that qualification, before and after its own execution. Record cache hits and
+misses and retain the setup cache regime; never clear a shared cache to obtain
+a preferred result.
+
+The source-only `tests/qualification_experiment.py` harness calls the unchanged
+`resolve`, `seal` and `verify` functions with an injected API. Only that fixture
+simulates an eligible default-branch producer and tag consumer, including the
+completed producer state required while the real manual run is still running.
+It supplies the harness commit as the simulated trusted default-branch tip and
+creates an unpublished artifact envelope; it does not attest the real `main`
+trust relationship.
+The receipt retains the real manual event and the simulated fields separately.
+No production packet is published. Original coverage bytes, source hashes,
+run, attempt and producer date remain intact.
+
+Every sample exercises these cases:
+
+| Case | Required observation |
+| --- | --- |
+| No proof | Common `full` decision, followed by the real complete native Python and shell suites |
+| Valid original pair | `reuse`, unchanged original identity, date and packet files, with no heavy-suite execution |
+| Invalid proof before decision | Common `full` decision, followed by the same complete native suites |
+| Proof lost after a reuse decision | Aggregate validation refuses the incomplete pair; no partial success |
+
+The final experimental aggregate requires all six samples, pairs their current
+environments, recalculates raw full and fallback coverage, and enforces all
+four existing 85% floors. Missing samples, failures, environment drift, mixed
+commits or attempts invalidate the series. Keep failed attempts distinct.
+
+Report measured component times per OS with the median and range of the three
+samples. Count the original producer once when assembling the two-consumer
+comparison: `P + 2 * median(full)` versus
+`P + median(tag reuse) + median(release reuse)`. Compute the paired OS maximum
+and sum before each median; the result is a sum of component medians, not a
+median of complete sequences. Report invalid-proof fallback
+overhead separately. These are assembled component costs, not observed
+end-to-end release wall time or billed runner seconds. Real API latency,
+release orchestration and future image/cache changes remain outside that
+estimate. Report actual workflow/job durations separately from component
+measurements, including setup and scheduling where applicable.
+
+Retain experimental artifacts for seven days and record their SHA-256 hashes,
+run/attempt, original pair, measured environments, test/skip counts, shell
+outcomes and four coverage results in a durable report. Close F14 under this
+accepted alternative only after every scenario and floor passes. A later
+documentation commit must not be presented as the measured source commit.
 
 ## Automatic Release Mode
 

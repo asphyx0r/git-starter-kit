@@ -238,3 +238,22 @@ environnements préexistants. <!-- codespell:ignore environnements -->
 
 Ce plan a été préparé en lecture seule, selon les consignes du dépôt et les règles de documentation applicables. Aucun
 fichier n’a été créé ou modifié ; aucun test produisant des fixtures n’a été exécuté pendant sa préparation.
+
+## Amendement accepté pour F14 — 2026-10-16 <!-- codespell:ignore amendement -->
+
+L'utilisateur a accepté de remplacer le critère de mesure <!-- codespell:ignore mesure -->
+d'une véritable séquence de release par une validation expérimentale, sans merge, tag ni release.
+Le protocole canonique est décrit dans
+[Release package — Accepted F14 experiment](../../release-package.md#accepted-f14-experiment).
+
+Une qualification complète réelle sert de chauffe et de paire producteur. Trois répétitions isolées sur chaque OS
+mesurent les chemins sans preuve, avec preuve valide <!-- codespell:ignore valide -->
+et avec preuve invalidée ; la perte après décision doit être refusée.
+Les événements admissibles sont simulés uniquement dans une API injectée au banc. Les règles de production,
+les données brutes, les identités originales et les quatre seuils de 85 % restent inchangés.
+
+La clôture alternative exige les résultats complets, <!-- codespell:ignore complets -->
+les environnements appariés, les empreintes et les coûts <!-- codespell:ignore environnements -->
+par composant. La comparaison de deux consommateurs <!-- codespell:ignore composant,comparaison -->
+est un coût assemblé, sans prétendre mesurer une séquence de release réelle.
+Le rapport doit distinguer le commit du banc mesuré du commit documentaire final.
