@@ -368,6 +368,11 @@ On 2026-10-16, the user accepted an experimental closure criterion for F14 in
 place of the original real release-sequence measurement. This acceptance does
 not change production eligibility or authorize a merge, tag or release.
 
+The [completed F14 experiment](superpowers/reports/2026-10-16-f14-experiment.md)
+records the successful six-sample hosted series, independent raw recheck and
+closure under that criterion. Its component timings do not establish actual
+release-sequence or billed-runner savings.
+
 Use the existing manual workflow on the dedicated PR branch with the boolean
 `qualification_experiment` input enabled. Ordinary runs retain their seven
 qualification jobs. Two additional job definitions, disabled by default,
@@ -383,6 +388,7 @@ gh workflow run repository-audit.yml `
 
 Freeze the harness commit for the entire series. Its normal full Linux/Windows
 qualification supplies the real warm-up and original paired measurements.
+Those ordinary suites run on separate VMs; each sample warms its helper locally.
 Each sample must observe the same effective tools, locks and hosted image as
 that qualification, before and after its own execution. Record cache hits and
 misses and retain the setup cache regime; never clear a shared cache to obtain
@@ -422,8 +428,10 @@ median of complete sequences. Report invalid-proof fallback
 overhead separately. These are assembled component costs, not observed
 end-to-end release wall time or billed runner seconds. Real API latency,
 release orchestration and future image/cache changes remain outside that
-estimate. Report actual workflow/job durations separately from component
-measurements, including setup and scheduling where applicable.
+estimate. The native two-OS helper model also differs from production's Linux
+placement of the common decision and aggregate. Report actual workflow/job
+durations separately from component measurements, including setup and
+scheduling where applicable.
 
 Retain experimental artifacts for seven days and record their SHA-256 hashes,
 run/attempt, original pair, measured environments, test/skip counts, shell

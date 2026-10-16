@@ -268,6 +268,9 @@ deferred, or explicitly excluded from the template.
   aggregate requires both environments and uses `Repository audit` for
   automatic events and `Repository audit (manual)` for manual runs. The
   aggregate uses a depth-one checkout; OS jobs retain full commit history.
+  A default-disabled manual `qualification_experiment` input adds six native
+  samples and their experimental aggregate; ordinary seven-job checks remain
+  unchanged. See the accepted F14 protocol in `docs/release-package.md`.
   The narrowly guarded source-only
   [qualification protocol](release-package.md#controlled-ci-qualification)
   can reuse one original OS pair; local exhaustive profiles remain complete.
@@ -1501,7 +1504,27 @@ deferred, or explicitly excluded from the template.
 - Usage: Run through Python unittest discovery; workflow scripts use local
   fixtures and native command stubs.
 - Notes: Checks common heavy-suite decisions, fresh checks, fail-closed
-  aggregation and immediate Windows native-exit propagation.
+  aggregation, immediate Windows native-exit propagation and the optional
+  manual experiment's matrix, token permissions and result boundaries.
+
+### `tests/qualification_experiment.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Measures the accepted F14 full, reuse and fallback component experiment.
+- Usage: The opt-in manual audit calls its `run` and `aggregate` commands.
+- Notes: Source-only harness; runs real native suites and unchanged production
+  validators with explicitly simulated API eligibility, preserving original
+  measurements and four coverage floors. No tag or release is created.
+
+### `tests/test_qualification_experiment.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects experimental receipts, raw coverage checks and cost assembly.
+- Usage: Run through Python unittest discovery with the locked quality runtime.
+- Notes: Exercises complete sample/aggregate fixtures, tag/release identity,
+  missing or altered proof refusal and heavy-command failure propagation.
 
 ### `tests/test_workflow_contracts.py`
 
@@ -1608,6 +1631,25 @@ deferred, or explicitly excluded from the template.
 - Usage: Distinguish focused results, failed/interrupted attempts and final
   local or hosted qualification before closing findings.
 - Notes: Source-only evidence; preserves the original dated reports.
+
+### `docs/superpowers/reports/2026-10-16-f14-experiment.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records F14 closure under the accepted hosted experimental criterion.
+- Usage: Read with the canonical protocol and the companion JSON receipts.
+- Notes: Source-only results; distinguishes measured H from its later report
+  commit, component costs from actual job durations, and simulated eligibility
+  from real production release evidence.
+
+### `docs/superpowers/reports/2026-10-16-f14-experiment.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Retains exact experimental metrics, identities and artifact digests.
+- Usage: Inspect alongside the human-readable experiment report.
+- Notes: Source-only compact evidence; raw databases, ZIPs and logs are omitted.
+  Hashes preserve provenance after expiry but cannot reconstruct those inputs.
 
 ### `tests/test_release_artifacts.py`
 

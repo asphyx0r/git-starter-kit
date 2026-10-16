@@ -1,5 +1,13 @@
 # Audit remediation evidence: F01 to F16
 
+Historical snapshot: this record describes local qualification before the
+authorized publication and hosted follow-ups. Its remaining-gate statements
+below preserve that earlier state. On 2026-10-16, F14 was subsequently closed
+under the user's accepted alternative criterion; see the
+[completed experimental results](2026-10-16-f14-experiment.md) for current
+disposition and its limits. Ordinary hosted verification is recorded in
+[draft PR 90](https://github.com/asphyx0r/git-starter-kit/pull/90).
+
 This record follows the [approved plan](../plans/2026-10-16-audit-remediation.md).
 Local implementation and qualification are complete on the frozen candidate.
 Hosted qualification and the measured release-sequence costs required for F14

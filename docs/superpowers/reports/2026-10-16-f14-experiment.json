@@ -1,0 +1,1567 @@
+{
+  "actual_context": {
+    "action": "",
+    "attempt": "1",
+    "event": "workflow_dispatch",
+    "ref": "refs/heads/codex/audit-remediation-2026-10-16",
+    "repository": "asphyx0r/git-starter-kit",
+    "run": "38965445362",
+    "sha": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d"
+  },
+  "coverage": {
+    "minimum_branch_percent": 85,
+    "minimum_global_percent": 85,
+    "policy_sha256": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
+    "raw_floor_pairs": [
+      {
+        "combined": {
+          "covered_branches": 2079,
+          "covered_lines": 5544,
+          "excluded_lines": 16,
+          "missing_branches": 279,
+          "missing_lines": 430,
+          "num_branches": 2358,
+          "num_partial_branches": 235,
+          "num_statements": 5974,
+          "percent_branches_covered": 88.16793893129771,
+          "percent_branches_covered_display": "88.17",
+          "percent_covered": 91.49063850216035,
+          "percent_covered_display": "91.49",
+          "percent_statements_covered": 92.80214261801139,
+          "percent_statements_covered_display": "92.80"
+        },
+        "linux": {
+          "covered_branches": 2040,
+          "covered_lines": 5482,
+          "excluded_lines": 16,
+          "missing_branches": 318,
+          "missing_lines": 492,
+          "num_branches": 2358,
+          "num_partial_branches": 246,
+          "num_statements": 5974,
+          "percent_branches_covered": 86.51399491094148,
+          "percent_branches_covered_display": "86.51",
+          "percent_covered": 90.27844455112817,
+          "percent_covered_display": "90.28",
+          "percent_statements_covered": 91.7643120187479,
+          "percent_statements_covered_display": "91.76"
+        },
+        "sample": 1,
+        "scenario": "full"
+      },
+      {
+        "combined": {
+          "covered_branches": 2079,
+          "covered_lines": 5544,
+          "excluded_lines": 16,
+          "missing_branches": 279,
+          "missing_lines": 430,
+          "num_branches": 2358,
+          "num_partial_branches": 235,
+          "num_statements": 5974,
+          "percent_branches_covered": 88.16793893129771,
+          "percent_branches_covered_display": "88.17",
+          "percent_covered": 91.49063850216035,
+          "percent_covered_display": "91.49",
+          "percent_statements_covered": 92.80214261801139,
+          "percent_statements_covered_display": "92.80"
+        },
+        "linux": {
+          "covered_branches": 2040,
+          "covered_lines": 5482,
+          "excluded_lines": 16,
+          "missing_branches": 318,
+          "missing_lines": 492,
+          "num_branches": 2358,
+          "num_partial_branches": 246,
+          "num_statements": 5974,
+          "percent_branches_covered": 86.51399491094148,
+          "percent_branches_covered_display": "86.51",
+          "percent_covered": 90.27844455112817,
+          "percent_covered_display": "90.28",
+          "percent_statements_covered": 91.7643120187479,
+          "percent_statements_covered_display": "91.76"
+        },
+        "sample": 1,
+        "scenario": "fallback"
+      },
+      {
+        "combined": {
+          "covered_branches": 2079,
+          "covered_lines": 5544,
+          "excluded_lines": 16,
+          "missing_branches": 279,
+          "missing_lines": 430,
+          "num_branches": 2358,
+          "num_partial_branches": 235,
+          "num_statements": 5974,
+          "percent_branches_covered": 88.16793893129771,
+          "percent_branches_covered_display": "88.17",
+          "percent_covered": 91.49063850216035,
+          "percent_covered_display": "91.49",
+          "percent_statements_covered": 92.80214261801139,
+          "percent_statements_covered_display": "92.80"
+        },
+        "linux": {
+          "covered_branches": 2040,
+          "covered_lines": 5482,
+          "excluded_lines": 16,
+          "missing_branches": 318,
+          "missing_lines": 492,
+          "num_branches": 2358,
+          "num_partial_branches": 246,
+          "num_statements": 5974,
+          "percent_branches_covered": 86.51399491094148,
+          "percent_branches_covered_display": "86.51",
+          "percent_covered": 90.27844455112817,
+          "percent_covered_display": "90.28",
+          "percent_statements_covered": 91.7643120187479,
+          "percent_statements_covered_display": "91.76"
+        },
+        "sample": 2,
+        "scenario": "full"
+      },
+      {
+        "combined": {
+          "covered_branches": 2079,
+          "covered_lines": 5544,
+          "excluded_lines": 16,
+          "missing_branches": 279,
+          "missing_lines": 430,
+          "num_branches": 2358,
+          "num_partial_branches": 235,
+          "num_statements": 5974,
+          "percent_branches_covered": 88.16793893129771,
+          "percent_branches_covered_display": "88.17",
+          "percent_covered": 91.49063850216035,
+          "percent_covered_display": "91.49",
+          "percent_statements_covered": 92.80214261801139,
+          "percent_statements_covered_display": "92.80"
+        },
+        "linux": {
+          "covered_branches": 2040,
+          "covered_lines": 5482,
+          "excluded_lines": 16,
+          "missing_branches": 318,
+          "missing_lines": 492,
+          "num_branches": 2358,
+          "num_partial_branches": 246,
+          "num_statements": 5974,
+          "percent_branches_covered": 86.51399491094148,
+          "percent_branches_covered_display": "86.51",
+          "percent_covered": 90.27844455112817,
+          "percent_covered_display": "90.28",
+          "percent_statements_covered": 91.7643120187479,
+          "percent_statements_covered_display": "91.76"
+        },
+        "sample": 2,
+        "scenario": "fallback"
+      },
+      {
+        "combined": {
+          "covered_branches": 2079,
+          "covered_lines": 5544,
+          "excluded_lines": 16,
+          "missing_branches": 279,
+          "missing_lines": 430,
+          "num_branches": 2358,
+          "num_partial_branches": 235,
+          "num_statements": 5974,
+          "percent_branches_covered": 88.16793893129771,
+          "percent_branches_covered_display": "88.17",
+          "percent_covered": 91.49063850216035,
+          "percent_covered_display": "91.49",
+          "percent_statements_covered": 92.80214261801139,
+          "percent_statements_covered_display": "92.80"
+        },
+        "linux": {
+          "covered_branches": 2040,
+          "covered_lines": 5482,
+          "excluded_lines": 16,
+          "missing_branches": 318,
+          "missing_lines": 492,
+          "num_branches": 2358,
+          "num_partial_branches": 246,
+          "num_statements": 5974,
+          "percent_branches_covered": 86.51399491094148,
+          "percent_branches_covered_display": "86.51",
+          "percent_covered": 90.27844455112817,
+          "percent_covered_display": "90.28",
+          "percent_statements_covered": 91.7643120187479,
+          "percent_statements_covered_display": "91.76"
+        },
+        "sample": 3,
+        "scenario": "full"
+      },
+      {
+        "combined": {
+          "covered_branches": 2079,
+          "covered_lines": 5544,
+          "excluded_lines": 16,
+          "missing_branches": 279,
+          "missing_lines": 430,
+          "num_branches": 2358,
+          "num_partial_branches": 235,
+          "num_statements": 5974,
+          "percent_branches_covered": 88.16793893129771,
+          "percent_branches_covered_display": "88.17",
+          "percent_covered": 91.49063850216035,
+          "percent_covered_display": "91.49",
+          "percent_statements_covered": 92.80214261801139,
+          "percent_statements_covered_display": "92.80"
+        },
+        "linux": {
+          "covered_branches": 2040,
+          "covered_lines": 5482,
+          "excluded_lines": 16,
+          "missing_branches": 318,
+          "missing_lines": 492,
+          "num_branches": 2358,
+          "num_partial_branches": 246,
+          "num_statements": 5974,
+          "percent_branches_covered": 86.51399491094148,
+          "percent_branches_covered_display": "86.51",
+          "percent_covered": 90.27844455112817,
+          "percent_covered_display": "90.28",
+          "percent_statements_covered": 91.7643120187479,
+          "percent_statements_covered_display": "91.76"
+        },
+        "sample": 3,
+        "scenario": "fallback"
+      }
+    ],
+    "source_count": 25
+  },
+  "experiment": "F14 hosted controlled qualification benchmark",
+  "experimental": true,
+  "hosted_execution": {
+    "job_count": 14,
+    "job_seconds_sum": 7067.0,
+    "job_timings": [
+      {
+        "completed_at": "2026-10-16T20:53:14Z",
+        "conclusion": "success",
+        "id": 117190667283,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Read trusted automation configuration",
+        "seconds": 4.0,
+        "started_at": "2026-10-16T20:53:10Z"
+      },
+      {
+        "completed_at": "2026-10-16T20:55:03Z",
+        "conclusion": "success",
+        "id": 117190704392,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Quality - Ubuntu 24.04 / Python 3.11",
+        "seconds": 107.0,
+        "started_at": "2026-10-16T20:53:16Z"
+      },
+      {
+        "completed_at": "2026-10-16T20:54:26Z",
+        "conclusion": "success",
+        "id": 117190704490,
+        "labels": [
+          "windows-2025"
+        ],
+        "name": "Compatibility - Windows 2025 / Python 3.14",
+        "seconds": 70.0,
+        "started_at": "2026-10-16T20:53:16Z"
+      },
+      {
+        "completed_at": "2026-10-16T20:55:23Z",
+        "conclusion": "success",
+        "id": 117191425922,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Choose common qualification",
+        "seconds": 18.0,
+        "started_at": "2026-10-16T20:55:05Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:02:17Z",
+        "conclusion": "success",
+        "id": 117191558667,
+        "labels": [
+          "windows-2025"
+        ],
+        "name": "Measured qualification - windows",
+        "seconds": 412.0,
+        "started_at": "2026-10-16T20:55:25Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:02:13Z",
+        "conclusion": "success",
+        "id": 117191558794,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Measured qualification - linux",
+        "seconds": 408.0,
+        "started_at": "2026-10-16T20:55:25Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:02:46Z",
+        "conclusion": "success",
+        "id": 117194262377,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Repository audit (manual)",
+        "seconds": 27.0,
+        "started_at": "2026-10-16T21:02:19Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:16:01Z",
+        "conclusion": "success",
+        "id": 117194455295,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Qualification experiment - linux / sample 2",
+        "seconds": 793.0,
+        "started_at": "2026-10-16T21:02:48Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:16:29Z",
+        "conclusion": "success",
+        "id": 117194455313,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Qualification experiment - linux / sample 1",
+        "seconds": 821.0,
+        "started_at": "2026-10-16T21:02:48Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:22:58Z",
+        "conclusion": "success",
+        "id": 117194455371,
+        "labels": [
+          "windows-2025"
+        ],
+        "name": "Qualification experiment - windows / sample 3",
+        "seconds": 1210.0,
+        "started_at": "2026-10-16T21:02:48Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:22:31Z",
+        "conclusion": "success",
+        "id": 117194455487,
+        "labels": [
+          "windows-2025"
+        ],
+        "name": "Qualification experiment - windows / sample 2",
+        "seconds": 1183.0,
+        "started_at": "2026-10-16T21:02:48Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:22:12Z",
+        "conclusion": "success",
+        "id": 117194455506,
+        "labels": [
+          "windows-2025"
+        ],
+        "name": "Qualification experiment - windows / sample 1",
+        "seconds": 1164.0,
+        "started_at": "2026-10-16T21:02:48Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:16:07Z",
+        "conclusion": "success",
+        "id": 117194455520,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Qualification experiment - linux / sample 3",
+        "seconds": 799.0,
+        "started_at": "2026-10-16T21:02:48Z"
+      },
+      {
+        "completed_at": "2026-10-16T21:23:51Z",
+        "conclusion": "success",
+        "id": 117202356398,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "Qualification experiment results",
+        "seconds": 51.0,
+        "started_at": "2026-10-16T21:23:00Z"
+      }
+    ],
+    "successful_jobs": 14,
+    "wall_from_created_seconds": 1845.0,
+    "wall_from_started_seconds": 1845.0
+  },
+  "limitations": [
+    "Component-assembled costs are not an end-to-end production tag/release sequence.",
+    "Queue, setup, fresh guards, real API transport and producer sealing are outside the measured component cost scope.",
+    "Hosted experiments use simulated API eligibility and trust; production release gates remain unchanged.",
+    "Artifacts have seven-day expiry; this JSON retains compact digests and measurements, not binaries or full logs."
+  ],
+  "measurements": {
+    "assembled_sequences": {
+      "fallback": {
+        "critical_path": 1479.0933753630002,
+        "runner_sum": 2587.781530921
+      },
+      "full": {
+        "critical_path": 1459.0596999630004,
+        "runner_sum": 2581.165414317
+      },
+      "reuse": {
+        "critical_path": 379.06835373100006,
+        "runner_sum": 741.0949622310002
+      }
+    },
+    "cost_scope": "Observed components assembled as producer once + two consumers; excludes queue, setup, fresh preflight/static/network guards, real API transport and producer sealing; not an end-to-end production measurement.",
+    "fallback_paired_delta_seconds": {
+      "linux": {
+        "max": 4.78218855099999,
+        "median": 4.230976084999952,
+        "min": -10.69503565399998,
+        "values": [
+          -10.69503565399998,
+          4.230976084999952,
+          4.78218855099999
+        ]
+      },
+      "windows": {
+        "max": 10.301724699999795,
+        "median": -9.369936600000074,
+        "min": -24.01699149999979,
+        "values": [
+          -24.01699149999979,
+          10.301724699999795,
+          -9.369936600000074
+        ]
+      }
+    },
+    "formulas": {
+      "full_or_fallback_critical_sequence": "max(P_linux, P_windows) + 2 * median_i(max(C_linux_i, C_windows_i))",
+      "full_or_fallback_runner_sequence": "P_linux + P_windows + 2 * median_i(C_linux_i + C_windows_i)",
+      "paired_critical_path_per_sample": "max(linux_seconds, windows_seconds)",
+      "paired_runner_sum_per_sample": "linux_seconds + windows_seconds",
+      "producer_component_per_os": "warmup tests.json.seconds + sum(warmup shell.json.suites[].seconds)",
+      "reuse_consumer_per_os_per_sample": "(tag_seconds + release_seconds) / 2",
+      "reuse_critical_sequence": "max(P_linux, P_windows) + median_i(max(tag_linux_i, tag_windows_i)) + median_i(max(release_linux_i, release_windows_i))",
+      "reuse_runner_sequence": "P_linux + P_windows + median_i(tag_linux_i + tag_windows_i) + median_i(release_linux_i + release_windows_i)",
+      "statistics": "median, min and max of the three actual samples; no assumed speedup"
+    },
+    "producer_once_python_shell_seconds": {
+      "linux": 372.97073016300004,
+      "windows": 356.4267817000001
+    },
+    "reuse_tag_release_statistics": {
+      "release_seconds": {
+        "critical_path": {
+          "max": 3.0801010000000133,
+          "median": 3.0177264370000216,
+          "min": 3.0096025309999987
+        },
+        "linux": {
+          "max": 3.0177264370000216,
+          "median": 3.010065007000094,
+          "min": 3.0096025309999987
+        },
+        "runner_sum": {
+          "max": 6.090166007000107,
+          "median": 5.808087537000176,
+          "min": 5.805472131000002
+        },
+        "windows": {
+          "max": 3.0801010000000133,
+          "median": 2.795869600000003,
+          "min": 2.7903611000001547
+        }
+      },
+      "tag_seconds": {
+        "critical_path": {
+          "max": 3.2593965000000935,
+          "median": 3.0798971309999956,
+          "min": 2.96516819
+        },
+        "linux": {
+          "max": 3.0798971309999956,
+          "median": 3.0307038290000037,
+          "min": 2.96516819
+        },
+        "runner_sum": {
+          "max": 6.290100329000097,
+          "median": 5.889362830999914,
+          "min": 5.836471090000046
+        },
+        "windows": {
+          "max": 3.2593965000000935,
+          "median": 2.871302900000046,
+          "min": 2.809465699999919
+        }
+      }
+    },
+    "scenario_statistics": {
+      "fallback": {
+        "critical_path": {
+          "max": 553.3462096,
+          "median": 553.0613226,
+          "min": 515.7229211000001
+        },
+        "linux": {
+          "max": 378.760974888,
+          "median": 375.84579992899995,
+          "min": 375.44900297300006
+        },
+        "runner_sum": {
+          "max": 931.822297488,
+          "median": 929.192009529,
+          "min": 891.1719240730001
+        },
+        "windows": {
+          "max": 553.3462096,
+          "median": 553.0613226,
+          "min": 515.7229211000001
+        }
+      },
+      "full": {
+        "critical_path": {
+          "max": 562.4312592000001,
+          "median": 543.0444849000002,
+          "min": 539.7399125999999
+        },
+        "linux": {
+          "max": 386.14403862700004,
+          "median": 373.97878633700003,
+          "min": 371.614823844
+        },
+        "runner_sum": {
+          "max": 936.4100455370001,
+          "median": 925.8839512269999,
+          "min": 914.6593087440001
+        },
+        "windows": {
+          "max": 562.4312592000001,
+          "median": 543.0444849000002,
+          "min": 539.7399125999999
+        }
+      },
+      "reuse": {
+        "critical_path": {
+          "max": 3.1697487500000534,
+          "median": 3.0488117840000086,
+          "min": 2.9873853604999994
+        },
+        "linux": {
+          "max": 3.0488117840000086,
+          "median": 3.0203844180000488,
+          "min": 2.9873853604999994
+        },
+        "runner_sum": {
+          "max": 6.190133168000102,
+          "median": 5.848725184000045,
+          "min": 5.820971610500024
+        },
+        "windows": {
+          "max": 3.1697487500000534,
+          "median": 2.8335862500000246,
+          "min": 2.7999134000000367
+        }
+      }
+    },
+    "unit": "seconds"
+  },
+  "protocol": {
+    "cache_hits_source": "setup actions outputs; null means unavailable",
+    "fallback_invalidation": "simulated drift of fresh Windows facts.image_version; full decision required before real heavy suites",
+    "full_and_fallback_execute_real_python_and_shell_suites": true,
+    "measured_repetitions_per_platform": 3,
+    "platforms": [
+      "linux",
+      "windows"
+    ],
+    "postdecision_loss": "successful reuse followed by missing linux/.coverage must be refused",
+    "sample_order": "full/reuse/fallback, reuse/fallback/full, fallback/full/reuse",
+    "warmup_pairs": 1
+  },
+  "receipts": {
+    "aggregate_manifest_sha256": "4925a932a4109c56babd176b96a99135e4cee6b4a78be2e631331b9e0a99e54d",
+    "aggregate_summary_markdown_sha256": "c6d56375ac511f79963e6e52d1e461c02867d0e386bf13ab49866527a39fa576",
+    "artifacts": [
+      {
+        "bytes": 552,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T20:54:58Z",
+        "extracted_files": 1,
+        "id": 12074183732,
+        "name": "qualification-fresh-linux-38965445362-1",
+        "zip_sha256": "sha256:971be181596a46d237c25a422bd23b8a9bb5fbec6570b7e22c6533537971c597"
+      },
+      {
+        "bytes": 247968,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:02:12Z",
+        "extracted_files": 8,
+        "id": 12074454340,
+        "name": "coverage-windows-b827c308cfc09a99086b9a089c7b28b7f4ddc44d-38965445362-1",
+        "zip_sha256": "sha256:5e6941f77aedfe719d758eba587a9e4c8177bd0d9cf44c53947ecfeaac3dff24"
+      },
+      {
+        "bytes": 231468,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:02:11Z",
+        "extracted_files": 8,
+        "id": 12074716933,
+        "name": "coverage-linux-b827c308cfc09a99086b9a089c7b28b7f4ddc44d-38965445362-1",
+        "zip_sha256": "sha256:750d8cf788e67c6da2fdcd9bb3be8b79e78e24e0efabe88d01853acf1bb236b5"
+      },
+      {
+        "bytes": 556,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T20:54:21Z",
+        "extracted_files": 1,
+        "id": 12075040607,
+        "name": "qualification-fresh-windows-38965445362-1",
+        "zip_sha256": "sha256:e02da47fd32a8f4e918375edeb79ba50ad2625918e3c5273c268d7f9564006f9"
+      },
+      {
+        "bytes": 4049531,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:22:50Z",
+        "extracted_files": 140,
+        "id": 12075084536,
+        "name": "experiment-windows-3-38965445362-1",
+        "zip_sha256": "sha256:0965dbf1db80ec4ec238480519d0b7e46948a2e2cb0126280b411b0b9dff9ea7"
+      },
+      {
+        "bytes": 3979649,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:16:23Z",
+        "extracted_files": 140,
+        "id": 12075124093,
+        "name": "experiment-linux-1-38965445362-1",
+        "zip_sha256": "sha256:6bfb05123c52f19e821734f9e53adf9804c0d8f78e9d8cdc52d5b358a57d723d"
+      },
+      {
+        "bytes": 3979551,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:15:58Z",
+        "extracted_files": 140,
+        "id": 12075128484,
+        "name": "experiment-linux-2-38965445362-1",
+        "zip_sha256": "sha256:83604558e98484616bf223b5cb916cc782d61dfb2431c81a992adc877030b530"
+      },
+      {
+        "bytes": 4049553,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:22:05Z",
+        "extracted_files": 140,
+        "id": 12075938139,
+        "name": "experiment-windows-1-38965445362-1",
+        "zip_sha256": "sha256:be9f13876655b55961e1c244e5f8144a21cb10375e77288c0b96ebf56dc41fcd"
+      },
+      {
+        "bytes": 3979498,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:16:03Z",
+        "extracted_files": 140,
+        "id": 12075941900,
+        "name": "experiment-linux-3-38965445362-1",
+        "zip_sha256": "sha256:033cb924847ca79c0cfb0c6554d3a2deab32a4ec8afd5ca1f559e85489db63da"
+      },
+      {
+        "bytes": 4049536,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:22:25Z",
+        "extracted_files": 140,
+        "id": 12076206976,
+        "name": "experiment-windows-2-38965445362-1",
+        "zip_sha256": "sha256:6e1a81ddcfcd3f07a06845075b21e5aefe72e70bb3ccb855af7a5822d2ce89a1"
+      },
+      {
+        "bytes": 3403815,
+        "expired_at_capture": false,
+        "expires_at": "2026-10-23T21:23:46Z",
+        "extracted_files": 111,
+        "id": 12076320739,
+        "name": "experiment-results-38965445362-1",
+        "zip_sha256": "sha256:86b1366080959230c96a1a7383bfab57eb3f730a7f41d1b83293d904e1729cbb"
+      }
+    ],
+    "capture_timestamp": "2026-10-16T21:24:56.976113+00:00",
+    "raw_json": [
+      {
+        "bytes": 15026,
+        "label": "GitHub run metadata",
+        "sha256": "c32cc611c11f4008aa9133726ee0ae89c884862af373df1a0d5358c8617dc9e5"
+      },
+      {
+        "bytes": 81382,
+        "label": "GitHub paginated attempt jobs",
+        "sha256": "3762bc338a358df4e8784ef6ab0cf4befb7f463481b45714c221cfa97d46d6fd"
+      },
+      {
+        "bytes": 10520,
+        "label": "GitHub paginated artifacts manifest",
+        "sha256": "da08e642e2d2e473cf9138d6cb19f0e675986544c766a0fca4bbc59abaa9e434"
+      },
+      {
+        "bytes": 124117,
+        "label": "verified download receipts",
+        "sha256": "4b40dbba766817709b62558ec6c24a5b8f624613c2ea352941a1a1c58b7bbb0c"
+      },
+      {
+        "bytes": 29280,
+        "label": "hosted aggregate artifact 12076320739 result.json",
+        "sha256": "1ed749efa9eac4ee9cc34feab81aad4d6224498078e99d1e44e2700fae888d5e"
+      },
+      {
+        "bytes": 6599,
+        "label": "independent collected raw-data recheck metrics",
+        "sha256": "4b3c5243a4bf2a4792a7846106afe2c2f07c548e7c4eee14eb0e9826c8efc729"
+      }
+    ]
+  },
+  "samples": [
+    {
+      "artifact_id": 12075124093,
+      "cache_regime": "setup pip/npm download caches; fresh node_modules per runner; no suite cache; unmeasured helper warmup",
+      "manifest_json_sha256": "52a73b4f762485a79f977c071f176457cfa28ada8f77d059fa1cba1946b8ba73",
+      "order": [
+        "full",
+        "reuse",
+        "fallback"
+      ],
+      "packet_json_sha256": "aa0b5c9678cc364a3bf196bffd0c0450d64995b290f1c376c4f4292da595cca5",
+      "platform": "linux",
+      "postdecision_loss": {
+        "missing_file": "linux/.coverage",
+        "outcome": "refused"
+      },
+      "sample": 1,
+      "sample_json_sha256": "45eee431aa45a1e49a12bd11795a1e08cd14c92c3ad9fea15072e6402f57cdd3",
+      "scenarios": {
+        "fallback": {
+          "decision": {
+            "decision": "full",
+            "reason": "executed environment differs: windows"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "20f60c1b2fdfdfe9327ff5a6dfa976a2bca524dc7c8b8046f711665fa93d87eb",
+          "raw_coverage_sha256": "e6358f5b2a64bc717c78ac0e5f05d18533c52ece7b72dc3ca0ace89375267cfb",
+          "seconds": 375.44900297300006,
+          "shell_json_sha256": "c6da93e02332a6b32d1a6c1364172b6afebdef5ad291d631aec047db361f5acc",
+          "shell_seconds": 42.118763208000246,
+          "shell_suites": 6,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 328.989267007,
+            "skipped": 11,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "ab7780bddbf472cc3a0f4327f4c49755fa95532c0d395118bbab32d66be2418b"
+        },
+        "full": {
+          "decision": {
+            "decision": "full",
+            "reason": "missing or ambiguous qualification artifact"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "ddfa1158adf6563207a840fcd156100aa3b37cf787fdd999f96ede53186b915f",
+          "raw_coverage_sha256": "96c011becfcc57d38a1ddc241c56314664f8862ff2a80f3bd0a6b8fa4ed50ef1",
+          "seconds": 386.14403862700004,
+          "shell_json_sha256": "afe2c55a63bea42ba28d82bbc204d97bdf55cc97cf963a6802e14ed4c1907811",
+          "shell_seconds": 42.41550514999989,
+          "shell_suites": 6,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 339.37689768300004,
+            "skipped": 11,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "5922a5835405064fd6798271eff9a1b8aa1015f1de0a8763b075d46355e7014b"
+        },
+        "reuse": {
+          "original_packet_files_identity_age_unchanged": true,
+          "release_published_decision": "reuse",
+          "release_seconds": 3.0177264370000216,
+          "seconds": 3.0488117840000086,
+          "tag_decision": "reuse",
+          "tag_seconds": 3.0798971309999956
+        }
+      },
+      "setup_cache_hits": {
+        "npm": true,
+        "python": true
+      }
+    },
+    {
+      "artifact_id": 12075128484,
+      "cache_regime": "setup pip/npm download caches; fresh node_modules per runner; no suite cache; unmeasured helper warmup",
+      "manifest_json_sha256": "d203b54174bd7c46ee9cc1d0706ef050b0eea8147cbad9f121e7df96161ebe87",
+      "order": [
+        "reuse",
+        "fallback",
+        "full"
+      ],
+      "packet_json_sha256": "aa0b5c9678cc364a3bf196bffd0c0450d64995b290f1c376c4f4292da595cca5",
+      "platform": "linux",
+      "postdecision_loss": {
+        "missing_file": "linux/.coverage",
+        "outcome": "refused"
+      },
+      "sample": 2,
+      "sample_json_sha256": "56a080f1f816d8d09d234a95862d081d063a229adaa069c3892da6d7c8f6c1e7",
+      "scenarios": {
+        "fallback": {
+          "decision": {
+            "decision": "full",
+            "reason": "executed environment differs: windows"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "883d69ef7b58e290c77d0a5489c241060c2aa14ed213131cffdd40e7e4d4403c",
+          "raw_coverage_sha256": "dd0a0e206d9934e609d2fd0072cfdad70cbec1174452354acd7af5e17def89c0",
+          "seconds": 375.84579992899995,
+          "shell_json_sha256": "d27aaecb3385439f36326c018c2c1bb45bd69acfaacc6d90bdcdb71bcf2d6726",
+          "shell_seconds": 41.00076178299997,
+          "shell_suites": 6,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 330.67217688000005,
+            "skipped": 11,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "4f934e25826ad8b78c97bee1e20efc7726a8b34bb38a4af60063e294511e7604"
+        },
+        "full": {
+          "decision": {
+            "decision": "full",
+            "reason": "missing or ambiguous qualification artifact"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "85d031b3239d7a91e34c37332d4b5ff8aeca443d3fe87d7f57917592d4b00080",
+          "raw_coverage_sha256": "55f96afefafeb6ce774113f84b7ab7733e9b0f359c675580d16371387a9df662",
+          "seconds": 371.614823844,
+          "shell_json_sha256": "77e67f31cd16d2eb7c00d09c7822356313fb2ca34082c35e2010913ec19a4fc7",
+          "shell_seconds": 40.981558140000175,
+          "shell_suites": 6,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 326.41184230000005,
+            "skipped": 11,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "b508cb9d7ba4d94dea87b7b705b57d7fe40a8e6b8c49df8bc46fff9d7215d06e"
+        },
+        "reuse": {
+          "original_packet_files_identity_age_unchanged": true,
+          "release_published_decision": "reuse",
+          "release_seconds": 3.0096025309999987,
+          "seconds": 2.9873853604999994,
+          "tag_decision": "reuse",
+          "tag_seconds": 2.96516819
+        }
+      },
+      "setup_cache_hits": {
+        "npm": true,
+        "python": true
+      }
+    },
+    {
+      "artifact_id": 12075941900,
+      "cache_regime": "setup pip/npm download caches; fresh node_modules per runner; no suite cache; unmeasured helper warmup",
+      "manifest_json_sha256": "ac3852179fa0802511d63f6436df34bfd6433cd7ce6657b745e9d3294cc125e5",
+      "order": [
+        "fallback",
+        "full",
+        "reuse"
+      ],
+      "packet_json_sha256": "aa0b5c9678cc364a3bf196bffd0c0450d64995b290f1c376c4f4292da595cca5",
+      "platform": "linux",
+      "postdecision_loss": {
+        "missing_file": "linux/.coverage",
+        "outcome": "refused"
+      },
+      "sample": 3,
+      "sample_json_sha256": "5cbe030bfe0adf51665e84e20ff3062eab0c29a05827509bf2ec36338a0d795b",
+      "scenarios": {
+        "fallback": {
+          "decision": {
+            "decision": "full",
+            "reason": "executed environment differs: windows"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "1e6be6eb536914ff2b6f227094d65d5c0536f2c43d483a7e450a29e115833aa5",
+          "raw_coverage_sha256": "6525644b4fa2d1b4fa448be19806211c95880a7de62b8c12ec2fe9c1a21a6c39",
+          "seconds": 378.760974888,
+          "shell_json_sha256": "303af08ffbcb2bd08d8de08573bc386c70d863483b03bb7f79671fe3b5fae736",
+          "shell_seconds": 41.152928117000044,
+          "shell_suites": 6,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 333.317458625,
+            "skipped": 11,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "f19656a3ca0c96f1724479c15960d32a18701d296bc427488be7b7a62402662e"
+        },
+        "full": {
+          "decision": {
+            "decision": "full",
+            "reason": "missing or ambiguous qualification artifact"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "883d69ef7b58e290c77d0a5489c241060c2aa14ed213131cffdd40e7e4d4403c",
+          "raw_coverage_sha256": "dd0a0e206d9934e609d2fd0072cfdad70cbec1174452354acd7af5e17def89c0",
+          "seconds": 373.97878633700003,
+          "shell_json_sha256": "34b1ea632d5acd1be59e1f512b0f9e74492f0bb07523d310893fb0a4f57cc722",
+          "shell_seconds": 41.76312800800008,
+          "shell_suites": 6,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 327.956902821,
+            "skipped": 11,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "9da8d9f0dfe1ef73cb47b3c8a25df528e2bb29c5f82e9ea7ed806f132c736684"
+        },
+        "reuse": {
+          "original_packet_files_identity_age_unchanged": true,
+          "release_published_decision": "reuse",
+          "release_seconds": 3.010065007000094,
+          "seconds": 3.0203844180000488,
+          "tag_decision": "reuse",
+          "tag_seconds": 3.0307038290000037
+        }
+      },
+      "setup_cache_hits": {
+        "npm": true,
+        "python": true
+      }
+    },
+    {
+      "artifact_id": 12075938139,
+      "cache_regime": "setup pip/npm download caches; fresh node_modules per runner; no suite cache; unmeasured helper warmup",
+      "manifest_json_sha256": "e0376476aad203f0a47df39f1406a65584740627561a4b5f81d9d21f3b40331b",
+      "order": [
+        "full",
+        "reuse",
+        "fallback"
+      ],
+      "packet_json_sha256": "9d154222c4121d1713d8ad424ba3dee8b6a751d4f136892204da1fe873ba9c18",
+      "platform": "windows",
+      "postdecision_loss": {
+        "missing_file": "linux/.coverage",
+        "outcome": "refused"
+      },
+      "sample": 1,
+      "sample_json_sha256": "54811dff792bda26583e9a1970fcb19d5762843be6caaa110f36ea91800abce2",
+      "scenarios": {
+        "fallback": {
+          "decision": {
+            "decision": "full",
+            "reason": "executed environment differs: windows"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+          "raw_coverage_sha256": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+          "seconds": 515.7229211000001,
+          "shell_json_sha256": "78dbc2d119add3a9e3483da8ced5ebcc414aeb3a2e96f6b610581f60328586f1",
+          "shell_seconds": 26.482058600000073,
+          "shell_suites": 2,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 484.3829693,
+            "skipped": 14,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "afb3e88c8d419207264f54ae03fe0c80dc2813e180775077d991bc65a4873928"
+        },
+        "full": {
+          "decision": {
+            "decision": "full",
+            "reason": "missing or ambiguous qualification artifact"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+          "raw_coverage_sha256": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+          "seconds": 539.7399125999999,
+          "shell_json_sha256": "c80a0afdb806a5a68643f996730a021a5a085b68a36a310694dbe424acc87568",
+          "shell_seconds": 25.086180400000103,
+          "shell_suites": 2,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 510.1073712000001,
+            "skipped": 14,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "7a101e3cf07c68399e591e0e28098533137238e903d41029eb4e35afd5e22d3f"
+        },
+        "reuse": {
+          "original_packet_files_identity_age_unchanged": true,
+          "release_published_decision": "reuse",
+          "release_seconds": 2.7903611000001547,
+          "seconds": 2.7999134000000367,
+          "tag_decision": "reuse",
+          "tag_seconds": 2.809465699999919
+        }
+      },
+      "setup_cache_hits": {
+        "npm": true,
+        "python": true
+      }
+    },
+    {
+      "artifact_id": 12076206976,
+      "cache_regime": "setup pip/npm download caches; fresh node_modules per runner; no suite cache; unmeasured helper warmup",
+      "manifest_json_sha256": "bcbcb716b94ec0d674491b0b5d058f1fc9d9febec7158fd27739ce71ea6fa806",
+      "order": [
+        "reuse",
+        "fallback",
+        "full"
+      ],
+      "packet_json_sha256": "9d154222c4121d1713d8ad424ba3dee8b6a751d4f136892204da1fe873ba9c18",
+      "platform": "windows",
+      "postdecision_loss": {
+        "missing_file": "linux/.coverage",
+        "outcome": "refused"
+      },
+      "sample": 2,
+      "sample_json_sha256": "becd2864e1274702ad85173613e750f08a81446e6774fce7fa44792f5136c229",
+      "scenarios": {
+        "fallback": {
+          "decision": {
+            "decision": "full",
+            "reason": "executed environment differs: windows"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+          "raw_coverage_sha256": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+          "seconds": 553.3462096,
+          "shell_json_sha256": "ae6e552ef4420decd6fe9b24e8b1f4429864a13e7fde7f18f15654a960531bdb",
+          "shell_seconds": 28.763881200000128,
+          "shell_suites": 2,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 519.76603,
+            "skipped": 14,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "6e245961cdd6c7b6e6c17dd013356cdde00f73edace9a0927673501d2c2be3a8"
+        },
+        "full": {
+          "decision": {
+            "decision": "full",
+            "reason": "missing or ambiguous qualification artifact"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+          "raw_coverage_sha256": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+          "seconds": 543.0444849000002,
+          "shell_json_sha256": "8c4128c3190ff69b910fb00b27e93795e6e3d95303340ce087e574d2e74632af",
+          "shell_seconds": 30.630647700000054,
+          "shell_suites": 2,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 507.65461560000006,
+            "skipped": 14,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "ea68a6dded73d89752d6b486bfbd0721bcc40aa85ebf24f066ed0098912aa12f"
+        },
+        "reuse": {
+          "original_packet_files_identity_age_unchanged": true,
+          "release_published_decision": "reuse",
+          "release_seconds": 2.795869600000003,
+          "seconds": 2.8335862500000246,
+          "tag_decision": "reuse",
+          "tag_seconds": 2.871302900000046
+        }
+      },
+      "setup_cache_hits": {
+        "npm": true,
+        "python": true
+      }
+    },
+    {
+      "artifact_id": 12075084536,
+      "cache_regime": "setup pip/npm download caches; fresh node_modules per runner; no suite cache; unmeasured helper warmup",
+      "manifest_json_sha256": "6f18cfd598ac228461877b0dc55be57edc02fdcc3fc0bf2bc417588aa54f224e",
+      "order": [
+        "fallback",
+        "full",
+        "reuse"
+      ],
+      "packet_json_sha256": "9d154222c4121d1713d8ad424ba3dee8b6a751d4f136892204da1fe873ba9c18",
+      "platform": "windows",
+      "postdecision_loss": {
+        "missing_file": "linux/.coverage",
+        "outcome": "refused"
+      },
+      "sample": 3,
+      "sample_json_sha256": "7feaaf2bb8e1627e565181517c91764e9264ab47eecf2fca53f1ab712427faf3",
+      "scenarios": {
+        "fallback": {
+          "decision": {
+            "decision": "full",
+            "reason": "executed environment differs: windows"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+          "raw_coverage_sha256": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+          "seconds": 553.0613226,
+          "shell_json_sha256": "91a145f81565a713a8f684f09ef27dd955d90b09905263ca3db91112a5f442e5",
+          "shell_seconds": 25.09309540000004,
+          "shell_suites": 2,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 522.8212285,
+            "skipped": 14,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "7bd74556b3281f512157e029bdcb127b1c55cb2bc3ab9d0f0232ff590b3f0e74"
+        },
+        "full": {
+          "decision": {
+            "decision": "full",
+            "reason": "missing or ambiguous qualification artifact"
+          },
+          "environment_before_after_original_fresh_equal": true,
+          "metadata_json_sha256": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+          "raw_coverage_sha256": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+          "seconds": 562.4312592000001,
+          "shell_json_sha256": "40edd637dcd9ab473a7de0c3970b6cd4f86ae52fa6a6493dd921004beed5dcbd",
+          "shell_seconds": 31.460985500000106,
+          "shell_suites": 2,
+          "tests": {
+            "errors": 0,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 718,
+            "seconds": 525.7662021,
+            "skipped": 14,
+            "unexpected_successes": 0
+          },
+          "tests_json_sha256": "7e8b17786fc0292c6c55eaa8a46ce6fe911dfbc77265b198381349efa9f56619"
+        },
+        "reuse": {
+          "original_packet_files_identity_age_unchanged": true,
+          "release_published_decision": "reuse",
+          "release_seconds": 3.0801010000000133,
+          "seconds": 3.1697487500000534,
+          "tag_decision": "reuse",
+          "tag_seconds": 3.2593965000000935
+        }
+      },
+      "setup_cache_hits": {
+        "npm": true,
+        "python": true
+      }
+    }
+  ],
+  "schema": 1,
+  "simulation": {
+    "boundary": "Eligibility, default-branch trust and producer API status are simulated. Actual workflow_dispatch, SHA, run, attempt, source timestamp, original proof bytes and runtime facts are retained. No real tag or published release occurred.",
+    "consumers": [
+      {
+        "action": "",
+        "event": "push",
+        "ref": "refs/tags/v0.0.0-experiment"
+      },
+      {
+        "action": "published",
+        "event": "release",
+        "ref": "refs/tags/v0.0.0-experiment"
+      }
+    ],
+    "producer": {
+      "conclusion": "success",
+      "event": "push",
+      "head_branch": "main",
+      "status": "completed"
+    }
+  },
+  "source": {
+    "conclusion": "success",
+    "created_at": "2026-10-16T20:53:06Z",
+    "event": "workflow_dispatch",
+    "head_branch": "codex/audit-remediation-2026-10-16",
+    "head_sha": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+    "html_url": "https://github.com/asphyx0r/git-starter-kit/actions/runs/38965445362",
+    "id": 38965445362,
+    "path": ".github/workflows/repository-audit.yml",
+    "run_attempt": 1,
+    "run_started_at": "2026-10-16T20:53:06Z",
+    "status": "completed",
+    "updated_at": "2026-10-16T21:23:51Z",
+    "workflow_id": 297908501
+  },
+  "source_inventory": {
+    "baseline_sha": "2ce525b9456e38d528ea5e8b5c33873eef6d05b1",
+    "changed_content": {
+      "tools/repository-audit/workflow-contracts.py": {
+        "baseline_sha256": "761d673a5a36aa2086c98ac6b7618d461fed16da67a837d8a7e577323827a67b",
+        "source_sha256": "30983ab4d9cdfac5a651f7e8c8f3ab9ca0f408b60286d70c6889d0cbc048ba4a"
+      }
+    },
+    "count": 25,
+    "git_blob_bytes_verified_at": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+    "same_path_scope_as_baseline": true,
+    "sha256": {
+      "tools/automation_config.py": "583e8820cae4c091484b6a83af8572ac245fb8311002027057665268b0b21237",
+      "tools/backup-target-directory.py": "8b546de1052660ebce205c7aaa8281c33b6f94bc5f9ec1cc6580a7bcb9c706f4",
+      "tools/git_objects.py": "0cc46a293668c735e6c710239cb701e7661a2779482a9c56bd65e14756de6c0f",
+      "tools/initialize-repository.py": "e14627b33fe015b7cc0a945a795fa680daa8a7639ce2754a96167b806fbb6fe9",
+      "tools/merge-pull-request.py": "8654412118930ec4cc67b3ed4044a5c5164309fa5c5c81f023c4f9419396fe08",
+      "tools/process_runner.py": "ccf50c3bb52416840704fc2b6474423ef7a0386ce588152eacc78fb978798bbd",
+      "tools/project_config.py": "e60370cd404844732543a9eeeff37062749f2b996206b31f80123bd76e88317b",
+      "tools/project_validation.py": "a7f5ce6bd7bf0e9dde554cf67134b694f9695e6bc9400402667d540111766466",
+      "tools/quality/check-coverage.py": "bc8834d8f8e89a7a656437f94b72b5c79fa3a56aacb8f6873d216602e464b259",
+      "tools/quality/check-versions.py": "86d699fd58cfa8f49d10076e31ca50b7730a4632e23e8369301487fde9f010d3",
+      "tools/quality/coverage-artifacts.py": "88a531e48c74332d5b2a797d56dbe1ba917d3d226860d875d48470002b3a4020",
+      "tools/quality/install-external-tools.py": "cae81477d793af84e725ffd3140ac2f69788a00f50ec9f32687911a2bb528b0d",
+      "tools/quality/npm-security.py": "7b2154a2d0484f4473d1cd6cc3a258642c2ba3cc516cdb3ce048afc065813dab",
+      "tools/quality/qualification.py": "20ce822937f67a711ae7ed791336edc4ca4769fef5d50675c7a23e412d37bc47",
+      "tools/release-artifacts.py": "6749c1332e58fb636d6a6bc5e622c2fabc8ae33c5756e25c66235e11391acc01",
+      "tools/repository-audit/workflow-contracts.py": "30983ab4d9cdfac5a651f7e8c8f3ab9ca0f408b60286d70c6889d0cbc048ba4a",
+      "tools/starter-kit-manifest.py": "3dae50e59769f6808a2971f603aec0114ea0bcca3e7e5f44c1465d1cdd792a56",
+      "tools/starter-kit-upgrade.py": "303217b971e27f2ed05178c79f55452b2e20e50e23ba8698080dc097d05e2057",
+      "tools/starter_kit_upgrade/__init__.py": "5e81e2ee439a227e12ccdba8781e0a01e9f49ef79ecef542dc78351f02e4ded4",
+      "tools/starter_kit_upgrade/application.py": "a64adad1ff4f72433a601ce589f13e5988576b65eb35403a96c50ae5414869a5",
+      "tools/starter_kit_upgrade/archive.py": "8a706b6a69f73a6aae357642917b1c1e503189397805b8525fae8fe9947a0e78",
+      "tools/starter_kit_upgrade/cli.py": "c6ecddd3c3730785f03cb87590105de1d1a5748d50278053316378e37a8b574b",
+      "tools/starter_kit_upgrade/common.py": "551c54d887b0e20fef1d0d82ce5a0a0d0dd1763b248b863525adbbe4075be8cf",
+      "tools/starter_kit_upgrade/planning.py": "71dfc58676444945077bc36fe94c99e4ac46ea0eacf6dbcb54f07c64a6d73109",
+      "tools/verify-repository-audit-runs.py": "af9ccf5a0d39f4555e1a954e920459d697dc33287f68339cc96fa0c5faea1a46"
+    }
+  },
+  "source_packet": {
+    "files": {
+      "linux/.coverage": "dd0a0e206d9934e609d2fd0072cfdad70cbec1174452354acd7af5e17def89c0",
+      "linux/coverage.json": "39304781395fe640677ba50f60540e02aa79536cabf6bcf297c2bd68a046ffe4",
+      "linux/environment-after.json": "9bd1075a81ab1b083e9227459cadc23aa1e9fc2aa104125826031e6c63faa5eb",
+      "linux/environment-before.json": "9bd1075a81ab1b083e9227459cadc23aa1e9fc2aa104125826031e6c63faa5eb",
+      "linux/metadata.json": "883d69ef7b58e290c77d0a5489c241060c2aa14ed213131cffdd40e7e4d4403c",
+      "linux/shell.json": "e9e3d5ae7e6a2831e59c4d3341fcdbf39a3e2b4125c39efc18494ab82ae26bdf",
+      "linux/shell.log": "2ed7956e43fda4630da34aead678dca2b5307e3f7d1729afd17246d3438d37ae",
+      "linux/tests.json": "9e632ef13ca6f72979ed04a5114d8085bece47f9bda156c449febdd7752e991e",
+      "windows/.coverage": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+      "windows/coverage.json": "3e481f21975c62f5b9e744223f94159a38c22230bacd2eb81bc3cf83f21f99da",
+      "windows/environment-after.json": "6fa74c4faba71b9cb9aedbdd68bb173bdc675dd6a8bd11201c69f573fb9c5db9",
+      "windows/environment-before.json": "6fa74c4faba71b9cb9aedbdd68bb173bdc675dd6a8bd11201c69f573fb9c5db9",
+      "windows/metadata.json": "eeb6755737180308c8f8c4a99a1ede5713e65b2005282c7e0642a8822ccead1b",
+      "windows/shell.json": "ba8945f9e1475affbfe1716a7a3e3c8d54237ed4927760ffea7a8c3fb2917502",
+      "windows/shell.log": "3f29348c26b7744ee47844fc32bd0ae20f8c00de2afd42d2ce718ce662cd3d36",
+      "windows/tests.json": "a9a060b816e0d69ebb919ad36b00d29029f29a23cb9b66609e591cd6017d587c"
+    },
+    "inputs": {
+      ".github/workflows/repository-audit.yml": "4a667a4a4b3f020cbd5bd3ea9de50882e61455624f5b93424a696626ea3e00f8",
+      "tools/quality/check-coverage.py": "bc8834d8f8e89a7a656437f94b72b5c79fa3a56aacb8f6873d216602e464b259",
+      "tools/quality/coverage-artifacts.py": "88a531e48c74332d5b2a797d56dbe1ba917d3d226860d875d48470002b3a4020",
+      "tools/quality/package-lock.json": "e3db6bb209061e4d26add41b64075d44c87268a12f09fc9fe135b68f62b930d1",
+      "tools/quality/pyproject.toml": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
+      "tools/quality/qualification.py": "20ce822937f67a711ae7ed791336edc4ca4769fef5d50675c7a23e412d37bc47",
+      "tools/quality/requirements.lock": "0662f52ee18b91c7cbabfcc54f4aa9039b77ea33db5873f21622d22990ffee6c",
+      "tools/quality/versions.json": "44a73a1196678332e96f865aaab3bbb6e122d5947b60ff4e59b154dacd747fd5",
+      "tools/release-artifacts-requirements.txt": "1688a04e18d9cd6978ef22d7e4a68265b237c4f8627f6e0f0b30e0fc763166ff",
+      "tools/repository-audit/profiles.sh": "c24d07ac7e84a092a0e87e3fde5cf5a00bad490eac0597c3e8be7b47f2aa4391",
+      "tools/repository-audit/workflow-contracts.py": "30983ab4d9cdfac5a651f7e8c8f3ab9ca0f408b60286d70c6889d0cbc048ba4a"
+    },
+    "producer": {
+      "attempt": "1",
+      "branch": "main",
+      "commit": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+      "created_at": "2026-10-16T20:53:06Z",
+      "repository": "asphyx0r/git-starter-kit",
+      "run": "38965445362",
+      "workflow": ".github/workflows/repository-audit.yml",
+      "workflow_id": 297908501
+    },
+    "schema": 1
+  },
+  "verification": {
+    "all_retained_tag_release_files_identity_age_preserved": true,
+    "all_sample_source_packets_identical": true,
+    "hosted_scenarios_and_sequences_equal_independent_recheck": true,
+    "pairs_recombined": 6,
+    "raw_recheck": "PASS",
+    "warmup_and_all_measured_tests_per_os": {
+      "linux": {
+        "errors": 0,
+        "failures": 0,
+        "run": 718,
+        "shell_suites": 6,
+        "skipped": 11
+      },
+      "windows": {
+        "errors": 0,
+        "failures": 0,
+        "run": 718,
+        "shell_suites": 2,
+        "skipped": 14
+      }
+    },
+    "zip_api_digests_verified": 11
+  },
+  "warmup": {
+    "linux": {
+      "coverage_artifact_id": 12074716933,
+      "coverage_metadata": {
+        "attempt": "1",
+        "commit": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+        "coverage": "7.16.2",
+        "digest": "dd0a0e206d9934e609d2fd0072cfdad70cbec1174452354acd7af5e17def89c0",
+        "platform": "linux",
+        "policy": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
+        "run": "38965445362"
+      },
+      "coverage_totals": {
+        "covered_branches": 2040,
+        "covered_lines": 5482,
+        "excluded_lines": 16,
+        "missing_branches": 318,
+        "missing_lines": 492,
+        "num_branches": 2358,
+        "num_partial_branches": 246,
+        "num_statements": 5974,
+        "percent_branches_covered": 86.51399491094148,
+        "percent_branches_covered_display": "86.51",
+        "percent_covered": 90.27844455112817,
+        "percent_covered_display": "90.28",
+        "percent_statements_covered": 91.7643120187479,
+        "percent_statements_covered_display": "91.76"
+      },
+      "environment": {
+        "attempt": "1",
+        "commit": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+        "facts": {
+          "image_os": "ubuntu24",
+          "image_version": "20261012.334.1",
+          "machine": "x86_64",
+          "python": "3.11.17",
+          "system": "Linux",
+          "tools": {
+            "PSScriptAnalyzer": "1.25.0",
+            "actionlint": "1.7.12",
+            "bash": "5.2.21",
+            "git": "2.55.0",
+            "gitleaks": "8.30.1",
+            "node": "24.20.0",
+            "npm": "11.19.0",
+            "npm:@commitlint/cli": "21.2.3",
+            "npm:markdownlint-cli2": "0.23.3",
+            "powershell": "7.6.6",
+            "python:PyYAML": "6.0.3",
+            "python:codespell": "2.4.3",
+            "python:coverage": "7.16.2",
+            "python:jsonschema[format]": "4.26.0",
+            "python:mypy": "2.4.0",
+            "python:pip-audit": "2.10.1",
+            "python:ruff": "0.17.0",
+            "python:yamllint": "1.38.0",
+            "shellcheck": "0.11.0",
+            "shfmt": "3.14.0"
+          }
+        },
+        "platform": "linux",
+        "run": "38965445362"
+      },
+      "environment_before_after_fresh_equal": true,
+      "fresh_artifact_id": 12074183732,
+      "fresh_json_sha256": "9bd1075a81ab1b083e9227459cadc23aa1e9fc2aa104125826031e6c63faa5eb",
+      "shell": {
+        "platform": "linux",
+        "suites": [
+          {
+            "command": [
+              "bash",
+              "tests/test_repository_audit.sh"
+            ],
+            "returncode": 0,
+            "seconds": 8.48992861599993
+          },
+          {
+            "command": [
+              "bash",
+              "tests/test_agent_rules_transfer.sh"
+            ],
+            "returncode": 0,
+            "seconds": 5.720228961999965
+          },
+          {
+            "command": [
+              "bash",
+              "tests/test_quality_hooks.sh"
+            ],
+            "returncode": 0,
+            "seconds": 2.555569252000055
+          },
+          {
+            "command": [
+              "bash",
+              "tests/test_quality_pre_commit.sh"
+            ],
+            "returncode": 0,
+            "seconds": 12.411205178000046
+          },
+          {
+            "command": [
+              "bash",
+              "tests/test_commit_message_validation.sh"
+            ],
+            "returncode": 0,
+            "seconds": 8.250873857999977
+          },
+          {
+            "command": [
+              "bash",
+              "tests/test_quality_pre_push.sh"
+            ],
+            "returncode": 0,
+            "seconds": 3.774631035000084
+          }
+        ]
+      },
+      "tests": {
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 718,
+        "seconds": 331.768293262,
+        "skipped": 11,
+        "unexpected_successes": 0
+      }
+    },
+    "windows": {
+      "coverage_artifact_id": 12074454340,
+      "coverage_metadata": {
+        "attempt": "1",
+        "commit": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+        "coverage": "7.16.2",
+        "digest": "610f6ae3a6895c1940c820142357641a9d2271e872b71782ca62c757ab5617bc",
+        "platform": "windows",
+        "policy": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
+        "run": "38965445362"
+      },
+      "coverage_totals": {
+        "covered_branches": 2040,
+        "covered_lines": 5500,
+        "excluded_lines": 16,
+        "missing_branches": 318,
+        "missing_lines": 474,
+        "num_branches": 2358,
+        "num_partial_branches": 256,
+        "num_statements": 5974,
+        "percent_branches_covered": 86.51399491094148,
+        "percent_branches_covered_display": "86.51",
+        "percent_covered": 90.49447911665867,
+        "percent_covered_display": "90.49",
+        "percent_statements_covered": 92.06561767659859,
+        "percent_statements_covered_display": "92.07"
+      },
+      "environment": {
+        "attempt": "1",
+        "commit": "b827c308cfc09a99086b9a089c7b28b7f4ddc44d",
+        "facts": {
+          "image_os": "win25-vs2026",
+          "image_version": "20261007.264.1",
+          "machine": "AMD64",
+          "python": "3.14.8",
+          "system": "Windows",
+          "tools": {
+            "PSScriptAnalyzer": "1.25.0",
+            "bash": "5.3.15",
+            "git": "2.56.0",
+            "node": "24.20.0",
+            "npm": "11.19.0",
+            "npm:@commitlint/cli": "21.2.3",
+            "npm:markdownlint-cli2": "0.23.3",
+            "powershell": "7.6.6",
+            "python:PyYAML": "6.0.3",
+            "python:codespell": "2.4.3",
+            "python:coverage": "7.16.2",
+            "python:jsonschema[format]": "4.26.0",
+            "python:mypy": "2.4.0",
+            "python:pip-audit": "2.10.1",
+            "python:ruff": "0.17.0",
+            "python:yamllint": "1.38.0",
+            "shellcheck": "0.11.0",
+            "shfmt": "3.14.0",
+            "windows-powershell": "5.1.26100"
+          }
+        },
+        "platform": "windows",
+        "run": "38965445362"
+      },
+      "environment_before_after_fresh_equal": true,
+      "fresh_artifact_id": 12075040607,
+      "fresh_json_sha256": "6fa74c4faba71b9cb9aedbdd68bb173bdc675dd6a8bd11201c69f573fb9c5db9",
+      "shell": {
+        "platform": "windows",
+        "suites": [
+          {
+            "command": [
+              "bash",
+              "tests/test_quality_pre_commit.sh",
+              "--windows"
+            ],
+            "returncode": 0,
+            "seconds": 8.215991099999997
+          },
+          {
+            "command": [
+              "bash",
+              "tests/test_quality_pre_push.sh",
+              "--windows"
+            ],
+            "returncode": 0,
+            "seconds": 6.962305900000047
+          }
+        ]
+      },
+      "tests": {
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 718,
+        "seconds": 341.24848470000006,
+        "skipped": 14,
+        "unexpected_successes": 0
+      }
+    }
+  }
+}
