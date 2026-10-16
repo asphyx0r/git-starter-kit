@@ -268,13 +268,19 @@ def evaluate_target(
         )
         content_kind = str(entry.get("contentKind", "binary"))
         schema_version = int(manifest.get("schemaVersion", 1))
-        local_digest = (
-            canonical_sha256(local_content, content_kind)
-            if local_content is not None and schema_version >= 2
-            else sha256_bytes(local_content)
-            if local_content is not None
-            else None
-        )
+        local_raw_digest = None
+        try:
+            local_digest = (
+                canonical_sha256(local_content, content_kind)
+                if local_content is not None and schema_version >= 2
+                else sha256_bytes(local_content)
+                if local_content is not None
+                else None
+            )
+        except UnicodeDecodeError:
+            assert local_content is not None
+            local_digest = None
+            local_raw_digest = sha256_bytes(local_content)
         base_digest = (
             entry.get("baseCanonicalSha256")
             if schema_version >= 2
@@ -328,11 +334,13 @@ def evaluate_target(
                 action = "review-initialize-only"
             else:
                 action = "preserve"
+        elif local_raw_digest is not None:
+            action = "conflict-modified"
         elif local_digest == new_digest:
             action = "aligned"
-        elif local_digest is None and base_digest is None:
+        elif local_content is None and base_digest is None:
             action = "add"
-        elif local_digest is None:
+        elif local_content is None:
             action = "conflict-missing"
         elif local_digest == base_digest:
             action = "update"
@@ -375,6 +383,8 @@ def evaluate_target(
                 "modeOnly": mode_only,
             }
         )
+        if local_raw_digest is not None:
+            actions[-1]["localRawSha256"] = local_raw_digest
         if journal is not None:
             journal.write(
                 "INFO",
@@ -545,9 +555,13 @@ def target_adoption_is_current(
             if not destination.is_file():
                 current = False
                 break
-            current_digest = canonical_sha256(
-                destination.read_bytes(), entry.get("contentKind", "binary")
-            )
+            try:
+                current_digest = canonical_sha256(
+                    destination.read_bytes(), entry.get("contentKind", "binary")
+                )
+            except UnicodeDecodeError:
+                current = False
+                break
             if current_digest != entry.get("newCanonicalSha256"):
                 expected_accepted_files[entry["path"]] = current_digest
         if current:

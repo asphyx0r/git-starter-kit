@@ -78,6 +78,530 @@ PACKAGE_FIXTURE_PATHS = (
 class BuildReleasePackageTests(unittest.TestCase):
     _immutable_composed_package_bytes: bytes | None = None
 
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_tracked_qualification_helper_is_excluded_and_consumer_workflow_runs(self):
+        import yaml
+        from test_workflow_contracts import BASH
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = self.create_package_repository(root)
+            helper = "tools/quality/qualification.py"
+            workflow = ".github/workflows/repository-audit.yml"
+            for relative in (helper, workflow):
+                shutil.copyfile(SOURCE_ROOT / relative, repository / relative)
+            subprocess.run(
+                ["git", "add", "--", helper, workflow], cwd=repository, check=True
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "test: track qualification source"],
+                cwd=repository,
+                check=True,
+            )
+            tracked = subprocess.run(
+                ["git", "ls-tree", "--name-only", "HEAD", "--", helper],
+                cwd=repository,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(tracked.stdout.strip(), helper)
+            output = root / "output"
+            result = self.run_package(SCRIPT_PATH, output, repository_root=repository)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with zipfile.ZipFile(output / "existing.zip") as archive:
+                self.assertNotIn(helper, archive.namelist())
+                exported = yaml.safe_load(archive.read(workflow))
+                inventory = json.loads(archive.read("_starter-kit-files.json"))
+                self.assertNotIn(
+                    helper, {entry["path"] for entry in inventory["files"]}
+                )
+            step = next(
+                step
+                for step in exported["jobs"]["qualification"]["steps"]
+                if step.get("name") == "Choose one qualification path"
+            )
+            consumer = root / "consumer"
+            consumer.mkdir()
+            outputs = consumer / "outputs"
+            result = subprocess.run(
+                [BASH, "-c", step["run"]],
+                cwd=consumer,
+                env={
+                    **os.environ,
+                    "GH_REPO": "example/consumer",
+                    "SCOPE": "project",
+                    "GITHUB_OUTPUT": str(outputs),
+                    "RUNNER_TEMP": str(consumer),
+                },
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("decision=full", outputs.read_text())
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_composition_factory_uses_snapshot_for_semver_and_local_for_preview(self):
+        definitions = SCRIPT_PATH.read_text(encoding="utf-8").split(
+            "$repoRoot = (Resolve-Path", 1
+        )[0]
+        hosts = [host for host in ("pwsh", "powershell.exe") if shutil.which(host)]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / "repository"
+            (repository / "tools").mkdir(parents=True)
+            shutil.copyfile(
+                SOURCE_ROOT / "tools/project_config.py",
+                repository / "tools/project_config.py",
+            )
+            document = repository / "templates/project/docs/repository-files.md"
+            document.parent.mkdir(parents=True)
+            document.write_bytes(b"# Repository files\n")
+            (repository / ".gitattributes").write_bytes(
+                b"* text=auto eol=lf\ntools/project_config.py filter=configuration\n"
+            )
+            override = b"""
+# Masked local producer change
+_tracked_default = default_project_configuration
+def _local_default():
+    value = _tracked_default()
+    value["automations"]["agentRulesSync"] = True
+    value["checks"] = [{"name": "local", "argv": ["python", "-V"], "workingDirectory": ".", "platforms": ["windows"]}]
+    return value
+default_project_configuration = _local_default
+"""
+            cleaner = root / "clean.py"
+            cleaner.write_text(
+                "import sys\n"
+                f"sys.stdout.buffer.write(sys.stdin.buffer.read().replace({override!r}, b''))\n",
+                encoding="utf-8",
+            )
+
+            def git(*arguments):
+                return subprocess.run(
+                    ["git", "-C", str(repository), *arguments],
+                    check=True,
+                    capture_output=True,
+                ).stdout
+
+            git("init", "--quiet")
+            git(
+                "config",
+                "filter.configuration.clean",
+                f'"{Path(sys.executable).as_posix()}" -B "{cleaner.as_posix()}"',
+            )
+            git("config", "filter.configuration.required", "true")
+            git("add", ".")
+            git(
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "commit",
+                "--quiet",
+                "-m",
+                "test: prepare configuration producer",
+            )
+            snapshot = root / "snapshot"
+            for path in (
+                "tools/project_config.py",
+                "templates/project/docs/repository-files.md",
+            ):
+                destination = snapshot / path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(git("show", f"HEAD:{path}"))
+            module = repository / "tools/project_config.py"
+            module.write_bytes(module.read_bytes() + override)
+            self.assertNotEqual(
+                module.read_bytes(), (snapshot / "tools/project_config.py").read_bytes()
+            )
+            self.assertEqual(
+                git(
+                    "hash-object", "--path=tools/project_config.py", str(module)
+                ).strip(),
+                git("rev-parse", "HEAD:tools/project_config.py").strip(),
+            )
+            producer = (
+                "import json,sys; sys.path.insert(0,sys.argv[1]); "
+                "from project_config import default_project_configuration; "
+                "print(json.dumps(default_project_configuration()))"
+            )
+            expected = {}
+            for reference, source in (("v9.0.0", snapshot), ("preview", repository)):
+                expected[reference] = json.loads(
+                    subprocess.check_output(
+                        [
+                            sys.executable,
+                            "-I",
+                            "-B",
+                            "-c",
+                            producer,
+                            str(source / "tools"),
+                        ]
+                    )
+                )
+            self.assertFalse(expected["v9.0.0"]["automations"]["agentRulesSync"])
+            self.assertEqual(expected["v9.0.0"]["checks"], [])
+            self.assertTrue(expected["preview"]["automations"]["agentRulesSync"])
+            self.assertEqual(expected["preview"]["checks"][0]["name"], "local")
+            for host in hosts:
+                with self.subTest(host=host):
+                    output = root / host
+                    output.mkdir()
+                    for reference, source in (
+                        ("v9.0.0", snapshot),
+                        ("preview", repository),
+                    ):
+                        target = output / reference / "tools/project_config.py"
+                        target.parent.mkdir(parents=True)
+                        shutil.copyfile(source / "tools/project_config.py", target)
+                    script = self.write_script(
+                        output,
+                        definitions
+                        + """
+foreach ($reference in @('v9.0.0', 'preview')) {
+    Copy-ProjectTemplate -SourceRoot $env:QUALIFICATION_SOURCE `
+        -TargetRoot (Join-Path $PSScriptRoot $reference) `
+        -RepositoryReference $reference -SnapshotRoot $env:QUALIFICATION_SNAPSHOT
+}
+""",
+                    )
+                    environment = os.environ.copy()
+                    environment.update(
+                        QUALIFICATION_SOURCE=str(repository),
+                        QUALIFICATION_SNAPSHOT=str(snapshot),
+                    )
+                    result = subprocess.run(
+                        [host, "-NoProfile", "-File", str(script)],
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=60,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    for reference in expected:
+                        with self.subTest(reference=reference):
+                            target = output / reference
+                            configuration = json.loads(
+                                (target / ".starter-kit-project.json").read_bytes()
+                            )
+                            self.assertEqual(configuration, expected[reference])
+                            self.assertEqual(
+                                (target / "tools/project_config.py").read_bytes(),
+                                (
+                                    (snapshot if reference == "v9.0.0" else repository)
+                                    / "tools/project_config.py"
+                                ).read_bytes(),
+                            )
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_tag_package_uses_head_blobs_and_modes_despite_clean_filters(self):
+        hosts = [host for host in ("pwsh", "powershell.exe") if shutil.which(host)]
+        for host in hosts:
+            with self.subTest(host=host), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                repository = self.create_package_repository(root)
+                name = "tools/space qualité-漢.sh"
+                (repository / name).write_bytes(b"#!/bin/sh\nexit 0\n")
+                filtered_paths = {
+                    "tools/project_validation.py": "tools/project_validation.py",
+                    "templates/project/SECURITY.md": "SECURITY.md",
+                    "tools/checkout.ps1": "tools/checkout.ps1",
+                }
+                (repository / "tools/checkout.ps1").write_bytes(
+                    b"Write-Output 'tracked'\r\n"
+                )
+                marker = b"\n# FILTER-MASKED-LOCAL\n"
+                cleaner = root / "clean.py"
+                cleaner.write_text(
+                    "import sys\n"
+                    f"sys.stdout.buffer.write(sys.stdin.buffer.read().replace({marker!r}, b''))\n",
+                    encoding="utf-8",
+                )
+                for key, value in (
+                    (
+                        "filter.packaging-clean.clean",
+                        f'"{Path(sys.executable).as_posix()}" -B "{cleaner.as_posix()}"',
+                    ),
+                    ("filter.packaging-clean.required", "true"),
+                ):
+                    subprocess.run(
+                        ["git", "config", key, value], cwd=repository, check=True
+                    )
+                attributes = repository / ".gitattributes"
+                attributes.write_bytes(
+                    attributes.read_bytes()
+                    + b"\n"
+                    + "".join(
+                        f"{path} filter=packaging-clean\n" for path in filtered_paths
+                    ).encode()
+                )
+                subprocess.run(
+                    ["git", "add", "--", ".gitattributes", "tools/checkout.ps1"],
+                    cwd=repository,
+                    check=True,
+                )
+                if os.name != "nt":
+                    (repository / name).chmod(0o755)
+                subprocess.run(["git", "add", "--", name], cwd=repository, check=True)
+                subprocess.run(
+                    ["git", "update-index", "--chmod=+x", "--", name],
+                    cwd=repository,
+                    check=True,
+                )
+                self.prepare_tagged_package_repository(repository)
+                head_contents = {}
+                local_contents = {}
+                for path in filtered_paths:
+                    head_contents[path] = subprocess.check_output(
+                        ["git", "show", f"HEAD:{path}"], cwd=repository
+                    )
+                    if path == "tools/checkout.ps1":
+                        self.assertEqual(
+                            head_contents[path], b"Write-Output 'tracked'\n"
+                        )
+                        head_contents[path] = b"Write-Output 'tracked'\r\n"
+                    local = repository / path
+                    local.write_bytes(local.read_bytes() + marker)
+                    local_contents[path] = local.read_bytes()
+                    self.assertNotEqual(local_contents[path], head_contents[path])
+                    head_object = subprocess.check_output(
+                        ["git", "rev-parse", f"HEAD:{path}"], cwd=repository
+                    ).strip()
+                    clean_object = subprocess.check_output(
+                        ["git", "hash-object", f"--path={path}", str(local)],
+                        cwd=repository,
+                    ).strip()
+                    self.assertEqual(clean_object, head_object)
+                subprocess.run(
+                    ["git", "update-index", "--chmod=+x", "--", "LICENSE"],
+                    cwd=repository,
+                    check=True,
+                )
+                for reference, license_mode in (
+                    ("v9.0.0", 0o100644),
+                    ("preview", 0o100755),
+                ):
+                    output = root / reference
+                    result = self.run_package(
+                        SCRIPT_PATH,
+                        output,
+                        repository_root=repository,
+                        repository_ref=reference,
+                        powershell_executable=host,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    with zipfile.ZipFile(output / "existing.zip") as archive:
+                        self.assertEqual(archive.read(name), b"#!/bin/sh\nexit 0\n")
+                        self.assertEqual(
+                            archive.getinfo(name).external_attr >> 16, 0o100755
+                        )
+                        self.assertEqual(
+                            archive.getinfo("LICENSE").external_attr >> 16, license_mode
+                        )
+                        inventory = json.loads(archive.read("_starter-kit-files.json"))
+                        record = next(
+                            record
+                            for record in inventory["files"]
+                            if record["path"] == name
+                        )
+                        self.assertEqual(record["mode"], "100755")
+                        expected_contents = (
+                            head_contents if reference == "v9.0.0" else local_contents
+                        )
+                        for source_path, packaged_path in filtered_paths.items():
+                            with self.subTest(reference=reference, path=source_path):
+                                self.assertEqual(
+                                    archive.read(packaged_path),
+                                    expected_contents[source_path],
+                                )
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_preview_rejects_unmerged_index_before_replacing_package(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = self.create_package_repository(root)
+            object_id = subprocess.check_output(
+                ["git", "rev-parse", "HEAD:LICENSE"], cwd=repository, text=True
+            ).strip()
+            subprocess.run(
+                ["git", "update-index", "--force-remove", "--", "LICENSE"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "update-index", "--index-info"],
+                input=f"100644 {object_id} 1\tLICENSE\n100644 {object_id} 2\tLICENSE\n".encode(),
+                cwd=repository,
+                check=True,
+            )
+            destination = root / "existing.zip"
+            destination.write_bytes(b"previous package")
+            result = self.run_package(SCRIPT_PATH, root, repository_root=repository)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("unmerged", result.stderr.lower())
+            self.assertEqual(destination.read_bytes(), b"previous package")
+            self.assert_no_temporary_archive(root)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_cleanup_attempts_every_path_and_preserves_primary_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = self.create_package_repository(root)
+            source = SCRIPT_PATH.read_text(encoding="utf-8")
+            source = source.replace(
+                REPLACEMENT,
+                "[IO.File]::WriteAllText($temporaryBackupPath, 'backup')\n"
+                "        throw 'primary package failure'",
+                1,
+            )
+            script = self.write_script(root, source)
+            destination = root / "existing.zip"
+            destination.write_bytes(b"previous package")
+            attempts = root / "cleanup-attempts.txt"
+            override = """
+function Remove-Item {
+    param([string]$LiteralPath, [switch]$Force, [switch]$Recurse)
+    [IO.File]::AppendAllText($env:QUALIFICATION_CLEANUP_LOG, $LiteralPath + "`n")
+    if ($LiteralPath -match '\\.zip\\.(bak|tmp)$') { throw 'cleanup archive failure' }
+    Microsoft.PowerShell.Management\\Remove-Item -LiteralPath $LiteralPath -Force:$Force -Recurse:$Recurse
+}
+"""
+            environment = os.environ.copy()
+            environment["QUALIFICATION_CLEANUP_LOG"] = str(attempts)
+            native_temp = root / "native-temp"
+            native_temp.mkdir()
+            environment.update(
+                TEMP=str(native_temp), TMP=str(native_temp), TMPDIR=str(native_temp)
+            )
+            result = self.run_package(
+                script,
+                root,
+                environment,
+                repository_root=repository,
+                upstream_override=override,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("primary package failure", result.stderr)
+            self.assertIn("cleanup archive failure", result.stdout + result.stderr)
+            paths = attempts.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(paths), 3)
+            self.assertTrue(paths[0].endswith(".zip.bak"))
+            self.assertTrue(paths[1].endswith(".zip.tmp"))
+            self.assertFalse(Path(paths[2]).exists())
+            self.assertEqual(destination.read_bytes(), b"previous package")
+            self.assertNotIn("Created release package:", result.stdout)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_cleanup_failure_keeps_published_zip_without_success_message(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = self.create_package_repository(root)
+            destination = root / "existing.zip"
+            destination.write_bytes(b"previous package")
+            attempts = root / "cleanup-attempts.txt"
+            override = """
+function Remove-Item {
+    param([string]$LiteralPath, [switch]$Force, [switch]$Recurse)
+    [IO.File]::AppendAllText($env:QUALIFICATION_CLEANUP_LOG, $LiteralPath + "`n")
+    if ($LiteralPath.EndsWith('.zip.bak')) { throw 'cleanup backup failure' }
+    Microsoft.PowerShell.Management\\Remove-Item -LiteralPath $LiteralPath -Force:$Force -Recurse:$Recurse
+}
+"""
+            environment = os.environ.copy()
+            environment["QUALIFICATION_CLEANUP_LOG"] = str(attempts)
+            native_temp = root / "native-temp"
+            native_temp.mkdir()
+            environment.update(
+                TEMP=str(native_temp), TMP=str(native_temp), TMPDIR=str(native_temp)
+            )
+            result = self.run_package(
+                SCRIPT_PATH,
+                root,
+                environment,
+                repository_root=repository,
+                upstream_override=override,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("cleanup backup failure", result.stdout + result.stderr)
+            self.assertNotIn("Created release package:", result.stdout)
+            with zipfile.ZipFile(destination) as archive:
+                self.assertIsNone(archive.testzip())
+            paths = attempts.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(paths), 2)
+            self.assertFalse(Path(paths[1]).exists())
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_staging_cleanup_failure_does_not_report_success(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = self.create_package_repository(root)
+            native_temp = root / "native-temp"
+            native_temp.mkdir()
+            environment = os.environ.copy()
+            environment.update(
+                TEMP=str(native_temp), TMP=str(native_temp), TMPDIR=str(native_temp)
+            )
+            override = """
+function Remove-Item {
+    param([string]$LiteralPath, [switch]$Force, [switch]$Recurse)
+    if ($Recurse) { throw 'staging cleanup failure' }
+    Microsoft.PowerShell.Management\\Remove-Item -LiteralPath $LiteralPath -Force:$Force
+}
+"""
+            result = self.run_package(
+                SCRIPT_PATH,
+                root,
+                environment,
+                repository_root=repository,
+                upstream_override=override,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("staging cleanup failure", result.stdout + result.stderr)
+            self.assertNotIn("Created release package:", result.stdout)
+            with zipfile.ZipFile(root / "existing.zip") as archive:
+                self.assertIsNone(archive.testzip())
+
+    def prepare_tagged_package_repository(self, repository):
+        tool = repository / "tools/starter-kit-manifest.py"
+        shutil.copyfile(SOURCE_ROOT / "tools/starter-kit-manifest.py", tool)
+        subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(tool),
+                "prepare",
+                "--repository-root",
+                str(repository),
+                "--release-ref",
+                "v9.0.0",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "add", "--all"], cwd=repository, check=True, capture_output=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Package Test",
+                "-c",
+                "user.email=test@example.com",
+                "commit",
+                "--quiet",
+                "-m",
+                "test: prepare release fixture",
+            ],
+            cwd=repository,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(["git", "tag", "v9.0.0"], cwd=repository, check=True)
+
     def test_content_hash_accepts_empty_bytes_but_rejects_null(self):
         definitions = SCRIPT_PATH.read_text(encoding="utf-8").split(
             "$repoRoot = (Resolve-Path", 1

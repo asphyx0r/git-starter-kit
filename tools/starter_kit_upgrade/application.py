@@ -158,14 +158,22 @@ def require_planned_file_state(
     schema_version: int,
 ) -> FileSnapshot | None:
     snapshot = snapshot_file(path)
+    digest_field = (
+        "localRawSha256" if "localRawSha256" in action else "localCanonicalSha256"
+    )
     actual_digest = None
     if snapshot is not None:
-        actual_digest = (
-            canonical_sha256(snapshot.content, entry.get("contentKind", "binary"))
-            if schema_version >= 2
-            else sha256_bytes(snapshot.content)
-        )
-    if actual_digest != action.get("localCanonicalSha256"):
+        try:
+            actual_digest = (
+                canonical_sha256(snapshot.content, entry.get("contentKind", "binary"))
+                if schema_version >= 2 and digest_field == "localCanonicalSha256"
+                else sha256_bytes(snapshot.content)
+            )
+        except UnicodeDecodeError as error:
+            raise UpgradeError(
+                f"Target changed after planning: {action['path']}"
+            ) from error
+    if actual_digest != action.get(digest_field):
         raise UpgradeError(f"Target changed after planning: {action['path']}")
     if os.name != "nt" and "localMode" in action:
         actual_mode = snapshot.mode if snapshot is not None else None
@@ -305,9 +313,14 @@ def apply_upgrade(
             destination = target_path(root, entry["path"])
             if not destination.is_file():
                 continue
-            current_digest = canonical_sha256(
-                destination.read_bytes(), entry.get("contentKind", "binary")
-            )
+            try:
+                current_digest = canonical_sha256(
+                    destination.read_bytes(), entry.get("contentKind", "binary")
+                )
+            except UnicodeDecodeError as error:
+                raise UpgradeError(
+                    f"Invalid UTF-8 text in target file: {entry['path']}"
+                ) from error
             if current_digest != entry.get("newCanonicalSha256"):
                 accepted_files[entry["path"]] = current_digest
         next_adoption = {

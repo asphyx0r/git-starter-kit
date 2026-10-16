@@ -41,6 +41,7 @@ $StarterOnlyPaths = @(
     "templates/SKILLS.md",
     "tools/quality/check-coverage.py",
     "tools/quality/coverage-artifacts.py",
+    "tools/quality/qualification.py",
     ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
     ".github/CODEOWNERS",
     ".github/workflows/release-package.yml",
@@ -302,7 +303,8 @@ function Invoke-GitLine {
             else {
                 $GitTimeoutSeconds
             }
-        )
+        ),
+        [switch]$Raw
     )
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -360,11 +362,16 @@ function Invoke-GitLine {
         if ($process.ExitCode -ne 0) {
             throw "git $($Arguments -join ' ') failed: $($stderr.Result.Trim())"
         }
-        $reader = New-Object System.IO.StringReader($stdout.Result)
-        try {
-            while ($null -ne ($line = $reader.ReadLine())) { $line }
+        if ($Raw) {
+            $stdout.Result
         }
-        finally { $reader.Dispose() }
+        else {
+            $reader = New-Object System.IO.StringReader($stdout.Result)
+            try {
+                while ($null -ne ($line = $reader.ReadLine())) { $line }
+            }
+            finally { $reader.Dispose() }
+        }
     }
     finally {
         if ($null -ne $process) {
@@ -519,11 +526,32 @@ function Get-GitHubImmutableAgentRuleSet {
     return [ordered]@{ Commit = $commit; Files = $files }
 }
 
+function Export-GitTreeSnapshot {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRoot,
+        [Parameter(Mandatory = $true)][string]$SnapshotRoot,
+        [Parameter(Mandatory = $true)][string]$Treeish
+    )
+
+    $exporter = @'
+import pathlib
+import runpy
+import sys
+
+root = pathlib.Path(sys.argv[1])
+module = runpy.run_path(str(root / "tools/release-artifacts.py"))
+module["write_tree_snapshot"](root, pathlib.Path(sys.argv[2]), sys.argv[3])
+'@
+    $exporter | & python -B - $SourceRoot $SnapshotRoot $Treeish
+    if ($LASTEXITCODE -ne 0) { throw "Unable to export the selected Git tree snapshot." }
+}
+
 function Copy-TrackedRepositoryFile {
     param(
         [Parameter(Mandatory = $true)][string]$SourceRoot,
         [Parameter(Mandatory = $true)][string]$TargetRoot,
-        [Parameter(Mandatory = $true)][string]$RepositoryReference
+        [Parameter(Mandatory = $true)][string]$RepositoryReference,
+        [Parameter(Mandatory = $true)][string]$SnapshotRoot
     )
 
     if ($RepositoryReference -match $SemVerTagPattern) {
@@ -543,6 +571,7 @@ function Copy-TrackedRepositoryFile {
         if ($tagCommit -cne $headCommit) {
             throw "RepositoryRef tag must resolve to HEAD for SemVer packaging."
         }
+        Export-GitTreeSnapshot -SourceRoot $SourceRoot -SnapshotRoot $SnapshotRoot -Treeish $headCommit
 
         $manifestTool = Join-Path $SourceRoot "tools/starter-kit-manifest.py"
         $previousErrorActionPreference = $ErrorActionPreference
@@ -561,10 +590,9 @@ function Copy-TrackedRepositoryFile {
             $ErrorActionPreference = $previousErrorActionPreference
         }
 
-        $releaseManifest = Get-Content `
-            -LiteralPath (Join-Path $SourceRoot $StarterKitManifestPath) `
-            -Raw |
-            ConvertFrom-Json
+        $releaseManifest = Invoke-GitLine -Raw -Arguments @(
+            "-C", $SourceRoot, "show", "HEAD:$StarterKitManifestPath"
+        ) | ConvertFrom-Json
         $trackedFiles = @(
             @($releaseManifest.files | ForEach-Object { [string]$_.path }) +
                 $RequiredRuleFiles +
@@ -573,7 +601,9 @@ function Copy-TrackedRepositoryFile {
     }
     else {
         $trackedFiles = @(
-            Invoke-GitLine -Arguments @("-C", $SourceRoot, "ls-files")
+            ([string](Invoke-GitLine -Raw -Arguments @(
+                "-C", $SourceRoot, "ls-files", "-z"
+            ))).Split([char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries)
             $StarterKitManifestPath
         ) | Sort-Object -Unique
     }
@@ -615,6 +645,7 @@ function Copy-TrackedRepositoryFile {
             if ($headObject -cne $worktreeObject) {
                 throw "Packaged file differs from HEAD: $relativePath"
             }
+            $sourcePath = Join-Path $SnapshotRoot $nativePath
         }
 
         $targetPath = Join-Path $TargetRoot $nativePath
@@ -629,18 +660,32 @@ function Copy-TrackedRepositoryFile {
 }
 
 function Get-GitFileModeMap {
-    param([Parameter(Mandatory = $true)][string]$Repository)
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [string]$RepositoryReference = ""
+    )
 
     $modes = @{}
-    $indexLines = Invoke-GitLine -Arguments @("-C", $Repository, "ls-files", "--stage")
-    foreach ($line in $indexLines) {
-        $match = [regex]::Match(
-            $line,
-            "^(?<mode>[0-9]{6}) [0-9a-f]+ [0-9]+`t(?<path>.+)$"
-        )
-        if ($match.Success) {
-            $modes[$match.Groups["path"].Value] = $match.Groups["mode"].Value
+    if ($RepositoryReference -match $SemVerTagPattern) {
+        $gitArguments = @("-C", $Repository, "ls-tree", "-r", "-z", "HEAD")
+        $pattern = "^(?<mode>[0-9]{6}) (blob|commit) [0-9a-f]+`t(?<path>.+)$"
+    }
+    else {
+        $gitArguments = @("-C", $Repository, "ls-files", "--stage", "-z")
+        $pattern = "^(?<mode>[0-9]{6}) [0-9a-f]+ (?<stage>[0-9]+)`t(?<path>.+)$"
+    }
+    $records = ([string](Invoke-GitLine -Raw -Arguments $gitArguments)).Split(
+        [char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries
+    )
+    foreach ($record in $records) {
+        $match = [regex]::Match($record, $pattern, [Text.RegularExpressions.RegexOptions]::Singleline)
+        if (-not $match.Success) {
+            throw "Unable to parse Git file mode record."
         }
+        if ($match.Groups["stage"].Success -and $match.Groups["stage"].Value -cne "0") {
+            throw "The Git index contains unmerged entries."
+        }
+        $modes[$match.Groups["path"].Value] = $match.Groups["mode"].Value
     }
 
     return $modes
@@ -919,9 +964,9 @@ function Assert-TrackedProjectTemplate {
         [Parameter(Mandatory = $true)][string]$RepositoryReference)
 
     if ($RepositoryReference -match $SemVerTagPattern) {
-        $trackedTemplates = @(Invoke-GitLine -Arguments @(
-            "-C", $SourceRoot, "ls-tree", "-r", "--name-only", "HEAD", "--", "templates/project/"
-        ))
+        $trackedTemplates = @(([string](Invoke-GitLine -Raw -Arguments @(
+            "-C", $SourceRoot, "ls-tree", "-r", "-z", "--name-only", "HEAD", "--", "templates/project/"
+        ))).Split([char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries))
         if ($trackedTemplates.Count -eq 0) { throw "HEAD contains no consumer composition templates." }
         foreach ($sourceRelativePath in $trackedTemplates) {
             $sourcePath = Join-Path $SourceRoot $sourceRelativePath
@@ -934,22 +979,26 @@ function Assert-TrackedProjectTemplate {
 
 function Copy-ProjectTemplate {
     param([Parameter(Mandatory = $true)][string]$SourceRoot, [Parameter(Mandatory = $true)][string]$TargetRoot,
-        [Parameter(Mandatory = $true)][string]$RepositoryReference)
+        [Parameter(Mandatory = $true)][string]$RepositoryReference,
+        [Parameter(Mandatory = $true)][string]$SnapshotRoot)
 
     $templatesRoot = Join-Path $SourceRoot "templates/project"
     foreach ($file in Get-ChildItem -LiteralPath $templatesRoot -File -Recurse -Force) {
         $relativePath = $file.FullName.Substring($templatesRoot.Length + 1)
+        $sourcePath = $file.FullName
         if ($RepositoryReference -match $SemVerTagPattern) {
             $sourceRelativePath = "templates/project/" + ($relativePath -replace "\\", "/")
             $headObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "rev-parse", "HEAD:$sourceRelativePath")) -join "").Trim()
             $worktreeObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "hash-object", "--path=$sourceRelativePath", $file.FullName)) -join "").Trim()
             if ($headObject -cne $worktreeObject) { throw "Composed template differs from HEAD: $sourceRelativePath" }
+            $sourcePath = Join-Path $SnapshotRoot $sourceRelativePath
         }
         $destination = Join-Path $TargetRoot $relativePath
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
-        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+        Copy-Item -LiteralPath $sourcePath -Destination $destination -Force
     }
-    $configuration = & python -B -c "import json,sys; sys.path.insert(0,sys.argv[1]); from project_config import default_project_configuration; print(json.dumps(default_project_configuration(),indent=2))" (Join-Path $SourceRoot "tools")
+    $configurationRoot = if ($RepositoryReference -match $SemVerTagPattern) { $SnapshotRoot } else { $SourceRoot }
+    $configuration = & python -B -c "import json,sys; sys.path.insert(0,sys.argv[1]); from project_config import default_project_configuration; print(json.dumps(default_project_configuration(),indent=2))" (Join-Path $configurationRoot "tools")
     if ($LASTEXITCODE -ne 0) { throw "Unable to compose the shared default project configuration." }
     Write-Utf8NoBomFile -Path (Join-Path $TargetRoot ".starter-kit-project.json") `
         -Content (($configuration -join "`n") + "`n")
@@ -981,8 +1030,11 @@ $repoRoot = (Get-Item -LiteralPath $repoRoot -Force).FullName
 $outputRoot = Get-FullPath -Path $OutputDirectory
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "git-starter-kit-release-package-$([guid]::NewGuid().ToString('N'))"
 $stagingRoot = Join-Path $tempRoot "package"
+$snapshotRoot = Join-Path $tempRoot "source"
 $temporaryPackagePath = $null
 $temporaryBackupPath = $null
+$packageError = $null
+$cleanupFailures = @()
 
 if ($RepositorySlug -cne $CanonicalRepositorySlug) {
     throw "RepositorySlug must be exactly $CanonicalRepositorySlug."
@@ -1081,8 +1133,9 @@ try {
     Copy-TrackedRepositoryFile `
         -SourceRoot $repoRoot `
         -TargetRoot $stagingRoot `
-        -RepositoryReference $RepositoryRef
-    $fileModes = Get-GitFileModeMap -Repository $repoRoot
+        -RepositoryReference $RepositoryRef `
+        -SnapshotRoot $snapshotRoot
+    $fileModes = Get-GitFileModeMap -Repository $repoRoot -RepositoryReference $RepositoryRef
 
     foreach ($ruleFile in $RequiredRuleFiles) {
         $rulePath = Join-Path $repoRoot $ruleFile
@@ -1116,7 +1169,8 @@ try {
         [IO.File]::WriteAllBytes((Join-Path $stagingRoot $ruleFile), $upstreamBytes)
     }
 
-    Copy-ProjectTemplate -SourceRoot $repoRoot -TargetRoot $stagingRoot -RepositoryReference $RepositoryRef
+    Copy-ProjectTemplate -SourceRoot $repoRoot -TargetRoot $stagingRoot `
+        -RepositoryReference $RepositoryRef -SnapshotRoot $snapshotRoot
     $fileModes[".starter-kit-project.json"] = "100644"
 
     $manifest = [ordered]@{
@@ -1320,8 +1374,6 @@ path.write_bytes((json.dumps(state, indent=2, sort_keys=False) + "\n").encode("u
             $packagePath,
             $temporaryBackupPath
         )
-        Remove-Item -LiteralPath $temporaryBackupPath -Force
-        $temporaryBackupPath = $null
     }
     else {
         [System.IO.File]::Move($temporaryPackagePath, $packagePath)
@@ -1334,19 +1386,31 @@ path.write_bytes((json.dumps(state, indent=2, sort_keys=False) + "\n").encode("u
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "agent_rules_ref=$resolvedAgentRulesRef"
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "agent_rules_commit=$agentRulesCommit"
     }
-
-    Write-Output "Created release package: $packagePath"
+}
+catch {
+    $packageError = $_
 }
 finally {
-    if ($null -ne $temporaryBackupPath -and
-        (Test-Path -LiteralPath $temporaryBackupPath)) {
-        Remove-Item -LiteralPath $temporaryBackupPath -Force
-    }
-    if ($null -ne $temporaryPackagePath -and
-        (Test-Path -LiteralPath $temporaryPackagePath)) {
-        Remove-Item -LiteralPath $temporaryPackagePath -Force
-    }
-    if (Test-Path -LiteralPath $tempRoot) {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    foreach ($cleanupPath in @($temporaryBackupPath, $temporaryPackagePath, $snapshotRoot, $tempRoot)) {
+        try {
+            if ($null -ne $cleanupPath -and (Test-Path -LiteralPath $cleanupPath)) {
+                $recurse = $cleanupPath -ceq $tempRoot -or $cleanupPath -ceq $snapshotRoot
+                Remove-Item -LiteralPath $cleanupPath -Recurse:$recurse -Force
+            }
+        }
+        catch {
+            $cleanupError = $_
+            $cleanupFailures += "$cleanupPath`: $($cleanupError.Exception.Message)"
+        }
     }
 }
+if ($null -ne $packageError) {
+    foreach ($cleanupFailure in $cleanupFailures) {
+        Write-Warning -Message "Temporary cleanup incomplete: $cleanupFailure" -WarningAction Continue
+    }
+    throw $packageError
+}
+if ($cleanupFailures.Count -gt 0) {
+    throw ("Temporary cleanup incomplete:`n" + ($cleanupFailures -join "`n"))
+}
+Write-Output "Created release package: $packagePath"

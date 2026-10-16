@@ -303,28 +303,10 @@ SEALED_SCRIPTS = {
     "release-package/build/seal": "sha256:a85539b5646f749bf93e5b5626aae5181eb0e4eb71a5ecdb947d2858d52552a8",
     "release-package/build/toolkit": "sha256:d6136325baee4819d3a9aafbb5443aee5e99fb35a2e5ea683212141bfa63fe71",
     "release-package/build/validate-composed-package": "sha256:c3300c59f222ca456ad803f2dedbe8ec12bafab4e611d60cf2cf28c4f4476459",
-    "release-package/publish/publish": "sha256:6b104f169dc0932ff08557c4f85331c16d2f22d02410be2213c8f43276afe81a",
+    "release-package/publish/publish": "sha256:148f2541113e0dcffc7f1d9c50a1f26d2b814a5a6bdc5b227d8b117e1c97cf24",
     "release-package/publish/verify": "sha256:324c33aed75e465d147b2b240a6ffd98419a7c2f9f0c6f75bebf52daa867985c",
     "release-package/release-checks/require-successful-release-event-workflows": "sha256:9fce436f57a77b549350f42a8e49574ef3af47a2bb101131ee2e741b83788aff",
-    "repository-audit/activation/activation": "sha256:bfde8d77e709627edd96a2a0452d069e083bc08d7fe3990bd3d441de6c862e94",
-    "repository-audit/activation/resolve": "sha256:1116d9de267a68cef6c2ee1e2935be6ab250739384141c93d3f2d57bb218ee31",
-    "repository-audit/compatibility-windows/analyze-powershell-on-windows": "sha256:ea7625b2558eb3a6a01170181e9ec5f0439887175427665494a1f8b39db1eeb2",
-    "repository-audit/compatibility-windows/install-verified-powershell-and-shell-tools": "sha256:dd0f5ee141930a13f99b52ef6f6984e66aaf9b7ccc7cb170258f55395c1d1fdd",
-    "repository-audit/compatibility-windows/run-cross-platform-compatibility-checks": "sha256:072fc07820540ec821834c712d23affc7d258008a43a08b1aeada0b69015e479",
-    "repository-audit/compatibility-windows/measure-windows-python-coverage": "sha256:8894a1e8135769f649e62ddd31fb92fa9c38b1debf6325d3bdd79f706d906899",
-    "repository-audit/compatibility-windows/scope": "sha256:0cbf4de9b6d95efb15fcef6bac5d89cadcc6bb988415b6422f8ec0b23ac7fd40",
-    "repository-audit/compatibility-windows/verify-git-bash-hooks-on-windows": "sha256:999104a1301ddfe9fdc8727a167d73c327140d91f02bb5090b02c38e9ce94673",
-    "repository-audit/shared/require-project-checks": "sha256:ddfd5c91a81bd1f1c6f158867b3624e10efb3cbbde4fa8ecbf1d4238b8b98b56",
-    "repository-audit/shared/check-quality-declarations": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
-    "repository-audit/quality-linux/audit-locked-tool-dependencies": "sha256:d324e2e10899f448aba26c2500a06737256b38215fb83c0b9429347756c02e65",
-    "repository-audit/quality-linux/install-locked-language-toolchains": "sha256:6d45c44da8cfc2a0316f4f65d9b0e8c1dbb47551652e1e55b9d4adb39577d201",
-    "repository-audit/quality-linux/install-verified-external-tools": "sha256:734ab6d73d005c92cd408a1a5bb6b7bac54d7c872060b00d2fb8c932abc01f0f",
-    "repository-audit/quality-linux/prepare-previous-push-commit": "sha256:c634a7018a81908b746389cbfba183e998c2aadac8e32fcdbec167e0efb79c38",
-    "repository-audit/quality-linux/run-the-complete-quality-gate": "sha256:90bb94b137a4b1de8a24bb128dbb5e5b7fbda723972e879f0b9c9b4750a4c770",
     "repository-audit/quality-linux/verify-exact-audit-revision": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
-    "repository-audit/repository-audit/require-selected-checks-to-succeed": "sha256:1fcbc529880c297ef8c1af80d51cf23229d4da1ab5b6f64e8b2da05d941fbaa6",
-    "repository-audit/repository-audit/install-locked-coverage-runtime": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
-    "repository-audit/repository-audit/require-combined-coverage": "sha256:22c242e3434653c29989eb96eb84869345e502fb947aea6fbde7cb1c35a695c2",
 }
 
 
@@ -604,6 +586,8 @@ def release_package_contract(node_version: str) -> dict:
                             "TRANSFER_ROOT": "${{ runner.temp }}/release-package-publish",
                             "PACKAGE_NAME": "${{ needs.build.outputs.package_name }}",
                             "TOOLKIT_NAME": "${{ needs.build.outputs.toolkit_name }}",
+                            "EXPECTED_PACKAGE_SHA256": "${{ needs.build.outputs.package_sha256 }}",
+                            "EXPECTED_TOOLKIT_SHA256": "${{ needs.build.outputs.toolkit_sha256 }}",
                         },
                         "run": SEALED_SCRIPTS["release-package/publish/publish"],
                     },
@@ -648,6 +632,7 @@ def agent_rules_update_contract(node_version: str) -> dict:
                         **{
                             "ref": "${{ needs.activation.outputs.trusted_sha }}",
                             "path": "target",
+                            "fetch-depth": 1,
                         }
                     ),
                     setup_python("3.11", None),
@@ -712,6 +697,7 @@ def agent_rules_update_contract(node_version: str) -> dict:
                         **{
                             "ref": "${{ needs.prepare.outputs.target_base_commit }}",
                             "path": "target",
+                            "fetch-depth": 1,
                         }
                     ),
                     setup_python("3.11", None),
@@ -763,44 +749,8 @@ def agent_rules_update_contract(node_version: str) -> dict:
     }
 
 
-def declaration_step() -> dict:
-    return {
-        "shell": "bash",
-        "run": SEALED_SCRIPTS["repository-audit/shared/check-quality-declarations"],
-    }
-
-
-def project_check_step() -> dict:
-    return {
-        "shell": "bash",
-        "run": SEALED_SCRIPTS["repository-audit/shared/require-project-checks"],
-    }
-
-
-def coverage_transfer(platform: str, *, upload: bool) -> dict:
-    inputs: dict[str, Any] = {
-        "name": f"coverage-{platform}-${{{{ github.event.pull_request.head.sha || github.sha }}}}-${{{{ github.run_id }}}}-${{{{ github.run_attempt }}}}",
-        "path": f"${{{{ runner.temp }}}}/coverage/{platform}",
-    }
-    if upload:
-        inputs.update(
-            {
-                "include-hidden-files": True,
-                "if-no-files-found": "error",
-                "retention-days": 7,
-            }
-        )
-    return {
-        "uses": ACTION_REFS["upload-artifact" if upload else "download-artifact"],
-        "if": "steps.scope.outputs.scope == 'source'"
-        if upload
-        else "needs.quality-linux.outputs.scope == 'source'",
-        "with": inputs,
-    }
-
-
 def repository_audit_contract(node_version: str) -> dict:
-    return {
+    contract: dict = {
         "name": "Repository audit",
         "on": {
             "release": {"types": ["published"]},
@@ -809,215 +759,26 @@ def repository_audit_contract(node_version: str) -> dict:
             "workflow_dispatch": None,
         },
         "permissions": {"contents": "read"},
-        "env": {"NODE_VERSION": node_version},
+        "env": {"NODE_VERSION": "24.20.0"},
         "concurrency": {
-            "group": "repository-audit-${{ github.event_name }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref_type == 'branch' && !startsWith(github.ref_name, 'codex/release-preflight-') && github.ref) || github.run_id }}",
-            "cancel-in-progress": "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && !startsWith(github.ref_name, 'codex/release-preflight-')) }}",
+            "group": "repository-audit-${{ github.event_name }}-${{ "
+            "github.event.pull_request.number || (github.event_name == 'push' && "
+            "github.ref_type == 'branch' && !startsWith(github.ref_name, "
+            "'codex/release-preflight-') && github.ref) || github.run_id }}",
+            "cancel-in-progress": "${{ github.event_name == 'pull_request' || "
+            "(github.event_name == 'push' && github.ref_type == "
+            "'branch' && !startsWith(github.ref_name, "
+            "'codex/release-preflight-')) }}",
         },
         "jobs": {
-            "quality-linux": {
-                "name": "Quality - Ubuntu 24.04 / Python 3.11",
-                "runs-on": "ubuntu-24.04",
-                "timeout-minutes": 45,
-                "outputs": {"scope": "${{ steps.scope.outputs.scope }}"},
-                "steps": [
-                    checkout(
-                        **{
-                            "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        }
-                    ),
-                    audit_revision_step(),
-                    {
-                        "shell": "bash",
-                        "timeout-minutes": 2,
-                        "env": {
-                            "EVENT_NAME": "${{ github.event_name }}",
-                            "BEFORE_SHA": "${{ github.event.before }}",
-                            "GH_TOKEN": "${{ github.token }}",
-                            "GIT_TERMINAL_PROMPT": "0",
-                            "GH_PROMPT_DISABLED": "1",
-                        },
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/quality-linux/prepare-previous-push-commit"
-                        ],
-                    },
-                    setup_python("3.11", "tools/quality/requirements.lock"),
-                    setup_node("${{ env.NODE_VERSION }}"),
-                    {
-                        "id": "scope",
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/scope"
-                        ],
-                    },
-                    declaration_step(),
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/quality-linux/install-locked-language-toolchains"
-                        ],
-                    },
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/quality-linux/audit-locked-tool-dependencies"
-                        ],
-                    },
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/quality-linux/install-verified-external-tools"
-                        ],
-                    },
-                    {
-                        "shell": "bash",
-                        "env": {
-                            "AUDIT_COVERAGE_DIR": "${{ runner.temp }}/coverage/linux",
-                            "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
-                            "BEFORE_SHA": "${{ github.event_name == 'release' && '0000000000000000000000000000000000000000' || github.event.before }}",
-                            "GITHUB_TOKEN": "${{ github.token }}",
-                            "GIT_AUTHOR_NAME": "Codex",
-                            "GIT_AUTHOR_EMAIL": "codex@example.com",
-                            "GIT_COMMITTER_NAME": "Codex",
-                            "GIT_COMMITTER_EMAIL": "codex@example.com",
-                        },
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/quality-linux/run-the-complete-quality-gate"
-                        ],
-                    },
-                    project_check_step(),
-                    coverage_transfer("linux", upload=True),
-                ],
-                "needs": "activation",
-                "if": "needs.activation.outputs.enabled == 'true'",
-            },
-            "compatibility-windows": {
-                "name": "Compatibility - Windows 2025 / Python 3.14",
-                "runs-on": "windows-2025",
-                "timeout-minutes": 45,
-                "steps": [
-                    checkout(
-                        **{
-                            "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        }
-                    ),
-                    audit_revision_step(),
-                    setup_python("3.14", "tools/quality/requirements.lock"),
-                    {
-                        "id": "scope",
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/scope"
-                        ],
-                    },
-                    setup_node("${{ env.NODE_VERSION }}"),
-                    declaration_step(),
-                    {
-                        "shell": "pwsh",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/quality-linux/install-locked-language-toolchains"
-                        ],
-                    },
-                    {
-                        "shell": "pwsh",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/install-verified-powershell-and-shell-tools"
-                        ],
-                    },
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/run-cross-platform-compatibility-checks"
-                        ],
-                    },
-                    {
-                        "shell": "pwsh",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/measure-windows-python-coverage"
-                        ],
-                        "if": "steps.scope.outputs.scope == 'source'",
-                        "env": {
-                            "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        },
-                    },
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/verify-git-bash-hooks-on-windows"
-                        ],
-                        "if": "steps.scope.outputs.scope == 'source'",
-                    },
-                    {
-                        "shell": "bash",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/compatibility-windows/analyze-powershell-on-windows"
-                        ],
-                    },
-                    project_check_step(),
-                    coverage_transfer("windows", upload=True),
-                ],
-                "needs": "activation",
-                "if": "needs.activation.outputs.enabled == 'true'",
-            },
-            "repository-audit": {
-                "name": "${{ github.event_name == 'workflow_dispatch' && 'Repository audit (manual)' || 'Repository audit' }}",
-                "needs": [
-                    "activation",
-                    "quality-linux",
-                    "compatibility-windows",
-                ],
-                "if": "${{ always() && needs.activation.outputs.enabled != 'false' }}",
-                "runs-on": "ubuntu-24.04",
-                "timeout-minutes": 10,
-                "steps": [
-                    {
-                        "env": {
-                            "LINUX_RESULT": "${{ needs.quality-linux.result }}",
-                            "WINDOWS_RESULT": "${{ needs.compatibility-windows.result }}",
-                            "ACTIVATION_RESULT": "${{ needs.activation.result }}",
-                        },
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/repository-audit/require-selected-checks-to-succeed"
-                        ],
-                    },
-                    checkout(
-                        **{
-                            "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        }
-                    ),
-                    audit_revision_step(),
-                    {
-                        **setup_python("3.11", "tools/quality/requirements.lock"),
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
-                    },
-                    {
-                        "shell": "bash",
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/repository-audit/install-locked-coverage-runtime"
-                        ],
-                    },
-                    coverage_transfer("linux", upload=False),
-                    coverage_transfer("windows", upload=False),
-                    {
-                        "shell": "bash",
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
-                        "env": {
-                            "AUDIT_COMMIT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"
-                        },
-                        "run": SEALED_SCRIPTS[
-                            "repository-audit/repository-audit/require-combined-coverage"
-                        ],
-                    },
-                ],
-            },
             "activation": {
                 "name": "Read trusted automation configuration",
                 "runs-on": "ubuntu-24.04",
                 "timeout-minutes": 5,
-                "permissions": {"contents": "read"},
+                "permissions": {"contents": "read", "actions": "read"},
                 "outputs": {
-                    "enabled": "${{ steps.resolve.outputs.enabled || steps.activation.outputs.enabled }}",
+                    "enabled": "${{ steps.resolve.outputs.enabled || "
+                    "steps.activation.outputs.enabled }}",
                     "trusted_sha": "${{ steps.resolve.outputs.trusted_sha }}",
                 },
                 "steps": [
@@ -1032,10 +793,10 @@ def repository_audit_contract(node_version: str) -> dict:
                             "REF_NAME": "${{ github.ref_name }}",
                             "REF_TYPE": "${{ github.ref_type }}",
                         },
-                        "run": SEALED_SCRIPTS["repository-audit/activation/resolve"],
+                        "run": "sha256:1116d9de267a68cef6c2ee1e2935be6ab250739384141c93d3f2d57bb218ee31",
                     },
                     {
-                        "uses": ACTION_REFS["checkout"],
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
                         "with": {
                             "fetch-depth": 1,
                             "persist-credentials": False,
@@ -1047,13 +808,789 @@ def repository_audit_contract(node_version: str) -> dict:
                         "id": "activation",
                         "shell": "bash",
                         "env": {"EVENT_NAME": "${{ github.event_name }}"},
-                        "run": SEALED_SCRIPTS["repository-audit/activation/activation"],
+                        "run": "sha256:bfde8d77e709627edd96a2a0452d069e083bc08d7fe3990bd3d441de6c862e94",
                         "if": "steps.resolve.outputs.trusted_sha != ''",
+                    },
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ github.event.pull_request.head.sha || "
+                            "github.sha }}",
+                            "fetch-depth": 1,
+                            "persist-credentials": False,
+                        },
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                        "steps.resolve.outputs.enabled != 'false' && "
+                        "(github.event_name == 'release' || (github.event_name "
+                        "== 'push' && github.ref_type == 'tag'))",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:18b177a89d8f8384ce9f90fbc99f040f5a420c6efb808989ee939e35372dda76",
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                        "steps.resolve.outputs.enabled != 'false' && "
+                        "(github.event_name == 'release' || (github.event_name "
+                        "== 'push' && github.ref_type == 'tag'))",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                        },
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "qualification-candidate-${{ github.run_id "
+                            "}}-${{ github.run_attempt }}",
+                            "path": "${{ runner.temp }}/candidate.json",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                        "steps.resolve.outputs.enabled != 'false' && "
+                        "(github.event_name == 'release' || (github.event_name "
+                        "== 'push' && github.ref_type == 'tag'))",
+                        "continue-on-error": True,
                     },
                 ],
             },
+            "quality-linux": {
+                "needs": "activation",
+                "if": "needs.activation.outputs.enabled == 'true'",
+                "name": "Quality - Ubuntu 24.04 / Python 3.11",
+                "runs-on": "ubuntu-24.04",
+                "timeout-minutes": 45,
+                "outputs": {"scope": "${{ steps.scope.outputs.scope }}"},
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ github.event.pull_request.head.sha || "
+                            "github.sha }}",
+                            "fetch-depth": 0,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "shell": "bash",
+                        "timeout-minutes": 2,
+                        "env": {
+                            "EVENT_NAME": "${{ github.event_name }}",
+                            "BEFORE_SHA": "${{ github.event.before }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                            "GIT_TERMINAL_PROMPT": "0",
+                            "GH_PROMPT_DISABLED": "1",
+                        },
+                        "run": "sha256:c634a7018a81908b746389cbfba183e998c2aadac8e32fcdbec167e0efb79c38",
+                    },
+                    {
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.11",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "with": {
+                            "node-version": "${{ env.NODE_VERSION }}",
+                            "cache": "npm",
+                            "cache-dependency-path": "tools/quality/package-lock.json\n"
+                            "tools/quality/versions.json\n",
+                        },
+                    },
+                    {
+                        "id": "scope",
+                        "shell": "bash",
+                        "run": "sha256:0cbf4de9b6d95efb15fcef6bac5d89cadcc6bb988415b6422f8ec0b23ac7fd40",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:6d45c44da8cfc2a0316f4f65d9b0e8c1dbb47551652e1e55b9d4adb39577d201",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:d324e2e10899f448aba26c2500a06737256b38215fb83c0b9429347756c02e65",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:734ab6d73d005c92cd408a1a5bb6b7bac54d7c872060b00d2fb8c932abc01f0f",
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "BEFORE_SHA": "${{ github.event_name == 'release' "
+                            "&& "
+                            "'0000000000000000000000000000000000000000' "
+                            "|| github.event.before }}",
+                            "GITHUB_TOKEN": "${{ github.token }}",
+                            "GIT_AUTHOR_NAME": "Codex",
+                            "GIT_AUTHOR_EMAIL": "codex@example.com",
+                            "GIT_COMMITTER_NAME": "Codex",
+                            "GIT_COMMITTER_EMAIL": "codex@example.com",
+                        },
+                        "run": "sha256:3e5c018e34689322a156534f00a9634b41ffb81ba6d4bf33b8297e6e99f8045f",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:ddfd5c91a81bd1f1c6f158867b3624e10efb3cbbde4fa8ecbf1d4238b8b98b56",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:372f46142d813e61f4fbfa9648d290bb01a5a476cc4c2d2b4bb26221c438359d",
+                        "if": "steps.scope.outputs.scope == 'source'",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "qualification-fresh-linux-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/fresh/linux.json",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                        "if": "steps.scope.outputs.scope == 'source'",
+                        "continue-on-error": True,
+                    },
+                ],
+            },
+            "compatibility-windows": {
+                "needs": "activation",
+                "if": "needs.activation.outputs.enabled == 'true'",
+                "name": "Compatibility - Windows 2025 / Python 3.14",
+                "runs-on": "windows-2025",
+                "timeout-minutes": 45,
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "fetch-depth": 0,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.14",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "id": "scope",
+                        "shell": "bash",
+                        "run": "sha256:0cbf4de9b6d95efb15fcef6bac5d89cadcc6bb988415b6422f8ec0b23ac7fd40",
+                    },
+                    {
+                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "with": {
+                            "node-version": "${{ env.NODE_VERSION }}",
+                            "cache": "npm",
+                            "cache-dependency-path": "tools/quality/package-lock.json\n"
+                            "tools/quality/versions.json\n",
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
+                    },
+                    {
+                        "shell": "pwsh",
+                        "run": "sha256:4189472bb33d50607e0edc57a732e8a2f0aff684aec80bcddd36c0e4661d8361",
+                    },
+                    {
+                        "shell": "pwsh",
+                        "run": "sha256:dd0f5ee141930a13f99b52ef6f6984e66aaf9b7ccc7cb170258f55395c1d1fdd",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:072fc07820540ec821834c712d23affc7d258008a43a08b1aeada0b69015e479",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:ea7625b2558eb3a6a01170181e9ec5f0439887175427665494a1f8b39db1eeb2",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:ddfd5c91a81bd1f1c6f158867b3624e10efb3cbbde4fa8ecbf1d4238b8b98b56",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:a2927d21c91fc48178e3e7d61ae4fe5f049dd3641a76a1a830a17b8ee05c3077",
+                        "if": "steps.scope.outputs.scope == 'source'",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "qualification-fresh-windows-${{ "
+                            "github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/fresh/windows.json",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                        "if": "steps.scope.outputs.scope == 'source'",
+                        "continue-on-error": True,
+                    },
+                ],
+                "outputs": {"scope": "${{ steps.scope.outputs.scope }}"},
+            },
+            "qualification": {
+                "name": "Choose common qualification",
+                "runs-on": "ubuntu-24.04",
+                "timeout-minutes": 10,
+                "permissions": {"contents": "read", "actions": "read"},
+                "needs": ["activation", "quality-linux", "compatibility-windows"],
+                "if": "needs.activation.outputs.enabled == 'true'",
+                "outputs": {"decision": "${{ steps.decision.outputs.decision }}"},
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ github.event.pull_request.head.sha || "
+                            "github.sha }}",
+                            "fetch-depth": 1,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                        "needs.quality-linux.outputs.scope == 'source'",
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.11",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                        "needs.quality-linux.outputs.scope == 'source'",
+                        "shell": "bash",
+                        "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-candidate-${{ github.run_id "
+                            "}}-${{ github.run_attempt }}",
+                            "path": "${{ runner.temp }}",
+                        },
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
+                        "needs.quality-linux.outputs.scope == 'source'",
+                        "continue-on-error": True,
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-fresh-linux-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/fresh",
+                        },
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "continue-on-error": True,
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-fresh-windows-${{ "
+                            "github.run_id }}-${{ github.run_attempt "
+                            "}}",
+                            "path": "${{ runner.temp }}/fresh",
+                        },
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "continue-on-error": True,
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:975936645d2e8c00dc1799e1f5c20d45bc7ba28d837f560dcdf7cd2fe151c2e4",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                            "GH_REPO": "${{ github.repository }}",
+                            "SCOPE": "${{ needs.quality-linux.outputs.scope }}",
+                        },
+                        "id": "decision",
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "qualification-verified-${{ github.run_id "
+                            "}}-${{ github.run_attempt }}",
+                            "path": "${{ runner.temp }}/verified",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                        "if": "steps.decision.outputs.decision == 'reuse'",
+                    },
+                ],
+            },
+            "quality-linux-heavy": {
+                "name": "Measured qualification - linux",
+                "runs-on": "ubuntu-24.04",
+                "timeout-minutes": 45,
+                "needs": [
+                    "activation",
+                    "quality-linux",
+                    "compatibility-windows",
+                    "qualification",
+                ],
+                "if": "needs.activation.outputs.enabled == 'true' && "
+                "needs.quality-linux.outputs.scope == 'source' && "
+                "needs.qualification.outputs.decision == 'full'",
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "fetch-depth": 0,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.11",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "with": {
+                            "node-version": "${{ env.NODE_VERSION }}",
+                            "cache": "npm",
+                            "cache-dependency-path": "tools/quality/package-lock.json\n"
+                            "tools/quality/versions.json\n",
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:6d45c44da8cfc2a0316f4f65d9b0e8c1dbb47551652e1e55b9d4adb39577d201",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:734ab6d73d005c92cd408a1a5bb6b7bac54d7c872060b00d2fb8c932abc01f0f",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:166ee0560625251c05616eed57e1a6ec74964842e995fd2654d377e316990635",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COVERAGE_DIR": "${{ runner.temp }}/coverage/linux",
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "BEFORE_SHA": "${{ github.event_name == "
+                            "'release' && "
+                            "'0000000000000000000000000000000000000000' "
+                            "|| github.event.before }}",
+                            "GITHUB_TOKEN": "${{ github.token }}",
+                            "GIT_AUTHOR_NAME": "Codex",
+                            "GIT_AUTHOR_EMAIL": "codex@example.com",
+                            "GIT_COMMITTER_NAME": "Codex",
+                            "GIT_COMMITTER_EMAIL": "codex@example.com",
+                        },
+                        "run": "sha256:aba2e93f91be4efc757d41bfcd7f7d7ad015888262ef8cbb906cec9e5d3c9227",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:67294089bc1942559bcccd67075045bd267fd7fd2bd7cdd415808e2b2eb6a36a",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "coverage-linux-${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}-${{ github.run_id "
+                            "}}-${{ github.run_attempt }}",
+                            "path": "${{ runner.temp }}/coverage/linux",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                    },
+                ],
+            },
+            "compatibility-windows-heavy": {
+                "name": "Measured qualification - windows",
+                "runs-on": "windows-2025",
+                "timeout-minutes": 45,
+                "needs": [
+                    "activation",
+                    "quality-linux",
+                    "compatibility-windows",
+                    "qualification",
+                ],
+                "if": "needs.activation.outputs.enabled == 'true' && "
+                "needs.quality-linux.outputs.scope == 'source' && "
+                "needs.qualification.outputs.decision == 'full'",
+                "steps": [
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "fetch-depth": 0,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha "
+                            "}}"
+                        },
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.14",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "with": {
+                            "node-version": "${{ env.NODE_VERSION }}",
+                            "cache": "npm",
+                            "cache-dependency-path": "tools/quality/package-lock.json\n"
+                            "tools/quality/versions.json\n",
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:2da8204e0669a737bffd04a39f20890e89535bbc4ca44496cbdd6a7bd5852e08",
+                    },
+                    {
+                        "shell": "pwsh",
+                        "run": "sha256:4189472bb33d50607e0edc57a732e8a2f0aff684aec80bcddd36c0e4661d8361",
+                    },
+                    {
+                        "shell": "pwsh",
+                        "run": "sha256:dd0f5ee141930a13f99b52ef6f6984e66aaf9b7ccc7cb170258f55395c1d1fdd",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:07e6c1917faeb721c4da862ccc5ba5fa2232951844944cb751692f111b7494dc",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha "
+                            "}}"
+                        },
+                    },
+                    {
+                        "shell": "pwsh",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha "
+                            "}}"
+                        },
+                        "run": "sha256:6a63c37d1fd4c82fbba6323114ffd6a6cff3e3174e4d4ec64d50525355a8e75f",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:5f4cb527ac9858d457c3afbf86352300f2b2d36ac461a81b62ecac0c2b75e4f5",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:febb2a39bc22b13fb02fbfea282ae5d6c147d15aa446f6b7a14116cfdbf4d548",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha "
+                            "}}"
+                        },
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "coverage-windows-${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}-${{ "
+                            "github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/coverage/windows",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                    },
+                ],
+            },
+            "repository-audit": {
+                "name": "${{ github.event_name == 'workflow_dispatch' && "
+                "'Repository audit (manual)' || 'Repository audit' }}",
+                "needs": [
+                    "activation",
+                    "quality-linux",
+                    "compatibility-windows",
+                    "qualification",
+                    "quality-linux-heavy",
+                    "compatibility-windows-heavy",
+                ],
+                "if": "${{ always() && needs.activation.outputs.enabled != 'false' }}",
+                "runs-on": "ubuntu-24.04",
+                "timeout-minutes": 10,
+                "steps": [
+                    {
+                        "env": {
+                            "LINUX_RESULT": "${{ needs.quality-linux.result }}",
+                            "WINDOWS_RESULT": "${{ "
+                            "needs.compatibility-windows.result "
+                            "}}",
+                            "ACTIVATION_RESULT": "${{ needs.activation.result }}",
+                            "DECISION_RESULT": "${{ needs.qualification.result }}",
+                            "DECISION": "${{ needs.qualification.outputs.decision }}",
+                            "SCOPE": "${{ needs.quality-linux.outputs.scope }}",
+                            "HEAVY_LINUX_RESULT": "${{ "
+                            "needs.quality-linux-heavy.result "
+                            "}}",
+                            "HEAVY_WINDOWS_RESULT": "${{ "
+                            "needs.compatibility-windows-heavy.result "
+                            "}}",
+                        },
+                        "run": "sha256:7c9abcdc5c2356f0117662eef85f390a4cc3e68f4927e0380a86f181276d61da",
+                    },
+                    {
+                        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "with": {
+                            "ref": "${{ github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "fetch-depth": 1,
+                            "persist-credentials": False,
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                        "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
+                    },
+                    {
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                        "with": {
+                            "python-version": "3.11",
+                            "cache": "pip",
+                            "cache-dependency-path": "tools/quality/requirements.lock",
+                        },
+                    },
+                    {
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "shell": "bash",
+                        "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
+                    },
+                    {
+                        "if": "needs.quality-linux.outputs.scope == 'source' && "
+                        "needs.qualification.outputs.decision == 'full'",
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "coverage-linux-${{ "
+                            "github.event.pull_request.head.sha || "
+                            "github.sha }}-${{ github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/coverage/linux",
+                        },
+                    },
+                    {
+                        "if": "needs.quality-linux.outputs.scope == 'source' && "
+                        "needs.qualification.outputs.decision == 'full'",
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "coverage-windows-${{ "
+                            "github.event.pull_request.head.sha || "
+                            "github.sha }}-${{ github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/coverage/windows",
+                        },
+                    },
+                    {
+                        "if": "needs.quality-linux.outputs.scope == 'source' && "
+                        "needs.qualification.outputs.decision == 'full'",
+                        "shell": "bash",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                        "run": "sha256:665aa1c1eafe042ce4b66db4ef0c1affad80bc3816fbc0644f325f1cd54b6e81",
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-fresh-linux-${{ "
+                            "github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/fresh",
+                        },
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "continue-on-error": "${{ "
+                        "needs.qualification.outputs.decision "
+                        "== 'full' }}",
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-fresh-windows-${{ "
+                            "github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/fresh",
+                        },
+                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "continue-on-error": "${{ "
+                        "needs.qualification.outputs.decision "
+                        "== 'full' }}",
+                    },
+                    {
+                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "with": {
+                            "name": "qualification-verified-${{ "
+                            "github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/verified",
+                        },
+                        "if": "needs.qualification.outputs.decision == 'reuse'",
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:d076e3de6654544996eef152030e3fb280ceac0cf7e28f9242db497a562be681",
+                        "if": "needs.qualification.outputs.decision == 'reuse'",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}"
+                        },
+                    },
+                    {
+                        "shell": "bash",
+                        "run": "sha256:3e19b8d77b367ec9f9955f7c782f5186b694bf1d6a7acb69ab6c7e033ac8919e",
+                        "if": "github.repository == 'asphyx0r/git-starter-kit' "
+                        "&& needs.quality-linux.outputs.scope == 'source' "
+                        "&& needs.qualification.outputs.decision == 'full'",
+                        "env": {
+                            "AUDIT_COMMIT_SHA": "${{ "
+                            "github.event.pull_request.head.sha "
+                            "|| github.sha }}",
+                            "GH_TOKEN": "${{ github.token }}",
+                        },
+                        "id": "seal",
+                    },
+                    {
+                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "with": {
+                            "name": "qualification-${{ "
+                            "github.event.pull_request.head.sha || "
+                            "github.sha }}-${{ github.run_id }}-${{ "
+                            "github.run_attempt }}",
+                            "path": "${{ runner.temp }}/qualification",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 7,
+                        },
+                        "if": "steps.seal.outputs.sealed == 'true'",
+                    },
+                ],
+                "permissions": {"contents": "read", "actions": "read"},
+            },
         },
     }
+    contract["env"]["NODE_VERSION"] = node_version
+    return contract
 
 
 def guarded_pull_request_merge_contract(node_version: str) -> dict:

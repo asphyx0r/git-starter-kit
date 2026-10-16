@@ -375,7 +375,11 @@ create_valid_transfer_fixture() {
   local target="${case_root}/target"
 
   mkdir -p "${case_root}/runner"
-  initialize_target "${target}"
+  if [[ "${2:-full}" == shallow ]]; then
+    initialize_shallow_target "${target}"
+  else
+    initialize_target "${target}"
+  fi
   initialize_source_remote "${case_root}" annotated
   fixture_target_base_commit="$(git_fixture -C "${target}" rev-parse HEAD)"
   fixture_source_tag_oid="$(
@@ -450,6 +454,19 @@ initialize_target() {
   git_fixture -C "${target}" commit -q -m base
 }
 
+initialize_shallow_target() {
+  local target="$1"
+  local history="${target}-history"
+
+  initialize_target "${history}"
+  git_fixture -C "${history}" commit -q --allow-empty -m second
+  git_fixture clone -q --no-local --depth=1 "${history}" "${target}"
+  git_fixture -C "${target}" config core.autocrlf false
+  if [[ "$(git_fixture -C "${target}" rev-parse --is-shallow-repository)" != true ]]; then
+    fail 'transfer fixture is not a real shallow clone'
+  fi
+}
+
 invoke_cli() {
   local target="$1"
   local runner_temp="$2"
@@ -494,7 +511,7 @@ test_resolve_preserves_tag_object_and_commit_identity() {
     case_root="${test_temp}/resolve-${tag_kind}"
     target="${case_root}/target"
     mkdir -p "${case_root}/runner"
-    initialize_target "${target}"
+    initialize_shallow_target "${target}"
     initialize_source_remote "${case_root}" "${tag_kind}"
     direct_oid="$(
       git_fixture --git-dir="${case_root}/source.git" \
@@ -859,7 +876,7 @@ test_prepare_publish_rejects_integrity_and_base_mismatches() {
   local case_root="${test_temp}/prepare-invalid"
   local target="${case_root}/target"
 
-  create_valid_transfer_fixture "${case_root}"
+  create_valid_transfer_fixture "${case_root}" shallow
   artifact="${case_root}/runner/agent-rules-transfer"
   cp -- "${artifact}/agent-rules-plan.json" \
     "${case_root}/agent-rules-plan.original"
@@ -920,7 +937,7 @@ test_prepare_publish_commits_with_hooks_disabled() {
   local target="${case_root}/target"
   local target_commit
 
-  create_valid_transfer_fixture "${case_root}"
+  create_valid_transfer_fixture "${case_root}" shallow
   cat >"${target}/.git/hooks/prepare-commit-msg" <<'HOOK'
 #!/usr/bin/env bash
 printf '%s\n' hook-ran >"${TEST_HOOK_SENTINEL:?}"

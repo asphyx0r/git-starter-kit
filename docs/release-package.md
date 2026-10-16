@@ -295,6 +295,73 @@ monitor queries, log reads and emitted output, with the same counting scope
 for any comparison. Do not promise a percentage reduction from this pilot.
 Manual acceptance and an explicit commit request remain separate user gates.
 
+## Controlled CI qualification
+
+The remediation plan approved on 2026-10-16 adds this narrow exception to the
+earlier validation pilot. It applies only to `asphyx0r/git-starter-kit` with
+`repositoryRole: source`. Local `all`, `full` and `static` remain exhaustive,
+in the order static checks, Python coverage, shell behavior, smoke and Commitlint.
+
+A successful full default-branch push can supply an original Linux/Windows
+qualification for the exact same commit on a SemVer tag push or a published
+release. PRs, manual runs, preparation branches and application consumers run
+their normal complete qualifications. Equal trees with different commit SHAs
+are insufficient.
+
+The workflow has seven jobs: activation and candidate resolution, two fresh OS
+preflights, one common decision, two conditional heavy OS jobs, and the required
+aggregate. One decision controls both heavy jobs. The aggregate accepts either
+the verified original pair or both successful current heavy jobs. The required
+check names remain `Repository audit` and `Repository audit (manual)`.
+
+| Always fresh for the current event | Reusable only as one original pair |
+| --- | --- |
+| Ref/SHA, commit ranges and messages, tag manifests and trusted activation | Complete Python suites with raw branch coverage, reports and actual test counts |
+| Secrets and dependency vulnerability audits, static/config/runtime/workflow checks | Six Linux shell suites and the two focused Windows hook suites, with status, logs and durations |
+| Smoke and mutable network/latest resolution; declared project checks on both OSes | Original producer identities and actual heavy-job environments, without relabeling |
+
+Candidate resolution selects the newest eligible default-branch producer before
+examining its result. A newer failed or pending producer prevents selecting an
+older green one. The producer must be a completed successful push at the exact
+SHA, in the canonical repository and expected workflow. Its original date is
+valid for at most seven days; the artifact retention is also seven days.
+Consumers never become producers or refresh that date.
+
+The source-only `tools/quality/qualification.py` helper exposes three CI commands:
+
+- `resolve` records an immutable candidate run, attempt and artifact identity.
+- `verify` compares the packet with both fresh environments and emits one
+  `reuse` or `full` decision with a reason.
+- `seal` prepares a packet only after a full eligible producer qualification.
+
+The packet retains the original two OS measurements, test/shell results,
+reports, file hashes and environments. Verification binds the workflow and
+trusted validator, quality policy, `tools/quality/requirements.lock` and
+`tools/release-artifacts-requirements.txt`, npm lock,
+version registry, effective tool versions and both hosted image versions. Heavy
+environment facts are captured around the actual heavy execution and compared
+with the fresh preflights. A successful producer whose environments differ can
+remain a successful audit without supplying an admissible reuse packet.
+
+Missing, expired, ambiguous, altered or unverifiable proof before the common
+decision selects both current full qualifications. This includes API errors
+and proof lost after candidate resolution. Loss after the common reuse decision
+fails the aggregate; rerun all jobs to resolve again. It never turns skipped
+heavy jobs into successful proof.
+
+The aggregate recalculates the existing Linux and combined global and branch
+floors from the raw measurements: each required score must reach 85%. A green
+producer status alone is insufficient. Original run/attempt metadata is
+preserved. Ordinary current-run coverage still requires a matching Linux/Windows
+pair from the same attempt; operators must not edit identities or mix old and
+current OS data.
+
+This helper and its protocol are source-only. Exported application workflows
+continue to work without it and execute their own checks on both OSes. It does
+not authorize a push, release, protection change or bypass of a release gate.
+Hosted savings require measurement of a complete release sequence, including
+fallback overhead; local simulations alone do not establish that gain.
+
 ## Automatic Release Mode
 
 Use this mode for the normal release process.
@@ -328,6 +395,13 @@ release checks, or asset upload prevents promotion to stable/latest. Resolve
 the failure and rerun the original release-event workflow; do not bypass the
 checks to force promotion.
 
+If the required `Repository audit` run fails, choose **Re-run all jobs** on
+that original release-event run. Its Linux and Windows coverage must come
+from the same attempt. Retrying only one failed OS job can leave an older
+artifact for the other OS, which the aggregate refuses. This differs from
+retrying failed jobs of the original `Release package` run; neither retry
+may be replaced by an unrelated manual run or edited coverage metadata.
+
 The workflow then:
 
 1. Checks out `git-starter-kit` at the published release tag without persisting
@@ -341,6 +415,8 @@ The workflow then:
     the resolved tag.
 5. Copies the core paths declared by the tracked manifest, except
     source-repository-only packaging files, into a temporary package folder.
+    SemVer contents, templates and modes come from the selected `HEAD`, with
+    its explicit CRLF text attributes and existing canonical-checkout checks.
 6. Retains the seven tracked rule files in that package folder.
 7. Writes validated provenance and the schema 3 managed-file manifest.
 8. Creates and validates the enriched ZIP with the already installed Markdown
@@ -351,10 +427,14 @@ The workflow then:
 11. Requires both successful release-event checks for this exact release.
 12. Downloads and revalidates those three files in `publish`, before exposing
     its token.
-13. Uploads the three explicitly named release assets without overwriting an
-    existing asset.
+13. Compares all remote assets before any mutation: reuses identical uploaded
+    files, uploads only missing files, and refuses changed, duplicate or
+    unexpected assets. An absent digest is verified by streaming the asset by
+    ID; a malformed digest blocks publication. Only a confirmed empty `starter`
+    residue may be deleted by its exact ID before retrying that upload.
 14. For a published prerelease only, promotes it as the final command after a
-    successful upload.
+    fresh release-identity check and verification of all three remote assets,
+    including `SHA256SUMS`. An already stable release is never downgraded.
 
 The release is complete only when this exact `release.published` workflow run
 finishes with `success`, the release is no longer a prerelease, and both ZIPs
@@ -443,16 +523,16 @@ assert the same latest published agent-rules release. The argument validates
 tracked content against immutable upstream bytes before composing the archive. The repository root must use
 the canonical `git-starter-kit` HTTPS `origin`.
 
-The script copies files reported by `git ls-files`, except the explicit
-source-repository-only packaging files. Local untracked files are not included
-in the package. This is intentional, because release packages should be built
-from committed repository content.
+For SemVer releases, the script reads contents and modes from the selected
+`HEAD`, excluding source-only files. Local previews retain indexed paths and
+modes with their local file contents. Untracked files are excluded.
 
 ## Troubleshooting
 
 If a release asset is missing, open the **Actions** tab and inspect the latest
-`Release package` workflow run. The publish step does not overwrite an existing
-asset.
+`Release package` workflow run. Retry the original run: publication reuses
+identical assets and sends only missing ones. A mismatch blocks the retry;
+inspect its diagnostic without deleting or overwriting a valid asset.
 
 If a release remains a prerelease, inspect the matching run triggered by the
 `release` event. The run must match the release tag and tag commit and must end
@@ -463,7 +543,7 @@ GitHub release tag using SemVer with a leading `v`.
 
 If the final promotion command fails, inspect the `publish` job of that same
 automatic run. Do not substitute a manual run for the automatic completion
-gate.
+gate. A retry verifies the retained assets again before promotion.
 
 To assert the latest upstream version explicitly, use its SemVer
 `agent_rules_ref` value. Older versions and unverifiable latest metadata fail

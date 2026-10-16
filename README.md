@@ -50,13 +50,13 @@ npm ci --ignore-scripts --prefix tools/quality
 bash tools/git-init.sh --path .
 ```
 
-When maintaining this source checkout or preparing the v2.12.0 candidate,
+When maintaining this source checkout,
 explicitly run `python tools/quality/npm-security.py patch` after every npm
 installation. The [security tool guide](tools/README.md#qualitynpm-securitypy)
 describes the attested fix and network audits. Published v2.11.7 assets do not
 contain that command; use the instructions belonging to the selected asset.
-The [remediation evidence](docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md)
-records verified local changes and the qualification/activation still required.
+The [dated remediation evidence](docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md)
+records the local changes and pending qualification/activation as of 2026-10-13.
 
 An optional `bash tools/git-init.sh --path . --dry-run` inspects the actions
 before initialization. Windows users may run the equivalent

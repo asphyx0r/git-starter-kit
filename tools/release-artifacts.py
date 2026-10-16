@@ -179,6 +179,90 @@ def git_entries(root: Path, treeish: str | None) -> dict[str, tuple[str, bytes]]
     return {path: (mode, contents[path]) for path, mode, _object_id in records}
 
 
+def write_tree_snapshot(root: Path, target: Path, treeish: str) -> None:
+    """Materialize Git blobs with the selected tree's explicit CRLF contract."""
+    treeish = str(run_git(root, "rev-parse", "--verify", f"{treeish}^{{tree}}")).strip()
+    records = tree_records(root, treeish)
+    paths = b"".join(path.encode("utf-8") + b"\0" for path, _, _ in records)
+    objects = str(
+        run_git(root, "rev-parse", "--path-format=absolute", "--git-path", "objects")
+    ).strip()
+    object_format = str(run_git(root, "rev-parse", "--show-object-format")).strip()
+    environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    environment.update(
+        GIT_ATTR_NOSYSTEM="1",
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_SYSTEM=os.devnull,
+    )
+    if "GIT_ALTERNATE_OBJECT_DIRECTORIES" in os.environ:
+        environment["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = os.environ[
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES"
+        ]
+    with tempfile.TemporaryDirectory(
+        prefix="git-tree-attributes-", dir=target.parent
+    ) as temporary:
+        context = Path(temporary)
+        (context / "objects/info").mkdir(parents=True)
+        (context / "refs").mkdir()
+        (context / "HEAD").write_bytes(b"ref: refs/heads/snapshot\n")
+        (context / "config").write_text(
+            "[core]\n\trepositoryformatversion = 1\n\tbare = true\n"
+            f"[extensions]\n\tobjectformat = {object_format}\n",
+            encoding="ascii",
+        )
+        (context / "objects/info/alternates").write_bytes(
+            (Path(objects).as_posix() + "\n").encode("utf-8")
+        )
+        command = [
+            git_objects.git_executable(),
+            f"--git-dir={context}",
+            "-c",
+            f"core.attributesfile={os.devnull}",
+            "check-attr",
+            f"--source={treeish}",
+            "-z",
+            "--stdin",
+            "eol",
+            "text",
+        ]
+        with git_objects.process_runner.ProcessScope(
+            command,
+            timeout=GIT_BULK_TIMEOUT_SECONDS,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+        ) as scope:
+            output, stderr = scope.process.communicate(
+                input=paths, timeout=scope.work_remaining()
+            )
+            if scope.expired.is_set():
+                raise subprocess.TimeoutExpired(command, GIT_BULK_TIMEOUT_SECONDS)
+            if scope.process.returncode != 0 or stderr:
+                raise ReleaseArtifactError(f"git check-attr failed: {stderr!r}")
+    fields = output.split(b"\0")[:-1]
+    attributes: dict[str, dict[bytes, bytes]] = {}
+    for offset in range(0, len(fields), 3):
+        path, attribute, value = fields[offset : offset + 3]
+        attributes.setdefault(path.decode("utf-8"), {})[attribute] = value
+    with git_objects.blob_stream(
+        root,
+        [record[2] for record in records],
+        timeout=GIT_BULK_TIMEOUT_SECONDS,
+        error_type=ReleaseArtifactError,
+    ) as blobs:
+        for (path, _mode, _object_id), content in zip(records, blobs, strict=True):
+            if attributes[path] == {b"eol": b"crlf", b"text": b"set"}:
+                content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+            destination = target / path
+            destination.resolve().relative_to(target.resolve())
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+
+
 def line_ending(content: str) -> str | None:
     crlf_count = content.count("\r\n")
     remaining = content.replace("\r\n", "")
@@ -686,10 +770,16 @@ def prepare_artifacts(args: argparse.Namespace) -> int:
         validate_schema(root, manifest, schema_entry[1])
     else:
         metadata = load_metadata(root, args.metadata_file)
+        template_entry = retained.get(TEMPLATE_PATH)
+        schema_entry = retained.get(SCHEMA_PATH)
+        if template_entry is None or schema_entry is None:
+            raise ReleaseArtifactError(
+                "selected Git content must contain the manifest template and schema"
+            )
         manifest = build_manifest(
-            root, metadata, version, release_date, files, checksums
+            root, metadata, version, release_date, files, checksums, template_entry[1]
         )
-        validate_schema(root, manifest)
+        validate_schema(root, manifest, schema_entry[1])
     outputs = {
         VERSION_PATH: f"{version}\n".encode("utf-8"),
         CHECKSUMS_PATH: checksums,
