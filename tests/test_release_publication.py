@@ -124,6 +124,8 @@ elif "/releases/assets/" in endpoint:
     asset_id = int(endpoint.rsplit("/", 1)[1])
     response = next(asset for asset in assets if asset["id"] == asset_id)
     if any("application/octet-stream" in argument for argument in args):
+        if state.get("asset_reads") == 2 and state.get("release_change_at") == "stream":
+            release.update(state["release_change"])
         path.write_text(json.dumps(state))
         sys.stdout.buffer.write(bytes.fromhex(state["content"][response["name"]]))
         sys.exit(0)
@@ -131,6 +133,8 @@ elif "/releases/assets/" in endpoint:
         response["state"] = "uploaded"
 elif endpoint.endswith("/assets"):
     state["asset_reads"] = state.get("asset_reads", 0) + 1
+    if state["asset_reads"] == 2 and state.get("release_change_at") == "listing":
+        release.update(state["release_change"])
     if state["asset_reads"] > 1 and state.get("asset_changed"):
         next(asset for asset in assets if asset["name"] == state["asset_changed"])["digest"] = "sha256:" + "0" * 64
     response = [assets]
@@ -404,6 +408,44 @@ class ReleasePublicationTests(unittest.TestCase):
         self.assertNotEqual(self.invoke().returncode, 0)
         self.assertEqual(len(self.state["assets"]), 3)
         self.assertFalse(any(method == "PATCH" for method, _ in self.mutations()))
+
+    def test_release_changes_during_final_asset_checks_prevent_promotion(self):
+        for phase in ("listing", "stream"):
+            for changes in ({"tag_name": "v9.9.9"}, {"draft": True}):
+                with self.subTest(phase=phase, changes=changes):
+                    self.state["release"].update(
+                        tag_name="v1.2.3", draft=False, prerelease=True
+                    )
+                    self.state.update(
+                        assets=[self.asset(name) for name in self.content],
+                        trace=[],
+                        asset_reads=0,
+                        release_change_at=phase,
+                        release_change=changes,
+                    )
+                    if phase == "stream":
+                        self.state["assets"][0].pop("digest")
+                    result = self.invoke()
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(
+                        "Selected published release identity changed.", result.stderr
+                    )
+                    self.assertEqual(self.mutations(), [])
+                    self.assertEqual(len(self.state["assets"]), 3)
+                    self.assertEqual(self.state["asset_reads"], 2)
+                    for key, value in changes.items():
+                        self.assertEqual(self.state["release"][key], value)
+                    self.assertEqual(
+                        self.state["trace"][-1],
+                        ["GET", "repos/fixture/repo/releases/42"],
+                    )
+                    if phase == "stream":
+                        self.assertEqual(
+                            self.state["trace"].count(
+                                ["GET", "repos/fixture/repo/releases/assets/1"]
+                            ),
+                            2,
+                        )
 
     def test_manual_or_initially_stable_event_does_not_promote(self):
         for event_name, prerelease in (

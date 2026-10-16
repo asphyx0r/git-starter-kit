@@ -303,7 +303,7 @@ SEALED_SCRIPTS = {
     "release-package/build/seal": "sha256:a85539b5646f749bf93e5b5626aae5181eb0e4eb71a5ecdb947d2858d52552a8",
     "release-package/build/toolkit": "sha256:d6136325baee4819d3a9aafbb5443aee5e99fb35a2e5ea683212141bfa63fe71",
     "release-package/build/validate-composed-package": "sha256:c3300c59f222ca456ad803f2dedbe8ec12bafab4e611d60cf2cf28c4f4476459",
-    "release-package/publish/publish": "sha256:148f2541113e0dcffc7f1d9c50a1f26d2b814a5a6bdc5b227d8b117e1c97cf24",
+    "release-package/publish/publish": "sha256:a3cebbeb68284f3ae220c847b40dd5f40dc30c49e69f04ea6adf334d5de30dd6",
     "release-package/publish/verify": "sha256:324c33aed75e465d147b2b240a6ffd98419a7c2f9f0c6f75bebf52daa867985c",
     "release-package/release-checks/require-successful-release-event-workflows": "sha256:9fce436f57a77b549350f42a8e49574ef3af47a2bb101131ee2e741b83788aff",
     "repository-audit/quality-linux/verify-exact-audit-revision": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",

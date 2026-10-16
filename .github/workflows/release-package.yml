@@ -497,10 +497,10 @@ jobs:
                       "--input", str(root / name),
                   )
 
-          current = require_release(api(release_endpoint))
           uploaded, _ = classify_assets(allow_starter=False)
           if set(uploaded) != set(expected):
               raise SystemExit("Release payload is incomplete after upload.")
+          current = require_release(api(release_endpoint))
           if (
               os.environ["EVENT_NAME"] == "release"
               and os.environ["PRERELEASE"] == "true" and current["prerelease"]
