@@ -39,6 +39,11 @@ Précontrôles locaux avant les suites longues
   dont l'intégrité a été vérifiée. Les installations Python utilisent
   `--require-hashes` et npm utilise `ci --ignore-scripts`. Les audits
   n'installent aucune dépendance eux-mêmes.
+- Après chaque `npm ci --ignore-scripts`, applique explicitement
+  `python tools/quality/npm-security.py patch` avant les précontrôles.
+  Le helper d'audit vérifie le correctif installé avant et après la requête
+  npm et conserve le rapport brut. Il bloque les alertes HIGH non attestées,
+  toutes les alertes CRITICAL et les erreurs de vérification.
 - Les cibles CI restent Python 3.11 sur Linux, Python 3.14 sur Windows et la
   version Node.js déclarée par `policy.nodeCiVersion`. Documente toute différence
   locale ; une analyse Mypy pour deux plateformes ne prouve pas l'exécution des
@@ -47,7 +52,7 @@ Précontrôles locaux avant les suites longues
   ordre, avec les exécutables de l'environnement préparé et les caches Ruff,
   Mypy et npm dirigés vers le répertoire temporaire de la tâche :
   `python -B tools/quality/check-versions.py --runtime` ;
-  `npm audit --audit-level=high --include=dev --prefix tools/quality` ;
+  `python tools/quality/npm-security.py audit` ;
   `bash tools/repository-audit.sh fast` ;
   `mypy --config-file tools/quality/pyproject.toml --platform linux` ;
   `mypy --config-file tools/quality/pyproject.toml --platform win32`.
