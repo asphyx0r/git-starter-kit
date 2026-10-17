@@ -2,6 +2,12 @@
 
 All notable changes to this repository are documented in this file.
 
+## v2.13.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| cc74434 | fix(audit): remediate tooling and CI findings | asphyx |
+
 ## v2.12.2
 
 | References | Description | Author(s) |
