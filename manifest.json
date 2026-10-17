@@ -2,13 +2,14 @@
     "manifest_version": "2.0.0",
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
-    "version": "2.12.2",
-    "release_date": "2026-10-14T07:36:59Z",
+    "version": "2.13.0",
+    "release_date": "2026-10-17T12:58:14Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
-        "Update Ruff from 0.16.10 to 0.17.0.",
-        "Align the quality registry and Python 3.11 hash lock."
+        "Package release inputs from exact Git snapshots and preserve updater raw bytes, errors and documented dry-run guarantees.",
+        "Harden local validation and resumable publication, including final release identity checks before promotion.",
+        "Add controlled Linux and Windows CI qualification reuse with an experimental measurement protocol."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -22,17 +23,17 @@
     },
     "artifacts": [
         {
-            "id": "git-starter-kit-v2.12.2-with-agent-rules.zip",
+            "id": "git-starter-kit-v2.13.0-with-agent-rules.zip",
             "target": {
                 "os": "any",
                 "arch": "any",
                 "min_os_version": "not-applicable"
             },
             "format": "git-tree",
-            "total_files": 168,
-            "size_bytes": 2864375,
-            "built_at": "2026-10-14T07:36:59Z",
-            "sha256": "57354c31e5121486f388354924a7274e374cb134c7263c5e790ed2c8a3290677",
+            "total_files": 178,
+            "size_bytes": 3308279,
+            "built_at": "2026-10-17T12:58:14Z",
+            "sha256": "e24aaf2ba2dcd4f6406ede4b7ce482815bae22905dfd217be74d8d6e0eeaa7ef",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -63,11 +64,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 13888,
+                    "size_bytes": 14529,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "20eaa0ce79e2795a92efe13edd0ba5c9c4486578bb80723e387cea329274c9d1",
+                    "sha256": "074a417c3c98b4e8d79fde3c5c80eb616027b9d664ff42cb0e293c48ab23f1aa",
                     "mode": "644"
                 },
                 {
@@ -193,7 +194,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "0e2cf2c3745da6cda502e817da75a49711c153bc4e1d377d4ef0ef90ea450e03",
+                    "sha256": "4bda25c494ca14de2c9fadeed2dc818257db4aaf5ff131f7fa64dc1985c5159a",
                     "mode": "644"
                 },
                 {
@@ -216,20 +217,20 @@
                 },
                 {
                     "relative_path": ".github/workflows/release-package.yml",
-                    "size_bytes": 15143,
+                    "size_bytes": 21172,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4548fb607bc2257001134af2e5d5223a529bd3c380146c190a0898f8ec51b5fe",
+                    "sha256": "3b66d8186bcebe0d6bca8f1ee6b2bcbcf7171806f04c65f5250ed66eb655aac3",
                     "mode": "644"
                 },
                 {
                     "relative_path": ".github/workflows/repository-audit.yml",
-                    "size_bytes": 16140,
+                    "size_bytes": 46226,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "95bd686c4aff45f21c902b5ebe8f92542074787b097f0ac07a17d8cdbc7409a3",
+                    "sha256": "4a667a4a4b3f020cbd5bd3ea9de50882e61455624f5b93424a696626ea3e00f8",
                     "mode": "644"
                 },
                 {
@@ -315,11 +316,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15550,
+                    "size_bytes": 15693,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "193f1b13d78c0d7fbe3ac9539f59756ba5240e211cc45d4c76ed521089794582",
+                    "sha256": "816466c624d36a8ff55376ba7751c02e470466d035020a272d8e59d9cac0b49e",
                     "mode": "644"
                 },
                 {
@@ -387,11 +388,11 @@
                 },
                 {
                     "relative_path": "README.md",
-                    "size_bytes": 17990,
+                    "size_bytes": 17962,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "1a0ad4b11e733750ff414a970114e1119d6627d322c12c108362be3ead7f5073",
+                    "sha256": "c456ab07b77107fa963e900f64163acdd91a374b1bd3bfb6d2b8409c69ea5d99",
                     "mode": "644"
                 },
                 {
@@ -427,7 +428,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "2ad2f8620587f8e46ca2561a28d4a217672ba5adf86091db48aa24ca0b9da769",
+                    "sha256": "127662056a25294fe93b2d6c4c05c9f6e1556c55a1cfcd02fef79f33b08be2d6",
                     "mode": "644"
                 },
                 {
@@ -477,29 +478,29 @@
                 },
                 {
                     "relative_path": "docs/quick-start.md",
-                    "size_bytes": 4914,
+                    "size_bytes": 4909,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "04010b8c239119e02f13115edebc4987e1e7345b9ac7ffef125b6c0b53bcd354",
+                    "sha256": "50a148725461055554b50c53bac8fc8ad84bcdc24f3d7372a15afb8455c37a3a",
                     "mode": "644"
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 24524,
+                    "size_bytes": 34215,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c959462f543c79e967e3976dd05355fc6fb685d7d70dce111a7b9c340056f106",
+                    "sha256": "0a1e3549ab611cc6356202cc16e49bd70f3a7506b66f25ffb2c006dab0cecb43",
                     "mode": "644"
                 },
                 {
                     "relative_path": "docs/repository-files.md",
-                    "size_bytes": 80502,
+                    "size_bytes": 87147,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "ecfc3974703ffbb0b7a6662a12b88f05d1b5ed6d8df6d5415618922e8163c13b",
+                    "sha256": "9abb48edac4dd3cf3f5df12cc46410595531346a46ced6cffe0f94cf8f11e0d0",
                     "mode": "644"
                 },
                 {
@@ -530,6 +531,15 @@
                     "mode": "644"
                 },
                 {
+                    "relative_path": "docs/superpowers/plans/2026-10-16-audit-remediation.md",
+                    "size_bytes": 17385,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "c074e0f3dc482233027d3894c38b6bc0e8e1185eef5e5cdfb4bcff0cd8df6314",
+                    "mode": "644"
+                },
+                {
                     "relative_path": "docs/superpowers/reports/2026-10-13-audit-remediation-evidence.md",
                     "size_bytes": 46674,
                     "file_type": "text",
@@ -539,12 +549,39 @@
                     "mode": "644"
                 },
                 {
-                    "relative_path": "docs/upgrade-toolkit.md",
-                    "size_bytes": 6989,
+                    "relative_path": "docs/superpowers/reports/2026-10-16-audit-remediation-evidence.md",
+                    "size_bytes": 30596,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "b6fadd9e09cc089626622b5c31a1a84352bbdc14c0f9a0f4d291928fce0bbc62",
+                    "sha256": "769f0ae52c353903cf9c5794ce256ac55278ae9b022447d1585ef9a3f8d83e7c",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "docs/superpowers/reports/2026-10-16-f14-experiment.json",
+                    "size_bytes": 58804,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "9e300ffb70acfd3060a5d21886744bcf7f86c2be891e03f05ed63ab93e08e23b",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "docs/superpowers/reports/2026-10-16-f14-experiment.md",
+                    "size_bytes": 10256,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "bb6dda0c001b5560e9e347b57c2c0358d5851bc3f02394d9f40728c86c978384",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "docs/upgrade-toolkit.md",
+                    "size_bytes": 8399,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "fec3a305eaec181108a2282110e4ab2a6619bef7e8023e9c6c828ce84af91d18",
                     "mode": "644"
                 },
                 {
@@ -553,7 +590,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "51e4bb8df65aff4df5ed5ca4b5704eb3673fd040d1887d1419d0bbd233744d77",
+                    "sha256": "f502d9c4922d6862c99a5c45cddc6687bbb7786c03cd3e58b98e70b8af65cae3",
                     "mode": "644"
                 },
                 {
@@ -836,12 +873,21 @@
                     "mode": "644"
                 },
                 {
-                    "relative_path": "tests/test_agent_rules_transfer.sh",
-                    "size_bytes": 50538,
+                    "relative_path": "tests/qualification_experiment.py",
+                    "size_bytes": 25533,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "c9c6f1dae6f5fce6b7ba54bccd81c8425c8c3461f29a3b583411972d5e5b56c8",
+                    "sha256": "bacefb0a0036dbfa01eeef4551d809acb48e238b84876a326d3492ec1ad45e68",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "tests/test_agent_rules_transfer.sh",
+                    "size_bytes": 51123,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "5f1b4dc1c9546f984260753a46feb8518d55ebaa924a6fdcba5b4deaed16649e",
                     "mode": "644"
                 },
                 {
@@ -864,11 +910,11 @@
                 },
                 {
                     "relative_path": "tests/test_build_release_package.py",
-                    "size_bytes": 83334,
+                    "size_bytes": 107705,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "35bd7876a7ad5ae6261cc42dfc9053f8b46db1aff712141be715f50f60ecefaa",
+                    "sha256": "b88bbf080934025a8f4e4435c79e104d96664c75f1b8ff2ab6282f82bcd029ac",
                     "mode": "644"
                 },
                 {
@@ -882,11 +928,11 @@
                 },
                 {
                     "relative_path": "tests/test_coverage_artifacts.py",
-                    "size_bytes": 11279,
+                    "size_bytes": 22868,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "80cbb41e43b46facf577f8502a074f11de4e73b0f7c8e07f731dd64f41019045",
+                    "sha256": "01beb183e50c259fbef1d5f2428d1cf7e56b279faba42fc261145074f078bcef",
                     "mode": "644"
                 },
                 {
@@ -963,20 +1009,47 @@
                 },
                 {
                     "relative_path": "tests/test_project_validation.py",
-                    "size_bytes": 15714,
+                    "size_bytes": 20934,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "21a17f6f02248805f02d54cf5d0a197dd9fba7c342cf4ed2645ad950eb588107",
+                    "sha256": "de9d67e8675d29e191b673d3d4760157f0fd42ed32d24dd14a4d6084807bba26",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "tests/test_qualification.py",
+                    "size_bytes": 33406,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "a82ba7e829cdf1f72234eaec41d7490e62da7e4d3fdd883bc398f9405490525d",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "tests/test_qualification_experiment.py",
+                    "size_bytes": 15301,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "c010c7b5ee502b4056bdab7988b1a82727a5d6d79c133d77990877b8f25adfc7",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "tests/test_qualification_workflow.py",
+                    "size_bytes": 13339,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "ba0f9f4d562557aa64b34a1f4e37b11a1ff450f11360a343c3a8294a8b77ba4a",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tests/test_quality_hooks.sh",
-                    "size_bytes": 29580,
+                    "size_bytes": 36609,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "50a68557618c134ad68a0d817b58977fb147abeb6c569029ebcf6bd78443997f",
+                    "sha256": "d4f5330ce94a3c26f93bda5f4540f760624be60c91d67812f0c196b8fa1d3fd5",
                     "mode": "644"
                 },
                 {
@@ -1008,38 +1081,47 @@
                 },
                 {
                     "relative_path": "tests/test_release_artifacts.py",
-                    "size_bytes": 59718,
+                    "size_bytes": 66670,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "897f62e3c1be232a957c760ebf0a8380a6f0868c7157aa4ad31b534211758c4a",
+                    "sha256": "ecc268bc2583d789be6e4bc2d5ea4503f1df94ef8a072fe0f0157dd396773318",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "tests/test_release_publication.py",
+                    "size_bytes": 24969,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "0a0bf770d614d45b3226684fc49189d7952ba2d40acdb9ee482799197d2e336b",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tests/test_repository_audit.sh",
-                    "size_bytes": 83325,
+                    "size_bytes": 80346,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "4a5acda3f1dcd8e8355416c3b6226068611518bcac11c922ee89c14566d2d2e7",
+                    "sha256": "cd089f0c5cee3075c825d01e9579cc62c9ed2a44df79a6cb475392e6a384d920",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tests/test_starter_kit_manifest.py",
-                    "size_bytes": 29972,
+                    "size_bytes": 30742,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "55f1c66e91d1a540f967918b8e741483f79cc9e58d8b8430a91e6f570d2b246b",
+                    "sha256": "ffd117331fd7f7db76de6bd5f0214115790b92a449113fe1630541284e9f3b77",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tests/test_starter_kit_upgrade.py",
-                    "size_bytes": 98570,
+                    "size_bytes": 116719,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "cbc0ed1eb2900eef293825de31bd8fb9b08fd161b744ec12f8057ccaf037e9da",
+                    "sha256": "4ee62993186bec93fb065be4888c3fa54d83595b1f5042dfd821bc9dee3962a8",
                     "mode": "644"
                 },
                 {
@@ -1053,20 +1135,20 @@
                 },
                 {
                     "relative_path": "tests/test_workflow_contracts.py",
-                    "size_bytes": 57294,
+                    "size_bytes": 61454,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "0f0d4f95fa8dee6de6d26a38e3be92257c2965413e1976bbe8fb2014ab369ea3",
+                    "sha256": "33b3bb7eb681975db666d57670eb0739ac866735f14b0d12e595fda404d940e5",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/README.md",
-                    "size_bytes": 84566,
+                    "size_bytes": 89452,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "471250ddd2e750f450a18fc3db2ec8d38fe293077302c09ef9997cfb74f1625b",
+                    "sha256": "b5b21b0ffbc59042766719b6583bf4e94d13e921653670f942ad426b586aef00",
                     "mode": "644"
                 },
                 {
@@ -1089,11 +1171,11 @@
                 },
                 {
                     "relative_path": "tools/build-release-package.ps1",
-                    "size_bytes": 54325,
+                    "size_bytes": 57101,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "7721e7e8cbc700532c604b70bf821ae4e474ecd7ddb79e957b44e29fe27178e8",
+                    "sha256": "2b865f3d5a0d81e9799013dd34cf928c3a44be26fca62c1478f4e547359af203",
                     "mode": "644"
                 },
                 {
@@ -1188,11 +1270,11 @@
                 },
                 {
                     "relative_path": "tools/project_validation.py",
-                    "size_bytes": 9061,
+                    "size_bytes": 9417,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "fd69b002637a0eb1cf0b5ef182311a16c84deaaa3f99375bd2f7bd348c3fb2b8",
+                    "sha256": "a7f5ce6bd7bf0e9dde554cf67134b694f9695e6bc9400402667d540111766466",
                     "mode": "644"
                 },
                 {
@@ -1224,11 +1306,11 @@
                 },
                 {
                     "relative_path": "tools/quality/coverage-artifacts.py",
-                    "size_bytes": 6636,
+                    "size_bytes": 14185,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8a989230aebabcea0dcbe842fc3a1d63631e4bd2884dd79fd283729aadf9e34b",
+                    "sha256": "88a531e48c74332d5b2a797d56dbe1ba917d3d226860d875d48470002b3a4020",
                     "mode": "644"
                 },
                 {
@@ -1323,11 +1405,20 @@
                 },
                 {
                     "relative_path": "tools/quality/pyproject.toml",
-                    "size_bytes": 1085,
+                    "size_bytes": 1121,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "cd0bede587740f4cbbcaf7678c8b6e4ff814a436eae8f6bb366db2a076399c6d",
+                    "sha256": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
+                    "mode": "644"
+                },
+                {
+                    "relative_path": "tools/quality/qualification.py",
+                    "size_bytes": 21545,
+                    "file_type": "text",
+                    "line_ending": "LF",
+                    "encoding": "UTF-8",
+                    "sha256": "20ce822937f67a711ae7ed791336edc4ca4769fef5d50675c7a23e412d37bc47",
                     "mode": "644"
                 },
                 {
@@ -1377,11 +1468,11 @@
                 },
                 {
                     "relative_path": "tools/release-artifacts.py",
-                    "size_bytes": 34578,
+                    "size_bytes": 38495,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a5527a3750cdb144ca4bcaef2e636b81fc03060a3b5698392d1bb67554de9526",
+                    "sha256": "6749c1332e58fb636d6a6bc5e622c2fabc8ae33c5756e25c66235e11391acc01",
                     "mode": "644"
                 },
                 {
@@ -1422,20 +1513,20 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/hooks.sh",
-                    "size_bytes": 40300,
+                    "size_bytes": 40933,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "11c6572777d778cf75be6e9b7dba302b0e7125939266e86948aa7dd539cea1e9",
+                    "sha256": "150021a9b3198f5611d3031565b224f268abbf5e328454ca4c4c0035605352c4",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/repository-audit/profiles.sh",
-                    "size_bytes": 16460,
+                    "size_bytes": 17038,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "a041cebc0a504179f58a9abd4266030e9285755609736997969d2974abdf402a",
+                    "sha256": "c24d07ac7e84a092a0e87e3fde5cf5a00bad490eac0597c3e8be7b47f2aa4391",
                     "mode": "644"
                 },
                 {
@@ -1458,20 +1549,20 @@
                 },
                 {
                     "relative_path": "tools/repository-audit/workflow-contracts.py",
-                    "size_bytes": 59028,
+                    "size_bytes": 97369,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "baa03404c95ce9de89460b5748d55a04931dfbe0469cc90843090c80eec8c887",
+                    "sha256": "f79e9891223ff2acb7a8ab7eff66ced3c3467420b1ddb2cb6ee7b7dc31b97c17",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/starter-kit-manifest.py",
-                    "size_bytes": 20561,
+                    "size_bytes": 20603,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "47c8798fcfc465f1a41f8fbbd12dc9c4c290c277bdb907de8a9d86dea75800a0",
+                    "sha256": "3dae50e59769f6808a2971f603aec0114ea0bcca3e7e5f44c1465d1cdd792a56",
                     "mode": "644"
                 },
                 {
@@ -1494,47 +1585,47 @@
                 },
                 {
                     "relative_path": "tools/starter_kit_upgrade/application.py",
-                    "size_bytes": 15317,
+                    "size_bytes": 15877,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "15eab2a3226a8173e3080fd486a2242749442c51682582a6258027ea6c4c4e6c",
+                    "sha256": "a64adad1ff4f72433a601ce589f13e5988576b65eb35403a96c50ae5414869a5",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/starter_kit_upgrade/archive.py",
-                    "size_bytes": 27553,
+                    "size_bytes": 27736,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "8f0816762adc297b615da228aa3585a11fc43ce15b550cb6f05c80fa9aafcdd4",
+                    "sha256": "8a706b6a69f73a6aae357642917b1c1e503189397805b8525fae8fe9947a0e78",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/starter_kit_upgrade/cli.py",
-                    "size_bytes": 7235,
+                    "size_bytes": 8549,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "9bddea7c2b4e073dd46e93d0aa214f5122554532aa010afd05eab838d96ef46b",
+                    "sha256": "c6ecddd3c3730785f03cb87590105de1d1a5748d50278053316378e37a8b574b",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/starter_kit_upgrade/common.py",
-                    "size_bytes": 14091,
+                    "size_bytes": 14678,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "60392a3c7ce1712237b978dd303a522c414a28bb1d4f07ea57e94ae4affd5c87",
+                    "sha256": "551c54d887b0e20fef1d0d82ce5a0a0d0dd1763b248b863525adbbe4075be8cf",
                     "mode": "644"
                 },
                 {
                     "relative_path": "tools/starter_kit_upgrade/planning.py",
-                    "size_bytes": 21905,
+                    "size_bytes": 22459,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "0e1f431652b33465f21429184147844890706aa6bc59ed3c599e52219d007da8",
+                    "sha256": "71dfc58676444945077bc36fe94c99e4ac46ea0eacf6dbcb54f07c64a6d73109",
                     "mode": "644"
                 },
                 {
