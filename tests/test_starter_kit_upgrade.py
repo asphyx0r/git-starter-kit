@@ -832,6 +832,122 @@ print(upgrade.VERSION)
         self.assertEqual(action["action"], "conflict-merge")
         self.assertFalse(plan["applicable"])
 
+    def test_invalid_utf8_local_text_follows_each_file_policy(self):
+        target = self.create_target()
+        manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
+        cases = (
+            ("a.txt", "conflict-modified"),
+            ("new.txt", "conflict-modified"),
+            ("merge.txt", "conflict-modified"),
+            ("README.md", "review-initialize-only"),
+            ("AGENTS.md", "delegate-agent-rules"),
+            ("_agent-rules-source.json", "conflict-modified"),
+            ("starter-kit-manifest.json", "conflict-modified"),
+        )
+        planning = importlib.import_module("starter_kit_upgrade.planning")
+        for relative, expected in cases:
+            with self.subTest(path=relative):
+                path = target / relative
+                original = path.read_bytes() if path.is_file() else None
+                path.write_bytes(b"\xffinvalid text\n")
+                try:
+                    with mock.patch.object(planning, "merge_text_payload") as merge:
+                        plan = UPGRADE.evaluate_target(manifest, files, target)
+                    action = next(a for a in plan["actions"] if a["path"] == relative)
+                    self.assertEqual(action["action"], expected)
+                    self.assertIsNone(action["localCanonicalSha256"])
+                    self.assertEqual(
+                        action["localRawSha256"],
+                        "81ff9b87286348a90c4391f71d6d259b752c15326c963036a2388baf62b5a715",
+                    )
+                    merge.assert_not_called()
+                finally:
+                    if original is None:
+                        path.unlink()
+                    else:
+                        path.write_bytes(original)
+        readme = next(e for e in manifest["entries"] if e["path"] == "README.md")
+        readme["baseCanonicalSha256"] = readme["newCanonicalSha256"]
+        (target / "README.md").write_bytes(b"\xff")
+        plan = UPGRADE.evaluate_target(manifest, files, target)
+        action = next(a for a in plan["actions"] if a["path"] == "README.md")
+        self.assertEqual(action["action"], "preserve")
+
+    def test_valid_local_text_does_not_add_raw_hash_to_plan(self):
+        target = self.create_target()
+        _, _, plan = self.load_plan(target)
+        self.assertTrue(all("localRawSha256" not in a for a in plan["actions"]))
+
+    def test_planned_invalid_text_uses_raw_state_and_rejects_concurrent_change(self):
+        path = self.root / "invalid.txt"
+        path.write_bytes(b"\xff")
+        action = {
+            "path": "invalid.txt",
+            "localCanonicalSha256": None,
+            "localRawSha256": "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+        }
+        entry = {"contentKind": "text"}
+        snapshot = UPGRADE.require_planned_file_state(path, action, entry, 2)
+        self.assertEqual(snapshot.content, b"\xff")
+        for content in (b"\xfe", b"valid\n", None):
+            with self.subTest(content=content):
+                if content is None:
+                    path.unlink()
+                else:
+                    path.write_bytes(content)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, "changed after planning"
+                ):
+                    UPGRADE.require_planned_file_state(path, action, entry, 2)
+
+    def test_valid_planned_text_changed_to_invalid_utf8_is_controlled(self):
+        path = self.root / "invalid.txt"
+        path.write_bytes(b"\xff")
+        with self.assertRaisesRegex(UPGRADE.UpgradeError, "changed after planning"):
+            UPGRADE.require_planned_file_state(
+                path,
+                {"path": "invalid.txt", "localCanonicalSha256": "a" * 64},
+                {"contentKind": "text"},
+                2,
+            )
+
+    def test_current_adoption_rejects_invalid_local_merge_text(self):
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+        (target / "merge.txt").write_bytes(b"\xff")
+        self.assertFalse(UPGRADE.target_adoption_is_current(manifest, target))
+
+    def test_invalid_merge_text_during_acceptance_is_controlled_and_rolls_back(self):
+        target = self.create_target()
+        (target / "merge.txt").write_bytes(self.new_files["merge.txt"])
+        self.run_git(target, "add", "merge.txt")
+        self.run_git(target, "commit", "-m", "test: align merge text")
+        manifest, files, plan = self.load_plan(target)
+        original_a = (target / "a.txt").read_bytes()
+        application = importlib.import_module("starter_kit_upgrade.application")
+        mutated = False
+
+        def concurrent_write(path, content, mode):
+            nonlocal mutated
+            application.write_payload(path, content, mode)
+            if path.name == "a.txt" and not mutated:
+                (target / "merge.txt").write_bytes(b"\xff")
+                mutated = True
+
+        with self.assertRaisesRegex(UPGRADE.UpgradeError, "merge.txt"):
+            application.apply_upgrade(
+                manifest,
+                files,
+                target,
+                plan,
+                self.backup_directory,
+                payload_writer=concurrent_write,
+            )
+        self.assertEqual((target / "a.txt").read_bytes(), original_a)
+        self.assertEqual((target / "merge.txt").read_bytes(), b"\xff")
+        self.assertFalse((target / ".starter-kit-adoption.json").exists())
+
     def test_non_overlapping_merge_customization_is_preserved(self):
         target = self.create_target()
         (target / "merge.txt").write_text(
@@ -2335,6 +2451,298 @@ print(upgrade.VERSION)
         sleep_mock.assert_called()
         self.assertEqual(occupied.read_text(encoding="utf-8"), "existing\n")
         self.assertIn("2026-08-02 12:34:57 Log file:", stderr.getvalue())
+
+    def test_journal_finalization_always_attempts_close(self):
+        common = importlib.import_module("starter_kit_upgrade.common")
+        for stage in ("summary", "write", "flush", "fsync", "close"):
+            with self.subTest(stage=stage):
+                error = OSError(f"failed {stage}")
+
+                class FailingStream(io.StringIO):
+                    close_attempted = False
+
+                    def write(self, value):
+                        if stage == "write":
+                            raise error
+                        return super().write(value)
+
+                    def flush(self):
+                        if stage == "flush":
+                            raise error
+                        return super().flush()
+
+                    def fileno(self):
+                        return 99
+
+                    def close(self):
+                        self.close_attempted = True
+                        super().close()
+                        if stage == "close":
+                            raise error
+
+                journal = UPGRADE.RunJournal("plan", ["plan"])
+                stream = FailingStream()
+                journal._stream = stream
+                try:
+                    with mock.patch.object(
+                        common.os,
+                        "fsync",
+                        side_effect=error if stage == "fsync" else None,
+                    ):
+                        if stage == "summary":
+                            journal.phase = mock.Mock(side_effect=error)
+                        with self.assertRaises(OSError) as raised:
+                            journal.finalize(0)
+                    self.assertIs(raised.exception, error)
+                    self.assertTrue(stream.close_attempted)
+                    self.assertIsNone(journal._stream)
+                finally:
+                    io.StringIO.close(stream)
+
+    def test_cli_journal_failures_preserve_business_error_and_interrupt(self):
+        cli = importlib.import_module("starter_kit_upgrade.cli")
+
+        class FailingJournal(UPGRADE.RunJournal):
+            def record_exception(self, error):
+                raise OSError("record unavailable")
+
+            def finalize(self, exit_code):
+                raise OSError("finalize unavailable")
+
+        for business in (UPGRADE.UpgradeError("original failure"), KeyboardInterrupt()):
+            with self.subTest(error=type(business).__name__):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(cli, "build_upgrade", side_effect=business),
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                ):
+                    if isinstance(business, KeyboardInterrupt):
+                        with self.assertRaises(KeyboardInterrupt) as raised:
+                            cli.main(
+                                [
+                                    "build",
+                                    "--base-package",
+                                    "base.zip",
+                                    "--new-package",
+                                    "new.zip",
+                                    "--output",
+                                    "out.zip",
+                                ],
+                                journal_factory=FailingJournal,
+                            )
+                        self.assertIs(raised.exception, business)
+                    else:
+                        self.assertEqual(
+                            cli.main(
+                                [
+                                    "build",
+                                    "--base-package",
+                                    "base.zip",
+                                    "--new-package",
+                                    "new.zip",
+                                    "--output",
+                                    "out.zip",
+                                ],
+                                journal_factory=FailingJournal,
+                            ),
+                            1,
+                        )
+                        self.assertIn("original failure", stderr.getvalue())
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn("record unavailable", stderr.getvalue())
+                self.assertIn("finalize unavailable", stderr.getvalue())
+                self.assertTrue(
+                    any("record unavailable" in n for n in business.__notes__)
+                )
+                self.assertTrue(
+                    any("finalize unavailable" in n for n in business.__notes__)
+                )
+
+    def test_finalization_only_failure_returns_nonzero_after_applied_upgrade(self):
+        target = self.create_target()
+
+        class FailingJournal(UPGRADE.RunJournal):
+            def finalize(self, exit_code):
+                super().finalize(exit_code)
+                raise OSError("finalize unavailable")
+
+        with mock.patch.object(UPGRADE, "RunJournal", FailingJournal):
+            exit_code, stdout, stderr = self.run_main(
+                [
+                    "apply",
+                    "--upgrade-package",
+                    str(self.upgrade_package),
+                    "--target",
+                    str(target),
+                    "--backup-directory",
+                    str(self.backup_directory),
+                ]
+            )
+        self.assertEqual(exit_code, 1)
+        self.assertIn("backup", json.loads(stdout))
+        self.assertEqual((target / "a.txt").read_bytes(), b"new a\n")
+        self.assertIn("apply", stderr)
+        self.assertIn("finalize unavailable", stderr)
+        self.assertNotIn("restoring", stderr)
+
+    def test_finalization_interrupt_propagates_after_closing_journal(self):
+        cli = importlib.import_module("starter_kit_upgrade.cli")
+        target = self.create_target()
+        previous_directory = Path.cwd()
+        try:
+            os.chdir(self.root)
+            for interruption in (KeyboardInterrupt(), SystemExit(7)):
+                with self.subTest(interruption=type(interruption).__name__):
+                    stdout, stderr = io.StringIO(), io.StringIO()
+
+                    class InterruptedJournal(UPGRADE.RunJournal):
+                        def phase(self, name, state):
+                            if name == "summary":
+                                self.final_stream = self._stream
+                                raise interruption
+                            return super().phase(name, state)
+
+                    journal = InterruptedJournal("plan", [])
+                    with (
+                        redirect_stdout(stdout),
+                        redirect_stderr(stderr),
+                        self.assertRaises(type(interruption)) as raised,
+                    ):
+                        cli.main(
+                            [
+                                "plan",
+                                "--upgrade-package",
+                                str(self.upgrade_package),
+                                "--target",
+                                str(target),
+                            ],
+                            journal_factory=lambda *_: journal,
+                        )
+                    self.assertIs(raised.exception, interruption)
+                    self.assertTrue(journal.final_stream.closed)
+                    self.assertIsNone(journal._stream)
+                    self.assertTrue(json.loads(stdout.getvalue())["applicable"])
+                    self.assertIn("journal finalization failed", stderr.getvalue())
+        finally:
+            os.chdir(previous_directory)
+
+    def test_cli_journal_secondary_notes_reach_stderr_and_business_error(self):
+        cli = importlib.import_module("starter_kit_upgrade.cli")
+        common = importlib.import_module("starter_kit_upgrade.common")
+
+        class FailingStream(io.StringIO):
+            def flush(self):
+                raise OSError("flush unavailable")
+
+            def fileno(self):
+                return 99
+
+            def close(self):
+                super().close()
+                raise OSError("close unavailable")
+
+        for business_failure in (False, True):
+            for verbose in (False, True):
+                with self.subTest(business=business_failure, verbose=verbose):
+                    business = (
+                        UPGRADE.UpgradeError("business failure")
+                        if business_failure
+                        else None
+                    )
+                    journal = UPGRADE.RunJournal("build", [])
+                    stream = FailingStream()
+                    journal._stream = stream
+                    journal.phase = mock.Mock(
+                        side_effect=OSError("summary unavailable")
+                    )
+                    arguments = (["--verbose"] if verbose else []) + [
+                        "build",
+                        "--base-package",
+                        "base.zip",
+                        "--new-package",
+                        "new.zip",
+                        "--output",
+                        "out.zip",
+                    ]
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with (
+                        mock.patch.object(
+                            cli, "build_upgrade", return_value=0, side_effect=business
+                        ),
+                        mock.patch.object(
+                            common.os, "fsync", side_effect=OSError("fsync unavailable")
+                        ),
+                        redirect_stdout(stdout),
+                        redirect_stderr(stderr),
+                    ):
+                        if business_failure and verbose:
+                            with self.assertRaises(UPGRADE.UpgradeError) as raised:
+                                cli.main(arguments, journal_factory=lambda *_: journal)
+                            self.assertIs(raised.exception, business)
+                        else:
+                            self.assertEqual(
+                                cli.main(arguments, journal_factory=lambda *_: journal),
+                                1,
+                            )
+                    self.assertTrue(stream.closed)
+                    self.assertIsNone(journal._stream)
+                    self.assertEqual(stdout.getvalue(), "")
+                    for failure in ("summary", "flush", "fsync", "close"):
+                        self.assertIn(f"{failure} unavailable", stderr.getvalue())
+                        if business is not None:
+                            self.assertTrue(
+                                any(
+                                    f"{failure} unavailable" in note
+                                    for note in business.__notes__
+                                )
+                            )
+
+    def test_dry_run_apply_preserves_target_backup_logs_and_cleans_merge_files(self):
+        target = self.create_target()
+        (target / "merge.txt").write_bytes(
+            b"first base\nstable one\nstable two\nlast local\n"
+        )
+        self.run_git(target, "add", "merge.txt")
+        self.run_git(target, "commit", "-m", "test: customize merge")
+        before = {
+            p.relative_to(target): p.read_bytes()
+            for p in target.rglob("*")
+            if p.is_file()
+        }
+        merge_tmp = self.root / "merge-tmp"
+        merge_tmp.mkdir()
+        with mock.patch.object(tempfile, "tempdir", str(merge_tmp)):
+            exit_code, stdout, stderr = self.run_main(
+                [
+                    "--dry-run",
+                    "apply",
+                    "--upgrade-package",
+                    str(self.upgrade_package),
+                    "--target",
+                    str(target),
+                    "--backup-directory",
+                    str(self.backup_directory),
+                ]
+            )
+        self.assertEqual(exit_code, 0)
+        action = next(
+            a for a in json.loads(stdout)["actions"] if a["path"] == "merge.txt"
+        )
+        self.assertEqual(action["action"], "merge")
+        self.assertEqual(stderr, "")
+        self.assertEqual(list(merge_tmp.iterdir()), [])
+        self.assertEqual(list(self.backup_directory.iterdir()), [])
+        self.assertFalse((self.root / "logs").exists())
+        self.assertEqual(
+            {
+                p.relative_to(target): p.read_bytes()
+                for p in target.rglob("*")
+                if p.is_file()
+            },
+            before,
+        )
 
 
 if __name__ == "__main__":

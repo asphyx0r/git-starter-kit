@@ -262,7 +262,7 @@ dependency; the distributed release helper and runtime modules must be present.
 
 Exit status is `0` on successful validation/preparation/preview, `1` on a target,
 tag or dependency failure, and `2` on invalid command-line syntax. `-v` enables
-debug logging. See [project initialization](../docs/project-configuration.md).
+debug logging. See [project initialization](../templates/project/docs/project-configuration.md).
 
 ## release-artifacts.py
 
@@ -275,7 +275,9 @@ debug logging. See [project initialization](../docs/project-configuration.md).
 - Builds inventory metadata incrementally without retaining every blob's
   content in memory.
 - Generates the manifest from `templates/release/manifest.template.json` and
-  validates it against `templates/release/manifest.schema.json`.
+  validates it against `templates/release/manifest.schema.json`, using the same
+  selected Git snapshot as the inventory. Invalid controls fail before writes
+  or confirmation.
 - Requires release-specific business metadata from an external JSON file and
   never derives unknown values from repository content.
 - Supports side-effect-free preparation and exact index or tag validation.
@@ -562,7 +564,10 @@ includes the normal repository content, the required rule files,
 `_starter-kit-files.json` upgrade manifest. For a SemVer package, the tracked
 core manifest must identify the exact packaged ref and match `HEAD`; the tag
 must resolve to `HEAD`, and every packaged path must match its filtered `HEAD`
-blob. The builder accepts only the exact canonical starter repository slug and
+blob. Contents, templates and modes then come from that selected commit, with
+its explicit CRLF text attributes preserved. Preview contents keep their local
+source and indexed modes; Git path lists are UTF-8 and NUL-delimited. The builder
+accepts only the exact canonical starter repository slug and
 HTTPS `origin`; derived repositories cannot use it to create their own release
 package.
 
@@ -652,6 +657,11 @@ tar -xOf .tmp\release-package-test\test-release-package.zip `
   required rule files were missing, archive verification failed, or another
   terminating PowerShell error occurred.
 
+Every temporary cleanup is attempted independently. A cleanup failure retains
+the original operation error, or returns failure when it is the only error;
+success is reported only after cleanup. A validated ZIP already published is
+preserved when subsequent cleanup fails.
+
 ### Consumer composition
 
 The builder overlays `templates/project/`, calls the shared
@@ -673,8 +683,8 @@ conversion is accepted, but the ZIP stores the exact authenticated LF blobs.
 ### Appendix
 
 Use this script from a clean, committed repository when preparing release
-assets. Local untracked files are intentionally excluded because package
-content comes from `git ls-files`.
+assets. SemVer contents come from the selected `HEAD`; previews use tracked
+paths from the index. Local untracked files are excluded.
 
 Use `latest` for normal release automation so packaging fails if tracked rules
 lag behind the latest full `agent-coding-rules` release. Use an explicit SemVer
@@ -719,13 +729,14 @@ usage: python tools/starter-kit-upgrade.py [options] COMMAND
 options:
   -h, --help    show help and exit
   --version     show version and exit
-  --dry-run     validate and print the execution plan without writing
+  --dry-run     print the plan without target, archive, backup, or journal writes;
+                merge checks create and clean temporary files (writable TMP required)
   -v, --verbose show additional diagnostics
 
 commands:
   build   build a cumulative upgrade ZIP
   toolkit bundle the updater and a new full package
-  plan    inspect a target without writing
+  plan    inspect a target and report upgrade actions
   apply   apply a conflict-free upgrade
 ```
 
@@ -784,11 +795,20 @@ Final `NON_COMPLIANT` produces status `FAILED` and a nonzero exit code;
 strategies are respected. Concurrent user changes detected by that final
 check are preserved.
 
-`--dry-run` remains side-effect free and creates no log. Help, version,
-argument-parser exits, and failures that occur before a valid target release
-can be resolved also create no log. A failure after release resolution is
-recorded with its exception and traceback. If the log cannot be created, the
-tool stops before writing an artifact or target file.
+`--dry-run` applies no changes to target files and creates no output archive,
+backup or journal. Merge validation can create temporary files, which it cleans;
+the system temporary directory must be writable. Git's optional metadata refresh
+is not disabled by this mode. Help, version, argument-parser exits, and failures
+before a valid target release can be resolved also create no log. A failure
+after release resolution is recorded with its exception and traceback. If the
+log cannot be created, the tool stops before writing an artifact or target file.
+
+Journal failures cannot replace the original operation error or interruption.
+Finalization attempts summary, flush, synchronization and close, reporting
+secondary errors on stderr. If only finalization fails after a successful
+application, the command returns a nonzero status and retains the applied
+update; it does not claim a rollback. Inspect the result and diagnostics before
+retrying. JSON output remains on stdout.
 
 ### Safety Model
 
@@ -820,6 +840,14 @@ is not overwritten.
 When an initialization-only file changed upstream, the plan reports
 `review-initialize-only` without blocking or writing the target. This makes
 required local review visible while preserving repository ownership.
+
+A local file declared as text that is not valid UTF-8 remains untouched. Its
+plan entry has `localCanonicalSha256: null` and an additional `localRawSha256`
+for concurrency checks; valid text entries keep their existing JSON shape.
+Replacement and merge strategies report `conflict-modified` without attempting
+a merge. Initialization-only and delegated rules keep their usual policies.
+Invalid managed provenance or starter-state JSON remains a conflict; archive
+and adoption formats retain their validation rules.
 
 On POSIX systems, the plan also checks the owner execute bit against the
 package's Git mode. Each action records `localMode`, `modeAligned` and
@@ -1324,20 +1352,35 @@ Run it from the repository root with the locked quality environment. It requires
 verifies that the checkout matches that full commit SHA.
 
 ```bash
+python tools/quality/coverage-artifacts.py tests --output /path/to/tests.json
+python tools/quality/coverage-artifacts.py environment --platform linux --output /path/to/environment.json
 python tools/quality/coverage-artifacts.py export /path/to/.coverage /path/to/coverage/linux --platform linux
 python tools/quality/coverage-artifacts.py export /path/to/.coverage.windows /path/to/coverage/windows --platform windows
+python tools/quality/coverage-artifacts.py shell --platform linux --output /path/to/coverage/linux
 python tools/quality/coverage-artifacts.py combine /path/to/coverage
 python tools/quality/check-coverage.py /path/to/coverage/combined.json
+python tools/quality/check-coverage.py /path/to/coverage/linux-rechecked.json
 ```
+
+These examples show the command interfaces; raw Coverage data must already
+exist for `export`. `tests` runs the complete Python discovery and records
+counts, outcome and duration; run it under Coverage for the measured suite.
+`shell` runs the six
+Linux behavior suites or the two focused Windows hook suites, writing
+`shell.json` and `shell.log`. `environment` records the selected Python,
+platform, runner image and actual toolchain versions. These commands do not
+install dependencies or create a reusable qualification by themselves. Use
+separate environment output paths before and after the heavy suites.
 
 `export` requires a new destination directory and writes `.coverage` and
 `metadata.json`. Metadata binds the data and measured source hashes to the
 commit, run, attempt, Coverage version and policy hash. `combine` requires both
 platform subdirectories with matching metadata and unchanged data/source files;
 it rejects absent, linked, unsafe, empty or line-only inputs. It unions normalized
-OS paths in memory and writes `combined.json`. It returns `0` for a valid export
-or combination, `1` for validation/access errors, and `2` for invalid arguments.
-Use `--help`, `export --help` or `combine --help` for the command syntax.
+OS paths in memory and writes `combined.json` and `linux-rechecked.json`.
+Measurement commands propagate suite failures; successful operations return
+`0`, validation/access errors return `1`, and invalid arguments return `2`.
+Use `--help` or a command's `--help` for its syntax.
 Report generation uses an explicit source root and preserves the calling
 process's directory and measurement paths, including when its tests run under
 Coverage. Absolute measurement keys use Coverage's canonical filename resolution,
@@ -1346,12 +1389,33 @@ configured relative-path policy.
 
 Linux still enforces the existing global and branch floors. Windows publishes
 its own report without a separate new floor; the aggregate enforces both floors
-again on the union. Artifacts are scoped to the exact run attempt and commit,
-retained for seven days, and never downloaded from another workflow run.
+again on the union. Direct coverage artifacts are scoped to the exact run
+attempt and commit and retained for seven days. The source workflow can also
+consume one verified original pair through the separately guarded
+[controlled CI qualification](../docs/release-package.md#controlled-ci-qualification)
+protocol; it never substitutes an unverified OS artifact from another run.
+When retrying `Repository audit`, select **Re-run all jobs** on the original
+run. Both OS measurements must belong to that new attempt; rerunning only a
+failed job can leave the other OS artifact bound to an earlier attempt, which
+`combine` correctly rejects. Never rename artifacts or rewrite their metadata
+to bypass that mismatch.
 Consumer repositories skip source coverage but execute their declared project
 checks in both existing OS jobs. Ordinary branch pushes cancel superseded runs;
 PR, tag, release, manual and release-preflight evidence retain distinct groups.
 Tag, release, manual and release-preflight runs are never cancelled by this policy.
+
+## quality/qualification.py
+
+This source-only CI helper resolves, verifies and seals the original paired
+qualification described in the
+[canonical protocol](../docs/release-package.md#controlled-ci-qualification).
+Its three commands are `resolve`, `verify` and `seal`; their `--help` describes
+the workflow-owned input and output paths. They run with the current GitHub
+event, commit, run and attempt environment and read-only API access.
+
+Consumers do not receive this helper. Local exhaustive profiles and ordinary
+coverage combination retain their existing checks. Missing or unverifiable
+proof before the shared decision selects a full current qualification.
 
 ## quality/check-versions.py
 
@@ -1719,14 +1783,27 @@ quality declarations and checks the actual Commitlint first. Pre-commit
 checks only the executables its selected validators will use, with expected pins
 from the same indexed snapshot; no installation occurs. PowerShell validation
 loads the registry's exact PSScriptAnalyzer version.
+
+For a consumer core, pre-commit reads the managed-path inventory once through
+`tools/project_validation.py --list-owned`. This internal protocol emits a
+fully validated UTF-8, NUL-separated list, including absent managed paths so
+deletions still select their checks. An invalid inventory or invalid UTF-8 path
+fails before any list is emitted or validator starts. `--owns PATH` retains its
+single-path status interface; `--list-core` still lists only existing files.
+Declared application checks retain their selected text encoding and escape
+undecodable output bytes, preserving stdout/stderr diagnostics and command
+success, failure and timeout decisions.
+
 `hook-pre-push [REMOTE_NAME REMOTE_URL]` reads one or more
 `LOCAL_REF LOCAL_OBJECT_ID REMOTE_REF REMOTE_OBJECT_ID` quadruplets from
 standard input, runs affected test families from the exact pushed objects with
 a 900-second timeout per selected family, and validates new SemVer release tags.
 Both hooks use one affected-path mapping. A standalone Python tool selects its
-test module; isolated test changes select that test. Both public initializers
-and their helper select the initializer suite. Upgrade changes select the upgrade
-suite, and workflow changes select Actionlint and semantic workflow contracts.
+test module; isolated test changes select that test. The public initializer
+wrappers select `test_git_init.py`; their Python helper also selects
+`test_initialize_repository.py`. Each selected module runs once. Upgrade changes
+select the upgrade suite, and workflow changes select Actionlint and semantic
+workflow contracts.
 Each hook wrapper selects the common hook suite and its own focused suite.
 Shared runtime, configuration and unknown paths select the complete Python suite
 and all four shell suites: common hooks, commit messages, pre-commit and pre-push.

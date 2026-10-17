@@ -118,10 +118,10 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_windows_hook_subset_is_mandatory(self):
         workflow = self.read_workflow("repository-audit")
-        steps = workflow["jobs"]["compatibility-windows"]["steps"]
+        steps = workflow["jobs"]["compatibility-windows-heavy"]["steps"]
         expected_run = (
-            "bash tests/test_quality_pre_commit.sh --windows\n"
-            "bash tests/test_quality_pre_push.sh --windows"
+            "python tools/quality/coverage-artifacts.py shell --platform windows \\\n"
+            '  --output "$RUNNER_TEMP/coverage/windows"'
         )
         matches = [
             step for step in steps if step.get("run", "").strip() == expected_run
@@ -184,7 +184,14 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("project-windows", workflow["jobs"])
         self.assertEqual(
             workflow["jobs"]["repository-audit"]["needs"],
-            ["activation", "quality-linux", "compatibility-windows"],
+            [
+                "activation",
+                "quality-linux",
+                "compatibility-windows",
+                "qualification",
+                "quality-linux-heavy",
+                "compatibility-windows-heavy",
+            ],
         )
         self.validate("repository-audit", workflow)
 
@@ -210,7 +217,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_windows_and_combined_coverage_are_required_for_source(self):
         workflow = self.read_workflow("repository-audit")
-        windows = workflow["jobs"]["compatibility-windows"]["steps"]
+        windows = workflow["jobs"]["compatibility-windows-heavy"]["steps"]
         measurement = next(
             step
             for step in windows
@@ -603,14 +610,14 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertEqual(output.read_text(), "enabled=true\n")
                 self.assertFalse((Path(temporary) / "tools").exists())
                 self.assertFalse(marker.exists())
-        for step in gate["steps"][1:]:
+        for step in gate["steps"][1:3]:
             self.assertEqual(step["if"], "steps.resolve.outputs.trusted_sha != ''")
 
     def test_selected_preflight_missing_trusted_runtime_fails_without_enabled_output(
         self,
     ):
         gate = self.read_workflow("repository-audit")["jobs"]["activation"]
-        step = gate["steps"][-1]
+        step = next(step for step in gate["steps"] if step.get("id") == "activation")
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "outputs"
             command = step["run"].replace(
@@ -642,10 +649,15 @@ class WorkflowContractTests(unittest.TestCase):
         step = self.read_workflow("repository-audit")["jobs"]["repository-audit"][
             "steps"
         ][0]
+        successful = {
+            **dict.fromkeys(step["env"], "success"),
+            "DECISION": "full",
+            "SCOPE": "source",
+        }
         for selected in step["env"]:
             for failure in ("failure", "cancelled", "skipped", ""):
                 with self.subTest(selected=selected, failure=failure):
-                    environment = dict.fromkeys(step["env"], "success")
+                    environment = dict(successful)
                     environment[selected] = failure
                     result = subprocess.run(
                         [BASH, "-c", step["run"]],
@@ -657,7 +669,7 @@ class WorkflowContractTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
         result = subprocess.run(
             [BASH, "-c", step["run"]],
-            env={**os.environ, **dict.fromkeys(step["env"], "success")},
+            env={**os.environ, **successful},
             capture_output=True,
             text=True,
             check=False,
@@ -1140,6 +1152,81 @@ class WorkflowContractTests(unittest.TestCase):
                 with self.assertRaises(self.validator.ContractError):
                     self.validate(name, workflow)
 
+    def test_shallow_checkouts_are_limited_to_transfer_and_aggregation(self):
+        for name, jobs in (
+            ("agent-rules-update", {"prepare": 1, "publish": 1}),
+            (
+                "repository-audit",
+                {"quality-linux": 0, "compatibility-windows": 0, "repository-audit": 1},
+            ),
+        ):
+            for job_id, depth in jobs.items():
+                with self.subTest(workflow=name, job=job_id):
+                    workflow = self.read_workflow(name)
+                    checkout = next(
+                        step
+                        for step in workflow["jobs"][job_id]["steps"]
+                        if step.get("uses", "").startswith("actions/checkout@")
+                    )
+                    self.assertEqual(checkout["with"]["fetch-depth"], depth)
+                    checkout["with"]["fetch-depth"] = 1 - depth
+                    with self.assertRaises(self.validator.ContractError):
+                        self.validate(name, workflow)
+
+    def test_publication_guards_cannot_be_removed_or_inverted(self):
+        mutations = (
+            ('current.get("id") != release_id', "False"),
+            ('current.get("tag_name") != tag', "False"),
+            ('or not current.get("published_at")', ""),
+            ("name not in expected or name in by_name", "False"),
+            ('asset.get("size") != size', "False"),
+            ('remote_digest != f"sha256:{digest}"', "False"),
+            ("checksum.hexdigest()", "digest"),
+            (
+                "if any(confirmed.get(key) != asset.get(key)",
+                "if any(confirmed.get(key) == asset.get(key)",
+            ),
+            (
+                "classify_assets(allow_starter=False)",
+                "classify_assets(allow_starter=True)",
+            ),
+            ("set(uploaded) != set(expected)", "False"),
+            ('and current["prerelease"]', 'or current["prerelease"]'),
+        )
+        for old, new in mutations:
+            with self.subTest(guard=old):
+                workflow = self.read_workflow("release-package")
+                publish = workflow["jobs"]["publish"]["steps"][-1]
+                self.assertIn(old, publish["run"])
+                publish["run"] = publish["run"].replace(old, new)
+                with self.assertRaises(self.validator.ContractError):
+                    self.validate("release-package", workflow)
+
+    def test_windows_native_exit_guards_cannot_be_delayed(self):
+        workflow = self.read_workflow("repository-audit")
+        guard = "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+        scripts = []
+        for job in ("compatibility-windows", "compatibility-windows-heavy"):
+            step = next(
+                step
+                for step in workflow["jobs"][job]["steps"]
+                if step.get("name") == "Install locked language toolchains"
+            )
+            original = step["run"]
+            scripts.append(original)
+            self.assertEqual(original.count(guard), 2)
+            for index in (0, 1):
+                with self.subTest(job=job, guard=index):
+                    parts = original.split(guard)
+                    parts[index] += "# removed immediate native exit guard\n"
+                    step["run"] = guard.join(parts[: index + 1]) + guard.join(
+                        parts[index + 1 :]
+                    )
+                    with self.assertRaises(self.validator.ContractError):
+                        self.validate("repository-audit", workflow)
+            step["run"] = original
+        self.assertEqual(scripts[0], scripts[1])
+
     def test_meaningful_run_mutations_fail(self):
         cases = (
             ("release-package", "publish", "len(entries) != 3", "len(entries) != 2"),
@@ -1153,10 +1240,15 @@ class WorkflowContractTests(unittest.TestCase):
             (
                 "release-package",
                 "publish",
-                "gh release upload",
-                "gh release upload --clobber",
+                '"--method", "POST"',
+                '"--method", "POST", "--clobber"',
             ),
-            ("release-package", "publish", '&& "$PRERELEASE"', '|| "$PRERELEASE"'),
+            (
+                "release-package",
+                "publish",
+                'and current["prerelease"]',
+                'or current["prerelease"]',
+            ),
             ("release-package", "release-checks", "--event release", "--event push"),
             (
                 "release-package",
@@ -1174,7 +1266,12 @@ class WorkflowContractTests(unittest.TestCase):
                 "--dry-run execute",
                 "execute",
             ),
-            ("repository-audit", "repository-audit", "&& test", "|| test"),
+            (
+                "repository-audit",
+                "repository-audit",
+                'test "$LINUX_RESULT" = success',
+                "true",
+            ),
         )
         for name, job_id, old, new in cases:
             with self.subTest(workflow=name, old=old):

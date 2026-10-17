@@ -476,6 +476,7 @@ mypy_files = configuration["tool"]["mypy"]["files"]
 required_mypy_files = {
     "tools/merge-pull-request.py",
     "tools/quality/install-external-tools.py",
+    "tools/quality/qualification.py",
 }
 missing = sorted(required_mypy_files - set(mypy_files))
 if missing:
@@ -1243,10 +1244,8 @@ release_script_root="${test_temp}/release-package-scripts"
 mkdir -p "${release_script_root}"
 seal_script="${release_script_root}/seal.sh"
 verify_script="${release_script_root}/verify.sh"
-publish_script="${release_script_root}/publish.sh"
 extract_workflow_run_script "${release_package_workflow}" seal "${seal_script}"
 extract_workflow_run_script "${release_package_workflow}" verify "${verify_script}"
-extract_workflow_run_script "${release_package_workflow}" publish "${publish_script}"
 
 release_tag='v1.2.3-rc.1+build.5'
 package_name="git-starter-kit-${release_tag}-with-agent-rules.zip"
@@ -1286,14 +1285,8 @@ cat >"${apply_stub_path}" <<'GH_STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 
-"${QUALITY_PYTHON}" - "${GH_CALL_LOG}" "$@" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-with Path(sys.argv[1]).open("a", encoding="utf-8", newline="\n") as stream:
-    stream.write(json.dumps(sys.argv[2:]) + "\n")
-PY
+printf '%s\n' "Unexpected gh invocation: $*" >>"${GH_CALL_LOG:?}"
+exit 97
 GH_STUB
 chmod +x "${apply_stub_path}"
 
@@ -1301,32 +1294,15 @@ run_release_verification() {
   local payload_root="$1"
   local expected_path="$2"
 
-  TRANSFER_ROOT="${payload_root}" \
+  PATH="${release_stub_bin}:${PATH}" \
+    GH_CALL_LOG="${release_gh_log}" \
+    TRANSFER_ROOT="${payload_root}" \
     EXPECTED_PACKAGE_NAME="${package_name}" \
     EXPECTED_TOOLKIT_NAME="${toolkit_name}" \
     EXPECTED_PACKAGE_SHA256="${package_sha256}" \
     EXPECTED_TOOLKIT_SHA256="${toolkit_sha256}" \
     EXPECTED_SUMS_PATH="${expected_path}" \
     bash "${verify_script}"
-}
-
-run_release_publication() {
-  local payload_root="$1"
-  local event_name="$2"
-  local prerelease="$3"
-
-  PATH="${release_stub_bin}:${PATH}" \
-    QUALITY_PYTHON="${quality_python_cmd}" \
-    GH_CALL_LOG="${release_gh_log}" \
-    GH_TOKEN=CHANGE_ME \
-    GH_REPO='asphyx0r/git-starter-kit' \
-    RELEASE_TAG="${release_tag}" \
-    EVENT_NAME="${event_name}" \
-    PRERELEASE="${prerelease}" \
-    TRANSFER_ROOT="${payload_root}" \
-    PACKAGE_NAME="${package_name}" \
-    TOOLKIT_NAME="${toolkit_name}" \
-    bash "${publish_script}"
 }
 
 assert_invalid_release_payload() {
@@ -1337,13 +1313,12 @@ assert_invalid_release_payload() {
   : >"${release_gh_log}"
   if (
     cd "${outside_root}"
-    run_release_verification "${payload_root}" "${expected_path}" &&
-      run_release_publication "${payload_root}" workflow_dispatch false
+    run_release_verification "${payload_root}" "${expected_path}"
   ) >"${test_temp}/${case_name}.out" 2>"${test_temp}/${case_name}.err"; then
-    fail "Release publication accepted invalid payload: ${case_name}"
+    fail "Release verification accepted invalid payload: ${case_name}"
   fi
   if [[ -s "${release_gh_log}" ]]; then
-    fail "Release publication invoked gh for invalid payload: ${case_name}"
+    fail "Release verification invoked gh for invalid payload: ${case_name}"
   fi
 }
 
@@ -1394,93 +1369,18 @@ if mkfifo "${invalid_payload_root}/${package_name}" 2>/dev/null &&
   assert_invalid_release_payload fifo "${invalid_payload_root}"
 fi
 
+# Publication API scenarios run in tests/test_release_publication.py.
 : >"${release_gh_log}"
 (
   cd "${outside_root}"
   run_release_verification \
-    "${release_transfer_root}" "${test_temp}/valid-manual-expected-sha256s"
-  run_release_publication "${release_transfer_root}" workflow_dispatch false
+    "${release_transfer_root}" "${test_temp}/valid-expected-sha256s"
 )
-"${quality_python_cmd}" - \
-  "${release_gh_log}" "${release_tag}" "${release_transfer_root}" \
-  "${package_name}" "${toolkit_name}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-calls = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-root = sys.argv[3].replace("\\", "/").rstrip("/")
-expected = [[
-    "release", "upload", sys.argv[2],
-    f"{root}/{sys.argv[4]}",
-    f"{root}/{sys.argv[5]}",
-    f"{root}/SHA256SUMS",
-    "--repo", "asphyx0r/git-starter-kit",
-]]
-if calls != expected:
-    raise SystemExit(f"unexpected manual publication calls: {calls!r}")
-PY
-
-: >"${release_gh_log}"
-(
-  cd "${outside_root}"
-  run_release_verification \
-    "${release_transfer_root}" "${test_temp}/valid-stable-expected-sha256s"
-  run_release_publication "${release_transfer_root}" release false
-)
-"${quality_python_cmd}" - \
-  "${release_gh_log}" "${release_tag}" "${release_transfer_root}" \
-  "${package_name}" "${toolkit_name}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-calls = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-root = sys.argv[3].replace("\\", "/").rstrip("/")
-expected = [[
-    "release", "upload", sys.argv[2],
-    f"{root}/{sys.argv[4]}",
-    f"{root}/{sys.argv[5]}",
-    f"{root}/SHA256SUMS",
-    "--repo", "asphyx0r/git-starter-kit",
-]]
-if calls != expected:
-    raise SystemExit(f"unexpected stable publication calls: {calls!r}")
-PY
-
-: >"${release_gh_log}"
-(
-  cd "${outside_root}"
-  run_release_verification \
-    "${release_transfer_root}" "${test_temp}/valid-release-expected-sha256s"
-  run_release_publication "${release_transfer_root}" release true
-)
-"${quality_python_cmd}" - \
-  "${release_gh_log}" "${release_tag}" "${release_transfer_root}" \
-  "${package_name}" "${toolkit_name}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-calls = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-root = sys.argv[3].replace("\\", "/").rstrip("/")
-expected = [
-    [
-        "release", "upload", sys.argv[2],
-        f"{root}/{sys.argv[4]}",
-        f"{root}/{sys.argv[5]}",
-        f"{root}/SHA256SUMS",
-        "--repo", "asphyx0r/git-starter-kit",
-    ],
-    [
-        "release", "edit", sys.argv[2],
-        "--repo", "asphyx0r/git-starter-kit",
-        "--prerelease=false", "--latest",
-    ],
-]
-if calls != expected:
-    raise SystemExit(f"unexpected release publication calls: {calls!r}")
-PY
+if [[ -s "${release_gh_log}" ]]; then
+  fail "Release verification invoked gh for a valid payload"
+fi
+cmp "${release_expected_sums}" "${test_temp}/valid-expected-sha256s" ||
+  fail "Release verification changed the sealed SHA-256 values"
 # END RELEASE WORKFLOW TESTS
 
 # BEGIN REPOSITORY AUDIT WORKFLOW TESTS

@@ -224,14 +224,18 @@ run_python_coverage() {
   local coverage_cmd
   local python_cmd
   local coverage_status=0
+  local -a suite=(-m unittest discover -s tests -p 'test_*.py')
   coverage_cmd="$(resolve_hook_command python coverage coverage.exe)" || return
   python_cmd="$(resolve_hook_python)" || return
   ensure_audit_temp || return
+  if [[ -n "${1:-}" ]]; then
+    suite=(tools/quality/coverage-artifacts.py tests --output "${audit_temp}/tests.json")
+  fi
 
   COVERAGE_FILE="${audit_temp}/.coverage" \
     "${coverage_cmd}" run \
     --rcfile=tools/quality/pyproject.toml \
-    -m unittest discover -s tests -p 'test_*.py' || coverage_status=$?
+    "${suite[@]}" || coverage_status=$?
   COVERAGE_FILE="${audit_temp}/.coverage" \
     "${coverage_cmd}" json --rcfile=tools/quality/pyproject.toml \
     --fail-under=0 -o "${audit_temp}/coverage.json" || return $?
@@ -243,12 +247,20 @@ run_python_coverage() {
     "${python_cmd}" tools/quality/coverage-artifacts.py export \
       "${audit_temp}/.coverage" "$1" --platform linux || return
     cp "${audit_temp}/coverage.json" "$1/coverage.json" || return
+    cp "${audit_temp}/tests.json" "$1/tests.json" || return
   fi
   return "${coverage_status}"
 }
 
 run_shell_behavior_tests() {
   local shell_test
+  if [[ -n "${AUDIT_COVERAGE_DIR:-}" ]]; then
+    local python_cmd
+    python_cmd="$(resolve_hook_python)" || return
+    "${python_cmd}" tools/quality/coverage-artifacts.py shell \
+      --platform linux --output "${AUDIT_COVERAGE_DIR}"
+    return
+  fi
 
   for shell_test in \
     tests/test_repository_audit.sh \
@@ -366,7 +378,7 @@ run_fast() {
   run_fast_checks || return
 }
 
-run_static() {
+run_static_before() {
   local node_cmd
   local shellcheck_cmd
   local shfmt_cmd
@@ -402,10 +414,18 @@ run_static() {
     check_release_package_portability || return
     check_release_guard_contract || return
   fi
-  run_python_coverage "${AUDIT_COVERAGE_DIR:-}" || return
-  run_shell_behavior_tests || return
+}
+
+run_static_after() {
   run_script_smoke || return
   run_commitlint || return
+}
+
+run_static() {
+  run_static_before || return
+  run_python_coverage "${AUDIT_COVERAGE_DIR:-}" || return
+  run_shell_behavior_tests || return
+  run_static_after || return
 }
 
 run_readonly() {

@@ -252,10 +252,10 @@ deferred, or explicitly excluded from the template.
 - Usage: Executes on every branch and tag push without path filters, pull
   requests targeting `main` or `master`, published releases, and manual dispatch.
   Reference deletions report that no new commit exists and skip content checks.
-- Notes: `quality-linux` runs the exhaustive profile on Ubuntu 24.04 with
-  Python 3.11; `compatibility-windows` runs the fast profile, complete Python
-  suite, focused Git Bash hook cases, and PSScriptAnalyzer on Windows 2025 with
-  Python 3.14. Both use Node.js
+- Notes: The seven-job graph contains activation, two fresh OS checks, one
+  common qualification decision, two conditional heavy OS suites and the
+  aggregate. Linux uses Ubuntu 24.04 with Python 3.11; Windows uses Windows
+  2025 with Python 3.14. Both use Node.js
   24.20.0, actions pinned by SHA, locked Python and npm dependencies, and the
   integrity-pinned external-tool installer without a Go bootstrap. Download
   caches use the dependency locks and runtime policy; installs still verify
@@ -266,9 +266,16 @@ deferred, or explicitly excluded from the template.
   coverage is measured on both OSes; Linux keeps its floors and the aggregate
   verifies matching artifact inputs before enforcing the combined floors. The
   aggregate requires both environments and uses `Repository audit` for
-  automatic events and `Repository audit (manual)` for manual runs. Read-only
-  permissions, disabled checkout credential persistence, and the absence of a
-  forwarded workflow token keep checked-out audit code unprivileged. Linux also
+  automatic events and `Repository audit (manual)` for manual runs. The
+  aggregate uses a depth-one checkout; OS jobs retain full commit history.
+  A default-disabled manual `qualification_experiment` input adds six native
+  samples and their experimental aggregate; ordinary seven-job checks remain
+  unchanged. See the accepted F14 protocol in `docs/release-package.md`.
+  The narrowly guarded source-only
+  [qualification protocol](release-package.md#controlled-ci-qualification)
+  can reuse one original OS pair; local exhaustive profiles remain complete.
+  Read-only permissions and disabled checkout credential persistence keep
+  checked-out audit code unprivileged. Linux also
   runs the attested `npm-security.py audit` gate and pip-audit on both Python
   locks: unhandled high/critical npm advisories and verification errors block
   the job; the attested upstream braces report remains visible. Ordinary
@@ -310,7 +317,8 @@ deferred, or explicitly excluded from the template.
   phase revalidates source, base, transfer hashes, and the target ref before a
   lease-protected push and pull request update. It restricts changes to the
   seven rules and provenance, preserves customized rule files, and runs in the
-  starter kit as well as downstream repositories. When
+  starter kit as well as downstream repositories. Its prepare and publish
+  checkouts use depth one; transfer validation binds exact objects and refs. When
   `.starter-kit-project.json` exists, `automations.agentRulesSync` controls
   scheduled and release-triggered synchronization; manual synchronization
   remains available on the default branch even when that flag is `false`.
@@ -336,9 +344,13 @@ deferred, or explicitly excluded from the template.
   dependent `publish` job alone has `contents: write` and the `release`
   environment. It checks out no repository, executes no downloaded payload,
   revalidates the three names and SHA-256 values before exposing its
-  write-scoped token, and uploads without overwriting an existing asset.
+  write-scoped token, compares all remote assets before mutation, reuses
+  identical uploads and sends only missing files. It refuses mismatches,
+  duplicates and unknown assets; an absent digest is verified by streaming
+  the exact asset ID. Only a confirmed empty `starter` residue is repairable.
   Tag-scoped concurrency does not cancel an in-progress run. Automatic runs use
-  `latest` and promote a prerelease only after upload; manual runs validate an
+  `latest` and promote a prerelease only after checking the release identity
+  and all three remote assets again; manual runs validate an
   explicit release tag and never promote. Actions are pinned by SHA, checkout
   credentials are not persisted, and both jobs are limited to the exact
   canonical repository. This source-only workflow is excluded from derived
@@ -723,7 +735,8 @@ deferred, or explicitly excluded from the template.
 - Goal: Generates a starter-kit release package enriched with agent rules.
 - Usage: Run from the release package workflow or manually with PowerShell.
 - Notes: Copies core paths from the tracked release manifest for SemVer
-  packages, resolves `latest` through the public GitHub release API by default,
+  packages, reads contents and modes from the selected `HEAD` with its explicit
+  CRLF text attributes, resolves `latest` through the public GitHub release API by default,
   and verifies tracked rule hashes and
   provenance against that release. It writes repository provenance plus
   per-file raw and canonical SHA-256 hashes, content kinds, modes, and upgrade
@@ -740,7 +753,9 @@ deferred, or explicitly excluded from the template.
   command rejects every repository slug or `origin` except the canonical
   `asphyx0r/git-starter-kit` repository. It validates a sibling temporary ZIP
   before atomic same-volume publication, preserving an existing destination
-  on build, validation, or replacement failure. The tool is excluded from
+  on build, validation, or replacement failure. Each temporary cleanup is
+  attempted independently without masking an earlier error or deleting a
+  validated ZIP already published. The tool is excluded from
   packages distributed to derived repositories.
 
 ### `tools/README.md`
@@ -786,12 +801,25 @@ deferred, or explicitly excluded from the template.
 - Type: `file`
 - Status: `required`
 - Goal: Binds and combines source coverage measurements across Linux and Windows.
-- Usage: CI exports one successful OS measurement, then combines both matching
-  platform directories before running `check-coverage.py`.
+- Usage: CI records Python counts, shell outcomes and actual environments,
+  exports one successful OS measurement, then combines both matching platform
+  directories before running `check-coverage.py`.
 - Notes: Source-only tool, excluded from consumer packages. Requires exact
   commit/run/attempt identity, locked Coverage and policy,
   data/source hashes and safe relative source paths. Rejects missing or stale
-  inputs; produces the union report without relaxing Linux coverage floors.
+  inputs; produces union and Linux recheck reports without relaxing floors.
+
+### `tools/quality/qualification.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Resolves, verifies and seals an indivisible original CI qualification.
+- Usage: The source workflow invokes `resolve`, `verify` and `seal` with its
+  event identity and immutable evidence paths. Follow the
+  [canonical protocol](release-package.md#controlled-ci-qualification).
+- Notes: Source-only and excluded from consumer packages. Missing proof before
+  the common decision selects both full suites; lost proof after reuse fails
+  the aggregate. Consumers cannot renew the producer's identity or lifetime.
 
 ### `tools/quality/check-versions.py`
 
@@ -1095,6 +1123,16 @@ deferred, or explicitly excluded from the template.
 - Notes: Contains ordinary child processes in a Windows Job Object or a POSIX
   process group. Distributed with the release validator and standalone toolkit.
 
+### `tools/project_validation.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Resolves core ownership and runs declared application checks.
+- Usage: Hooks and CI use `--scope`, `--owns`, `--list-core` and `--list-owned`,
+  or execute the configured checks for `--repository-root` with a bounded timeout.
+- Notes: `--list-owned` validates and emits UTF-8/NUL paths including absent
+  managed files. Undecodable command output remains visible as escaped bytes.
+
 ### `tools/release-artifacts.py`
 
 - Type: `file`
@@ -1106,7 +1144,8 @@ deferred, or explicitly excluded from the template.
   index or a tagged tree.
 - Notes: Inventories Git blobs rather than working-tree files, ignores
   untracked and ignored content, validates Draft 2020-12 JSON Schema formats,
-  and never derives unknown business metadata.
+  and never derives unknown business metadata. Preparation validates template
+  and schema from the selected inventory snapshot before writing outputs.
 
 ### `tools/release-artifacts-requirements.txt`
 
@@ -1306,7 +1345,7 @@ deferred, or explicitly excluded from the template.
   command fixtures.
 - Notes: Covers canonical ref resolution, path and checksum sealing, preserved
   content, source and target races, lease-protected publication, pull request
-  handling, signal cleanup, and exact command boundaries. It is distributed by
+  handling, signal cleanup, shallow Git clones and exact command boundaries. It is distributed by
   replacement with the universal synchronization workflow.
 
 ### `tests/test_backup_target_directory.py`
@@ -1381,6 +1420,15 @@ deferred, or explicitly excluded from the template.
   repository identities and commit responses. GitHub operations are replaced
   by deterministic in-memory boundaries.
 
+### `tests/test_project_validation.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies ownership protocols, declared checks and exact pushed configuration.
+- Usage: Run `python -B -m unittest discover -s tests -p test_project_validation.py`.
+- Notes: Covers malformed inventories, UTF-8/NUL output, absent managed files,
+  invalid command-output bytes, failures, timeouts and Windows link limitations.
+
 ### `tests/test_quality_hooks.sh`
 
 - Type: `file`
@@ -1389,8 +1437,9 @@ deferred, or explicitly excluded from the template.
   hook helper behavior.
 - Usage: Run with Bash from the repository root.
 - Notes: Exercises argument, input, output, and failure propagation; missing
-  dependency guidance; affected-path classification; and initializer-owned
-  hook activation in disposable repositories.
+  dependency guidance; affected-path classification; initializer-owned hook
+  activation; both helper test modules from the pushed SHA; and one ownership
+  listing across managed/deleted and unrelated Unicode paths in disposable repositories.
 
 ### `tests/test_quality_pre_commit.sh`
 
@@ -1437,6 +1486,45 @@ deferred, or explicitly excluded from the template.
 - Usage: Run through Python unittest discovery with the locked Coverage runtime.
 - Notes: Covers OS path normalization, unioned branches, absent/stale/wrong-SHA
   measurements, altered source/data, malformed metadata, unsafe paths and CLI errors.
+
+### `tests/test_qualification.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects source CI qualification provenance and the shared fallback.
+- Usage: Run through Python unittest discovery with the locked quality runtime.
+- Notes: Exercises simulated read-only API responses, original-pair integrity,
+  eligibility, expiration, changing attempts and the three CLI commands.
+
+### `tests/test_qualification_workflow.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects the seven-job graph and source/consumer execution boundaries.
+- Usage: Run through Python unittest discovery; workflow scripts use local
+  fixtures and native command stubs.
+- Notes: Checks common heavy-suite decisions, fresh checks, fail-closed
+  aggregation, immediate Windows native-exit propagation and the optional
+  manual experiment's matrix, token permissions and result boundaries.
+
+### `tests/qualification_experiment.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Measures the accepted F14 full, reuse and fallback component experiment.
+- Usage: The opt-in manual audit calls its `run` and `aggregate` commands.
+- Notes: Source-only harness; runs real native suites and unchanged production
+  validators with explicitly simulated API eligibility, preserving original
+  measurements and four coverage floors. No tag or release is created.
+
+### `tests/test_qualification_experiment.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Protects experimental receipts, raw coverage checks and cost assembly.
+- Usage: Run through Python unittest discovery with the locked quality runtime.
+- Notes: Exercises complete sample/aggregate fixtures, tag/release identity,
+  missing or altered proof refusal and heavy-command failure propagation.
 
 ### `tests/test_workflow_contracts.py`
 
@@ -1527,6 +1615,42 @@ deferred, or explicitly excluded from the template.
 - Notes: Source-only evidence, excluded from consumer packages. Separates focused
   local tests, interrupted suites, hosted evidence and live governance settings.
 
+### `docs/superpowers/plans/2026-10-16-audit-remediation.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the approved F01-F16 correction scope and compatibility rules.
+- Usage: Follow its distinct lots, tests and qualification gates.
+- Notes: Source-only plan; it does not attest implementation or verification.
+
+### `docs/superpowers/reports/2026-10-16-audit-remediation-evidence.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Tracks F01-F16 corrections, review and verification evidence.
+- Usage: Distinguish focused results, failed/interrupted attempts and final
+  local or hosted qualification before closing findings.
+- Notes: Source-only evidence; preserves the original dated reports.
+
+### `docs/superpowers/reports/2026-10-16-f14-experiment.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records F14 closure under the accepted hosted experimental criterion.
+- Usage: Read with the canonical protocol and the companion JSON receipts.
+- Notes: Source-only results; distinguishes measured H from its later report
+  commit, component costs from actual job durations, and simulated eligibility
+  from real production release evidence.
+
+### `docs/superpowers/reports/2026-10-16-f14-experiment.json`
+
+- Type: `file`
+- Status: `required`
+- Goal: Retains exact experimental metrics, identities and artifact digests.
+- Usage: Inspect alongside the human-readable experiment report.
+- Notes: Source-only compact evidence; raw databases, ZIPs and logs are omitted.
+  Hashes preserve provenance after expiry but cannot reconstruct those inputs.
+
 ### `tests/test_release_artifacts.py`
 
 - Type: `file`
@@ -1537,6 +1661,17 @@ deferred, or explicitly excluded from the template.
   `python -B -m unittest tests.test_release_artifacts`.
 - Notes: Uses temporary Git repositories and leaves the source repository
   unchanged.
+
+### `tests/test_release_publication.py`
+
+- Type: `file`
+- Status: `required`
+- Goal: Verifies resumable release publication and native PowerShell exit codes.
+- Usage: Run the Python unittest suite with Git Bash and PowerShell available.
+- Notes: Executes the actual inline workflow scripts against confined local
+  process stubs; checks partial uploads, digest and identity failures, empty
+  starter recovery, promotion retries and exact pip/npm failure propagation.
+  This source-only suite never publishes real release assets.
 
 ### `tests/test_repository_audit.sh`
 

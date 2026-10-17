@@ -372,18 +372,138 @@ jobs:
           TRANSFER_ROOT: ${{ runner.temp }}/release-package-publish
           PACKAGE_NAME: ${{ needs.build.outputs.package_name }}
           TOOLKIT_NAME: ${{ needs.build.outputs.toolkit_name }}
+          EXPECTED_PACKAGE_SHA256: ${{ needs.build.outputs.package_sha256 }}
+          EXPECTED_TOOLKIT_SHA256: ${{ needs.build.outputs.toolkit_sha256 }}
         run: |
           set -euo pipefail
 
-          gh release upload "$RELEASE_TAG" \
-            "$TRANSFER_ROOT/$PACKAGE_NAME" \
-            "$TRANSFER_ROOT/$TOOLKIT_NAME" \
-            "$TRANSFER_ROOT/SHA256SUMS" \
-            --repo "$GH_REPO"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          from urllib.parse import quote
 
-          if [[ "$EVENT_NAME" = "release" && "$PRERELEASE" = "true" ]]; then
-            gh release edit "$RELEASE_TAG" \
-              --repo "$GH_REPO" \
-              --prerelease=false \
-              --latest
-          fi
+          repository = os.environ["GH_REPO"]
+          tag = os.environ["RELEASE_TAG"]
+          root = Path(os.environ["TRANSFER_ROOT"])
+          package = os.environ["PACKAGE_NAME"]
+          toolkit = os.environ["TOOLKIT_NAME"]
+          hashes = {
+              package: os.environ["EXPECTED_PACKAGE_SHA256"],
+              toolkit: os.environ["EXPECTED_TOOLKIT_SHA256"],
+          }
+          sums = "".join(f"{digest}  {name}\n" for name, digest in hashes.items()).encode("ascii")
+          hashes["SHA256SUMS"] = hashlib.sha256(sums).hexdigest()
+          expected = {}
+          for name, digest in hashes.items():
+              content = (root / name).read_bytes()
+              if hashlib.sha256(content).hexdigest() != digest:
+                  raise SystemExit(f"Sealed local payload changed: {name}")
+              expected[name] = (len(content), digest)
+
+          def api(endpoint, *arguments):
+              result = subprocess.run(
+                  ["timeout", "30s", "gh", "api", endpoint, *arguments],
+                  check=True, stdout=subprocess.PIPE,
+              )
+              return json.loads(result.stdout) if result.stdout.strip() else None
+
+          release = api(f"repos/{repository}/releases/tags/{quote(tag, safe='')}")
+          release_id = release["id"]
+          if type(release_id) is not int or release_id <= 0:
+              raise SystemExit("Invalid release ID.")
+          release_endpoint = f"repos/{repository}/releases/{release_id}"
+
+          def require_release(current):
+              if (
+                  current.get("id") != release_id or current.get("tag_name") != tag
+                  or current.get("draft") is not False or not current.get("published_at")
+                  or type(current.get("prerelease")) is not bool
+              ):
+                  raise SystemExit("Selected published release identity changed.")
+              return current
+
+          def asset_endpoint(asset):
+              asset_id = asset.get("id")
+              if type(asset_id) is not int or asset_id <= 0:
+                  raise SystemExit("Invalid release asset ID.")
+              return f"repos/{repository}/releases/assets/{asset_id}"
+
+          def require_uploaded(asset):
+              name = asset["name"]
+              size, digest = expected[name]
+              if asset.get("state") != "uploaded" or asset.get("size") != size:
+                  raise SystemExit(f"Release asset state or size differs: {name}")
+              asset_endpoint(asset)
+              remote_digest = asset.get("digest")
+              if remote_digest is None:
+                  checksum = hashlib.sha256()
+                  downloaded_size = 0
+                  with subprocess.Popen(
+                      ["timeout", "30s", "gh", "api", asset_endpoint(asset),
+                       "-H", "Accept: application/octet-stream"], stdout=subprocess.PIPE,
+                  ) as process:
+                      while chunk := process.stdout.read(1024 * 1024):
+                          downloaded_size += len(chunk)
+                          checksum.update(chunk)
+                      if process.wait() != 0:
+                          raise SystemExit(f"Cannot verify release asset: {name}")
+                  if (downloaded_size, checksum.hexdigest()) != (size, digest):
+                      raise SystemExit(f"Downloaded release asset differs: {name}")
+              elif (
+                  not isinstance(remote_digest, str)
+                  or re.fullmatch(r"sha256:[0-9a-f]{64}", remote_digest) is None
+                  or remote_digest != f"sha256:{digest}"
+              ):
+                  raise SystemExit(f"Release asset digest differs or is malformed: {name}")
+
+          def classify_assets(allow_starter):
+              pages = api(release_endpoint + "/assets", "--paginate", "--slurp")
+              assets = [asset for page in pages for asset in page]
+              by_name = {}
+              ids = set()
+              starters = []
+              for asset in assets:
+                  name = asset.get("name")
+                  endpoint = asset_endpoint(asset)
+                  if name not in expected or name in by_name or endpoint in ids:
+                      raise SystemExit("Unexpected or duplicate release asset.")
+                  by_name[name] = asset
+                  ids.add(endpoint)
+                  if allow_starter and asset.get("state") == "starter" and asset.get("size") == 0:
+                      starters.append(asset)
+                  else:
+                      require_uploaded(asset)
+              return by_name, starters
+
+          require_release(release)
+          existing, starters = classify_assets(allow_starter=True)
+          require_release(api(release_endpoint))
+          for asset in starters:
+              confirmed = api(asset_endpoint(asset))
+              if any(confirmed.get(key) != asset.get(key) for key in ("id", "name", "state", "size")):
+                  raise SystemExit("Incomplete release asset changed before repair.")
+          for asset in starters:
+              api(asset_endpoint(asset), "--method", "DELETE")
+          for name in expected:
+              if name not in existing or existing[name] in starters:
+                  api(
+                      f"https://uploads.github.com/repos/{repository}/releases/{release_id}"
+                      f"/assets?name={quote(name, safe='')}",
+                      "--method", "POST", "-H", "Content-Type: application/octet-stream",
+                      "--input", str(root / name),
+                  )
+
+          uploaded, _ = classify_assets(allow_starter=False)
+          if set(uploaded) != set(expected):
+              raise SystemExit("Release payload is incomplete after upload.")
+          current = require_release(api(release_endpoint))
+          if (
+              os.environ["EVENT_NAME"] == "release"
+              and os.environ["PRERELEASE"] == "true" and current["prerelease"]
+          ):
+              api(release_endpoint, "--method", "PATCH", "-F", "prerelease=false", "-f", "make_latest=true")
+          PY

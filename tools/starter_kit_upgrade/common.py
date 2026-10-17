@@ -147,25 +147,41 @@ class RunJournal:
     def finalize(self, exit_code: int) -> None:
         if self._stream is None:
             return
-        self.phase("summary", "START")
-        self.write("INFO", "summary", f"UPDATE_STATUS={self.update_status}")
-        self.write(
-            "INFO",
-            "summary",
-            f"OPERATIONAL_COMPLIANCE={self.operational_compliance}",
-        )
-        self.write(
-            "INFO",
-            "summary",
-            f"EXACT_RELEASE_ALIGNMENT={self.exact_release_alignment}",
-        )
-        self.write("INFO", "summary", f"EXIT_CODE={exit_code}")
-        self.phase("summary", "END")
-        self.write("INFO", "run", "RUN_END")
-        self._stream.flush()
-        os.fsync(self._stream.fileno())
-        self._stream.close()
+        stream = self._stream
+        failure = None
+        try:
+            self.phase("summary", "START")
+            self.write("INFO", "summary", f"UPDATE_STATUS={self.update_status}")
+            self.write(
+                "INFO",
+                "summary",
+                f"OPERATIONAL_COMPLIANCE={self.operational_compliance}",
+            )
+            self.write(
+                "INFO",
+                "summary",
+                f"EXACT_RELEASE_ALIGNMENT={self.exact_release_alignment}",
+            )
+            self.write("INFO", "summary", f"EXIT_CODE={exit_code}")
+            self.phase("summary", "END")
+            self.write("INFO", "run", "RUN_END")
+        except BaseException as error:
+            failure = error
+        for operation, finish in (
+            ("flush", stream.flush),
+            ("fsync", lambda: os.fsync(stream.fileno())),
+            ("close", stream.close),
+        ):
+            try:
+                finish()
+            except BaseException as error:
+                if failure is None:
+                    failure = error
+                else:
+                    failure.add_note(f"Journal {operation} failed: {error}")
         self._stream = None
+        if failure is not None:
+            raise failure
         timestamp = self._now().strftime(LOG_TIMESTAMP_FORMAT)
         print(f"{timestamp} Log file: {self.path}", file=sys.stderr)
 

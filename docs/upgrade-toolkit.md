@@ -88,11 +88,22 @@ Un verdict final `NON_COMPLIANT` produit un code de sortie non nul et l'état
 avec une application réussie lorsque les stratégies sont respectées. Si une
 modification concurrente cause l'échec du contrôle final, elle est préservée.
 
-Le mode `--dry-run` ne réalise aucune écriture et ne crée aucun journal.
-Il en va de même pour l'aide, la version, les erreurs d'arguments et les erreurs
-survenant avant que la release cible puisse être résolue. Après cette
+Le mode `--dry-run` n'applique aucune modification aux fichiers de la cible et
+ne crée ni archive de sortie, ni sauvegarde, ni journal. Les vérifications de
+fusion peuvent créer puis nettoyer des fichiers temporaires : le répertoire
+temporaire du système doit être accessible en écriture. Ce mode ne désactive
+pas les éventuelles actualisations des métadonnées locales par Git.
+L'aide, la version, les erreurs d'arguments et les erreurs survenant avant
+résolution de la release cible ne créent pas non plus de journal. Après cette
 résolution, les échecs et leur trace complète sont consignés. Si le journal ne
 peut pas être créé, aucune archive ni aucun fichier cible n'est écrit.
+
+Une panne du journal ne masque jamais l'erreur ou l'interruption initiale.
+La finalisation tente la synthèse, le vidage, la synchronisation et la fermeture,
+en signalant aussi les erreurs secondaires sur stderr. Si elle échoue seule
+après une application réussie, le code de sortie est non nul, mais les changements
+appliqués sont conservés ; aucun rollback n'est annoncé. Examiner le résultat et
+les diagnostics avant de relancer. La sortie JSON est maintenue sur stdout.
 
 ## Traitement des fichiers
 
@@ -107,6 +118,15 @@ Chaque fichier est associé à une stratégie :
 - `starter-kit-state` : conserve la release `source`, puis met à jour `current` et l'inventaire du core.
 - Fichier supprimé du starter : conservé, jamais supprimé automatiquement.
 - Fichier non suivi sans rapport : conservé.
+
+Un fichier local déclaré comme texte mais non décodable en UTF-8 est conservé.
+Son entrée de plan porte `localCanonicalSha256: null` et un champ additionnel
+`localRawSha256`, utilisé pour détecter les modifications concurrentes. Les
+plans de textes valides gardent leur forme JSON. Les stratégies `replace` et
+`merge` signalent `conflict-modified`, sans fusion ; `initialize-only` et les
+règles déléguées conservent leurs politiques. Toute provenance ou tout état géré
+JSON malformé est traité comme un état conflictuel. Les formats et contrôles d'archives et
+d'adoption ne sont pas assouplis.
 
 Les documentations et audits propres au dépôt, notamment `docs/SKILLS.md`, `docs/repository-files.md`,
 `tools/README.md` et `tools/repository-audit.sh`, ne sont donc pas écrasés aveuglément.

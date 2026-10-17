@@ -25,6 +25,7 @@ files = [
   "tools/repository-audit/workflow-contracts.py",
   "tools/quality/check-coverage.py",
   "tools/quality/coverage-artifacts.py",
+  "tools/quality/qualification.py",
   "tools/quality/install-external-tools.py",
   "tools/quality/npm-security.py",
 ]

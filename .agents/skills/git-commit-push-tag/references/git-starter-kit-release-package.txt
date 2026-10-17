@@ -66,9 +66,19 @@ Réutilisation limitée des preuves complémentaires
 - Exécute toujours les contrôles obligatoires à leur point prévu : fichier
   exact du commit, index, objets poussés, head de PR, commit fusionné, audit
   complet, prévalidation distante, branche/tag et assets téléchargés. Un même
-  SHA ne dispense d'aucun de ces contrôles. Conserve la sélection des familles
+  SHA ne dispense d'aucun de ces contrôles, sous réserve de l'exception CI
+  contrôlée ci-dessous. Conserve la sélection des familles
   par les hooks, la suite complète pour une nouvelle branche, les timeouts et
   les critères CI existants. Ne crée aucun cache persistant de validation.
+
+- Exception CI approuvée le 2026-10-16 : dans le dépôt source canonique,
+  les suites lourdes d'un tag SemVer ou d'une release peuvent réemployer une
+  paire Linux/Windows originale vérifiée selon le protocole canonique
+  `docs/release-package.md#controlled-ci-qualification`. Tous les contrôles
+  frais, les seuils, l'identité et l'expiration restent imposés. Cette exception
+  ne dispense d'aucun hook, audit local, contrôle de PR, prévalidation ou
+  contrôle d'un dépôt consommateur. Sans preuve admissible, exécute les deux
+  qualifications complètes courantes.
 
 Un propriétaire et un suivi par exécution
 

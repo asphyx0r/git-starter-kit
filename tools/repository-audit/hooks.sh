@@ -48,7 +48,10 @@ classify_hook_path() {
   tools/build-release-package.ps1 | tests/test_build_release_package.py)
     module=test_build_release_package.py
     ;;
-  tools/initialize-repository.py | tools/git-init.sh | tools/git-init.ps1 | tests/test_git_init.py)
+  tools/initialize-repository.py)
+    module='test_git_init.py test_initialize_repository.py'
+    ;;
+  tools/git-init.sh | tools/git-init.ps1 | tests/test_git_init.py)
     module=test_git_init.py
     ;;
   tools/quality/npm-security.py | tools/quality/patches/braces-3.0.3/* | tests/fixtures/braces-3.0.3.tgz | tests/fixtures/fill-range-7.1.1.tgz | tests/fixtures/to-regex-range-5.0.1.tgz | tests/fixtures/is-number-7.0.0.tgz)
@@ -122,8 +125,13 @@ classify_hook_path() {
     full_snapshot=true
     if [[ "${module}" == '*' || "${python_modules:-}" == '*' ]]; then
       python_modules='*'
-    elif [[ " ${python_modules:-} " != *" ${module} "* ]]; then
-      python_modules="${python_modules:+${python_modules} }${module}"
+    else
+      local selected_python
+      for selected_python in ${module}; do
+        if [[ " ${python_modules:-} " != *" ${selected_python} "* ]]; then
+          python_modules="${python_modules:+${python_modules} }${selected_python}"
+        fi
+      done
     fi
   fi
 }
@@ -478,6 +486,16 @@ run_hook_runtime_preflight() {
     --runtime-root "${runtime_root}" "${arguments[@]}"
 }
 
+is_hook_owned_path() {
+  local changed_path="$1"
+  shift
+  local owned_path
+  for owned_path in "$@"; do
+    [[ "${changed_path}" == "${owned_path}" ]] && return 0
+  done
+  return 1
+}
+
 run_hook_pre_commit() (
   local staged_file
   local hook_temp
@@ -510,6 +528,16 @@ run_hook_pre_commit() (
   hook_selection_scope="$(resolve_validation_scope "${metadata_root}")" || return
   local selection_python
   selection_python="$(resolve_hook_python)" || return
+  local -a owned_paths=()
+  if [[ "${hook_selection_scope}" == project ]]; then
+    local owned_names="${hook_temp}/owned.names"
+    "${selection_python}" -B "${audit_script_dir}/project_validation.py" \
+      --repository-root "${metadata_root}" --list-owned >"${owned_names}" || return
+    local owned_path
+    while IFS= read -r -d '' owned_path; do
+      owned_paths+=("${owned_path}")
+    done <"${owned_names}"
+  fi
   printf 'Core validation scope: %s (staged configuration)\n' "${hook_selection_scope}"
 
   local -a markdown_paths=()
@@ -536,8 +564,7 @@ run_hook_pre_commit() (
     >"${staged_names}" || return $?
   while IFS= read -r -d '' staged_file; do
     if [[ "${hook_selection_scope}" == project ]] &&
-      ! "${selection_python}" -B "${audit_script_dir}/project_validation.py" \
-        --repository-root "${metadata_root}" --owns "${staged_file}"; then
+      ! is_hook_owned_path "${staged_file}" "${owned_paths[@]}"; then
       continue
     fi
     case "${staged_file}" in
@@ -570,8 +597,7 @@ run_hook_pre_commit() (
     .markdownlint-cli2.yaml >"${configuration_names}" || return $?
   while IFS= read -r -d '' staged_file; do
     if [[ "${hook_selection_scope}" == project ]] &&
-      ! "${selection_python}" -B "${audit_script_dir}/project_validation.py" \
-        --repository-root "${metadata_root}" --owns "${staged_file}"; then
+      ! is_hook_owned_path "${staged_file}" "${owned_paths[@]}"; then
       continue
     fi
     case "${staged_file}" in

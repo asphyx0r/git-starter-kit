@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import shutil
@@ -129,6 +130,134 @@ class ProjectValidationTests(unittest.TestCase):
         )
         self.assertEqual(project_validation.run_checks(self.root, timeout=5), 0)
         self.assertEqual((self.root / "application/ran").read_text(), "yes")
+
+    def test_invalid_command_output_retains_both_streams_and_exit_status(self):
+        script = Path(project_validation.__file__).resolve()
+        for command_status, expected_status in ((0, 0), (3, 1)):
+            with self.subTest(command_status=command_status):
+                self.write_configuration(
+                    [
+                        self.check(
+                            "import os; "
+                            "os.write(1, b'stdout-before\\xff-after\\n'); "
+                            "os.write(2, b'stderr-before\\x81-after\\n'); "
+                            f"raise SystemExit({command_status})"
+                        )
+                    ]
+                )
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-X",
+                        "utf8",
+                        "-B",
+                        str(script),
+                        "--repository-root",
+                        str(self.root),
+                    ],
+                    capture_output=True,
+                    encoding="utf-8",
+                    check=False,
+                    timeout=10,
+                )
+                self.assertEqual(
+                    result.returncode, expected_status, result.stdout + result.stderr
+                )
+                self.assertIn("stdout-before\\xff-after\n", result.stdout)
+                self.assertIn("stderr-before\\x81-after\n", result.stderr)
+                self.assertNotIn("None", result.stdout + result.stderr)
+                self.assertNotIn("Traceback", result.stdout + result.stderr)
+                self.assertIn(
+                    "application: passed"
+                    if command_status == 0
+                    else "application: failed",
+                    result.stdout,
+                )
+
+    def test_list_owned_includes_absent_paths_without_changing_list_core(self):
+        self.inventory(["docs/café [space].md", "tools/absent λ.py"])
+        (self.root / "tools/absent λ.py").unlink()
+        self.write_configuration()
+        arguments = ["--repository-root", str(self.root)]
+        script = Path(project_validation.__file__).resolve()
+        owned = subprocess.run(
+            [sys.executable, "-B", str(script), *arguments, "--list-owned"],
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(owned.returncode, 0, owned.stderr)
+        self.assertIn("docs/café [space].md\0".encode("utf-8"), owned.stdout)
+        self.assertEqual(
+            set(owned.stdout.decode("utf-8").rstrip("\0").split("\0")),
+            {
+                "_starter-kit-files.json",
+                ".starter-kit-project.json",
+                "starter-kit-manifest.json",
+                "VERSION",
+                "CHANGELOG.md",
+                "SHA256SUMS",
+                "manifest.json",
+                "docs/café [space].md",
+                "tools/absent λ.py",
+            },
+        )
+        present = io.StringIO()
+        with contextlib.redirect_stdout(present):
+            self.assertEqual(project_validation.main([*arguments, "--list-core"]), 0)
+        self.assertEqual(
+            set(present.getvalue().rstrip("\0").split("\0")),
+            {
+                "_starter-kit-files.json",
+                ".starter-kit-project.json",
+                "docs/café [space].md",
+            },
+        )
+
+    def test_list_owned_rejects_unsafe_inventory_before_writing_paths(self):
+        self.inventory(["tools/core.py"])
+        inventory = self.root / "_starter-kit-files.json"
+        value = json.loads(inventory.read_text(encoding="utf-8"))
+        value["files"].append({"path": "../escape.py", "mode": "100644"})
+        inventory.write_text(json.dumps(value), encoding="utf-8")
+        output = io.StringIO()
+        error = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            self.assertEqual(
+                project_validation.main(
+                    ["--repository-root", str(self.root), "--list-owned"]
+                ),
+                1,
+            )
+        self.assertEqual(output.getvalue(), "")
+        self.assertIn("Unsafe managed inventory path", error.getvalue())
+
+    def test_list_owned_rejects_unencodable_inventory_before_writing_paths(self):
+        (self.root / "_starter-kit-files.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 3,
+                    "files": [{"path": "zzz/\ud800.py", "mode": "100644"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(Path(project_validation.__file__).resolve()),
+                "--repository-root",
+                str(self.root),
+                "--list-owned",
+            ],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout, b"")
 
     def test_failed_missing_binary_missing_cwd_and_timeout_block(self):
         for check in (

@@ -89,7 +89,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.activation.outputs.trusted_sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
           path: target
 
@@ -207,7 +207,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.prepare.outputs.target_base_commit }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
           path: target
 

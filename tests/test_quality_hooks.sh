@@ -194,7 +194,7 @@ if [[ "${1:-}" == --selection ]]; then
   assert_selection 'unknown file.bin' '*' true false
   assert_selection tests/test_quality_toolchain.py test_quality_toolchain.py true false ''
   assert_selection tests/test_git_init.py test_git_init.py true false ''
-  assert_selection tools/initialize-repository.py test_git_init.py true false ''
+  assert_selection tools/initialize-repository.py 'test_git_init.py test_initialize_repository.py' true false ''
   assert_selection tools/git-init.sh test_git_init.py true false ''
   assert_selection tools/git-init.ps1 test_git_init.py true false ''
   assert_selection tools/quality/npm-security.py test_npm_security.py true false ''
@@ -209,6 +209,15 @@ if [[ "${1:-}" == --selection ]]; then
   assert_selection .githooks/commit-msg '' false false 'test_quality_hooks.sh test_commit_message_validation.sh'
   assert_selection tools/repository-audit/hooks.sh '*' true false '*'
   assert_selection 'tests/test_with spaces.py' '*' true false '*'
+  (
+    run_python=false run_shell=false run_workflows=false full_snapshot=false
+    python_modules='' shell_modules=''
+    classify_hook_path tests/test_git_init.py
+    classify_hook_path tools/initialize-repository.py
+    classify_hook_path tools/initialize-repository.py
+    [[ "${python_modules}" == 'test_git_init.py test_initialize_repository.py' ]] ||
+      fail 'initializer suites were not selected exactly once'
+  )
   selected_root="${test_temp}/selected tests"
   mkdir -p "${selected_root}/tests"
   printf 'raise AssertionError("unrelated test was selected")\n' >"${selected_root}/tests/test_unrelated.py"
@@ -234,6 +243,138 @@ if [[ "${1:-}" == --selection ]]; then
     fail 'empty mandatory shell selection silently passed'
   fi
   printf '%s\n' 'PASS: centralized affected-check selection'
+  exit 0
+fi
+if [[ "${1:-}" == --initializer-routing ]]; then
+  initializer_fixture="${test_temp}/initializer pushed revision"
+  mkdir -p "${initializer_fixture}/tools" "${initializer_fixture}/tests"
+  initialize_fixture "${initializer_fixture}"
+  printf 'base helper\n' >"${initializer_fixture}/tools/initialize-repository.py"
+  for initializer_suite in test_git_init.py test_initialize_repository.py; do
+    cat >"${initializer_fixture}/tests/${initializer_suite}" <<'INITIALIZER_TEST'
+import os
+from pathlib import Path
+import unittest
+
+
+class InitializerRouting(unittest.TestCase):
+    def test_pushed_helper(self):
+        self.assertEqual(
+            Path("tools/initialize-repository.py").read_text(), "pushed helper\n"
+        )
+        with Path(os.environ["QUALITY_INITIALIZER_TRACE"]).open("a", newline="\n") as trace:
+            trace.write(Path(__file__).name + "\n")
+INITIALIZER_TEST
+  done
+  printf 'raise AssertionError("unrelated test selected")\n' \
+    >"${initializer_fixture}/tests/test_unrelated.py"
+  git -C "${initializer_fixture}" add .
+  git -C "${initializer_fixture}" commit -q -m 'test: initializer base'
+  initializer_base="$(git -C "${initializer_fixture}" rev-parse HEAD)"
+  printf 'pushed helper\n' >"${initializer_fixture}/tools/initialize-repository.py"
+  git -C "${initializer_fixture}" add tools/initialize-repository.py
+  git -C "${initializer_fixture}" commit -q -m 'test: change initializer helper'
+  initializer_pushed="$(git -C "${initializer_fixture}" rev-parse HEAD)"
+  printf 'dirty helper\n' >"${initializer_fixture}/tools/initialize-repository.py"
+  printf 'raise AssertionError("working tree test selected")\n' \
+    >"${initializer_fixture}/tests/test_git_init.py"
+  export QUALITY_INITIALIZER_TRACE="${test_temp}/initializer.trace"
+  repository_root="${initializer_fixture}"
+  cd "${repository_root}"
+  printf 'refs/heads/one %s refs/heads/one %s\nrefs/heads/two %s refs/heads/two %s\n' \
+    "${initializer_pushed}" "${initializer_base}" \
+    "${initializer_pushed}" "${initializer_base}" | run_hook_pre_push origin example
+  printf '%s\n' test_git_init.py test_initialize_repository.py \
+    >"${test_temp}/initializer.expected"
+  cmp -s "${test_temp}/initializer.expected" "${QUALITY_INITIALIZER_TRACE}" ||
+    fail 'pushed initializer helper did not run both suites exactly once'
+  printf '%s\n' 'PASS: initializer suites run once from the pushed revision'
+  exit 0
+fi
+if [[ "${1:-}" == --ownership ]]; then
+  ownership_fixture="${test_temp}/consumer ownership"
+  ownership_bin="${test_temp}/ownership-bin"
+  mkdir -p "${ownership_fixture}/docs" "${ownership_fixture}/tools/quality" "${ownership_bin}"
+  initialize_fixture "${ownership_fixture}"
+  printf 'base\n' >"${ownership_fixture}/tools/quality/requirements.lock"
+  python -B - "${ownership_fixture}" <<'INVENTORY'
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+paths = ["docs/managed [café].md", "tools/quality/requirements.lock"]
+(root / "_starter-kit-files.json").write_text(
+    json.dumps({"schemaVersion": 3, "files": [
+        {"path": path, "mode": "100644"} for path in paths
+    ]}), encoding="utf-8"
+)
+INVENTORY
+  git -C "${ownership_fixture}" add .
+  git -C "${ownership_fixture}" commit -q -m 'test: ownership base'
+  printf 'owned\n' >"${ownership_fixture}/docs/managed [café].md"
+  printf 'application\n' >"${ownership_fixture}/docs/managed c.md"
+  for ((application_index = 0; application_index < ${QUALITY_OWNERSHIP_APPLICATION_COUNT:-100}; application_index += 1)); do
+    printf 'application\n' >"${ownership_fixture}/docs/application ${application_index}.md"
+  done
+  git -C "${ownership_fixture}" rm -q tools/quality/requirements.lock
+  git -C "${ownership_fixture}" add docs
+  export QUALITY_REAL_PYTHON
+  QUALITY_REAL_PYTHON="$(command -v python)"
+  export QUALITY_OWNERSHIP_TRACE="${test_temp}/ownership.calls"
+  export QUALITY_OWNERSHIP_STATUS=0
+  cat >"${ownership_bin}/python" <<'OWNERSHIP_PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+for argument in "$@"; do
+  case "${argument}" in
+  --list-owned | --owns)
+    printf '%s\n' "${argument}" >>"${QUALITY_OWNERSHIP_TRACE}"
+    [[ "${argument}" != --owns ]] || exit 0
+    if [[ "${argument}" == --list-owned && "${QUALITY_OWNERSHIP_STATUS}" != 0 ]]; then
+      exit "${QUALITY_OWNERSHIP_STATUS}"
+    fi
+    ;;
+  esac
+done
+exec "${QUALITY_REAL_PYTHON}" "$@"
+OWNERSHIP_PYTHON
+  chmod +x "${ownership_bin}/python"
+  run_hook_secret_scan() { return 0; }
+  run_hook_runtime_preflight() { return 0; }
+  run_hook_markdown() {
+    shift
+    printf '%s\n' "$@" >"${test_temp}/ownership.markdown"
+  }
+  run_hook_quality_declarations() { printf 'checked\n' >"${test_temp}/ownership.declarations"; }
+  repository_root="${ownership_fixture}"
+  cd "${repository_root}"
+  PATH="${ownership_bin}:${PATH}" run_hook_pre_commit
+  printf '%s\n' --list-owned >"${test_temp}/ownership.expected-calls"
+  cmp -s "${test_temp}/ownership.expected-calls" "${QUALITY_OWNERSHIP_TRACE}" ||
+    fail 'consumer ownership was not loaded in exactly one Python invocation'
+  printf './docs/managed [café].md\n' >"${test_temp}/ownership.expected-markdown"
+  cmp -s "${test_temp}/ownership.expected-markdown" "${test_temp}/ownership.markdown" ||
+    fail 'consumer ownership did not preserve exact paths with spaces and Unicode'
+  [[ -f "${test_temp}/ownership.declarations" ]] ||
+    fail 'deleted owned quality declaration was skipped'
+  rm "${test_temp}/ownership.markdown" "${test_temp}/ownership.declarations"
+  QUALITY_OWNERSHIP_STATUS=23
+  ownership_status=0
+  PATH="${ownership_bin}:${PATH}" run_hook_pre_commit || ownership_status=$?
+  ((ownership_status == 23)) || fail 'ownership listing failure did not block the hook'
+  [[ ! -e "${test_temp}/ownership.markdown" && ! -e "${test_temp}/ownership.declarations" ]] ||
+    fail 'validators ran after ownership listing failed'
+  QUALITY_OWNERSHIP_STATUS=0
+  printf '{"schemaVersion":3,"files":[{"path":"../escape","mode":"100644"}]}' \
+    >"${ownership_fixture}/_starter-kit-files.json"
+  git -C "${ownership_fixture}" add _starter-kit-files.json
+  if PATH="${ownership_bin}:${PATH}" run_hook_pre_commit; then
+    fail 'unsafe ownership inventory was accepted'
+  fi
+  [[ ! -e "${test_temp}/ownership.markdown" && ! -e "${test_temp}/ownership.declarations" ]] ||
+    fail 'validators ran with unsafe inventory'
+  printf '%s\n' 'PASS: one ownership listing preserves consumer selection and failures'
   exit 0
 fi
 run_hook_secret_scan() { return 0; }
@@ -750,3 +891,5 @@ fi
 printf '%s\n' 'PASS: locked quality hook behavior'
 bash "${source_root}/tests/test_quality_hooks.sh" --selection
 bash "${source_root}/tests/test_quality_hooks.sh" --security
+bash "${source_root}/tests/test_quality_hooks.sh" --initializer-routing
+bash "${source_root}/tests/test_quality_hooks.sh" --ownership

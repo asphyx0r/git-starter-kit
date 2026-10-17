@@ -477,6 +477,9 @@ conflicts, and an existing backup directory outside the target.
 Every non-dry-run command writes a detailed execution journal below `logs/` in
 the current directory. The log filename identifies the target release and run
 timestamp. Dry-run, help, version, and argument-parser exits do not write logs.
+Dry-run leaves target files, output archives, and backups unchanged. Merge
+checks may create temporary files, which are cleaned up, and require a writable
+system temporary directory.
 """
     if args.dry_run:
         print(

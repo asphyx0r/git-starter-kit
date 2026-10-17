@@ -131,7 +131,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="validate and print the execution plan without writing",
+        help=(
+            "print the plan without target, archive, backup, or journal writes; "
+            "merge checks create and clean temporary files "
+            "(writable temporary directory required)"
+        ),
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="show additional diagnostics"
@@ -149,7 +153,9 @@ def build_parser() -> argparse.ArgumentParser:
     toolkit.add_argument("--new-package", type=Path, required=True)
     toolkit.add_argument("--output", type=Path, required=True)
 
-    plan = subparsers.add_parser("plan", help="inspect a target without writing")
+    plan = subparsers.add_parser(
+        "plan", help="inspect a target and report upgrade actions"
+    )
     plan.add_argument("--upgrade-package", type=Path, required=True)
     plan.add_argument("--target", type=Path, required=True)
 
@@ -171,6 +177,7 @@ def main(
     args = parser.parse_args(arguments)
     journal = None if args.dry_run else journal_factory(args.command, arguments)
     exit_code = 1
+    operation_error = None
     try:
         if args.command == "build":
             exit_code = build_upgrade(args, journal)
@@ -182,21 +189,53 @@ def main(
                 journal,
                 payload_writer=payload_writer,
             )
-    except (OSError, UpgradeError, subprocess.SubprocessError) as error:
+    except BaseException as error:
+        operation_error = error
         if journal is not None:
-            journal.record_exception(error)
-        if getattr(args, "verbose", False):
+            try:
+                journal.record_exception(error)
+            except BaseException as journal_error:
+                _report_journal_failure(
+                    error, args.command, "exception recording", journal_error
+                )
+        if (
+            not isinstance(error, (OSError, UpgradeError, subprocess.SubprocessError))
+            or args.verbose
+        ):
             raise
         print(f"Error: {error}", file=sys.stderr)
         exit_code = 1
-    except BaseException as error:
-        if journal is not None:
-            journal.record_exception(error)
-        raise
     finally:
         if journal is not None:
-            journal.finalize(exit_code)
+            try:
+                journal.finalize(exit_code)
+            except BaseException as journal_error:
+                _report_journal_failure(
+                    operation_error, args.command, "finalization", journal_error
+                )
+                if operation_error is None and isinstance(
+                    journal_error, (KeyboardInterrupt, SystemExit)
+                ):
+                    raise
+                exit_code = 1
     return exit_code
+
+
+def _report_journal_failure(
+    operation_error: BaseException | None,
+    command: str,
+    phase: str,
+    journal_error: BaseException,
+) -> None:
+    details = (
+        f"{type(journal_error).__name__}: {journal_error}",
+        *getattr(journal_error, "__notes__", ()),
+    )
+    for detail in details:
+        diagnostic = f"{command} journal {phase} failed: {detail}"
+        if operation_error is not None:
+            operation_error.add_note(diagnostic)
+        print(f"Error: {diagnostic}", file=sys.stderr)
 
 
 __all__ = [

@@ -73,6 +73,8 @@ class CoverageArtifactsTests(unittest.TestCase):
         report = self.artifacts.combine(self.root, self.output)
         self.assertEqual(report["totals"]["covered_branches"], 2)
         self.assertEqual(report["totals"]["num_branches"], 2)
+        linux = json.loads((self.output / "linux-rechecked.json").read_text())
+        self.assertEqual(linux["totals"]["covered_branches"], 1)
         paths = [Path(name.replace("\\", "/")) for name in report["files"]]
         self.assertEqual(
             {
@@ -166,6 +168,275 @@ class CoverageArtifactsTests(unittest.TestCase):
         path.write_text(json.dumps({"python": {"coverage": "0.0.0"}}), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "runtime"):
             self.artifacts.combine(self.root, self.output)
+
+    def test_original_pair_can_be_rechecked_without_relabelling_metadata(self):
+        expected = self.artifacts.identity(self.root)
+        before = (self.output / "linux/metadata.json").read_bytes()
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "999"}):
+            with self.assertRaises(ValueError):
+                self.artifacts.combine(self.root, self.output)
+            report = self.artifacts.combine(
+                self.root, self.output, expected_identity=expected
+            )
+        self.assertEqual(report["totals"]["covered_branches"], 2)
+        self.assertEqual((self.output / "linux/metadata.json").read_bytes(), before)
+
+    def test_test_runner_records_real_success_failure_and_skips(self):
+        self.assertTrue(hasattr(self.artifacts, "run_tests"))
+        suite = unittest.TestSuite(
+            [
+                unittest.FunctionTestCase(lambda: None),
+                unittest.FunctionTestCase(lambda: self.skipTest("fixture skip")),
+                unittest.FunctionTestCase(lambda: self.fail("fixture failure")),
+            ]
+        )
+        output = self.root / "tests.json"
+        with redirect_stderr(io.StringIO()):
+            status = self.artifacts.run_tests(output, suite=suite)
+        self.assertEqual(status, 1)
+        report = json.loads(output.read_text())
+        self.assertEqual(
+            (report["run"], report["skipped"], report["failures"]), (3, 1, 1)
+        )
+        self.assertGreaterEqual(report["seconds"], 0)
+
+    def test_coverage_script_runner_imports_root_namespace_without_pythonpath(self):
+        tests = self.root / "tests"
+        tests.mkdir()
+        (tests / "test_namespace.py").write_text(
+            "import unittest\nfrom tools.example import classify\n"
+            "class NamespaceTests(unittest.TestCase):\n"
+            "    def test_root_import(self):\n"
+            "        self.assertEqual(classify(True), 1)\n",
+            encoding="utf-8",
+        )
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "PYTHONPATH"
+            and not key.startswith("GITHUB_")
+            and key not in {"AUDIT_COMMIT_SHA", "ImageVersion"}
+        }
+        output = self.root / "namespace-results.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "coverage",
+                "run",
+                "--rcfile",
+                str(self.root / "tools/quality/pyproject.toml"),
+                "--data-file",
+                str(self.root / "namespace.coverage"),
+                str(SCRIPT),
+                "tests",
+                "--output",
+                str(output),
+            ],
+            cwd=self.root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(
+            (report["run"], report["failures"], report["errors"]), (1, 0, 0)
+        )
+
+    def test_test_runner_restores_import_path_after_success_and_interruption(self):
+        original = sys.path[:]
+        original_list = sys.path
+        for interruption in (None, KeyboardInterrupt()):
+            with self.subTest(interruption=interruption):
+
+                def exercise_path():
+                    self.assertIn(str(Path.cwd()), sys.path)
+                    sys.path.append("runner-path-mutation")
+                    if interruption is not None:
+                        raise interruption
+
+                suite = unittest.TestSuite([unittest.FunctionTestCase(exercise_path)])
+                try:
+                    with redirect_stderr(io.StringIO()):
+                        if interruption is None:
+                            self.assertEqual(
+                                self.artifacts.run_tests(
+                                    self.root / "run.json", suite=suite
+                                ),
+                                0,
+                            )
+                        else:
+                            with self.assertRaises(KeyboardInterrupt) as raised:
+                                self.artifacts.run_tests(
+                                    self.root / "run.json", suite=suite
+                                )
+                            self.assertIs(raised.exception, interruption)
+                    self.assertIs(sys.path, original_list)
+                    self.assertEqual(sys.path, original)
+                finally:
+                    sys.path[:] = original
+
+    def test_test_runner_restores_import_path_after_discovery_error(self):
+        original = sys.path[:]
+        failure = RuntimeError("discovery failed")
+
+        def fail_discovery(*args, **kwargs):
+            sys.path.append("discovery-path-mutation")
+            raise failure
+
+        try:
+            with mock.patch.object(
+                unittest.defaultTestLoader, "discover", side_effect=fail_discovery
+            ):
+                with self.assertRaises(RuntimeError) as raised:
+                    self.artifacts.run_tests(self.root / "run.json")
+            self.assertIs(raised.exception, failure)
+            self.assertEqual(sys.path, original)
+            self.assertFalse((self.root / "run.json").exists())
+        finally:
+            sys.path[:] = original
+
+    def test_shell_report_stops_on_failure_and_keeps_actual_output(self):
+        output = self.root / "shell"
+        commands = [
+            [sys.executable, "-c", "print('first suite')"],
+            [sys.executable, "-c", "raise SystemExit(7)"],
+            [sys.executable, "-c", "print('must not run')"],
+        ]
+        with mock.patch.object(self.artifacts, "shell_suites", return_value=commands):
+            self.assertEqual(self.artifacts.run_shell(output, "linux"), 7)
+        report = json.loads((output / "shell.json").read_text())
+        self.assertEqual([suite["returncode"] for suite in report["suites"]], [0, 7])
+        self.assertIn("first suite", (output / "shell.log").read_text())
+        self.assertNotIn("must not run", (output / "shell.log").read_text())
+        with mock.patch.object(
+            self.artifacts, "shell_suites", return_value=commands[:1]
+        ):
+            self.assertEqual(
+                self.artifacts.main(
+                    ["shell", "--platform", "linux", "--output", str(output)]
+                ),
+                0,
+            )
+
+    def test_environment_records_selected_versions_and_hosted_image(self):
+        from types import SimpleNamespace
+
+        quality = self.root / "tools/quality"
+        (quality / "versions.json").write_text(
+            json.dumps(
+                {
+                    "python": {"coverage": "7.16.2"},
+                    "node": {"example": "1.2.3"},
+                    "external": {"PSScriptAnalyzer": {}, "shellcheck": {}, "shfmt": {}},
+                }
+            )
+        )
+        package = quality / "node_modules/example/package.json"
+        package.parent.mkdir(parents=True)
+        package.write_text('{"version":"1.2.3"}')
+        versions = SimpleNamespace(
+            command_version=lambda command: SimpleNamespace(
+                version="9.8.7", diagnostic="selected"
+            ),
+            external_commands=lambda registry: {
+                name: [name, "--version"] for name in registry
+            },
+        )
+        spec = SimpleNamespace(
+            name="fixture_versions",
+            loader=SimpleNamespace(exec_module=lambda module: None),
+        )
+        with (
+            mock.patch.object(
+                self.artifacts.importlib.util,
+                "spec_from_file_location",
+                return_value=spec,
+            ),
+            mock.patch.object(
+                self.artifacts.importlib.util, "module_from_spec", return_value=versions
+            ),
+            mock.patch.dict(
+                os.environ, {"ImageVersion": "20261016.1", "ImageOS": "win25"}
+            ),
+        ):
+            result = self.artifacts.environment(self.root, "windows")
+            self.assertEqual(result["facts"]["image_version"], "20261016.1")
+            self.assertEqual(result["facts"]["tools"]["git"], "9.8.7")
+            self.assertEqual(result["facts"]["tools"]["windows-powershell"], "9.8.7")
+            self.assertEqual(result["facts"]["tools"]["npm:example"], "1.2.3")
+            self.assertEqual(result["facts"]["tools"]["python:coverage"], "7.16.2")
+            self.assertEqual(result["run"], "123")
+            versions.command_version = lambda command: SimpleNamespace(
+                version=None, diagnostic="not selected"
+            )
+            with self.assertRaisesRegex(ValueError, "cannot measure"):
+                self.artifacts.environment(self.root, "windows")
+
+    def test_shell_runner_and_probe_select_git_bash_on_windows(self):
+        git = self.root / "Git/cmd/git.exe"
+        bash = self.root / "Git/bin/bash.exe"
+        bash.parent.mkdir(parents=True)
+        bash.touch()
+        with (
+            mock.patch.object(self.artifacts.sys, "platform", "win32"),
+            mock.patch.object(self.artifacts.shutil, "which", return_value=str(git)),
+        ):
+            self.assertEqual(self.artifacts.bash_executable(), str(bash))
+            bash.unlink()
+            with self.assertRaisesRegex(FileNotFoundError, "Git Bash"):
+                self.artifacts.bash_executable()
+        with mock.patch.object(self.artifacts.sys, "platform", "linux"):
+            self.assertEqual(self.artifacts.bash_executable(), "bash")
+
+    def test_shell_children_cannot_reenter_ci_coverage_orchestration(self):
+        command = [
+            sys.executable,
+            "-B",
+            "-c",
+            "import os; assert 'AUDIT_COVERAGE_DIR' not in os.environ; assert os.environ['QUALIFICATION_PARENT'] == 'retained'",
+        ]
+        with (
+            mock.patch.object(self.artifacts, "shell_suites", return_value=[command]),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "AUDIT_COVERAGE_DIR": str(self.output),
+                    "QUALIFICATION_PARENT": "retained",
+                },
+            ),
+        ):
+            self.assertEqual(self.artifacts.run_shell(self.output, "linux"), 0)
+
+    def test_measurement_commands_retain_discovery_results_and_environment(self):
+        output = self.root / "measured.json"
+        suite = unittest.TestSuite([unittest.FunctionTestCase(lambda: None)])
+        with (
+            mock.patch.object(
+                unittest.defaultTestLoader, "discover", return_value=suite
+            ),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(self.artifacts.main(["tests", "--output", str(output)]), 0)
+        self.assertEqual(json.loads(output.read_text())["run"], 1)
+        with mock.patch.object(
+            self.artifacts,
+            "environment",
+            return_value={"facts": {"image_version": "exact"}},
+        ):
+            self.assertEqual(
+                self.artifacts.main(
+                    ["environment", "--platform", "linux", "--output", str(output)]
+                ),
+                0,
+            )
+        self.assertEqual(
+            json.loads(output.read_text())["facts"]["image_version"], "exact"
+        )
 
     def test_export_rejects_bad_platform_and_existing_destination(self):
         before = (self.output / "linux/metadata.json").read_bytes()

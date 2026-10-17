@@ -421,6 +421,23 @@ class StarterKitManifestTests(unittest.TestCase):
         paths = {entry["path"] for entry in value["files"]}
         self.assertNotIn("tools/starter_kit_upgrade/future.py", paths)
 
+    def test_tracked_qualification_helper_never_enters_consumer_manifest(self):
+        relative = "tools/quality/qualification.py"
+        target = self.root / relative
+        target.parent.mkdir()
+        target.write_bytes((SOURCE_ROOT / relative).read_bytes())
+        self.run_git("add", relative)
+        self.assertIn(relative, self.run_git("ls-files"))
+        self.assertNotIn(
+            relative,
+            {entry["path"] for entry in MANIFEST.core_entries(self.root, None)},
+        )
+        self.run_git("commit", "-m", "test: track qualification helper")
+        self.assertNotIn(
+            relative,
+            {entry["path"] for entry in MANIFEST.core_entries(self.root, "HEAD")},
+        )
+
     def test_governance_files_are_exact(self):
         self.assertEqual(CODEOWNERS_PATH.read_text(encoding="utf-8"), "* @asphyx0r\n")
         self.assertEqual(
@@ -681,6 +698,7 @@ class StarterKitManifestTests(unittest.TestCase):
                     "templates/SKILLS.md",
                     "tools/quality/check-coverage.py",
                     "tools/quality/coverage-artifacts.py",
+                    "tools/quality/qualification.py",
                     ".github/CODEOWNERS",
                     ".github/workflows/release-package.yml",
                     "SHA256SUMS",

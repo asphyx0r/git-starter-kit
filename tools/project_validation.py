@@ -187,6 +187,7 @@ def run_checks(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                errors="backslashreplace",
             ) as scope:
                 try:
                     stdout, stderr = scope.process.communicate(
@@ -222,6 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", action="store_true")
     parser.add_argument("--owns", metavar="PATH")
     parser.add_argument("--list-core", action="store_true")
+    parser.add_argument("--list-owned", action="store_true")
     args = parser.parse_args(argv)
     if args.timeout <= 0 or not math.isfinite(args.timeout):
         parser.error("--timeout must be positive and finite")
@@ -234,6 +236,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.owns is not None:
             return 0 if is_core_path(args.repository_root, args.owns) else 1
+        if args.list_owned:
+            output = b"".join(
+                path.encode("utf-8") + b"\0"
+                for path in sorted(core_paths(args.repository_root))
+            )
+            sys.stdout.buffer.write(output)
+            return 0
         if args.list_core:
             for path in sorted(core_paths(args.repository_root)):
                 if (args.repository_root / path).is_file():

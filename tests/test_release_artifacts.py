@@ -385,7 +385,7 @@ class ReleaseArtifactTests(unittest.TestCase):
             json.dumps(value, indent=2) + "\n", encoding="utf-8"
         )
 
-    def prepare(self, ref="v1.2.3"):
+    def prepare(self, ref="v1.2.3", *options):
         return self.run_main(
             "--force",
             "prepare",
@@ -397,7 +397,144 @@ class ReleaseArtifactTests(unittest.TestCase):
             str(self.metadata_path),
             "--repository-root",
             str(self.root),
+            *options,
         )
+
+    def test_snapshot_rejects_unreadable_attribute_objects(self):
+        temporary = Path(self.temporary.name)
+        target = temporary / "snapshot"
+        before = set(temporary.iterdir())
+        native_run_git = ARTIFACTS.run_git
+
+        def missing_objects(root, *arguments, **options):
+            if arguments == (
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-path",
+                "objects",
+            ):
+                return str(temporary / "missing-objects")
+            return native_run_git(root, *arguments, **options)
+
+        with (
+            patch.object(ARTIFACTS, "run_git", side_effect=missing_objects),
+            self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "check-attr"),
+        ):
+            ARTIFACTS.write_tree_snapshot(self.root, target, "HEAD")
+        self.assertEqual(set(temporary.iterdir()), before)
+
+    def test_snapshot_checkout_ignores_non_tree_attribute_sources(self):
+        (self.root / ".gitattributes").write_bytes(b"*.ps1 text eol=crlf\n")
+        (self.root / "checkout.ps1").write_bytes(b"Write-Output 'root'\n")
+        (self.root / "unruled.txt").write_bytes(b"selected blob\n")
+        nested = self.root / "nested"
+        nested.mkdir()
+        (nested / ".gitattributes").write_bytes(b"*.ps1 text eol=lf\n")
+        (nested / "checkout.ps1").write_bytes(b"Write-Output 'nested'\n")
+        self.run_git("add", ".gitattributes", "checkout.ps1", "unruled.txt", "nested")
+        self.run_git("commit", "-m", "test: declare selected checkout attributes")
+        (self.root / ".gitattributes").write_bytes(b"* text eol=lf\n")
+        (self.root / "checkout.ps1").write_bytes(b"untrusted local bytes\n")
+        temporary = Path(self.temporary.name)
+        empty_config = temporary / "empty.config"
+        empty_config.write_bytes(b"")
+        configs = {}
+        for source in ("global", "system"):
+            attributes = temporary / f"{source}.attributes"
+            attributes.write_bytes(b"unruled.txt text eol=crlf\n")
+            config = temporary / f"{source}.config"
+            config.write_text(
+                f"[core]\n\tattributesfile = {attributes.as_posix()}\n",
+                encoding="utf-8",
+            )
+            configs[source] = str(config)
+        info_attributes = self.root / ".git/info/attributes"
+        for source in ("info", "global", "system", "combined"):
+            with self.subTest(source=source):
+                info_attributes.write_bytes(
+                    b"*.ps1 text eol=lf\nnested/*.ps1 text eol=crlf\n"
+                    if source in {"info", "combined"}
+                    else b""
+                )
+                environment = {
+                    "GIT_CONFIG_GLOBAL": configs["global"]
+                    if source in {"global", "combined"}
+                    else str(empty_config),
+                    "GIT_CONFIG_SYSTEM": configs["system"]
+                    if source in {"system", "combined"}
+                    else str(empty_config),
+                    "GIT_CONFIG_NOSYSTEM": "0",
+                    "GIT_ATTR_NOSYSTEM": "0",
+                }
+                target = temporary / f"snapshot-{source}"
+                before = set(temporary.iterdir())
+                with patch.dict(os.environ, environment):
+                    ARTIFACTS.write_tree_snapshot(self.root, target, "HEAD")
+                self.assertEqual(set(temporary.iterdir()) - before, {target})
+                self.assertEqual(
+                    (target / "checkout.ps1").read_bytes(), b"Write-Output 'root'\r\n"
+                )
+                self.assertEqual(
+                    (target / "nested/checkout.ps1").read_bytes(),
+                    b"Write-Output 'nested'\n",
+                )
+                self.assertEqual(
+                    (target / "unruled.txt").read_bytes(), b"selected blob\n"
+                )
+
+    def test_deployment_prepare_uses_selected_git_controls(self):
+        template_path = self.root / ARTIFACTS.TEMPLATE_PATH
+        schema_path = self.root / ARTIFACTS.SCHEMA_PATH
+        template = template_path.read_bytes()
+        schema = schema_path.read_bytes()
+        for options in (("--index",), ("--treeish", "HEAD")):
+            with self.subTest(options=options):
+                template_path.write_bytes(template)
+                schema_path.write_bytes(schema)
+                self.run_git("add", ARTIFACTS.TEMPLATE_PATH, ARTIFACTS.SCHEMA_PATH)
+                template_path.write_bytes(b"invalid worktree template")
+                schema_path.write_bytes(b"invalid worktree schema")
+                code, _, stderr = self.prepare("v1.2.3", *options)
+                self.assertEqual(code, 0, stderr)
+                manifest = json.loads((self.root / "manifest.json").read_bytes())
+                self.assertEqual(manifest["name"], "Example App")
+                self.run_git("add", "VERSION", "SHA256SUMS", "manifest.json")
+                code, _, stderr = self.run_main(
+                    "check", "--index", "--repository-root", str(self.root)
+                )
+                self.assertEqual(code, 0, stderr)
+
+    def test_deployment_prepare_uses_index_changes_instead_of_head(self):
+        template_path = self.root / ARTIFACTS.TEMPLATE_PATH
+        template_path.write_bytes(
+            template_path.read_bytes().replace(
+                b"{{application-name}}", b"Selected index application"
+            )
+        )
+        self.run_git("add", ARTIFACTS.TEMPLATE_PATH)
+        shutil.copyfile(SOURCE_ROOT / ARTIFACTS.TEMPLATE_PATH, template_path)
+        code, _, stderr = self.prepare("v1.2.3", "--index")
+        self.assertEqual(code, 0, stderr)
+        manifest = json.loads((self.root / "manifest.json").read_bytes())
+        self.assertEqual(manifest["name"], "Selected index application")
+
+    def test_deployment_prepare_rejects_missing_or_invalid_selected_controls(self):
+        for control in (ARTIFACTS.TEMPLATE_PATH, ARTIFACTS.SCHEMA_PATH):
+            original = (self.root / control).read_bytes()
+            for failure in ("missing", "invalid"):
+                with self.subTest(control=control, failure=failure):
+                    if failure == "missing":
+                        self.run_git("rm", "--cached", "--", control)
+                    else:
+                        (self.root / control).write_bytes(b"invalid selected JSON")
+                        self.run_git("add", "--", control)
+                        (self.root / control).write_bytes(original)
+                    code, _, stderr = self.prepare("v1.2.3", "--index")
+                    self.assertEqual(code, 1, stderr)
+                    for output in ("VERSION", "SHA256SUMS", "manifest.json"):
+                        self.assertFalse((self.root / output).exists())
+                    (self.root / control).write_bytes(original)
+                    self.run_git("add", "--", control)
 
     def test_rejects_unsafe_inputs_and_malformed_git_protocol_records(self):
         invalid_paths = ("", "../escape", "/absolute", "bad\\path", "bad\npath")
