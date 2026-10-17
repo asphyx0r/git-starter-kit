@@ -3,13 +3,14 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.13.0",
-    "release_date": "2026-10-17T12:58:14Z",
+    "release_date": "2026-10-17T16:25:12Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
         "Package release inputs from exact Git snapshots and preserve updater raw bytes, errors and documented dry-run guarantees.",
         "Harden local validation and resumable publication, including final release identity checks before promotion.",
-        "Add controlled Linux and Windows CI qualification reuse with an experimental measurement protocol."
+        "Add controlled Linux and Windows CI qualification reuse with an experimental measurement protocol.",
+        "Align release prechecks with the attested npm audit and explicit patch preparation."
     ],
     "update": {
         "min_source_version": "2.4.2",
@@ -31,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 178,
-            "size_bytes": 3308279,
-            "built_at": "2026-10-17T12:58:14Z",
-            "sha256": "e24aaf2ba2dcd4f6406ede4b7ce482815bae22905dfd217be74d8d6e0eeaa7ef",
+            "size_bytes": 3308680,
+            "built_at": "2026-10-17T16:25:12Z",
+            "sha256": "88b71cd1d161fb0e647a01d718ca33dea5ad39769d81990c26a2014cadeea202",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -64,11 +65,11 @@
                 },
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/references/git-starter-kit-release-package.txt",
-                    "size_bytes": 14529,
+                    "size_bytes": 14866,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "074a417c3c98b4e8d79fde3c5c80eb616027b9d664ff42cb0e293c48ab23f1aa",
+                    "sha256": "ba2daebcef26f0dd17715dd58fdc44e5188ef6dfc0c6edcea537ea31c4b311f6",
                     "mode": "644"
                 },
                 {
@@ -316,11 +317,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15693,
+                    "size_bytes": 15757,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "816466c624d36a8ff55376ba7751c02e470466d035020a272d8e59d9cac0b49e",
+                    "sha256": "79b092086ae1684271f58f3719d755200f1bdc0a4e2f2014406dc607dfaab9a6",
                     "mode": "644"
                 },
                 {
@@ -590,7 +591,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "f502d9c4922d6862c99a5c45cddc6687bbb7786c03cd3e58b98e70b8af65cae3",
+                    "sha256": "910a57fd221b9b8b3b47acf56d688126d0e4281653c5e2455827334cdd1f7ec3",
                     "mode": "644"
                 },
                 {
