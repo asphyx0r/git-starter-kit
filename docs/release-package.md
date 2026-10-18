@@ -572,7 +572,7 @@ The full audit uses the active locked Python and npm quality environments; its
 release-package smoke test does not reinstall them. It intentionally resolves
 the latest published full `agent-coding-rules` release. Treat a failure to
 resolve or validate that release as an audit failure before publishing. Use
-`markdown`, `spelling`, or `static` when you need to isolate one audit family.
+`markdown` or `spelling` when you need to isolate one audit family.
 
 You can also test only the package generation locally before publishing a release.
 
