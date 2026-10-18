@@ -3,7 +3,7 @@
     "program_id": "git-starter-kit",
     "name": "Git Starter Kit",
     "version": "2.13.0",
-    "release_date": "2026-10-17T16:25:12Z",
+    "release_date": "2026-10-18T07:51:59Z",
     "channel": "stable",
     "critical_update": false,
     "release_notes": [
@@ -32,9 +32,9 @@
             },
             "format": "git-tree",
             "total_files": 178,
-            "size_bytes": 3308680,
-            "built_at": "2026-10-17T16:25:12Z",
-            "sha256": "88b71cd1d161fb0e647a01d718ca33dea5ad39769d81990c26a2014cadeea202",
+            "size_bytes": 3308738,
+            "built_at": "2026-10-18T07:51:59Z",
+            "sha256": "a96de2cf9f269bbcd608ad99c03af972139587ffde846279b881d01a8f1f5fdc",
             "files": [
                 {
                     "relative_path": ".agents/skills/git-commit-push-tag/SKILL.md",
@@ -317,11 +317,11 @@
                 },
                 {
                     "relative_path": "CHANGELOG.md",
-                    "size_bytes": 15757,
+                    "size_bytes": 15826,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "79b092086ae1684271f58f3719d755200f1bdc0a4e2f2014406dc607dfaab9a6",
+                    "sha256": "c5a0b6eea02c5f7d9e257890066c9f319a5545293ce13cdb99f6304b262e78ab",
                     "mode": "644"
                 },
                 {
@@ -488,11 +488,11 @@
                 },
                 {
                     "relative_path": "docs/release-package.md",
-                    "size_bytes": 34215,
+                    "size_bytes": 34204,
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "0a1e3549ab611cc6356202cc16e49bd70f3a7506b66f25ffb2c006dab0cecb43",
+                    "sha256": "62ffbc5e973d087505c06499ea8a5f0d970dbf71150515761e33ef2b7c2e9d73",
                     "mode": "644"
                 },
                 {
@@ -591,7 +591,7 @@
                     "file_type": "text",
                     "line_ending": "LF",
                     "encoding": "UTF-8",
-                    "sha256": "910a57fd221b9b8b3b47acf56d688126d0e4281653c5e2455827334cdd1f7ec3",
+                    "sha256": "c05b90380dc992c364e53e46295ee834e3d7d8958603f958d3f9272d1174b48c",
                     "mode": "644"
                 },
                 {
