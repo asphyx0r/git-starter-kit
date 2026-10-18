@@ -6,6 +6,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| 90354e7 | docs(release): clarify focused audit profiles | asphyx |
 | 8362e49 | fix(release): use attested npm prechecks | asphyx |
 | cc74434 | fix(audit): remediate tooling and CI findings | asphyx |
 
