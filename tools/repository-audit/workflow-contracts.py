@@ -1087,6 +1087,12 @@ def repository_audit_contract(node_version: str) -> dict:
                 "needs": ["activation", "quality-linux", "compatibility-windows"],
                 "if": "needs.activation.outputs.enabled == 'true'",
                 "outputs": {"decision": "${{ steps.decision.outputs.decision }}"},
+                "env": {
+                    "VERIFY_REUSE": "${{ github.repository == 'asphyx0r/git-starter-kit' && "
+                    "needs.quality-linux.outputs.scope == 'source' && "
+                    "(github.event_name == 'release' || "
+                    "(github.event_name == 'push' && github.ref_type == 'tag')) }}"
+                },
                 "steps": [
                     {
                         "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
@@ -1107,8 +1113,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
                     },
                     {
-                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
-                        "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
                         "with": {
                             "python-version": "3.11",
@@ -1117,8 +1122,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
-                        "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "shell": "bash",
                         "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
                     },
@@ -1129,8 +1133,7 @@ def repository_audit_contract(node_version: str) -> dict:
                             "}}-${{ github.run_attempt }}",
                             "path": "${{ runner.temp }}",
                         },
-                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
-                        "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "continue-on-error": True,
                     },
                     {
@@ -1141,7 +1144,7 @@ def repository_audit_contract(node_version: str) -> dict:
                             "}}",
                             "path": "${{ runner.temp }}/fresh",
                         },
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "continue-on-error": True,
                     },
                     {
@@ -1152,19 +1155,17 @@ def repository_audit_contract(node_version: str) -> dict:
                             "}}",
                             "path": "${{ runner.temp }}/fresh",
                         },
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "continue-on-error": True,
                     },
                     {
                         "shell": "bash",
-                        "run": "sha256:975936645d2e8c00dc1799e1f5c20d45bc7ba28d837f560dcdf7cd2fe151c2e4",
+                        "run": "sha256:febde27dbacaf0a422efd3b4b8426e9a8bd8849fcfa9530b2921a4675d412c24",
                         "env": {
                             "AUDIT_COMMIT_SHA": "${{ "
                             "github.event.pull_request.head.sha "
                             "|| github.sha }}",
                             "GH_TOKEN": "${{ github.token }}",
-                            "GH_REPO": "${{ github.repository }}",
-                            "SCOPE": "${{ needs.quality-linux.outputs.scope }}",
                         },
                         "id": "decision",
                     },

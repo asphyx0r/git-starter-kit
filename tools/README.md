@@ -1435,6 +1435,12 @@ Consumers do not receive this helper. Local exhaustive profiles and ordinary
 coverage combination retain their existing checks. Missing or unverifiable
 proof before the shared decision selects a full current qualification.
 
+In that decision job, source PRs, ordinary branch pushes (including the default
+branch), manual runs and consumers select `full` without preparing Python or
+downloading reuse inputs. Source tag pushes and release events still invoke the
+strict verifier. OS environment captures and aggregate producer sealing remain
+active, so a default-branch push can still produce verified evidence.
+
 ## quality/check-versions.py
 
 `quality/check-versions.py` detects drift between `quality/versions.json` and
