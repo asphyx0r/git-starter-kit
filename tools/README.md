@@ -819,6 +819,13 @@ retrying. JSON output remains on stdout.
 
 ### Safety Model
 
+New cumulative upgrade archives use schema 4 with independent `baseContentKind`
+and target `contentKind` fields. Full-package inventories remain at schema 3,
+and the updater continues to read upgrade schemas 1 through 3 with their
+original digest semantics. Encoding transitions update only content matching
+the authenticated baseline, recognize an already aligned target, and conflict
+on customizations without attempting a text merge across content kinds.
+
 The starter-kit commit recorded inside target `_agent-rules-source.json` must
 match the base package. Agent-rule version changes and newline-only differences
 do not invalidate this starter provenance. Older repositories can instead use
@@ -826,6 +833,8 @@ a reviewed `.starter-kit-adoption.json` that records the base archive hash,
 starter-kit commit, and an ancestor commit containing the audited baseline.
 Successful application writes the next adoption baseline, including hashes for
 preserved merge-managed customizations.
+Adoption schemas must be the supported integers 1 or 2; malformed types are
+treated as unsupported evidence before any ancestry query.
 
 The `starter-kit-state` strategy handles `starter-kit-manifest.json`
 separately from ordinary file replacement. A legacy package without that file

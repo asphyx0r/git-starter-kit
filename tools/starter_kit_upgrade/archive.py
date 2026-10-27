@@ -116,7 +116,7 @@ def _validate_provenance(provenance: Any, label: str) -> None:
 def _validate_entry_policy(entry: dict[str, Any], path: str, schema: int) -> None:
     strategy = entry.get("strategy")
     allowed = {"agent-rules", "initialize-only", "merge", "replace"}
-    if schema == 3:
+    if schema in {3, 4}:
         allowed.add("starter-kit-state")
     if not isinstance(strategy, str) or strategy not in allowed:
         raise UpgradeError(f"Invalid upgrade strategy for {path}: {strategy}")
@@ -135,10 +135,14 @@ def _validate_digest(value: Any, label: str, *, nullable: bool = False) -> None:
 
 
 def _validate_content(
-    content: bytes, entry: dict[str, Any], path: str, digest_field: str
+    content: bytes,
+    entry: dict[str, Any],
+    path: str,
+    digest_field: str,
+    kind_field: str = "contentKind",
 ) -> None:
     kind, digest = content_metadata(content)
-    if entry.get("contentKind") != kind:
+    if entry.get(kind_field) != kind:
         raise UpgradeError(f"Content kind mismatch: {path}")
     if entry.get(digest_field) != digest:
         raise UpgradeError(f"Canonical digest mismatch: {path}")
@@ -284,10 +288,8 @@ def build_upgrade(args: argparse.Namespace, journal: RunJournal | None = None) -
         ):
             base_payload_path = BASE_PAYLOAD_PREFIX + path
             payload[base_payload_path] = base_content
-        base_canonical_digest = (
-            canonical_sha256(base_content, entry["contentKind"])
-            if base_content is not None
-            else None
+        base_content_kind, base_canonical_digest = (
+            content_metadata(base_content) if base_content is not None else (None, None)
         )
         entries.append(
             {
@@ -295,6 +297,7 @@ def build_upgrade(args: argparse.Namespace, journal: RunJournal | None = None) -
                 "strategy": entry["strategy"],
                 "mode": entry["mode"],
                 "contentKind": entry["contentKind"],
+                "baseContentKind": base_content_kind,
                 "baseSha256": (
                     sha256_bytes(base_content) if base_content is not None else None
                 ),
@@ -331,7 +334,7 @@ def build_upgrade(args: argparse.Namespace, journal: RunJournal | None = None) -
                 f"path={path} action=PRESERVE_OBSOLETE_FILE",
             )
     manifest = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "base": {
             "archiveSha256": sha256_file(base_path),
             "provenanceSha256": sha256_bytes(base_files[PROVENANCE_PATH]),
@@ -582,7 +585,7 @@ def load_upgrade(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
     schema_version = manifest.get("schemaVersion")
     if (
         type(schema_version) is not int
-        or schema_version not in {1, 2, 3}
+        or schema_version not in {1, 2, 3, 4}
         or not isinstance(manifest.get("entries"), list)
     ):
         raise UpgradeError("Unsupported upgrade package schema.")
@@ -642,6 +645,8 @@ def _validate_upgrade_entry(
         required.update(
             {"contentKind", "baseCanonicalSha256", "newCanonicalSha256", "basePayload"}
         )
+    if schema == 4:
+        required.add("baseContentKind")
     if not required.issubset(entry):
         raise UpgradeError(f"Missing upgrade entry fields: {path}")
     _validate_entry_policy(entry, path, schema)
@@ -662,6 +667,18 @@ def _validate_upgrade_entry(
     )
     if (entry["baseSha256"] is None) != (entry["baseCanonicalSha256"] is None):
         raise UpgradeError(f"Inconsistent base digests: {path}")
+    if schema == 4:
+        base_kind = entry["baseContentKind"]
+        if base_kind is not None and (
+            not isinstance(base_kind, str) or base_kind not in {"text", "binary"}
+        ):
+            raise UpgradeError(f"Invalid base content kind: {path}")
+        if (base_kind is None) != (entry["baseSha256"] is None):
+            raise UpgradeError(f"Inconsistent base content kind: {path}")
+        if base_kind == "binary" and (
+            entry["baseCanonicalSha256"] != entry["baseSha256"]
+        ):
+            raise UpgradeError(f"Inconsistent binary base digests: {path}")
     base_payload = entry["basePayload"]
     needs_base = entry["strategy"] in {"merge", "starter-kit-state"} and (
         entry["baseSha256"] is not None
@@ -675,12 +692,17 @@ def _validate_upgrade_entry(
         raise UpgradeError(f"Missing base payload for {path}.")
     if sha256_bytes(files[base_payload]) != entry["baseSha256"]:
         raise UpgradeError(f"Base payload digest mismatch: {path}")
-    try:
-        base_digest = canonical_sha256(files[base_payload], entry["contentKind"])
-    except UnicodeDecodeError as error:
-        raise UpgradeError(f"Invalid base text payload: {path}") from error
-    if base_digest != entry["baseCanonicalSha256"]:
-        raise UpgradeError(f"Base canonical digest mismatch: {path}")
+    if schema == 4:
+        _validate_content(
+            files[base_payload], entry, path, "baseCanonicalSha256", "baseContentKind"
+        )
+    else:
+        try:
+            base_digest = canonical_sha256(files[base_payload], entry["contentKind"])
+        except UnicodeDecodeError as error:
+            raise UpgradeError(f"Invalid base text payload: {path}") from error
+        if base_digest != entry["baseCanonicalSha256"]:
+            raise UpgradeError(f"Base canonical digest mismatch: {path}")
     if entry["strategy"] == "starter-kit-state":
         parse_starter_manifest(files[base_payload], "base starter-kit manifest")
 
