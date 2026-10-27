@@ -178,6 +178,178 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("quality versions: declarations match", result.stdout)
 
+    def test_requirement_parsers_reject_unsupported_and_duplicate_lines(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "strict_requirement_checker"
+        )
+        original_read = Path.read_text
+        hashed = " \\\n    --hash=sha256:" + "0" * 64 + "\n"
+        cases = (
+            ("requirements.in", "unexpected>=1.0\n"),
+            ("requirements.in", "-r other.txt\n"),
+            ("requirements.in", "unexpected==1.0 trailing\n"),
+            ("requirements.in", "extra-tool==1.0\nextra_tool==2.0\n"),
+            ("requirements.in", "--editable==1.0\n"),
+            ("requirements.in", "invalid-==1.0\n"),
+            ("requirements.in", "example[,x]==1.0\n"),
+            ("requirements.in", "example[x,,y]==1.0\n"),
+            ("requirements.lock", "unexpected>=1.0\n"),
+            ("requirements.lock", "-r other.txt\n"),
+            ("requirements.lock", "extra-tool==1.0\nextra_tool==2.0\n"),
+            ("requirements.lock", "--editable==1.0" + hashed),
+            ("requirements.lock", "invalid-==1.0" + hashed),
+            ("requirements.lock", "example[,x]==1.0" + hashed),
+            ("requirements.lock", "example[x,,y]==1.0" + hashed),
+            ("requirements.lock", "example[-x]==1.0" + hashed),
+            ("requirements.lock", "example[x-]==1.0" + hashed),
+        )
+        for filename, addition in cases:
+            with self.subTest(filename=filename, addition=addition):
+
+                def read_mutation(path: Path, *args, **kwargs) -> str:
+                    content = original_read(path, *args, **kwargs)
+                    if path == QUALITY_ROOT / filename:
+                        return content + "\n" + addition
+                    return content
+
+                with (
+                    mock.patch.object(Path, "read_text", read_mutation),
+                    self.assertRaisesRegex(ValueError, rf"{filename}:\d+:"),
+                ):
+                    checker.check_declarations(QUALITY_ROOT)
+
+    def test_requirement_parsers_preserve_comments_extras_and_pep440_versions(
+        self,
+    ) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "comment_requirement_checker"
+        )
+        content = (
+            "# Reviewed pins\n"
+            "jsonschema[format]==4.26.0 # keep format validators\n"
+            "example-package==2.9.0.post0\n"
+            "epoch-package==1!2.0rc1.dev2+local.1\n"
+            "q==1.0\n"
+            "a.b-c_d[e,x.y-z_w]==1.0\n"
+        )
+        with mock.patch.object(Path, "read_text", return_value=content):
+            self.assertEqual(
+                checker.parse_direct_requirements(Path("requirements.in")),
+                {
+                    "jsonschema[format]": "4.26.0",
+                    "example-package": "2.9.0.post0",
+                    "epoch-package": "1!2.0rc1.dev2+local.1",
+                    "q": "1.0",
+                    "a.b-c_d[e,x.y-z_w]": "1.0",
+                },
+            )
+            self.assertEqual(
+                checker.parse_requirements(Path("requirements.lock")),
+                {
+                    "jsonschema": "4.26.0",
+                    "example-package": "2.9.0.post0",
+                    "epoch-package": "1!2.0rc1.dev2+local.1",
+                    "q": "1.0",
+                    "a-b-c-d": "1.0",
+                },
+            )
+
+    def test_requirement_parser_rejects_malformed_or_orphaned_hashes(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "hash_requirement_checker"
+        )
+        digest = "--hash=sha256:" + "0" * 64
+        for content, line_number in (
+            (digest + "\n", 1),
+            ("example==1.0\n    " + digest + "\n", 2),
+            ("example==1.0 \\\n    " + digest + " -r other.txt\n", 2),
+            (
+                "example==1.0 \\\n    "
+                + digest
+                + " --index-url https://example.invalid/simple\n",
+                2,
+            ),
+            ("example==1.0 \\\n    " + digest[:-1] + "\n", 2),
+            ("example==1.0 \\\n    " + digest + "0\n", 2),
+            ("example==1.0 \\\n    " + digest.replace("sha256", "md5") + "\n", 2),
+            ("example==1.0 \\\n    " + digest[:-1] + "g\n", 2),
+            ("example==1.0 \\\n    " + digest + " \\\n", 2),
+            ("example==1.0 \\\nother==2.0\n", 2),
+        ):
+            with self.subTest(content=content):
+                with (
+                    mock.patch.object(Path, "read_text", return_value=content),
+                    self.assertRaisesRegex(
+                        ValueError, rf"requirements.lock:{line_number}:"
+                    ),
+                ):
+                    checker.parse_requirements(Path("requirements.lock"))
+
+    def test_declaration_checker_rejects_directives_after_hashes(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "hash_directive_checker"
+        )
+        original_read = Path.read_text
+        for directive in ("-r other.txt", "--index-url https://example.invalid/simple"):
+            with self.subTest(directive=directive):
+
+                def read_mutation(path: Path, *args, **kwargs) -> str:
+                    content = original_read(path, *args, **kwargs)
+                    if path == QUALITY_ROOT / "requirements.lock":
+                        return content + "\n--hash=sha256:" + "0" * 64 + " " + directive
+                    return content
+
+                with (
+                    mock.patch.object(Path, "read_text", read_mutation),
+                    self.assertRaisesRegex(ValueError, r"requirements.lock:\d+:"),
+                ):
+                    checker.check_declarations(QUALITY_ROOT)
+
+    def test_requirement_parser_accepts_complete_hash_continuations(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "valid_hash_requirement_checker"
+        )
+        digest = "--hash=sha256:" + "aB" * 32
+        content = (
+            "# Generated pins\nexample[extra]==1.0 \\\n"
+            f"    {digest} \\\n"
+            f"    {digest} # reviewed digest\n"
+            "    # via example\nother==2.0\n"
+        )
+        with mock.patch.object(Path, "read_text", return_value=content):
+            self.assertEqual(
+                checker.parse_requirements(Path("requirements.lock")),
+                {"example": "1.0", "other": "2.0"},
+            )
+
+    def test_requirement_parser_rejects_constraints_hidden_in_transitive_versions(
+        self,
+    ) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "lock_requirement_checker"
+        )
+        original_read = Path.read_text
+        for version in (
+            "1.4.0,<2",
+            '1.4.0;python_version<"0"',
+            "1.4.*",
+            "release",
+            "1.4.0#not-a-comment",
+        ):
+            with self.subTest(version=version):
+
+                def read_mutation(path: Path, *args, **kwargs) -> str:
+                    content = original_read(path, *args, **kwargs)
+                    if path == QUALITY_ROOT / "requirements.lock":
+                        return content.replace("arrow==1.4.0", f"arrow=={version}", 1)
+                    return content
+
+                with (
+                    mock.patch.object(Path, "read_text", read_mutation),
+                    self.assertRaisesRegex(ValueError, r"requirements.lock:\d+:"),
+                ):
+                    checker.check_declarations(QUALITY_ROOT)
+
     def test_declaration_checker_rejects_version_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             quality_copy = Path(temporary_directory) / "quality"
@@ -786,7 +958,9 @@ class QualityToolchainTests(unittest.TestCase):
                 "runtime: codespell expected 2.4.3, found None",
                 "runtime: @commitlint/cli expected 21.2.3, found None",
                 "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
+                "runtime: node_modules/fast-uri expected 3.1.9, found None",
                 "runtime: node_modules/katex expected 0.18.2, found None",
+                "runtime: node_modules/markdown-it expected 15.0.3, found None",
                 "runtime: node_modules/smol-toml expected 1.9.1, found None",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],

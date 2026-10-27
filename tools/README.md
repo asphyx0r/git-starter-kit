@@ -52,6 +52,8 @@ storage must accommodate both the staged tree and its compressed ZIP; the
 target must accommodate the transferred ZIP. Ordinary failures clean up the
 execution's temporary files. A cleanup failure reports the affected path and
 returns an error. An abrupt process termination can leave temporary files.
+If transfer and cleanup both fail, the original failure or interruption remains
+primary and the cleanup diagnostic includes the residual temporary path.
 
 The source root is inspected before path resolution, and tree entries are
 inspected before descent. A symbolic link or Windows junction aborts the whole
@@ -133,6 +135,10 @@ in that order, followed by `LOCALAPPDATA/Temp` and `SystemRoot/Temp` on Windows,
 or `/tmp`, `/var/tmp`, and `/usr/tmp` on Linux. Selection checks accessibility
 and locality without creating candidates or write probes. Actual allocation or
 write errors can still occur during execution.
+
+Unknown options are rejected before backup creation, including options after
+an `--option=value` argument. Use `--source-directory=./-name` for a path whose
+name starts with a hyphen.
 
 On Windows, locality uses the directory's containing volume, its drive type,
 and its remote-storage flag. Fixed, removable, and RAM drives are accepted
@@ -235,9 +241,10 @@ The archive includes `.git` when it is contained in the source. Linked
 worktrees and submodules may instead use a `.git` file that refers to metadata
 outside the source; such an archive is not self-contained.
 
-ZIP preserves file bytes and modification times at ZIP precision, but this
-tool does not preserve NTFS ACLs, alternate data streams, creation/access
-times, or a cryptographic manifest. The `v0.0.0` placeholder is also
+ZIP preserves file bytes and modification times at ZIP precision. Dates outside
+the ZIP range of 1980 through 2107 are clamped in the archive; source timestamps
+remain unchanged. This tool does not preserve NTFS ACLs, alternate data streams,
+creation/access times, or a cryptographic manifest. The `v0.0.0` placeholder is also
 indistinguishable in the filename from a real tag with that exact name.
 
 ## initialize-repository.py
@@ -684,7 +691,9 @@ conversion is accepted, but the ZIP stores the exact authenticated LF blobs.
 
 Use this script from a clean, committed repository when preparing release
 assets. SemVer contents come from the selected `HEAD`; previews use tracked
-paths from the index. Local untracked files are excluded.
+paths from the index and current worktree bytes. This selection also applies
+to `templates/project/`: ignored and untracked files are excluded from the ZIP
+and both generated inventories. A missing tracked template blocks the build.
 
 Use `latest` for normal release automation so packaging fails if tracked rules
 lag behind the latest full `agent-coding-rules` release. Use an explicit SemVer
@@ -812,6 +821,13 @@ retrying. JSON output remains on stdout.
 
 ### Safety Model
 
+New cumulative upgrade archives use schema 4 with independent `baseContentKind`
+and target `contentKind` fields. Full-package inventories remain at schema 3,
+and the updater continues to read upgrade schemas 1 through 3 with their
+original digest semantics. Encoding transitions update only content matching
+the authenticated baseline, recognize an already aligned target, and conflict
+on customizations without attempting a text merge across content kinds.
+
 The starter-kit commit recorded inside target `_agent-rules-source.json` must
 match the base package. Agent-rule version changes and newline-only differences
 do not invalidate this starter provenance. Older repositories can instead use
@@ -819,6 +835,8 @@ a reviewed `.starter-kit-adoption.json` that records the base archive hash,
 starter-kit commit, and an ancestor commit containing the audited baseline.
 Successful application writes the next adoption baseline, including hashes for
 preserved merge-managed customizations.
+Adoption schemas must be the supported integers 1 or 2; malformed types are
+treated as unsupported evidence before any ancestry query.
 
 The `starter-kit-state` strategy handles `starter-kit-manifest.json`
 separately from ordinary file replacement. A legacy package without that file
@@ -1417,6 +1435,12 @@ Consumers do not receive this helper. Local exhaustive profiles and ordinary
 coverage combination retain their existing checks. Missing or unverifiable
 proof before the shared decision selects a full current qualification.
 
+In that decision job, source PRs, ordinary branch pushes (including the default
+branch), manual runs and consumers select `full` without preparing Python or
+downloading reuse inputs. Source tag pushes and release events still invoke the
+strict verifier. OS environment captures and aggregate producer sealing remain
+active, so a default-branch push can still produce verified evidence.
+
 ## quality/check-versions.py
 
 `quality/check-versions.py` detects drift between `quality/versions.json` and
@@ -1424,6 +1448,11 @@ the locked Python, Node, and quality-policy declarations. The default check is
 declarative: it validates the registry, requirements and package locks,
 integrity metadata, and the configured coverage threshold without installing,
 downloading, or modifying anything.
+
+Requirement files accept exact PEP 440 version pins, valid extras and comments.
+Unsupported directives, ranges, markers, trailing text and duplicate normalized
+package names fail with the file and line. Hashed lock blocks retain their
+multiline format; a malformed transitive declaration cannot be skipped silently.
 
 ### Synopsis
 
@@ -1467,6 +1496,12 @@ python -B tools/quality/check-versions.py --runtime --tool ruff --tool mypy
 
 ### Updating dependency pins
 
+Treat a Dependabot proposal as incomplete until the registry, direct
+declarations and related locks agree. Complete those files together and retain
+the drift check; do not relax it to accept an isolated version bump. A passing
+declaration check is followed by clean installations, runtime checks, dependency
+audits and the existing full CI qualification.
+
 Prepare Dependabot proposals as complete changes before merging: update each
 direct requirement and its entry in `quality/versions.json` together, then
 regenerate the affected lock. The version checker deliberately rejects an
@@ -1493,7 +1528,6 @@ upgrade, then verify a clean installation and its advisories:
 
 ```bash
 npm ci --ignore-scripts --prefix tools/quality
-python tools/quality/npm-security.py patch
 python tools/quality/npm-security.py audit
 python tools/quality/check-versions.py
 ```
@@ -1503,59 +1537,43 @@ Use exact `nodeOverrides` entries in the registry for transitive npm pins;
 lock generator's `--allow-unsafe` includes a hashed pip pin required by pip-api;
 installation continues to require hashes for every dependency.
 
-The Linux CI job requires the attested npm audit and audits of both Python
-locks to succeed. High or critical npm findings and verification errors block
-integration, except the precisely attested braces advisory described below.
+The Linux CI job requires the npm audit and audits of both Python locks to
+succeed. All high or critical npm findings and audit errors block integration.
 
 ## quality/npm-security.py
 
-This tool applies and verifies the local fix for braces 3.0.3's recursive
-stack exhaustion, then evaluates npm's complete advisory graph. It preserves
-the upstream package version, npm integrity, MIT license and raw advisory
-report. It does not install packages or enable lifecycle scripts.
+This tool evaluates npm's complete advisory graph and blocks every high or
+critical finding. It keeps the complete raw report and does not install
+packages, change installed bytes, or enable lifecycle scripts.
 
 ### Synopsis
 
 ```text
 usage: python tools/quality/npm-security.py [-h] [--version] [--dry-run] [-v] \
-  {patch,verify,audit} [--quality-root PATH] [--dry-run]
+  {audit} [--quality-root PATH] [--dry-run]
 ```
 
-Apply `patch` explicitly after each `npm ci --ignore-scripts`. `verify` checks
-every installed braces occurrence against the recorded hashes. `audit` first
-verifies those bytes, then queries the npm registry with a 120-second deadline
-and a temporary download cache. `--dry-run` makes no writes or network calls;
-audit dry-run prints the planned command after local verification. `-v` shows
-the exception details on a failure. `--quality-root` defaults to this tool's
-directory and selects another installed quality tree with its lockfile.
+`audit` queries the npm registry with a 120-second deadline and an isolated
+temporary cache. `--dry-run` prints the planned command without writes or
+network calls. `-v` shows exception details on failure. `--quality-root`
+defaults to this tool's directory and selects another quality tree with its
+lockfile. Node.js and npm must already be installed.
 
-The patch manifest records the canonical npm archive URL and SHA512 integrity,
-the advisory `GHSA-vfj7-8cjw-p6xm`, and before/after SHA256 hashes for all ten
-upstream files. Replacement walkers use iterative traversal, retaining outputs,
-ordering, options and range limits. Frozen upstream walkers in the test fixtures
-support differential compatibility checks. License and provenance live under
-`quality/patches/braces-3.0.3/`.
+The JSON output contains `rawReport`, `rawCounts` and `blocked`. Low and moderate
+findings remain visible without blocking. Malformed reports, stale counts,
+missing or cyclic advisory attribution and registry errors fail closed. No
+advisory is exempted or silently suppressed.
 
-The security tests reconstruct braces and its three dependencies from exact
-upstream archives under `tests/fixtures/`. They verify each archive's SHA512
-against the lockfile before extracting it into a temporary dependency tree.
-The suite needs Python and Node.js, but no checkout `node_modules`, npm install
-or network access. If one of these four locked versions changes, refresh its
-matching archive and rerun the isolated suite before committing the lock update.
+The former `patch` and `verify` commands are removed. Run
+`npm ci --ignore-scripts --prefix tools/quality` after updating the locks to
+restore upstream installed bytes. New packages omit the retired braces payload
+and its archive fixtures; upgrades preserve obsolete consumer files as inert
+local files rather than deleting them automatically. Historical release
+instructions and reports remain evidence for their original versions.
 
-Unexpected files, hashes, linked directories, wrong lock provenance or unlocked
-braces copies stop patching. Application is idempotent; an interruption restores
-already replaced files and preserves the original exception. Concurrent foreign
-edits are preserved with an explicit incomplete-restoration diagnostic. Keep
-installation and patching exclusive of other writes to that dependency tree.
-
-An npm high finding is attested only when every advisory leaf is that exact
-braces advisory and all affected installed occurrences have the recorded fix.
-Other high or critical advisories block. Missing or cyclic attribution, malformed
-reports, stale counts and registry failures block as well. The JSON output keeps
-`rawReport` and `rawCounts` alongside `attested` and `blocked`; upstream findings
-remain visible. No advisory is silently suppressed. Remove the local patch when
-an upstream fixed release passes the same compatibility and security checks.
+The offline security tests use controlled npm responses and child processes to
+exercise report validation, audit arguments, cache cleanup and process-tree
+timeouts without a dependency installation or registry call.
 
 Audit both fully hashed Python environments without installation or resolution:
 
@@ -1571,10 +1589,9 @@ run automatic fixes, or replace hooks and full qualification.
 
 ### Exit Status
 
-- `0`: patch/verification succeeded, no unhandled high/critical advisory remains,
-  or the requested dry-run completed.
-- `1`: verification, registry audit or patch application failed, or blocking
-  advisories remain. Incomplete restoration details accompany the original error.
+- `0`: no high/critical advisory remains, or the requested dry-run completed.
+- `1`: the audit failed or blocking advisories remain; cleanup details accompany
+  the original error when available.
 - `2`: command-line arguments are invalid.
 
 ## quality/install-external-tools.py
@@ -1806,7 +1823,8 @@ select the upgrade suite, and workflow changes select Actionlint and semantic
 workflow contracts.
 Each hook wrapper selects the common hook suite and its own focused suite.
 Shared runtime, configuration and unknown paths select the complete Python suite
-and all four shell suites: common hooks, commit messages, pre-commit and pre-push.
+and all six shell suites: common hooks, commit messages, pre-commit, pre-push,
+repository audit and agent rules transfer.
 Selections are combined for repeated pushed objects and executed once per suite;
 missing suites or an empty mandatory selection fail. The exhaustive shell behavior
 and audit suites remain mandatory in Linux CI.
@@ -1845,7 +1863,6 @@ python -m pip install \
   --require-hashes \
   --requirement tools/quality/requirements.lock
 npm ci --ignore-scripts --prefix tools/quality
-python tools/quality/npm-security.py patch
 ```
 
 The external versions declared in `tools/quality/versions.json` must also be

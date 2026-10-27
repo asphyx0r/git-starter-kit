@@ -982,14 +982,24 @@ function Copy-ProjectTemplate {
         [Parameter(Mandatory = $true)][string]$RepositoryReference,
         [Parameter(Mandatory = $true)][string]$SnapshotRoot)
 
-    $templatesRoot = Join-Path $SourceRoot "templates/project"
-    foreach ($file in Get-ChildItem -LiteralPath $templatesRoot -File -Recurse -Force) {
-        $relativePath = $file.FullName.Substring($templatesRoot.Length + 1)
-        $sourcePath = $file.FullName
+    $templateArguments = if ($RepositoryReference -match $SemVerTagPattern) {
+        @("-C", $SourceRoot, "ls-tree", "-r", "-z", "--name-only", "HEAD", "--", "templates/project/")
+    }
+    else {
+        @("-C", $SourceRoot, "ls-files", "-z", "--", "templates/project/")
+    }
+    $templatePaths = @(([string](Invoke-GitLine -Raw -Arguments $templateArguments)).Split(
+        [char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries
+    ))
+    foreach ($sourceRelativePath in $templatePaths) {
+        $relativePath = $sourceRelativePath.Substring("templates/project/".Length)
+        $sourcePath = Join-Path $SourceRoot $sourceRelativePath
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "Tracked composed template is missing: $sourceRelativePath"
+        }
         if ($RepositoryReference -match $SemVerTagPattern) {
-            $sourceRelativePath = "templates/project/" + ($relativePath -replace "\\", "/")
             $headObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "rev-parse", "HEAD:$sourceRelativePath")) -join "").Trim()
-            $worktreeObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "hash-object", "--path=$sourceRelativePath", $file.FullName)) -join "").Trim()
+            $worktreeObject = ((Invoke-GitLine -Arguments @("-C", $SourceRoot, "hash-object", "--path=$sourceRelativePath", $sourcePath)) -join "").Trim()
             if ($headObject -cne $worktreeObject) { throw "Composed template differs from HEAD: $sourceRelativePath" }
             $sourcePath = Join-Path $SnapshotRoot $sourceRelativePath
         }

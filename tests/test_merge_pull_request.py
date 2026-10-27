@@ -1923,6 +1923,197 @@ class MergePullRequestTests(unittest.TestCase):
         self.assertIn("temporary storage unavailable", error_output)
         dispatch.assert_called_once()
 
+    def test_request_pre_dispatch_cleanup_failure_preserves_primary_error(self):
+        message_path = self.write_bytes(b"fix(git): cleanup before dispatch\n")
+        for primary in (
+            None,
+            self.module.MergeRequestError("invalid candidate"),
+            KeyboardInterrupt(),
+        ):
+            with self.subTest(primary=primary):
+                temporary = tempfile.TemporaryDirectory()
+                self.addCleanup(temporary.cleanup)
+                with (
+                    patch.object(
+                        temporary,
+                        "cleanup",
+                        side_effect=PermissionError("locked candidate"),
+                    ),
+                    patch.object(
+                        self.module.tempfile,
+                        "TemporaryDirectory",
+                        return_value=temporary,
+                    ),
+                    patch.object(
+                        self.module,
+                        "_resolve_repository",
+                        return_value=(REPOSITORY, "main"),
+                    ),
+                    patch.object(
+                        self.module,
+                        "_validate_message_with_commitlint",
+                        side_effect=primary,
+                    ),
+                    patch.object(self.module, "_dispatch_request") as dispatch,
+                ):
+                    arguments = [
+                        "request",
+                        "--force",
+                        "--pull-request",
+                        "17",
+                        "--message-file",
+                        str(message_path),
+                    ]
+                    if isinstance(primary, KeyboardInterrupt):
+                        errors = io.StringIO()
+                        with (
+                            redirect_stderr(errors),
+                            self.assertRaises(KeyboardInterrupt),
+                        ):
+                            self.module.main(arguments)
+                        error = errors.getvalue()
+                    else:
+                        code, _, error = self.run_main(arguments)
+                        self.assertEqual(code, 1, error)
+                        if primary:
+                            self.assertIn("invalid candidate", error)
+                    self.assertIn(temporary.name, error)
+                    self.assertIn("locked candidate", error)
+                    dispatch.assert_not_called()
+
+    def test_request_postcondition_cleanup_failure_preserves_known_outcome(self):
+        message_path = self.write_bytes(b"fix(git): cleanup after dispatch\n")
+        cases = (
+            (None, "success", 1),
+            (None, "failure", 1),
+            (self.module.UnmergedPullRequestError("not merged"), "success", 1),
+            (self.module.MergeRequestError("unavailable evidence"), "success", 3),
+            (KeyboardInterrupt(), "success", None),
+        )
+        for primary, conclusion, expected in cases:
+            with self.subTest(primary=primary, conclusion=conclusion):
+                candidate = tempfile.TemporaryDirectory()
+                temporary = tempfile.TemporaryDirectory()
+                self.addCleanup(candidate.cleanup)
+                self.addCleanup(temporary.cleanup)
+                output, errors = io.StringIO(), io.StringIO()
+
+                def cleanup():
+                    if primary is None:
+                        self.assertIn(f"{REPOSITORY}#17", output.getvalue())
+                        self.assertIn(HEAD_OID, output.getvalue())
+                    raise PermissionError("locked postcondition")
+
+                with (
+                    patch.object(temporary, "cleanup", side_effect=cleanup),
+                    patch.object(
+                        self.module.tempfile,
+                        "TemporaryDirectory",
+                        side_effect=[candidate, temporary],
+                    ),
+                    patch.object(
+                        self.module,
+                        "_resolve_repository",
+                        return_value=(REPOSITORY, "main"),
+                    ),
+                    patch.object(self.module, "_validate_message_with_commitlint"),
+                    patch.object(
+                        self.module,
+                        "_validate_pull_request",
+                        return_value=valid_pull_request(),
+                    ),
+                    patch.object(self.module, "_dispatch_request") as dispatch,
+                    patch.object(
+                        self.module,
+                        "_wait_for_dispatch_run",
+                        return_value={"conclusion": conclusion},
+                    ),
+                    patch.object(
+                        self.module, "_verify_postcondition", side_effect=primary
+                    ),
+                    redirect_stdout(output),
+                    redirect_stderr(errors),
+                ):
+                    arguments = [
+                        "request",
+                        "--force",
+                        "--pull-request",
+                        "17",
+                        "--message-file",
+                        str(message_path),
+                    ]
+                    if isinstance(primary, KeyboardInterrupt):
+                        with self.assertRaises(KeyboardInterrupt):
+                            self.module.main(arguments)
+                    else:
+                        self.assertEqual(
+                            self.module.main(arguments), expected, errors.getvalue()
+                        )
+                    self.assertIn(temporary.name, errors.getvalue())
+                    self.assertIn("locked postcondition", errors.getvalue())
+                    if primary is not None and not isinstance(
+                        primary, KeyboardInterrupt
+                    ):
+                        self.assertIn(str(primary), errors.getvalue())
+                    self.assertNotIn("succeeded", output.getvalue())
+                    dispatch.assert_called_once()
+
+    def test_execute_cleanup_failure_preserves_confirmation_and_primary_error(self):
+        event_path = self.write_event(valid_event())
+        for primary, expected in (
+            (None, 1),
+            (self.module.UnmergedPullRequestError("not merged"), 1),
+            (self.module.MergeRequestError("unavailable evidence"), 3),
+            (KeyboardInterrupt(), None),
+        ):
+            with self.subTest(primary=primary):
+                temporary = tempfile.TemporaryDirectory()
+                self.addCleanup(temporary.cleanup)
+                output, errors = io.StringIO(), io.StringIO()
+
+                def cleanup():
+                    if primary is None:
+                        self.assertIn(f"{REPOSITORY}#17", output.getvalue())
+                        self.assertIn(HEAD_OID, output.getvalue())
+                    raise PermissionError("locked merge")
+
+                with (
+                    patch.object(temporary, "cleanup", side_effect=cleanup),
+                    patch.object(
+                        self.module.tempfile,
+                        "TemporaryDirectory",
+                        return_value=temporary,
+                    ),
+                    patch.object(self.module, "_validate_message_with_commitlint"),
+                    patch.object(
+                        self.module,
+                        "_validate_pull_request",
+                        return_value=valid_pull_request(),
+                    ),
+                    patch.object(self.module, "_run_gh") as merge,
+                    patch.object(
+                        self.module, "_verify_postcondition", side_effect=primary
+                    ),
+                    redirect_stdout(output),
+                    redirect_stderr(errors),
+                ):
+                    arguments = ["execute", "--event-file", str(event_path)]
+                    if isinstance(primary, KeyboardInterrupt):
+                        with self.assertRaises(KeyboardInterrupt):
+                            self.module.main(arguments)
+                    else:
+                        self.assertEqual(
+                            self.module.main(arguments), expected, errors.getvalue()
+                        )
+                    self.assertIn(temporary.name, errors.getvalue())
+                    self.assertIn("locked merge", errors.getvalue())
+                    if isinstance(primary, self.module.MergeRequestError):
+                        self.assertIn(
+                            "not merged" if expected == 1 else str(primary),
+                            errors.getvalue(),
+                        )
+                    merge.assert_called_once()
+
     def test_request_reports_workflow_failure_as_exit_one(self):
         message_path = self.write_bytes(b"fix(git): report failure\n")
         failed_run = {

@@ -14,6 +14,8 @@ import sys
 import tempfile
 import unicodedata
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime
@@ -221,9 +223,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
     except BackupError as exc:
         logger.fatal(str(exc))
+        for note in getattr(exc, "__notes__", ()):
+            logger.error(note)
         return 1
     except OSError as exc:
         logger.fatal(f"Filesystem error: {exc}")
+        for note in getattr(exc, "__notes__", ()):
+            logger.error(note)
         return 1
 
     return 0
@@ -271,7 +277,7 @@ def join_split_path_option_values(argv: list[str]) -> list[str]:
             continue
 
         value_parts = []
-        while index < len(argv) and argv[index] not in KNOWN_OPTION_STRINGS:
+        while index < len(argv) and not argv[index].startswith("-"):
             value_parts.append(strip_edge_quotes(argv[index]))
             index += 1
 
@@ -327,7 +333,7 @@ def run_backup(
         logger.info("Dry run completed without modifying data.")
         return
 
-    with tempfile.TemporaryDirectory(
+    with _temporary_directory(
         prefix=f"{sanitize_name(source.name)}-",
         dir=str(buffer_parent),
     ) as staging_parent_name:
@@ -645,16 +651,35 @@ def is_accessible_directory(directory: Path) -> bool:
 
 
 def create_archive(staged_source: Path, archive_path: Path) -> None:
-    with tempfile.TemporaryDirectory(
-        prefix="archive-", dir=staged_source.parent
-    ) as local:
+    with _temporary_directory(prefix="archive-", dir=staged_source.parent) as local:
         local_archive = Path(local) / "backup.zip"
         write_zip_from_staged_tree(staged_source, local_archive)
         _transfer_archive(local_archive, archive_path)
 
 
+@contextmanager
+def _temporary_directory(*, prefix: str, dir: str | Path) -> Iterator[str]:
+    temporary = tempfile.TemporaryDirectory(prefix=prefix, dir=dir)
+    primary_error = None
+    try:
+        yield temporary.name
+    except BaseException as exc:
+        primary_error = exc
+        raise
+    finally:
+        try:
+            temporary.cleanup()
+        except OSError as exc:
+            message = f"Could not remove temporary directory {temporary.name}: {exc}"
+            if primary_error is None:
+                exc.add_note(message)
+                raise
+            primary_error.add_note(message)
+
+
 def _transfer_archive(local_archive: Path, archive_path: Path) -> None:
     temp_archive = None
+    primary_error = None
     try:
         with tempfile.NamedTemporaryFile(
             prefix=f".{archive_path.stem}.",
@@ -666,14 +691,18 @@ def _transfer_archive(local_archive: Path, archive_path: Path) -> None:
             with local_archive.open("rb") as source:
                 shutil.copyfileobj(source, destination)
         _publish_archive(temp_archive, archive_path)
+    except BaseException as exc:
+        primary_error = exc
+        raise
     finally:
         if temp_archive is not None:
             try:
                 temp_archive.unlink(missing_ok=True)
             except OSError as exc:
-                raise BackupError(
-                    f"Could not remove temporary archive {temp_archive}: {exc}"
-                ) from exc
+                message = f"Could not remove temporary archive {temp_archive}: {exc}"
+                if primary_error is None:
+                    raise BackupError(message) from exc
+                primary_error.add_note(message)
 
 
 def _publish_archive(temp_archive: Path, archive_path: Path) -> None:
@@ -694,6 +723,7 @@ def write_zip_from_staged_tree(staged_source: Path, archive_path: Path) -> None:
         mode="w",
         compression=zipfile.ZIP_DEFLATED,
         compresslevel=MAX_COMPRESSION,
+        strict_timestamps=False,
     ) as archive:
         add_directory_entry(archive, staged_source.name)
         staged_paths = sorted(staged_source.rglob("*"))

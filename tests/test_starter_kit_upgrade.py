@@ -202,8 +202,8 @@ class StarterKitUpgradeTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(UPGRADE.build_upgrade(arguments), 0)
 
-    def create_target(self):
-        target = self.root / "target"
+    def create_target(self, name="target"):
+        target = self.root / name
         target.mkdir()
         for path, content in self.base_files.items():
             destination = target / path
@@ -228,6 +228,188 @@ class StarterKitUpgradeTests(unittest.TestCase):
     def load_plan(self, target):
         manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
         return manifest, files, UPGRADE.evaluate_target(manifest, files, target)
+
+    def rebuild_content_upgrade(self, base, new, path="merge.txt"):
+        self.base_files[path] = base
+        self.new_files[path] = new
+        inventory = json.loads(self.new_files[UPGRADE.FILES_MANIFEST_PATH])
+        entry = next(item for item in inventory["files"] if item["path"] == path)
+        entry["sha256"] = UPGRADE.sha256_bytes(new)
+        entry["contentKind"], entry["canonicalSha256"] = UPGRADE.content_metadata(new)
+        self.new_files[UPGRADE.FILES_MANIFEST_PATH] = json_bytes(inventory)
+        self.write_zip(self.base_package, self.base_files)
+        self.write_zip(self.new_package, self.new_files)
+        self.upgrade_package.unlink(missing_ok=True)
+        self.build_upgrade()
+
+    def test_upgrade_build_load_plan_apply_all_content_kind_transitions(self):
+        cases = (
+            (b"base\r\n", b"new\n", "text", "text"),
+            (b"\xffbase", b"\xfenew", "binary", "binary"),
+            (b"\xffbase", b"new\n", "binary", "text"),
+            (b"base\r\n", b"\xffnew", "text", "binary"),
+        )
+        for index, (base, new, base_kind, new_kind) in enumerate(cases):
+            with self.subTest(base_kind=base_kind, new_kind=new_kind):
+                self.rebuild_content_upgrade(base, new)
+                target = self.create_target(f"transition-{index}")
+                local = b"base\n" if base_kind == "text" else base
+                (target / "merge.txt").write_bytes(local)
+                self.run_git(target, "add", "merge.txt")
+                self.run_git(
+                    target, "commit", "--allow-empty", "-m", "test: normalized base"
+                )
+                manifest, files, plan = self.load_plan(target)
+                self.assertEqual(manifest["schemaVersion"], 4)
+                self.assertEqual(
+                    json.loads(self.new_files[UPGRADE.FILES_MANIFEST_PATH])[
+                        "schemaVersion"
+                    ],
+                    3,
+                )
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                self.assertEqual(entry["baseContentKind"], base_kind)
+                self.assertEqual(entry["contentKind"], new_kind)
+                self.assertEqual(
+                    entry["baseCanonicalSha256"],
+                    UPGRADE.sha256_bytes(b"base\n" if base_kind == "text" else base),
+                )
+                action = next(a for a in plan["actions"] if a["path"] == "merge.txt")
+                self.assertEqual(action["action"], "update")
+                self.assertTrue(plan["applicable"])
+                backup = UPGRADE.apply_upgrade(
+                    manifest, files, target, plan, self.backup_directory
+                )
+                self.assertEqual((target / "merge.txt").read_bytes(), new)
+                with zipfile.ZipFile(backup) as archive:
+                    self.assertEqual(archive.read("files/merge.txt"), local)
+
+    def test_cross_kind_upgrade_aligns_target_and_conflicts_on_custom_content(self):
+        planning = importlib.import_module("starter_kit_upgrade.planning")
+        for index, (base, new) in enumerate(
+            ((b"\xffbase", b"new\n"), (b"base\n", b"\xffnew"))
+        ):
+            self.rebuild_content_upgrade(base, new)
+            target = self.create_target(f"custom-{index}")
+            for local, expected in (
+                (new, "aligned"),
+                (b"custom\n", "conflict-modified"),
+                (b"\xffcustom", "conflict-modified"),
+            ):
+                with self.subTest(base=base, local=local):
+                    (target / "merge.txt").write_bytes(local)
+                    self.run_git(target, "add", "merge.txt")
+                    self.run_git(
+                        target, "commit", "--allow-empty", "-m", "test: local content"
+                    )
+                    with mock.patch.object(
+                        planning,
+                        "merge_text_payload",
+                        side_effect=AssertionError("cross-kind merge"),
+                    ):
+                        _, _, plan = self.load_plan(target)
+                    action = next(
+                        a for a in plan["actions"] if a["path"] == "merge.txt"
+                    )
+                    self.assertEqual(action["action"], expected)
+                    self.assertEqual(plan["applicable"], expected == "aligned")
+
+    def test_cross_kind_raw_change_after_plan_blocks_apply_and_rolls_back(self):
+        self.rebuild_content_upgrade(b"base\r\n", b"\xffnew")
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        self.assertTrue(plan["applicable"])
+        original_a = (target / "a.txt").read_bytes()
+        (target / "merge.txt").write_bytes(b"base\n")
+        with self.assertRaisesRegex(UPGRADE.UpgradeError, "changed after planning"):
+            UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+        self.assertEqual((target / "a.txt").read_bytes(), original_a)
+        self.assertEqual((target / "merge.txt").read_bytes(), b"base\n")
+        self.assertFalse((target / UPGRADE.ADOPTION_PATH).exists())
+
+    def test_upgrade_schema_four_requires_consistent_baseline_kind(self):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        cases = (
+            ("merge.txt", "missing"),
+            ("merge.txt", None),
+            ("merge.txt", "binary"),
+            ("merge.txt", []),
+            ("merge.txt", {}),
+            ("merge.txt", True),
+            ("merge.txt", "unknown"),
+            ("new.txt", "text"),
+        )
+        for index, (path, value) in enumerate(cases):
+            with self.subTest(path=path, value=value):
+                manifest = copy.deepcopy(original)
+                entry = next(e for e in manifest["entries"] if e["path"] == path)
+                if value == "missing":
+                    entry.pop("baseContentKind", None)
+                else:
+                    entry["baseContentKind"] = value
+                files = dict(original_files)
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                invalid = self.root / f"invalid-kind-{index}.zip"
+                self.write_zip(invalid, files)
+                with self.assertRaises(UPGRADE.UpgradeError):
+                    UPGRADE.load_upgrade(invalid)
+
+    def test_schema_four_rejects_contradictory_binary_replace_baseline(self):
+        manifest, files = UPGRADE.load_upgrade(self.upgrade_package)
+        entry = next(e for e in manifest["entries"] if e["path"] == "a.txt")
+        self.assertEqual(entry["strategy"], "replace")
+        self.assertIsNone(entry["basePayload"])
+        entry["baseContentKind"] = "binary"
+        entry["baseSha256"] = "0" * 64
+        entry["baseCanonicalSha256"] = UPGRADE.sha256_bytes(b"\xffcustom local\n")
+        files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+        malformed = self.root / "contradictory-binary-replace.zip"
+        self.write_zip(malformed, files)
+
+        with self.assertRaisesRegex(UPGRADE.UpgradeError, "binary base digests"):
+            UPGRADE.load_upgrade(malformed)
+
+    def test_upgrade_schema_four_null_baseline_and_state_are_applicable(self):
+        self.base_files.pop(UPGRADE.STARTER_MANIFEST_PATH)
+        self.write_zip(self.base_package, self.base_files)
+        self.upgrade_package.unlink()
+        self.build_upgrade()
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        for path in ("new.txt", UPGRADE.STARTER_MANIFEST_PATH):
+            entry = next(e for e in manifest["entries"] if e["path"] == path)
+            self.assertIsNone(entry["baseContentKind"])
+            self.assertIsNone(entry["baseCanonicalSha256"])
+            self.assertIsNone(entry["baseSha256"])
+        self.assertTrue(plan["applicable"])
+        UPGRADE.apply_upgrade(manifest, files, target, plan, self.backup_directory)
+        self.assertEqual((target / "new.txt").read_bytes(), b"new file\n")
+        state = json.loads((target / UPGRADE.STARTER_MANIFEST_PATH).read_bytes())
+        self.assertEqual(state["source"]["ref"], "v1.0.0")
+        self.assertEqual(state["current"]["ref"], "v2.0.0")
+
+    def test_invalid_adoption_schema_types_return_no_evidence_without_git(self):
+        manifest, _ = UPGRADE.load_upgrade(self.upgrade_package)
+        adoption_path = self.root / UPGRADE.ADOPTION_PATH
+        valid = {
+            "starterKit": manifest["base"]["provenance"]["starterKit"],
+            "baseArchiveSha256": manifest["base"]["archiveSha256"],
+            "repositoryCommit": "a" * 40,
+        }
+        planning = importlib.import_module("starter_kit_upgrade.planning")
+        for schema in (True, False, [], {}, 1.0, "1", None, 0, 3):
+            with self.subTest(schema=schema):
+                adoption_path.write_bytes(
+                    json_bytes({**valid, "schemaVersion": schema})
+                )
+                with mock.patch.object(
+                    planning,
+                    "run_git",
+                    side_effect=AssertionError("invalid evidence queried Git"),
+                ):
+                    self.assertIsNone(
+                        UPGRADE.validate_adoption(self.root, manifest, adoption_path)
+                    )
 
     def build_mode_upgrade(self, path="a.txt", mode="100755"):
         self.new_files[path] = self.base_files[path]
@@ -1569,7 +1751,7 @@ print(upgrade.VERSION)
             ("misdirected", "Missing base payload for merge.txt."),
             ("missing", "Missing base payload for merge.txt."),
             ("tampered", "Base payload digest mismatch: merge.txt"),
-            ("non-text", "Invalid base text payload: merge.txt"),
+            ("non-text", "Content kind mismatch: merge.txt"),
         )
         for defect, diagnostic in cases:
             with self.subTest(defect=defect):
@@ -1658,15 +1840,18 @@ print(upgrade.VERSION)
     def test_historical_upgrade_schemas_remain_readable(self):
         original, files = UPGRADE.load_upgrade(self.upgrade_package)
         target = self.create_target()
-        for version in (1, 2):
+        for version in (1, 2, 3):
             with self.subTest(version=version):
                 manifest = copy.deepcopy(original)
                 manifest["schemaVersion"] = version
-                manifest["entries"] = [
-                    e
-                    for e in manifest["entries"]
-                    if e["strategy"] != "starter-kit-state"
-                ]
+                if version < 3:
+                    manifest["entries"] = [
+                        e
+                        for e in manifest["entries"]
+                        if e["strategy"] != "starter-kit-state"
+                    ]
+                for entry in manifest["entries"]:
+                    entry.pop("baseContentKind")
                 if version == 1:
                     for entry in manifest["entries"]:
                         for field in (
@@ -1684,6 +1869,33 @@ print(upgrade.VERSION)
                 self.assertTrue(
                     UPGRADE.evaluate_target(loaded, payloads, target)["applicable"]
                 )
+
+    def test_legacy_upgrade_rejects_invalid_utf8_baseline_without_reclassification(
+        self,
+    ):
+        original, original_files = UPGRADE.load_upgrade(self.upgrade_package)
+        for schema in (2, 3):
+            with self.subTest(schema=schema):
+                manifest = copy.deepcopy(original)
+                manifest["schemaVersion"] = schema
+                manifest["entries"] = [
+                    e
+                    for e in manifest["entries"]
+                    if e["strategy"] != "starter-kit-state"
+                ]
+                entry = next(e for e in manifest["entries"] if e["path"] == "merge.txt")
+                content = b"\xffinvalid legacy text"
+                entry["baseSha256"] = UPGRADE.sha256_bytes(content)
+                entry["baseCanonicalSha256"] = UPGRADE.sha256_bytes(content)
+                files = dict(original_files)
+                files[entry["basePayload"]] = content
+                files[UPGRADE.UPGRADE_MANIFEST_PATH] = json_bytes(manifest)
+                legacy = self.root / f"invalid-legacy-text-{schema}.zip"
+                self.write_zip(legacy, files)
+                with self.assertRaisesRegex(
+                    UPGRADE.UpgradeError, "Invalid base text payload"
+                ):
+                    UPGRADE.load_upgrade(legacy)
 
     def test_upgrade_rejects_invalid_provenance_and_state_payload_before_plan(self):
         original, original_files = UPGRADE.load_upgrade(self.upgrade_package)

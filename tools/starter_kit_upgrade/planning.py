@@ -20,6 +20,7 @@ from .common import (
     UpgradeError,
     canonical_sha256,
     canonicalize_text,
+    content_metadata,
     load_json_bytes,
     parse_starter_manifest,
     reject_link_or_reparse_point,
@@ -86,7 +87,8 @@ def validate_adoption(
     if not adoption_path.is_file():
         return None
     adoption = load_json_bytes(adoption_path.read_bytes(), str(adoption_path))
-    if adoption.get("schemaVersion") not in {1, 2}:
+    schema_version = adoption.get("schemaVersion")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
         return None
     starter = adoption.get("starterKit")
     if not isinstance(starter, dict):
@@ -268,15 +270,27 @@ def evaluate_target(
         )
         content_kind = str(entry.get("contentKind", "binary"))
         schema_version = int(manifest.get("schemaVersion", 1))
+        base_content_kind = (
+            entry["baseContentKind"] if schema_version == 4 else content_kind
+        )
+        classification_changed = (
+            base_content_kind is not None and base_content_kind != content_kind
+        )
+        local_content_kind = content_kind
+        local_digest: str | None
         local_raw_digest = None
         try:
-            local_digest = (
-                canonical_sha256(local_content, content_kind)
-                if local_content is not None and schema_version >= 2
-                else sha256_bytes(local_content)
-                if local_content is not None
-                else None
-            )
+            if classification_changed and local_content is not None:
+                local_content_kind, local_digest = content_metadata(local_content)
+                local_raw_digest = sha256_bytes(local_content)
+            else:
+                local_digest = (
+                    canonical_sha256(local_content, content_kind)
+                    if local_content is not None and schema_version >= 2
+                    else sha256_bytes(local_content)
+                    if local_content is not None
+                    else None
+                )
         except UnicodeDecodeError:
             assert local_content is not None
             local_digest = None
@@ -334,19 +348,20 @@ def evaluate_target(
                 action = "review-initialize-only"
             else:
                 action = "preserve"
-        elif local_raw_digest is not None:
+        elif local_content is not None and local_digest is None:
             action = "conflict-modified"
-        elif local_digest == new_digest:
+        elif local_content_kind == content_kind and local_digest == new_digest:
             action = "aligned"
         elif local_content is None and base_digest is None:
             action = "add"
         elif local_content is None:
             action = "conflict-missing"
-        elif local_digest == base_digest:
+        elif local_content_kind == base_content_kind and local_digest == base_digest:
             action = "update"
         elif (
             strategy == "merge"
             and content_kind == "text"
+            and base_content_kind == content_kind
             and local_content is not None
             and entry.get("basePayload") in files
         ):

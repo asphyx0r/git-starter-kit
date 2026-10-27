@@ -25,7 +25,7 @@ temporary cleanup accompany the original error. Use one writer during preparatio
 | `backup-target-directory.py` | Local directory backup | Python |
 | `quality/check-versions.py` | Verify pinned tools | Python |
 | `quality/install-external-tools.py` | Verified external tool installation | Python |
-| `quality/npm-security.py` | Attested npm fix and security gate | Python / Node.js |
+| `quality/npm-security.py` | Blocking npm security audit | Python / Node.js |
 | `git_objects.py` / `process_runner.py` | Shared runtime modules | Python |
 
 ## Requirements
@@ -38,11 +38,11 @@ Use its active `python` for
 `python -m pip install --require-hashes --requirement tools/quality/requirements.lock`;
 the initializer requires `jsonschema`, not provided by standard Python. Install
 locked Node dependencies with `npm ci --ignore-scripts --prefix tools/quality`.
-Apply `python tools/quality/npm-security.py patch` after that installation.
-`verify` validates every installed braces occurrence; `audit` queries npm and
-blocks other high/critical advisories while retaining the attested upstream
-braces finding in its raw report. Use `--help` for dry-run and diagnostics.
-The fix, hashes and MIT license live in `quality/patches/braces-3.0.3/`.
+Run `python tools/quality/npm-security.py audit` to query npm and block all
+high/critical advisories. The complete raw report remains visible. Use `--help`
+for dry-run and diagnostics. The former `patch` and `verify` commands are
+removed; `npm ci --ignore-scripts --prefix tools/quality` restores upstream
+installed bytes. Upgrades preserve obsolete patch files as inert local files.
 Full/static audits also require the pinned tools in `quality/versions.json` and
 PSScriptAnalyzer where PowerShell files are audited. See each CLI's help for
 installation roots and platform selection, and
@@ -147,7 +147,9 @@ changed behavior is correct.
 
 Source-maintenance hooks select each changed test's family and the focused
 pre-commit/pre-push suites for those wrappers, combining repeated pushed objects.
-Shared or unknown source changes retain all Python and four shell suites. Consumer
+Shared or unknown source changes retain all Python and six shell suites: common
+hooks, commit messages, pre-commit, pre-push, repository audit and agent rules
+transfer. Consumer
 projects keep their managed-core scope and explicitly declared application checks.
 
 Pre-commit probes only its selected executables against indexed pins before

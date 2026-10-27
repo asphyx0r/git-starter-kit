@@ -35,6 +35,8 @@ eligible commands with timeouts and contained working directories; missing
 commands, bad paths and failed checks block. CI runs declared commands on the
 verified PR head or event revision. Full/readonly local audits only show a plan.
 Empty checks warn and cannot be described as passed application regression tests.
+Timeout diagnostics retain each command's complete captured stdout and stderr
+once, including output written before termination and during the final drain.
 
 Declared checks run in the existing Linux quality and Windows compatibility jobs.
 Each job retains a 45-minute total deadline: the former 25-minute quality budget

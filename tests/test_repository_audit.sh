@@ -101,6 +101,102 @@ run_nested_failure_checks() (
   printf '%s\n' 'PASS: actual nested whitespace, line-ending, workflow, coverage and smoke failure propagation'
 )
 
+run_spelling_inventory_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  local fixture="${test_temp}/spelling source" trace="${test_temp}/spelling.args"
+  local expected="${test_temp}/spelling.expected" mode status
+  git init -q "${fixture}"
+  git -C "${fixture}" config core.autocrlf false
+  mkdir -p "${fixture}/docs" "${fixture}/tools/external" \
+    "${fixture}/audits" "${fixture}/.venv"
+  printf '%s\n' tools/external/ audits/ .venv/ >"${fixture}/.gitignore"
+  local path
+  for path in '-leading.txt' 'docs/[brackets].md' 'docs/with space.md' \
+    deleted.txt directory.txt; do
+    printf 'tracked\n' >"${fixture}/${path}"
+  done
+  git -C "${fixture}" add -- .gitignore -leading.txt docs deleted.txt directory.txt
+  rm -- "${fixture}/deleted.txt" "${fixture}/directory.txt"
+  mkdir "${fixture}/directory.txt"
+  for path in untracked.txt tools/external/ignored.txt audits/ignored.txt .venv/ignored.txt; do
+    printf 'ignored or untracked\n' >"${fixture}/${path}"
+  done
+  printf '%s\0' './-leading.txt' './.gitignore' './docs/[brackets].md' \
+    './docs/with space.md' | sort -z >"${expected}"
+  local newline_path=$'docs/line\nbreak.md'
+  case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*) ;;
+  *)
+    printf 'tracked\n' >"${fixture}/${newline_path}"
+    git -C "${fixture}" add -- "${newline_path}"
+    printf './%s\0' "${newline_path}" >>"${expected}"
+    sort -z -o "${expected}" "${expected}"
+    ;;
+  esac
+  if ln -s -- '-leading.txt' "${fixture}/linked.txt" 2>/dev/null &&
+    [[ -L "${fixture}/linked.txt" ]]; then
+    git -C "${fixture}" add -- linked.txt
+  fi
+  cd "${fixture}"
+  spelling_probe() {
+    [[ "$1" == --config && "$2" == .codespellrc && "$3" == -- ]] ||
+      fail 'spelling did not pass an explicit bounded file list'
+    shift 3
+    printf '%s\0' "$@" | sort -z >"${trace}"
+  }
+  readonly_noop() { :; }
+  require_command() { :; }
+  resolve_command() {
+    if [[ "$1" == codespell ]]; then printf '%s\n' spelling_probe; else printf '%s\n' readonly_noop; fi
+  }
+  resolve_hook_node_tool() { printf '%s\n' readonly_noop; }
+  check_git_whitespace() { :; }
+  check_powershell_line_endings() { :; }
+  run_shell_syntax_checks() { return 77; }
+  for mode in run_spelling run_readonly; do
+    rm -f -- "${trace}"
+    status=0
+    "${mode}" || status=$?
+    if [[ "${mode}" == run_readonly ]]; then
+      ((status == 77)) || fail 'readonly did not reach its post-spelling stage'
+    else
+      ((status == 0)) || fail 'source spelling failed'
+    fi
+    cmp -s "${expected}" "${trace}" || fail "${mode} selected ignored, missing or unsafe paths"
+    (
+      spelling_probe() { return 29; }
+      status=0
+      "${mode}" || status=$?
+      ((status == 29)) || fail "${mode} swallowed codespell failure"
+    )
+    (
+      git() {
+        printf '%s\0' 'docs/with space.md'
+        return 37
+      }
+      rm -f -- "${trace}"
+      status=0
+      "${mode}" || status=$?
+      ((status == 37)) || fail "${mode} swallowed Git inventory failure"
+      [[ ! -e "${trace}" ]] || fail 'partial Git inventory reached codespell'
+    )
+    (
+      git() { return 0; }
+      rm -f -- "${trace}"
+      status=0
+      "${mode}" || status=$?
+      if [[ "${mode}" == run_readonly ]]; then
+        ((status == 77)) || fail 'readonly empty inventory did not continue'
+      else
+        ((status == 0)) || fail 'empty spelling inventory failed'
+      fi
+      [[ ! -e "${trace}" ]] || fail 'empty Git inventory invoked codespell'
+    )
+  done
+  printf '%s\n' 'PASS: shared tracked spelling inventory, unusual names, empty paths and Git failures'
+)
+
 run_profile_failure_checks() (
   # shellcheck disable=SC1090
   source "${dispatcher}"
@@ -297,12 +393,17 @@ import sys
 root = Path(sys.argv[1])
 quality = root / "tools/quality"
 lock = json.loads((quality / "package-lock.json").read_bytes())
-for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+versions = json.loads((quality / "versions.json").read_bytes())
+for name in ("@commitlint/cli", "markdownlint-cli2", *versions["nodeOverrides"]):
     metadata = json.loads((quality / "node_modules" / name / "package.json").read_bytes())
     assert metadata["version"] == lock["packages"][f"node_modules/{name}"]["version"]
 inventory = json.loads((root / "_starter-kit-files.json").read_bytes())
 assert not any("node_modules" in Path(entry["path"]).parts for entry in inventory["files"])
 PY
+  if [[ "${1:-}" == metadata ]]; then
+    printf '%s\n' 'PASS: initializer fixture carries metadata for every declared npm override'
+    return
+  fi
   if ! printf 'y\ny\n' | PATH="${test_temp}/initializer-bin:$PATH" \
     bash tools/git-init.sh --path "${fixture}" --tag v1.0.0 \
     >"${test_temp}/initializer-fixture.out" 2>"${test_temp}/initializer-fixture.err"; then
@@ -314,8 +415,18 @@ PY
   printf '%s\n' 'PASS: initializer fixture carries locked runtime inputs without distributing dependencies'
 )
 
+if [[ "${1:-}" == --spelling-inventory ]]; then
+  run_spelling_inventory_checks
+  exit 0
+fi
+
 if [[ "${1:-}" == --initializer-fixture ]]; then
   run_initializer_fixture_checks
+  exit
+fi
+
+if [[ "${1:-}" == --initializer-metadata ]]; then
+  run_initializer_fixture_checks metadata
   exit
 fi
 
@@ -453,6 +564,7 @@ assert_file_contains() {
 
 run_nested_failure_checks
 run_profile_failure_checks
+run_spelling_inventory_checks
 
 quality_python_cmd=""
 for quality_python_candidate in python python3 python.exe; do
@@ -793,10 +905,14 @@ cat >"${profile_bin}/codespell" <<'PROFILE_CODESPELL'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "$*" != "--config .codespellrc ." ]]; then
+if (($# < 4)) || [[ "$1" != --config || "$2" != .codespellrc || "$3" != -- ]]; then
   printf 'Unexpected Codespell arguments: %s\n' "$*" >&2
   exit 1
 fi
+shift 3
+for path in "$@"; do
+  [[ "${path}" == ./* && -f "${path}" && ! -L "${path}" ]] || exit 1
+done
 printf '%s\n' spelling >>"${QUALITY_PROFILE_TRACE}"
 PROFILE_CODESPELL
 cat >"${profile_bin}/yamllint" <<'PROFILE_YAMLLINT'

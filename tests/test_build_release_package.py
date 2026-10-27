@@ -140,6 +140,7 @@ class BuildReleasePackageTests(unittest.TestCase):
                     **os.environ,
                     "GH_REPO": "example/consumer",
                     "SCOPE": "project",
+                    "VERIFY_REUSE": "false",
                     "GITHUB_OUTPUT": str(outputs),
                     "RUNNER_TEMP": str(consumer),
                 },
@@ -149,6 +150,71 @@ class BuildReleasePackageTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("decision=full", outputs.read_text())
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
+    def test_preview_package_excludes_untracked_and_ignored_templates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = self.create_package_repository(root)
+            relative = "templates/project/local name-\u00e9.txt"
+            tracked = repository / relative
+            tracked.write_bytes(b"tracked template\n")
+            (repository / ".gitignore").write_text(
+                "templates/project/.env\n", encoding="utf-8"
+            )
+            subprocess.run(
+                ["git", "-C", str(repository), "add", "--", ".gitignore", relative],
+                capture_output=True,
+                check=True,
+            )
+            tracked.write_bytes(b"local template bytes\n")
+            (repository / "templates/project/.env").write_bytes(b"__CHANGE_ME__\n")
+            (repository / "templates/project/untracked.txt").write_bytes(b"local\n")
+            ignored = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repository),
+                    "check-ignore",
+                    "templates/project/.env",
+                ],
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(ignored.returncode, 0)
+            for host in (
+                host for host in ("pwsh", "powershell.exe") if shutil.which(host)
+            ):
+                with self.subTest(host=host):
+                    output = root / host
+                    result = self.run_package(
+                        SCRIPT_PATH,
+                        output,
+                        repository_root=repository,
+                        powershell_executable=host,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    with zipfile.ZipFile(output / "existing.zip") as archive:
+                        self.assertNotIn(".env", archive.namelist())
+                        self.assertNotIn("untracked.txt", archive.namelist())
+                        self.assertEqual(
+                            archive.read("local name-\u00e9.txt"),
+                            b"local template bytes\n",
+                        )
+                        for inventory_name in (
+                            "_starter-kit-files.json",
+                            "starter-kit-manifest.json",
+                        ):
+                            paths = {
+                                entry["path"]
+                                for entry in json.loads(archive.read(inventory_name))[
+                                    "files"
+                                ]
+                            }
+                            self.assertTrue({".env", "untracked.txt"}.isdisjoint(paths))
+                        inventory = archive.read("docs/repository-files.md").decode()
+                        self.assertNotIn("untracked.txt", inventory)
+                        self.assertNotIn("\n.env\n", inventory)
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
     def test_composition_factory_uses_snapshot_for_semver_and_local_for_preview(self):
@@ -2151,12 +2217,6 @@ for name in ('initialize-repository.py', 'release-artifacts.py', 'repository-aud
         quality_paths = {
             "tools/quality/check-versions.py",
             "tools/quality/npm-security.py",
-            "tools/quality/patches/braces-3.0.3/LICENSE",
-            "tools/quality/patches/braces-3.0.3/manifest.json",
-            "tools/quality/patches/braces-3.0.3/lib/compile.js",
-            "tools/quality/patches/braces-3.0.3/lib/expand.js",
-            "tools/quality/patches/braces-3.0.3/lib/stringify.js",
-            "tools/quality/patches/braces-3.0.3/lib/utils.js",
             "tools/quality/install-external-tools.py",
             "tools/quality/package-lock.json",
             "tools/quality/package.json",

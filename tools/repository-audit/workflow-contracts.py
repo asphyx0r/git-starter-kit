@@ -292,12 +292,12 @@ SEALED_SCRIPTS = {
     "agent-rules-update/prepare/seal": "sha256:b665573511d92b2af6d4e48842301c188b9cfe71e2574a05f84723d7c6aa2b47",
     "agent-rules-update/publish/prepare-publish": "sha256:7ebc2cb608620025b6b88384daf491634fa0903adc9218a39141c3ed18610946",
     "agent-rules-update/publish/push-branch-and-create-or-update-pull-request": "sha256:dd112160132afb25508a4b396e7557b4da5c73910120a303b7e002cff3cc9681",
-    "guarded-pull-request-merge/guarded-merge/install-locked-commitlint": "sha256:99e570e3acd0021a7f55910ccfe1be1b97d077527ce6a0308ed943ca38a291db",
+    "guarded-pull-request-merge/guarded-merge/install-locked-commitlint": "sha256:a44f53878073c66ebecde8da1cfbe3963b4752bdb4e7d41f19f3f8ed19069c5a",
     "guarded-pull-request-merge/guarded-merge/revalidate-and-squash-merge-with-the-guarded-token": "sha256:2705cf6861b29c920ed32609a1625530a0bc7be2bc66e2dbcf5a05addc767013",
     "guarded-pull-request-merge/guarded-merge/validate-guarded-merge-without-privileged-credentials": "sha256:6ec1b848e19fb1c5caf38ff85053425dd13b56385f8a335330c7288e76a2e37e",
     "release-artifacts/release-artifacts/install-manifest-validator": "sha256:76576e63dd0073d8ef2e59a9c8646bd83496908d7d564433af376c0c4223934f",
     "release-artifacts/release-artifacts/validate-release-identification": "sha256:346168d880b8a9e65447f17951b9d2de2c044aded137ca1dbd6545a9032b1cdf",
-    "release-package/build/install-locked-quality-dependencies": "sha256:3e2082a688f2ffda88d0648887e7006c40e3385951819b1b82ea34f1b8f0da3b",
+    "release-package/build/install-locked-quality-dependencies": "sha256:b654f075942844208705b7969bb22631317e7918ada8306c4c2591d48ec5b43d",
     "release-package/build/package": "sha256:e70350fd8b7e552956337d1f2b176ac9f757f3f1a4444b3e7ad7da28c3c27318",
     "release-package/build/refs": "sha256:7984b6b057b3c2c9766ea6766d3e20c297481bfa7639737b28e0f9c533b6985d",
     "release-package/build/seal": "sha256:a85539b5646f749bf93e5b5626aae5181eb0e4eb71a5ecdb947d2858d52552a8",
@@ -922,7 +922,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "shell": "bash",
-                        "run": "sha256:6d45c44da8cfc2a0316f4f65d9b0e8c1dbb47551652e1e55b9d4adb39577d201",
+                        "run": "sha256:d82e511dad71a513d6cedbcde046282a2d957d5108574988ab31753c7c999bb1",
                     },
                     {
                         "shell": "bash",
@@ -1034,7 +1034,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "shell": "pwsh",
-                        "run": "sha256:4189472bb33d50607e0edc57a732e8a2f0aff684aec80bcddd36c0e4661d8361",
+                        "run": "sha256:13a578bedcab1c4fbc15d4107903217306fe62de00526478783a681a97c13ecd",
                     },
                     {
                         "shell": "pwsh",
@@ -1087,6 +1087,12 @@ def repository_audit_contract(node_version: str) -> dict:
                 "needs": ["activation", "quality-linux", "compatibility-windows"],
                 "if": "needs.activation.outputs.enabled == 'true'",
                 "outputs": {"decision": "${{ steps.decision.outputs.decision }}"},
+                "env": {
+                    "VERIFY_REUSE": "${{ github.repository == 'asphyx0r/git-starter-kit' && "
+                    "needs.quality-linux.outputs.scope == 'source' && "
+                    "(github.event_name == 'release' || "
+                    "(github.event_name == 'push' && github.ref_type == 'tag')) }}"
+                },
                 "steps": [
                     {
                         "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
@@ -1107,8 +1113,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:07e874a372fb20ac4337d8333f223c2b351b46193b92201c7c74a6b549b4ad8c",
                     },
                     {
-                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
-                        "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
                         "with": {
                             "python-version": "3.11",
@@ -1117,8 +1122,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
-                        "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "shell": "bash",
                         "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
                     },
@@ -1129,8 +1133,7 @@ def repository_audit_contract(node_version: str) -> dict:
                             "}}-${{ github.run_attempt }}",
                             "path": "${{ runner.temp }}",
                         },
-                        "if": "github.repository == 'asphyx0r/git-starter-kit' && "
-                        "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "continue-on-error": True,
                     },
                     {
@@ -1141,7 +1144,7 @@ def repository_audit_contract(node_version: str) -> dict:
                             "}}",
                             "path": "${{ runner.temp }}/fresh",
                         },
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "continue-on-error": True,
                     },
                     {
@@ -1152,19 +1155,17 @@ def repository_audit_contract(node_version: str) -> dict:
                             "}}",
                             "path": "${{ runner.temp }}/fresh",
                         },
-                        "if": "needs.quality-linux.outputs.scope == 'source'",
+                        "if": "env.VERIFY_REUSE == 'true'",
                         "continue-on-error": True,
                     },
                     {
                         "shell": "bash",
-                        "run": "sha256:975936645d2e8c00dc1799e1f5c20d45bc7ba28d837f560dcdf7cd2fe151c2e4",
+                        "run": "sha256:febde27dbacaf0a422efd3b4b8426e9a8bd8849fcfa9530b2921a4675d412c24",
                         "env": {
                             "AUDIT_COMMIT_SHA": "${{ "
                             "github.event.pull_request.head.sha "
                             "|| github.sha }}",
                             "GH_TOKEN": "${{ github.token }}",
-                            "GH_REPO": "${{ github.repository }}",
-                            "SCOPE": "${{ needs.quality-linux.outputs.scope }}",
                         },
                         "id": "decision",
                     },
@@ -1238,7 +1239,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "shell": "bash",
-                        "run": "sha256:6d45c44da8cfc2a0316f4f65d9b0e8c1dbb47551652e1e55b9d4adb39577d201",
+                        "run": "sha256:d82e511dad71a513d6cedbcde046282a2d957d5108574988ab31753c7c999bb1",
                     },
                     {
                         "shell": "bash",
@@ -1353,7 +1354,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "shell": "pwsh",
-                        "run": "sha256:4189472bb33d50607e0edc57a732e8a2f0aff684aec80bcddd36c0e4661d8361",
+                        "run": "sha256:13a578bedcab1c4fbc15d4107903217306fe62de00526478783a681a97c13ecd",
                     },
                     {
                         "shell": "pwsh",
@@ -1670,7 +1671,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "shell": "bash",
-                        "run": "sha256:73eabb844b919829f39796c1bc54ed77ce756fe1a5db4cd5867f94755f14728b",
+                        "run": "sha256:f6ad64b84fa532d9c21ac2e01fcb1e436f9b96db90d57e60b523816c54d9d62a",
                     },
                     {
                         "if": "matrix.platform == 'linux'",

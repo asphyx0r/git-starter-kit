@@ -197,7 +197,6 @@ jobs:
             --require-hashes \
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-          python tools/quality/npm-security.py patch
       - name: Audit locked tool dependencies
         shell: bash
         run: |
@@ -315,7 +314,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm ci --ignore-scripts --prefix tools/quality
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools/quality/npm-security.py patch
       - name: Install verified PowerShell and shell tools
         shell: pwsh
         run: |
@@ -373,6 +371,9 @@ jobs:
     if: needs.activation.outputs.enabled == 'true'
     outputs:
       decision: ${{ steps.decision.outputs.decision }}
+    env:
+      VERIFY_REUSE: ${{ github.repository == 'asphyx0r/git-starter-kit' && needs.quality-linux.outputs.scope == 'source'
+        && (github.event_name == 'release' || (github.event_name == 'push' && github.ref_type == 'tag')) }}
     steps:
       - name: Checkout repository
         # actions/checkout@v7.0.1
@@ -387,7 +388,7 @@ jobs:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
-        if: github.repository == 'asphyx0r/git-starter-kit' && needs.quality-linux.outputs.scope == 'source'
+        if: env.VERIFY_REUSE == 'true'
         # actions/setup-python@v7.0.0
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
@@ -395,7 +396,7 @@ jobs:
           cache: pip
           cache-dependency-path: tools/quality/requirements.lock
       - name: Install locked coverage runtime
-        if: github.repository == 'asphyx0r/git-starter-kit' && needs.quality-linux.outputs.scope == 'source'
+        if: env.VERIFY_REUSE == 'true'
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check \
@@ -406,7 +407,7 @@ jobs:
         with:
           name: qualification-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}
-        if: github.repository == 'asphyx0r/git-starter-kit' && needs.quality-linux.outputs.scope == 'source'
+        if: env.VERIFY_REUSE == 'true'
         continue-on-error: true
       - name: Download fresh linux
         # actions/download-artifact@v8.0.1
@@ -414,7 +415,7 @@ jobs:
         with:
           name: qualification-fresh-linux-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/fresh
-        if: needs.quality-linux.outputs.scope == 'source'
+        if: env.VERIFY_REUSE == 'true'
         continue-on-error: true
       - name: Download fresh windows
         # actions/download-artifact@v8.0.1
@@ -422,24 +423,22 @@ jobs:
         with:
           name: qualification-fresh-windows-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/fresh
-        if: needs.quality-linux.outputs.scope == 'source'
+        if: env.VERIFY_REUSE == 'true'
         continue-on-error: true
       - name: Choose one qualification path
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GH_REPO" == asphyx0r/git-starter-kit && "$SCOPE" == source ]]; then
+          if [[ "$VERIFY_REUSE" == true ]]; then
             python -B tools/quality/qualification.py verify \
               --candidate "$RUNNER_TEMP/candidate.json" --fresh "$RUNNER_TEMP/fresh" \
               --destination "$RUNNER_TEMP/verified" --output "$RUNNER_TEMP/decision.json"
           else
-            printf 'decision=full\n' >> "$GITHUB_OUTPUT"
+            printf 'decision=full\n' >>"$GITHUB_OUTPUT"
           fi
         env:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          SCOPE: ${{ needs.quality-linux.outputs.scope }}
         id: decision
       - name: Retain verified original pair
         # actions/upload-artifact@v7.0.1
@@ -501,7 +500,6 @@ jobs:
             --require-hashes \
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-          python tools/quality/npm-security.py patch
       - name: Install verified external tools
         shell: bash
         run: |
@@ -608,7 +606,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm ci --ignore-scripts --prefix tools/quality
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools/quality/npm-security.py patch
       - name: Install verified PowerShell and shell tools
         shell: pwsh
         run: |
@@ -913,7 +910,6 @@ jobs:
           python -m pip install --disable-pip-version-check \
             --require-hashes --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-          python tools/quality/npm-security.py patch
       - name: Install verified Linux tools
         if: matrix.platform == 'linux'
         shell: bash

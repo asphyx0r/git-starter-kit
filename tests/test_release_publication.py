@@ -481,7 +481,7 @@ class WindowsToolchainTests(unittest.TestCase):
         for pip_status, npm_status, expected_calls, status in (
             (17, 0, ["pip"], 17),
             (0, 23, ["pip", "npm"], 23),
-            (0, 0, ["pip", "npm", "patch"], 0),
+            (0, 0, ["pip", "npm"], 0),
         ):
             with (
                 self.subTest(pip=pip_status, npm=npm_status),
@@ -492,7 +492,7 @@ class WindowsToolchainTests(unittest.TestCase):
                 native = root / "native.py"
                 native.write_text(
                     "import os, sys\nfrom pathlib import Path\n"
-                    'name = "npm" if sys.argv[1] == "npm" else ("pip" if "pip" in sys.argv else "patch")\n'
+                    'name = "npm" if sys.argv[1] == "npm" else "pip"\n'
                     'with Path(os.environ["TRACE"]).open("a") as stream: stream.write(name + "\\n")\n'
                     'sys.exit(int(os.environ.get(name.upper() + "_STATUS", "0")))\n',
                     encoding="utf-8",

@@ -198,10 +198,8 @@ if [[ "${1:-}" == --selection ]]; then
   assert_selection tools/git-init.sh test_git_init.py true false ''
   assert_selection tools/git-init.ps1 test_git_init.py true false ''
   assert_selection tools/quality/npm-security.py test_npm_security.py true false ''
-  assert_selection tests/fixtures/braces-3.0.3.tgz test_npm_security.py true false ''
-  assert_selection tests/fixtures/fill-range-7.1.1.tgz test_npm_security.py true false ''
-  assert_selection tests/fixtures/to-regex-range-5.0.1.tgz test_npm_security.py true false ''
-  assert_selection tests/fixtures/is-number-7.0.0.tgz test_npm_security.py true false ''
+  assert_selection tests/test_npm_security.py test_npm_security.py true false ''
+  assert_selection tests/fixture_cleanup.py '*' true false '*'
   assert_selection tests/test_quality_pre_commit.sh '' false false test_quality_pre_commit.sh
   assert_selection tests/test_quality_pre_push.sh '' false false test_quality_pre_push.sh
   assert_selection .githooks/pre-commit '' false false 'test_quality_hooks.sh test_quality_pre_commit.sh'
@@ -436,7 +434,9 @@ for shell_test in \
   test_quality_hooks.sh \
   test_commit_message_validation.sh \
   test_quality_pre_commit.sh \
-  test_quality_pre_push.sh; do
+  test_quality_pre_push.sh \
+  test_repository_audit.sh \
+  test_agent_rules_transfer.sh; do
   cat >"${affected_root}/tests/${shell_test}" <<'SHELL_TEST'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -473,6 +473,17 @@ if ! cmp -s \
   "${test_temp}/family-timeout.expected" \
   "${family_timeout_trace}"; then
   fail "affected Python and shell families did not receive separate 900-second timeouts"
+fi
+cat >"${test_temp}/family-shell.expected" <<'EOF'
+test_quality_hooks.sh
+test_commit_message_validation.sh
+test_quality_pre_commit.sh
+test_quality_pre_push.sh
+test_repository_audit.sh
+test_agent_rules_transfer.sh
+EOF
+if ! cmp -s "${test_temp}/family-shell.expected" "${QUALITY_SHELL_TRACE}"; then
+  fail 'wildcard selection did not run all six shell suites exactly once'
 fi
 
 for timed_out_family in python shell; do
@@ -548,7 +559,7 @@ assert_file_contains "${test_temp}/missing-timeout.err" \
 assert_file_contains "${test_temp}/missing-timeout.err" \
   "Install required timeout and ensure it is on PATH."
 
-for failed_shell_position in 1 2 3 4; do
+for failed_shell_position in 1 2 3 4 5 6; do
   shell_call_trace="${test_temp}/shell-${failed_shell_position}.trace"
   : >"${shell_call_trace}"
   shell_failure_status=$((46 + failed_shell_position))
@@ -558,6 +569,8 @@ test_quality_hooks.sh
 test_commit_message_validation.sh
 test_quality_pre_commit.sh
 test_quality_pre_push.sh
+test_repository_audit.sh
+test_agent_rules_transfer.sh
 EOF
   )"
   affected_shell_status=0

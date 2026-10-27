@@ -64,7 +64,8 @@ import sys
 
 quality = Path(sys.argv[1])
 lock = json.loads((quality / "package-lock.json").read_text(encoding="utf-8"))
-for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+versions = json.loads((quality / "versions.json").read_text(encoding="utf-8"))
+for name in ("@commitlint/cli", "markdownlint-cli2", *versions["nodeOverrides"]):
     package = quality / "node_modules" / name / "package.json"
     package.parent.mkdir(parents=True, exist_ok=True)
     version = lock["packages"][f"node_modules/{name}"]["version"]

@@ -41,6 +41,153 @@ class QualificationWorkflowTests(unittest.TestCase):
             timeout=30,
         )
 
+    def reuse_prefilter(self, environment):
+        self.assertIn(
+            "VERIFY_REUSE", self.workflow["jobs"]["qualification"].get("env", {})
+        )
+        expression = self.workflow["jobs"]["qualification"]["env"]["VERIFY_REUSE"]
+        expression = expression.removeprefix("${{").removesuffix("}}")
+        for context, variable in (
+            ("github.repository", "GH_REPO"),
+            ("needs.quality-linux.outputs.scope", "SCOPE"),
+            ("github.event_name", "EVENT_NAME"),
+            ("github.ref_type", "REF_TYPE"),
+        ):
+            expression = expression.replace(context, f'"${variable}"')
+        result = self.run_step(
+            {"run": f"if [[ {expression} ]]; then printf true; else printf false; fi"},
+            ROOT,
+            environment,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_decision_prefilter_skips_reuse_preparation_for_ineligible_events(self):
+        job = self.workflow["jobs"]["qualification"]
+        self.assertEqual(
+            job["outputs"]["decision"], "${{ steps.decision.outputs.decision }}"
+        )
+        for name in (
+            "Set up Python",
+            "Install locked coverage runtime",
+            "Download selected candidate",
+            "Download fresh linux",
+            "Download fresh windows",
+        ):
+            self.assertEqual(
+                self.step("qualification", name)["if"], "env.VERIFY_REUSE == 'true'"
+            )
+        step = copy.deepcopy(
+            self.step("qualification", "Choose one qualification path")
+        )
+        step["run"] = (
+            "python() { printf 'Unexpected Python call' >&2; return 99; }\n"
+            + step["run"]
+        )
+        for event, ref_type, ref, repository, scope in (
+            (
+                "pull_request",
+                "branch",
+                "refs/pull/17/merge",
+                "asphyx0r/git-starter-kit",
+                "source",
+            ),
+            (
+                "push",
+                "branch",
+                "refs/heads/fix/example",
+                "asphyx0r/git-starter-kit",
+                "source",
+            ),
+            ("push", "branch", "refs/heads/main", "asphyx0r/git-starter-kit", "source"),
+            (
+                "workflow_dispatch",
+                "branch",
+                "refs/heads/main",
+                "asphyx0r/git-starter-kit",
+                "source",
+            ),
+            ("push", "tag", "refs/tags/v1.2.3", "example/consumer", "project"),
+            ("push", "tag", "refs/tags/v1.2.3", "example/consumer", "source"),
+            (
+                "release",
+                "tag",
+                "refs/tags/v1.2.3",
+                "asphyx0r/git-starter-kit",
+                "project",
+            ),
+        ):
+            with self.subTest(event=event, ref=ref, repository=repository, scope=scope):
+                environment = {
+                    "GH_REPO": repository,
+                    "SCOPE": scope,
+                    "EVENT_NAME": event,
+                    "REF_TYPE": ref_type,
+                }
+                self.assertEqual(self.reuse_prefilter(environment), "false")
+                with tempfile.TemporaryDirectory() as temporary:
+                    output = Path(temporary) / "outputs"
+                    result = self.run_step(
+                        step,
+                        temporary,
+                        {
+                            **environment,
+                            "VERIFY_REUSE": "false",
+                            "GITHUB_OUTPUT": str(output),
+                            "RUNNER_TEMP": temporary,
+                            "GITHUB_REF": ref,
+                        },
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(output.read_text(), "decision=full\n")
+
+    def test_eligible_decision_runs_real_verifier_and_keeps_full_fallback(self):
+        step = copy.deepcopy(
+            self.step("qualification", "Choose one qualification path")
+        )
+        step["run"] = 'python() { "$PYTHON_EXECUTABLE" "$@"; }\n' + step["run"]
+        for event in ("push", "release"):
+            with self.subTest(event=event), tempfile.TemporaryDirectory() as temporary:
+                environment = {
+                    "GH_REPO": "asphyx0r/git-starter-kit",
+                    "SCOPE": "source",
+                    "EVENT_NAME": event,
+                    "REF_TYPE": "tag",
+                }
+                self.assertEqual(self.reuse_prefilter(environment), "true")
+                event_path = Path(temporary) / "event.json"
+                event_path.write_text(
+                    json.dumps({"action": "published" if event == "release" else ""})
+                )
+                output = Path(temporary) / "outputs"
+                result = self.run_step(
+                    step,
+                    ROOT,
+                    {
+                        **environment,
+                        "VERIFY_REUSE": "true",
+                        "RUNNER_TEMP": temporary,
+                        "PYTHON_EXECUTABLE": sys.executable,
+                        "GITHUB_OUTPUT": str(output),
+                        "GITHUB_REPOSITORY": "asphyx0r/git-starter-kit",
+                        "GITHUB_EVENT_NAME": event,
+                        "GITHUB_EVENT_PATH": str(event_path),
+                        "GITHUB_REF": "refs/tags/v1.2.3",
+                        "AUDIT_COMMIT_SHA": "a" * 40,
+                        "GITHUB_RUN_ID": "50",
+                        "GITHUB_RUN_ATTEMPT": "1",
+                    },
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(), "decision=full\n")
+                self.assertEqual(
+                    json.loads((Path(temporary) / "decision.json").read_text()),
+                    {
+                        "decision": "full",
+                        "reason": "candidate is missing or invalid",
+                    },
+                )
+
     def test_aggregate_never_accepts_partial_heavy_or_failed_fresh_checks(self):
         step = self.step("repository-audit", "Require selected checks to succeed")
         base = {
@@ -95,6 +242,7 @@ class QualificationWorkflowTests(unittest.TestCase):
                 {
                     "GH_REPO": "example/consumer",
                     "SCOPE": "project",
+                    "VERIFY_REUSE": "false",
                     "GITHUB_OUTPUT": str(output),
                     "RUNNER_TEMP": temporary,
                 },

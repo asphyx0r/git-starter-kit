@@ -6,8 +6,8 @@ application runtimes and application test commands before accepting contribution
 ## Development
 
 Install the locked hook dependencies with
-`npm ci --ignore-scripts --prefix tools/quality`, then explicitly apply
-`python tools/quality/npm-security.py patch`. Run
+`npm ci --ignore-scripts --prefix tools/quality`. Run
+`python tools/quality/npm-security.py audit` for the blocking npm check and
 `bash tools/repository-audit.sh fast` for core checks and
 `bash tools/repository-audit.sh project-checks` for explicitly declared
 application validation. Empty checks warn; they do not prove regressions passed.
