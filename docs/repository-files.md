@@ -1608,6 +1608,25 @@ deferred, or explicitly excluded from the template.
 - Notes: Source-only compact evidence; raw databases, ZIPs and logs are omitted.
   Hashes preserve provenance after expiry but cannot reconstruct those inputs.
 
+### `docs/superpowers/plans/2026-10-27-audit-remediation.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the approved F01-F19 scope, compatibility decisions and gates.
+- Usage: Follow its nine tasks and distinguish local implementation from the
+  separately authorized draft-PR publication and hosted qualification.
+- Notes: Source-only execution contract; a plan does not attest passing checks.
+
+### `docs/superpowers/reports/2026-10-27-audit-remediation.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records F01-F19 implementation, verification, rulings and remaining gates.
+- Usage: Read the actual test, review and coverage results with their frozen SHA
+  before treating local or hosted qualification as complete.
+- Notes: Source-only evidence; preserves failed and interrupted attempts,
+  compatibility changes, commit-grouping deviation and historical baselines.
+
 ### `tests/test_release_artifacts.py`
 
 - Type: `file`
