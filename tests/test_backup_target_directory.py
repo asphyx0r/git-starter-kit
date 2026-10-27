@@ -1250,6 +1250,142 @@ class LocalBackupPublicationTest(unittest.TestCase):
                         path.unlink(missing_ok=True)
                 self.assert_no_archive_temporaries()
 
+    def test_directory_cleanup_preserves_primary_operation_failures(self) -> None:
+        original_cleanup = TemporaryDirectory.cleanup
+        original_copy = self.script.shutil.copyfileobj
+        for boundary in ("archive", "staging"):
+            for error_type in (
+                OSError,
+                self.script.BackupError,
+                KeyboardInterrupt,
+                SystemExit,
+            ):
+                with self.subTest(boundary=boundary, error=error_type.__name__):
+                    primary_error = error_type("transfer failed")
+                    retained = []
+
+                    def fail_transfer(source, destination, *args):
+                        if Path(getattr(destination, "name", "")).parent == self.target:
+                            destination.write(b"partial transfer")
+                            raise primary_error
+                        return original_copy(source, destination, *args)
+
+                    def fail_cleanup(directory):
+                        path = Path(directory.name)
+                        if path.name.startswith("archive-") == (boundary == "archive"):
+                            retained.append(directory)
+                            raise PermissionError("directory cleanup denied")
+                        return original_cleanup(directory)
+
+                    try:
+                        with (
+                            mock.patch.object(
+                                TemporaryDirectory, "cleanup", fail_cleanup
+                            ),
+                            mock.patch.object(
+                                self.script.shutil,
+                                "copyfileobj",
+                                side_effect=fail_transfer,
+                            ),
+                            mock.patch.object(
+                                self.script, "_is_linux_root", return_value=False
+                            ),
+                            mock.patch.object(
+                                self.script, "_is_local_directory", return_value=True
+                            ),
+                            mock.patch.object(
+                                self.script,
+                                "resolve_git_identity",
+                                return_value=("000000000000", "v0.0.0"),
+                            ),
+                            mock.patch.object(
+                                self.script,
+                                "build_archive_name",
+                                return_value=self.archive.name,
+                            ),
+                            self.assertRaises(type(primary_error)) as caught,
+                        ):
+                            if boundary == "archive":
+                                self.script.create_archive(self.source, self.archive)
+                            else:
+                                self.script.run_backup(
+                                    self.source,
+                                    self.target,
+                                    self.buffer,
+                                    False,
+                                    self.logger,
+                                )
+                        self.assertIs(caught.exception, primary_error)
+                        self.assertEqual(len(retained), 1)
+                        residual = Path(retained[0].name)
+                        self.assertTrue(residual.is_dir())
+                        diagnostics = "\n".join(primary_error.__notes__)
+                        self.assertIn(str(residual), diagnostics)
+                        self.assertIn("directory cleanup denied", diagnostics)
+                        self.assertNotIn("Created Zip archive", self.output.getvalue())
+                        self.assertFalse(self.archive.exists())
+                    finally:
+                        for directory in retained:
+                            original_cleanup(directory)
+                            self.assertFalse(Path(directory.name).exists())
+                    self.assert_no_archive_temporaries()
+
+    def test_directory_cleanup_only_failure_still_raises(self) -> None:
+        original_cleanup = TemporaryDirectory.cleanup
+        for boundary in ("archive", "staging"):
+            with self.subTest(boundary=boundary):
+                retained = []
+                cleanup_error = PermissionError("directory cleanup denied")
+
+                def fail_cleanup(directory):
+                    if Path(directory.name).name.startswith("archive-") == (
+                        boundary == "archive"
+                    ):
+                        retained.append(directory)
+                        raise cleanup_error
+                    return original_cleanup(directory)
+
+                try:
+                    with (
+                        mock.patch.object(TemporaryDirectory, "cleanup", fail_cleanup),
+                        mock.patch.object(
+                            self.script, "_is_linux_root", return_value=False
+                        ),
+                        mock.patch.object(
+                            self.script, "_is_local_directory", return_value=True
+                        ),
+                        mock.patch.object(
+                            self.script,
+                            "resolve_git_identity",
+                            return_value=("000000000000", "v0.0.0"),
+                        ),
+                        mock.patch.object(
+                            self.script,
+                            "build_archive_name",
+                            return_value=self.archive.name,
+                        ),
+                        self.assertRaises(PermissionError) as caught,
+                    ):
+                        if boundary == "archive":
+                            self.script.create_archive(self.source, self.archive)
+                        else:
+                            self.script.run_backup(
+                                self.source,
+                                self.target,
+                                self.buffer,
+                                False,
+                                self.logger,
+                            )
+                    self.assertIs(caught.exception, cleanup_error)
+                    self.assertEqual(len(retained), 1)
+                    self.assertTrue(self.archive.is_file())
+                finally:
+                    for directory in retained:
+                        original_cleanup(directory)
+                        self.assertFalse(Path(directory.name).exists())
+                    self.archive.unlink(missing_ok=True)
+                self.assert_no_archive_temporaries()
+
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux publication test")
     def test_linux_unsupported_hard_links_fail_without_final_archive(self) -> None:
         with (

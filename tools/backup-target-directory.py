@@ -14,6 +14,8 @@ import sys
 import tempfile
 import unicodedata
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime
@@ -331,7 +333,7 @@ def run_backup(
         logger.info("Dry run completed without modifying data.")
         return
 
-    with tempfile.TemporaryDirectory(
+    with _temporary_directory(
         prefix=f"{sanitize_name(source.name)}-",
         dir=str(buffer_parent),
     ) as staging_parent_name:
@@ -649,12 +651,30 @@ def is_accessible_directory(directory: Path) -> bool:
 
 
 def create_archive(staged_source: Path, archive_path: Path) -> None:
-    with tempfile.TemporaryDirectory(
-        prefix="archive-", dir=staged_source.parent
-    ) as local:
+    with _temporary_directory(prefix="archive-", dir=staged_source.parent) as local:
         local_archive = Path(local) / "backup.zip"
         write_zip_from_staged_tree(staged_source, local_archive)
         _transfer_archive(local_archive, archive_path)
+
+
+@contextmanager
+def _temporary_directory(*, prefix: str, dir: str | Path) -> Iterator[str]:
+    temporary = tempfile.TemporaryDirectory(prefix=prefix, dir=dir)
+    primary_error = None
+    try:
+        yield temporary.name
+    except BaseException as exc:
+        primary_error = exc
+        raise
+    finally:
+        try:
+            temporary.cleanup()
+        except OSError as exc:
+            message = f"Could not remove temporary directory {temporary.name}: {exc}"
+            if primary_error is None:
+                exc.add_note(message)
+                raise
+            primary_error.add_note(message)
 
 
 def _transfer_archive(local_archive: Path, archive_path: Path) -> None:
