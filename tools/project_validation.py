@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import locale
 import math
 import os
 from pathlib import Path, PurePosixPath
@@ -180,6 +181,7 @@ def run_checks(
             )
             continue
         try:
+            output_encoding = "utf-8" if sys.flags.utf8_mode else locale.getencoding()
             with ProcessScope(
                 list(check.argv),
                 timeout=timeout,
@@ -187,8 +189,11 @@ def run_checks(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding=output_encoding,
                 errors="backslashreplace",
             ) as scope:
+                stdout: str | bytes = ""
+                stderr: str | bytes = ""
                 try:
                     stdout, stderr = scope.process.communicate(
                         timeout=scope.work_remaining()
@@ -196,12 +201,28 @@ def run_checks(
                     if scope.expired.is_set():
                         raise subprocess.TimeoutExpired(check.argv, timeout)
                     returncode = scope.process.returncode
-                except subprocess.TimeoutExpired:
+                except subprocess.TimeoutExpired as error:
+                    stdout = error.stdout if error.stdout is not None else stdout
+                    stderr = error.stderr if error.stderr is not None else stderr
                     scope.terminate()
-                    scope.process.communicate(timeout=scope.remaining())
+                    try:
+                        stdout, stderr = scope.process.communicate(
+                            timeout=scope.remaining()
+                        )
+                    except subprocess.TimeoutExpired as drain_error:
+                        if drain_error.stdout is not None:
+                            stdout = drain_error.stdout
+                        if drain_error.stderr is not None:
+                            stderr = drain_error.stderr
                     raise
-            print(stdout, end="")
-            print(stderr, end="", file=sys.stderr)
+                finally:
+                    # communicate retries contain cumulative output, not new chunks.
+                    for output, stream in ((stdout, sys.stdout), (stderr, sys.stderr)):
+                        if isinstance(output, bytes):
+                            output = output.decode(
+                                output_encoding, errors="backslashreplace"
+                            )
+                        print(output, end="", file=stream)
             print(
                 f"Project check {check.name}: {'passed' if returncode == 0 else 'failed'}."
             )

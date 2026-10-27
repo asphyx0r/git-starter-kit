@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import locale
 import os
 from pathlib import Path
 import subprocess
@@ -11,6 +12,8 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import project_config
@@ -503,6 +506,83 @@ printf 'refs/heads/main %s refs/heads/main %s\\nrefs/tags/v1.0.0 %s refs/tags/v1
             )
             time.sleep(1.2)
             self.assertFalse(marker.exists(), parent_code)
+
+    def test_timeout_preserves_real_stdout_and_stderr(self):
+        self.write_configuration(
+            [
+                self.check(
+                    "import sys,time; print('before timeout', flush=True); "
+                    "print('failure detail', file=sys.stderr, flush=True); time.sleep(30)"
+                )
+            ]
+        )
+        output, errors = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            status = project_validation.run_checks(self.root, timeout=0.8)
+        self.assertEqual(status, 1)
+        self.assertEqual(output.getvalue().count("before timeout"), 1)
+        self.assertEqual(errors.getvalue().splitlines().count("failure detail"), 1)
+
+    def test_timeout_uses_latest_cumulative_capture_without_duplicate_output(self):
+        self.write_configuration([self.check()])
+        for drain in (
+            ("first\nlast\n", "detail\nmore\n"),
+            subprocess.TimeoutExpired(
+                [], 1, b"first\nlast\xff\n", b"detail\nmore\xfe\n"
+            ),
+            subprocess.TimeoutExpired([], 1),
+        ):
+            with self.subTest(drain=drain):
+                scope = MagicMock()
+                scope.process.communicate.side_effect = [
+                    subprocess.TimeoutExpired([], 1, b"first\n", b"detail\n"),
+                    drain,
+                ]
+                output, errors = io.StringIO(), io.StringIO()
+                with (
+                    patch.object(project_validation, "ProcessScope") as factory,
+                    patch.object(locale, "getencoding", return_value="utf-8"),
+                    contextlib.redirect_stdout(output),
+                    contextlib.redirect_stderr(errors),
+                ):
+                    factory.return_value.__enter__.return_value = scope
+                    status = project_validation.run_checks(self.root, timeout=1)
+                self.assertEqual(status, 1)
+                self.assertEqual(output.getvalue().count("first\n"), 1)
+                self.assertEqual(errors.getvalue().count("detail\n"), 1)
+                if isinstance(drain, tuple) or drain.stdout is not None:
+                    self.assertIn("last", output.getvalue())
+                    self.assertIn("more", errors.getvalue())
+                if isinstance(drain, subprocess.TimeoutExpired) and drain.stdout:
+                    self.assertIn(r"\xff", output.getvalue())
+                    self.assertIn(r"\xfe", errors.getvalue())
+
+    def test_timeout_capture_uses_default_locale_or_utf8_mode_codec(self):
+        self.write_configuration([self.check()])
+        for utf8_mode, locale_encoding, expected in (
+            (0, "cp1252", "éÿ"),
+            (0, "ascii", r"\xe9\xff"),
+            (1, "cp1252", r"\xe9\xff"),
+        ):
+            with self.subTest(utf8_mode=utf8_mode, locale_encoding=locale_encoding):
+                scope = MagicMock()
+                scope.process.communicate.side_effect = [
+                    subprocess.TimeoutExpired([], 1, b"\xe9\xff\n", b"\xe9\xff\n"),
+                    subprocess.TimeoutExpired([], 1),
+                ]
+                output, errors = io.StringIO(), io.StringIO()
+                with (
+                    patch.object(project_validation, "ProcessScope") as factory,
+                    patch.object(locale, "getencoding", return_value=locale_encoding),
+                    patch.object(sys, "flags", SimpleNamespace(utf8_mode=utf8_mode)),
+                    contextlib.redirect_stdout(output),
+                    contextlib.redirect_stderr(errors),
+                ):
+                    factory.return_value.__enter__.return_value = scope
+                    status = project_validation.run_checks(self.root, timeout=1)
+                self.assertEqual(status, 1)
+                self.assertEqual(output.getvalue().splitlines().count(expected), 1)
+                self.assertEqual(errors.getvalue().splitlines().count(expected), 1)
 
 
 if __name__ == "__main__":
