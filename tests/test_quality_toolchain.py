@@ -178,6 +178,93 @@ class QualityToolchainTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("quality versions: declarations match", result.stdout)
 
+    def test_requirement_parsers_reject_unsupported_and_duplicate_lines(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "strict_requirement_checker"
+        )
+        original_read = Path.read_text
+        cases = (
+            ("requirements.in", "unexpected>=1.0\n"),
+            ("requirements.in", "-r other.txt\n"),
+            ("requirements.in", "unexpected==1.0 trailing\n"),
+            ("requirements.in", "extra-tool==1.0\nextra_tool==2.0\n"),
+            ("requirements.lock", "unexpected>=1.0\n"),
+            ("requirements.lock", "-r other.txt\n"),
+            ("requirements.lock", "extra-tool==1.0\nextra_tool==2.0\n"),
+        )
+        for filename, addition in cases:
+            with self.subTest(filename=filename, addition=addition):
+
+                def read_mutation(path: Path, *args, **kwargs) -> str:
+                    content = original_read(path, *args, **kwargs)
+                    if path == QUALITY_ROOT / filename:
+                        return content + "\n" + addition
+                    return content
+
+                with (
+                    mock.patch.object(Path, "read_text", read_mutation),
+                    self.assertRaisesRegex(ValueError, rf"{filename}:\d+:"),
+                ):
+                    checker.check_declarations(QUALITY_ROOT)
+
+    def test_requirement_parsers_preserve_comments_extras_and_pep440_versions(
+        self,
+    ) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "comment_requirement_checker"
+        )
+        content = (
+            "# Reviewed pins\n"
+            "jsonschema[format]==4.26.0 # keep format validators\n"
+            "example-package==2.9.0.post0\n"
+            "epoch-package==1!2.0rc1.dev2+local.1\n"
+        )
+        with mock.patch.object(Path, "read_text", return_value=content):
+            self.assertEqual(
+                checker.parse_direct_requirements(Path("requirements.in")),
+                {
+                    "jsonschema[format]": "4.26.0",
+                    "example-package": "2.9.0.post0",
+                    "epoch-package": "1!2.0rc1.dev2+local.1",
+                },
+            )
+            self.assertEqual(
+                checker.parse_requirements(Path("requirements.lock")),
+                {
+                    "jsonschema": "4.26.0",
+                    "example-package": "2.9.0.post0",
+                    "epoch-package": "1!2.0rc1.dev2+local.1",
+                },
+            )
+
+    def test_requirement_parser_rejects_constraints_hidden_in_transitive_versions(
+        self,
+    ) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "lock_requirement_checker"
+        )
+        original_read = Path.read_text
+        for version in (
+            "1.4.0,<2",
+            '1.4.0;python_version<"0"',
+            "1.4.*",
+            "release",
+            "1.4.0#not-a-comment",
+        ):
+            with self.subTest(version=version):
+
+                def read_mutation(path: Path, *args, **kwargs) -> str:
+                    content = original_read(path, *args, **kwargs)
+                    if path == QUALITY_ROOT / "requirements.lock":
+                        return content.replace("arrow==1.4.0", f"arrow=={version}", 1)
+                    return content
+
+                with (
+                    mock.patch.object(Path, "read_text", read_mutation),
+                    self.assertRaisesRegex(ValueError, r"requirements.lock:\d+:"),
+                ):
+                    checker.check_declarations(QUALITY_ROOT)
+
     def test_declaration_checker_rejects_version_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             quality_copy = Path(temporary_directory) / "quality"

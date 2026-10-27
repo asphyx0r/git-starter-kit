@@ -26,9 +26,15 @@ process_runner = importlib.util.module_from_spec(_PROCESS_SPEC)
 _PROCESS_SPEC.loader.exec_module(process_runner)
 
 
+# Validate PEP 440 pins before third-party dependencies are installed.
 REQUIREMENT_PATTERN = re.compile(
     r"^(?P<name>[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?)"
-    r"==(?P<version>[^\s\\]+)"
+    r"==(?P<version>v?(?:[0-9]+!)?[0-9]+(?:\.[0-9]+)*"
+    r"(?:[._-]?(?:alpha|a|beta|b|preview|pre|rc|c)[._-]?[0-9]*)?"
+    r"(?:-[0-9]+|[._-]?(?:post|rev|r)[._-]?[0-9]*)?"
+    r"(?:[._-]?dev[._-]?[0-9]*)?"
+    r"(?:\+[a-z0-9]+(?:[._-][a-z0-9]+)*)?)",
+    re.IGNORECASE | re.ASCII,
 )
 COMMAND_TIMEOUT_SECONDS = 15
 SEMVER_PATTERN = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
@@ -70,23 +76,36 @@ def load_json(path: Path) -> dict[str, Any]:
 def parse_requirements(path: Path) -> dict[str, str]:
     """Parse exact top-level requirement declarations."""
     declarations: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = re.split(r"\s+#", line.strip(), maxsplit=1)[0].rstrip()
         if not stripped or stripped.startswith(("#", "--hash=")):
             continue
-        match = REQUIREMENT_PATTERN.match(stripped)
-        if match:
-            declarations[normalize_name(match.group("name"))] = match.group("version")
+        match = REQUIREMENT_PATTERN.fullmatch(stripped.removesuffix("\\").rstrip())
+        if match is None:
+            raise ValueError(f"{path.name}:{number}: expected an exact requirement pin")
+        name = normalize_name(match.group("name"))
+        if name in declarations:
+            raise ValueError(f"{path.name}:{number}: duplicate requirement {name}")
+        declarations[name] = match.group("version")
     return declarations
 
 
 def parse_direct_requirements(path: Path) -> dict[str, str]:
     """Parse direct names exactly, retaining requested extras."""
     declarations: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = REQUIREMENT_PATTERN.match(line.strip())
-        if match:
-            declarations[match.group("name")] = match.group("version")
+    seen: set[str] = set()
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = re.split(r"\s+#", line.strip(), maxsplit=1)[0].rstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = REQUIREMENT_PATTERN.fullmatch(stripped)
+        if match is None:
+            raise ValueError(f"{path.name}:{number}: expected an exact requirement pin")
+        name = normalize_name(match.group("name"))
+        if name in seen:
+            raise ValueError(f"{path.name}:{number}: duplicate requirement {name}")
+        seen.add(name)
+        declarations[match.group("name")] = match.group("version")
     return declarations
 
 
