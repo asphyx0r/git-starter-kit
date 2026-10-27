@@ -1823,7 +1823,8 @@ select the upgrade suite, and workflow changes select Actionlint and semantic
 workflow contracts.
 Each hook wrapper selects the common hook suite and its own focused suite.
 Shared runtime, configuration and unknown paths select the complete Python suite
-and all four shell suites: common hooks, commit messages, pre-commit and pre-push.
+and all six shell suites: common hooks, commit messages, pre-commit, pre-push,
+repository audit and agent rules transfer.
 Selections are combined for repeated pushed objects and executed once per suite;
 missing suites or an empty mandatory selection fail. The exhaustive shell behavior
 and audit suites remain mandatory in Linux CI.

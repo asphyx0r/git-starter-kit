@@ -1037,7 +1037,9 @@ deferred, or explicitly excluded from the template.
   mapping selects snapshots and test modules for both hooks.
   Source test edits select their own suite; initializer tools select initializer
   tests. Hook wrappers select common and focused shell suites. Shared/unknown
-  paths retain all Python tests and all four shell suites; missing selections fail.
+  paths retain all Python tests and all six shell suites: common hooks, commit
+  messages, pre-commit, pre-push, repository audit and agent rules transfer.
+  Missing selections fail.
 
 ### `tools/repository-audit/profiles.sh`
 

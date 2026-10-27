@@ -147,7 +147,9 @@ changed behavior is correct.
 
 Source-maintenance hooks select each changed test's family and the focused
 pre-commit/pre-push suites for those wrappers, combining repeated pushed objects.
-Shared or unknown source changes retain all Python and four shell suites. Consumer
+Shared or unknown source changes retain all Python and six shell suites: common
+hooks, commit messages, pre-commit, pre-push, repository audit and agent rules
+transfer. Consumer
 projects keep their managed-core scope and explicitly declared application checks.
 
 Pre-commit probes only its selected executables against indexed pins before
