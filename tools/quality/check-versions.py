@@ -79,17 +79,29 @@ def load_json(path: Path) -> dict[str, Any]:
 def parse_requirements(path: Path) -> dict[str, str]:
     """Parse exact top-level requirement declarations."""
     declarations: dict[str, str] = {}
+    continued_line = 0
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         stripped = re.split(r"\s+#", line.strip(), maxsplit=1)[0].rstrip()
-        if not stripped or stripped.startswith(("#", "--hash=")):
+        if not stripped or stripped.startswith("#"):
             continue
-        match = REQUIREMENT_PATTERN.fullmatch(stripped.removesuffix("\\").rstrip())
+        content = stripped.removesuffix("\\").rstrip()
+        if continued_line:
+            if re.fullmatch(r"--hash=sha256:[0-9a-fA-F]{64}", content) is None:
+                raise ValueError(
+                    f"{path.name}:{number}: expected a SHA256 hash continuation"
+                )
+            continued_line = number if stripped.endswith("\\") else 0
+            continue
+        match = REQUIREMENT_PATTERN.fullmatch(content)
         if match is None:
             raise ValueError(f"{path.name}:{number}: expected an exact requirement pin")
         name = normalize_name(match.group("name"))
         if name in declarations:
             raise ValueError(f"{path.name}:{number}: duplicate requirement {name}")
         declarations[name] = match.group("version")
+        continued_line = number if stripped.endswith("\\") else 0
+    if continued_line:
+        raise ValueError(f"{path.name}:{continued_line}: incomplete hash continuation")
     return declarations
 
 

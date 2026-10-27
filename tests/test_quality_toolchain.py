@@ -254,6 +254,74 @@ class QualityToolchainTests(unittest.TestCase):
                 },
             )
 
+    def test_requirement_parser_rejects_malformed_or_orphaned_hashes(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "hash_requirement_checker"
+        )
+        digest = "--hash=sha256:" + "0" * 64
+        for content, line_number in (
+            (digest + "\n", 1),
+            ("example==1.0\n    " + digest + "\n", 2),
+            ("example==1.0 \\\n    " + digest + " -r other.txt\n", 2),
+            (
+                "example==1.0 \\\n    "
+                + digest
+                + " --index-url https://example.invalid/simple\n",
+                2,
+            ),
+            ("example==1.0 \\\n    " + digest[:-1] + "\n", 2),
+            ("example==1.0 \\\n    " + digest + "0\n", 2),
+            ("example==1.0 \\\n    " + digest.replace("sha256", "md5") + "\n", 2),
+            ("example==1.0 \\\n    " + digest[:-1] + "g\n", 2),
+            ("example==1.0 \\\n    " + digest + " \\\n", 2),
+            ("example==1.0 \\\nother==2.0\n", 2),
+        ):
+            with self.subTest(content=content):
+                with (
+                    mock.patch.object(Path, "read_text", return_value=content),
+                    self.assertRaisesRegex(
+                        ValueError, rf"requirements.lock:{line_number}:"
+                    ),
+                ):
+                    checker.parse_requirements(Path("requirements.lock"))
+
+    def test_declaration_checker_rejects_directives_after_hashes(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "hash_directive_checker"
+        )
+        original_read = Path.read_text
+        for directive in ("-r other.txt", "--index-url https://example.invalid/simple"):
+            with self.subTest(directive=directive):
+
+                def read_mutation(path: Path, *args, **kwargs) -> str:
+                    content = original_read(path, *args, **kwargs)
+                    if path == QUALITY_ROOT / "requirements.lock":
+                        return content + "\n--hash=sha256:" + "0" * 64 + " " + directive
+                    return content
+
+                with (
+                    mock.patch.object(Path, "read_text", read_mutation),
+                    self.assertRaisesRegex(ValueError, r"requirements.lock:\d+:"),
+                ):
+                    checker.check_declarations(QUALITY_ROOT)
+
+    def test_requirement_parser_accepts_complete_hash_continuations(self) -> None:
+        checker = load_script_module(
+            QUALITY_ROOT / "check-versions.py", "valid_hash_requirement_checker"
+        )
+        digest = "--hash=sha256:" + "aB" * 32
+        content = (
+            "# Generated pins\nexample[extra]==1.0 \\\n"
+            f"    {digest} \\\n"
+            f"    {digest} # reviewed digest\n"
+            "    # via example\nother==2.0\n"
+        )
+        with mock.patch.object(Path, "read_text", return_value=content):
+            self.assertEqual(
+                checker.parse_requirements(Path("requirements.lock")),
+                {"example": "1.0", "other": "2.0"},
+            )
+
     def test_requirement_parser_rejects_constraints_hidden_in_transitive_versions(
         self,
     ) -> None:
@@ -890,7 +958,9 @@ class QualityToolchainTests(unittest.TestCase):
                 "runtime: codespell expected 2.4.3, found None",
                 "runtime: @commitlint/cli expected 21.2.3, found None",
                 "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
+                "runtime: node_modules/fast-uri expected 3.1.9, found None",
                 "runtime: node_modules/katex expected 0.18.2, found None",
+                "runtime: node_modules/markdown-it expected 15.0.3, found None",
                 "runtime: node_modules/smol-toml expected 1.9.1, found None",
                 "runtime: actionlint expected 1.7.12, found 0.0.0 (matched)",
             ],
