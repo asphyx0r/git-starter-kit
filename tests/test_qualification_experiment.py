@@ -289,6 +289,9 @@ class ExperimentTests(unittest.TestCase):
                     self.q, "context_from_environment", return_value=context
                 ),
                 mock.patch.object(
+                    self.q, "datetime", wraps=packets.datetime
+                ) as protocol_clock,
+                mock.patch.object(
                     self.q,
                     "module",
                     side_effect=lambda name: (
@@ -309,6 +312,7 @@ class ExperimentTests(unittest.TestCase):
                 ),
                 mock.patch.object(self.experiment, "measured", side_effect=measured),
             ):
+                protocol_clock.now.return_value = packets.NOW
                 self.experiment.run_sample(
                     SimpleNamespace(
                         platform="linux",
