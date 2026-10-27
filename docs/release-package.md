@@ -115,6 +115,9 @@ initialize-only. Final core state and managed inventories are recomputed after
 composition, and the archive's bytes and executable modes are verified. Source
 maintenance tests, manufacturing files, migration journals and template inputs
 are excluded; required runtime modules and release schemas remain distributed.
+Template selection uses tracked Git paths in previews as well as SemVer
+builds. Ignored and untracked template files never enter the archive or its
+inventories; a missing tracked template fails without replacing an existing ZIP.
 
 No source-repository GitHub App token is required. The read-only `build` job
 exposes the built-in workflow token only to the package-builder step, which

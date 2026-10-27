@@ -691,7 +691,9 @@ conversion is accepted, but the ZIP stores the exact authenticated LF blobs.
 
 Use this script from a clean, committed repository when preparing release
 assets. SemVer contents come from the selected `HEAD`; previews use tracked
-paths from the index. Local untracked files are excluded.
+paths from the index and current worktree bytes. This selection also applies
+to `templates/project/`: ignored and untracked files are excluded from the ZIP
+and both generated inventories. A missing tracked template blocks the build.
 
 Use `latest` for normal release automation so packaging fails if tracked rules
 lag behind the latest full `agent-coding-rules` release. Use an explicit SemVer
