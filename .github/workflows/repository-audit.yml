@@ -108,7 +108,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - name: Retain candidate identity
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: qualification-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/candidate.json
@@ -252,7 +252,7 @@ jobs:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Upload fresh environment
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: qualification-fresh-linux-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/fresh/linux.json
@@ -346,7 +346,7 @@ jobs:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Upload fresh environment
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: qualification-fresh-windows-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/fresh/windows.json
@@ -442,7 +442,7 @@ jobs:
         id: decision
       - name: Retain verified original pair
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: qualification-verified-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verified
@@ -546,7 +546,7 @@ jobs:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Upload measured linux qualification
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: coverage-linux-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{
             github.run_attempt }}
@@ -661,7 +661,7 @@ jobs:
           AUDIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Upload measured windows qualification
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: coverage-windows-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{
             github.run_attempt }}
@@ -827,7 +827,7 @@ jobs:
         id: seal
       - name: Upload original producer qualification
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: qualification-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt
             }}
@@ -977,7 +977,7 @@ jobs:
       - name: Upload experimental sample
         if: always()
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: experiment-${{ matrix.platform }}-${{ matrix.sample }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/experiment
@@ -1049,7 +1049,7 @@ jobs:
       - name: Upload experimental results
         if: always()
         # actions/upload-artifact@v7.0.1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: experiment-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/experiment-results
