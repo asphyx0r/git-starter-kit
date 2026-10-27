@@ -271,7 +271,7 @@ def join_split_path_option_values(argv: list[str]) -> list[str]:
             continue
 
         value_parts = []
-        while index < len(argv) and argv[index] not in KNOWN_OPTION_STRINGS:
+        while index < len(argv) and not argv[index].startswith("-"):
             value_parts.append(strip_edge_quotes(argv[index]))
             index += 1
 

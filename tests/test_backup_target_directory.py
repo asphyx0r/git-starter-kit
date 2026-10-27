@@ -83,6 +83,45 @@ class BackupTargetDirectoryTest(unittest.TestCase):
 
         self.assertEqual(normalized_args, ["-d", source, "-t", target])
 
+    def test_path_repair_preserves_following_option_tokens(self) -> None:
+        for option in ("--unknown", "-x", "--target-directory=target", "--"):
+            with self.subTest(option=option):
+                arguments = ["-d", "source", option]
+                self.assertEqual(
+                    self.script.normalize_escaped_windows_args(arguments), arguments
+                )
+
+    def test_unknown_cli_options_fail_before_backup(self) -> None:
+        for option in ("--unknown", "-x", "--unknown=value"):
+            with (
+                self.subTest(option=option),
+                mock.patch.object(
+                    self.script,
+                    "run_backup",
+                    side_effect=AssertionError("Backup must not start for invalid CLI"),
+                ),
+            ):
+                code, output = self.run_cli("-d", "source", option, "-t", "target")
+                self.assertEqual(code, 2, output)
+                self.assertIn(option, output)
+
+    def test_mixed_path_option_syntax_preserves_equals_and_hyphen_paths(self) -> None:
+        arguments = self.script.normalize_escaped_windows_args(
+            [
+                "-d",
+                "source",
+                "with spaces",
+                "--target-directory=-target with spaces",
+                "--buffer-directory=-buffer",
+                "--dry-run",
+            ]
+        )
+        parsed = self.script.build_parser().parse_args(arguments)
+        self.assertEqual(parsed.source_directory, "source with spaces")
+        self.assertEqual(parsed.target_directory, "-target with spaces")
+        self.assertEqual(parsed.buffer_directory, "-buffer")
+        self.assertTrue(parsed.dry_run)
+
     def test_archive_name_includes_normalized_source_head_and_tag(self) -> None:
         archive_name = self.script.build_archive_name(
             "Répertoire Source",

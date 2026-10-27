@@ -134,6 +134,10 @@ or `/tmp`, `/var/tmp`, and `/usr/tmp` on Linux. Selection checks accessibility
 and locality without creating candidates or write probes. Actual allocation or
 write errors can still occur during execution.
 
+Unknown options are rejected before backup creation, including options after
+an `--option=value` argument. Use `--source-directory=./-name` for a path whose
+name starts with a hyphen.
+
 On Windows, locality uses the directory's containing volume, its drive type,
 and its remote-storage flag. Fixed, removable, and RAM drives are accepted
 unless remote storage is advertised; network or unknown volumes are refused.
