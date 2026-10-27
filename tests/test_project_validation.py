@@ -571,10 +571,16 @@ printf 'refs/heads/main %s refs/heads/main %s\\nrefs/tags/v1.0.0 %s refs/tags/v1
                     subprocess.TimeoutExpired([], 1),
                 ]
                 output, errors = io.StringIO(), io.StringIO()
+                sys_proxy = SimpleNamespace(
+                    platform=sys.platform,
+                    flags=SimpleNamespace(utf8_mode=utf8_mode),
+                    stdout=output,
+                    stderr=errors,
+                )
                 with (
                     patch.object(project_validation, "ProcessScope") as factory,
                     patch.object(locale, "getencoding", return_value=locale_encoding),
-                    patch.object(sys, "flags", SimpleNamespace(utf8_mode=utf8_mode)),
+                    patch.object(project_validation, "sys", sys_proxy),
                     contextlib.redirect_stdout(output),
                     contextlib.redirect_stderr(errors),
                 ):

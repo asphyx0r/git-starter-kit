@@ -140,6 +140,7 @@ class BuildReleasePackageTests(unittest.TestCase):
                     **os.environ,
                     "GH_REPO": "example/consumer",
                     "SCOPE": "project",
+                    "VERIFY_REUSE": "false",
                     "GITHUB_OUTPUT": str(outputs),
                     "RUNNER_TEMP": str(consumer),
                 },
