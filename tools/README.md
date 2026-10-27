@@ -239,9 +239,10 @@ The archive includes `.git` when it is contained in the source. Linked
 worktrees and submodules may instead use a `.git` file that refers to metadata
 outside the source; such an archive is not self-contained.
 
-ZIP preserves file bytes and modification times at ZIP precision, but this
-tool does not preserve NTFS ACLs, alternate data streams, creation/access
-times, or a cryptographic manifest. The `v0.0.0` placeholder is also
+ZIP preserves file bytes and modification times at ZIP precision. Dates outside
+the ZIP range of 1980 through 2107 are clamped in the archive; source timestamps
+remain unchanged. This tool does not preserve NTFS ACLs, alternate data streams,
+creation/access times, or a cryptographic manifest. The `v0.0.0` placeholder is also
 indistinguishable in the filename from a real tag with that exact name.
 
 ## initialize-repository.py

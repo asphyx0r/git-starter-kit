@@ -1105,6 +1105,31 @@ class LocalBackupPublicationTest(unittest.TestCase):
         self.assertEqual(list(self.target.iterdir()), [])
         self.assert_no_archive_temporaries()
 
+    def test_archive_clamps_zip_dates_without_changing_source_timestamps(self) -> None:
+        path = self.source / "data.txt"
+        contents = b"\x00data\xff"
+        path.write_bytes(contents)
+        for year, zip_date in (
+            (1979, (1980, 1, 1, 0, 0, 0)),
+            (2108, (2107, 12, 31, 23, 59, 58)),
+        ):
+            with self.subTest(year=year):
+                timestamp = time.mktime((year, 7, 1, 12, 0, 0, 0, 0, -1))
+                os.utime(path, (timestamp, timestamp))
+                original_timestamp = path.stat().st_mtime_ns
+
+                self.script.create_archive(self.source, self.archive)
+
+                with zipfile.ZipFile(self.archive) as archive:
+                    self.assertIsNone(archive.testzip())
+                    self.assertEqual(archive.read("source/data.txt"), contents)
+                    self.assertEqual(
+                        archive.getinfo("source/data.txt").date_time, zip_date
+                    )
+                self.assertEqual(path.stat().st_mtime_ns, original_timestamp)
+                self.archive.unlink()
+        self.assert_no_archive_temporaries()
+
     def test_transfer_failure_removes_only_owned_temporaries(self) -> None:
         sentinel = self.target / ".unrelated.zip.tmp"
         sentinel.write_bytes(b"keep")

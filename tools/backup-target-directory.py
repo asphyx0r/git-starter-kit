@@ -694,6 +694,7 @@ def write_zip_from_staged_tree(staged_source: Path, archive_path: Path) -> None:
         mode="w",
         compression=zipfile.ZIP_DEFLATED,
         compresslevel=MAX_COMPRESSION,
+        strict_timestamps=False,
     ) as archive:
         add_directory_entry(archive, staged_source.name)
         staged_paths = sorted(staged_source.rglob("*"))
