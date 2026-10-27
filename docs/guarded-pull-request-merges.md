@@ -160,6 +160,12 @@ a lost repository-dispatch response, an uncorrelated or duplicate workflow
 run, a timeout, and a merge whose final state or exact message cannot be read.
 Every status-3 diagnostic includes the exact `Guarded merge <UUID>` identity.
 
+A confirmed merge followed by local cleanup failure returns status `1` and
+reports the confirmed repository, pull request and head together with the
+residual path and cleanup error. The merge remains confirmed. If an earlier
+operation also failed, its status or interruption remains primary and cleanup
+details accompany it. Inspect the reported state before retrying.
+
 Never automatically repeat a status `3` request. First inspect GitHub Actions
 for the exact `Guarded merge <UUID>` run and inspect the pull request. A repeated
 dispatch uses a new UUID and can race with the original request; UUID and hash

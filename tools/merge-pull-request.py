@@ -921,10 +921,22 @@ def _request(args: argparse.Namespace) -> int:
         if not unchanged or _read_merge_message(args.message_file).raw != message.raw:
             raise MergeRequestError("Merge message changed during dry-run validation.")
     else:
-        with tempfile.TemporaryDirectory(prefix="guarded-merge-request-") as temporary:
-            candidate_path = Path(temporary) / "candidate-message.txt"
+        temporary = tempfile.TemporaryDirectory(prefix="guarded-merge-request-")
+        try:
+            candidate_path = Path(temporary.name) / "candidate-message.txt"
             candidate_path.write_bytes(message.raw)
             _validate_message_with_commitlint(candidate_path)
+        finally:
+            primary_error = sys.exception()
+            try:
+                temporary.cleanup()
+            except OSError as error:
+                diagnostic = (
+                    f"Unable to remove temporary directory {temporary.name}: {error}"
+                )
+                if primary_error is None:
+                    raise MergeRequestError(diagnostic) from error
+                print(f"Cleanup error: {diagnostic}", file=sys.stderr)
     pull_request = _validate_pull_request(
         repository,
         default_branch,
@@ -980,36 +992,57 @@ def _request(args: argparse.Namespace) -> int:
         args.verbose,
     )
     try:
-        with tempfile.TemporaryDirectory(
-            prefix="guarded-merge-postcondition-"
-        ) as temporary:
-            _verify_postcondition(
-                sealed_request,
-                Path(temporary) / "actual-message.txt",
-            )
-    except UnmergedPullRequestError as error:
-        if run.get("conclusion") != "success":
-            raise MergeRequestError(
-                f"Guarded merge workflow failed: {_run_summary(run)}; {error}"
-            ) from error
-        raise MergeRequestError(
-            f"Guarded merge workflow reported success but {error}"
-        ) from error
+        temporary = tempfile.TemporaryDirectory(prefix="guarded-merge-postcondition-")
     except OSError as error:
         raise IndeterminateMergeError(
             f"Guarded merge {request_id}: post-dispatch temporary storage is "
             f"unavailable: {error}"
         ) from error
-    except MergeRequestError as error:
-        workflow_state = (
-            "did not succeed"
-            if run.get("conclusion") != "success"
-            else "reported success"
+    try:
+        try:
+            _verify_postcondition(
+                sealed_request,
+                Path(temporary.name) / "actual-message.txt",
+            )
+        except UnmergedPullRequestError as error:
+            if run.get("conclusion") != "success":
+                raise MergeRequestError(
+                    f"Guarded merge workflow failed: {_run_summary(run)}; {error}"
+                ) from error
+            raise MergeRequestError(
+                f"Guarded merge workflow reported success but {error}"
+            ) from error
+        except OSError as error:
+            raise IndeterminateMergeError(
+                f"Guarded merge {request_id}: post-dispatch temporary storage is "
+                f"unavailable: {error}"
+            ) from error
+        except MergeRequestError as error:
+            workflow_state = (
+                "did not succeed"
+                if run.get("conclusion") != "success"
+                else "reported success"
+            )
+            raise IndeterminateMergeError(
+                f"Guarded merge {request_id}: workflow {workflow_state} and "
+                f"the exact postcondition is unavailable or conflicting: {error}"
+            ) from error
+        print(
+            f"Squash merge confirmed for {repository}#{args.pull_request} "
+            f"at {expected_head_oid}.",
+            flush=True,
         )
-        raise IndeterminateMergeError(
-            f"Guarded merge {request_id}: workflow {workflow_state} and "
-            f"the exact postcondition is unavailable or conflicting: {error}"
-        ) from error
+    finally:
+        primary_error = sys.exception()
+        try:
+            temporary.cleanup()
+        except OSError as error:
+            diagnostic = (
+                f"Unable to remove temporary directory {temporary.name}: {error}"
+            )
+            if primary_error is None:
+                raise MergeRequestError(diagnostic) from error
+            print(f"Cleanup error: {diagnostic}", file=sys.stderr)
     if run.get("conclusion") != "success":
         print(
             f"Guarded merge {request_id} confirmed from the exact postcondition: "
@@ -1193,8 +1226,9 @@ def _verify_postcondition(request: DispatchRequest, actual_path: Path) -> None:
 def _execute(args: argparse.Namespace) -> int:
     request = _read_dispatch_event(args.event_file)
     _require_guarded_merge_enabled(request.repository, request.default_branch)
-    with tempfile.TemporaryDirectory(prefix="guarded-merge-") as temporary_directory:
-        temporary_root = Path(temporary_directory)
+    temporary_directory = tempfile.TemporaryDirectory(prefix="guarded-merge-")
+    try:
+        temporary_root = Path(temporary_directory.name)
         candidate_path = temporary_root / "candidate-message.txt"
         payload_path = temporary_root / "merge.json"
         actual_path = temporary_root / "actual-message.txt"
@@ -1262,10 +1296,20 @@ def _execute(args: argparse.Namespace) -> int:
                     "but the exact postcondition is unavailable or conflicting: "
                     f"{postcondition_error}"
                 ) from postcondition_error
-    print(
-        f"Squash merge confirmed for {request.repository}#{request.pull_request} "
-        f"at {request.expected_head_oid}."
-    )
+        print(
+            f"Squash merge confirmed for {request.repository}#{request.pull_request} "
+            f"at {request.expected_head_oid}.",
+            flush=True,
+        )
+    finally:
+        primary_error = sys.exception()
+        try:
+            temporary_directory.cleanup()
+        except OSError as error:
+            diagnostic = f"Unable to remove temporary directory {temporary_directory.name}: {error}"
+            if primary_error is None:
+                raise MergeRequestError(diagnostic) from error
+            print(f"Cleanup error: {diagnostic}", file=sys.stderr)
     return 0
 
 
