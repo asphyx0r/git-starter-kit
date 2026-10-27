@@ -62,8 +62,11 @@ class PushedOidTest(unittest.TestCase):
 PYTHON_TEST
 for test_name in \
   test_repository_audit.sh \
+  test_agent_rules_transfer.sh \
   test_quality_hooks.sh \
-  test_commit_message_validation.sh; do
+  test_commit_message_validation.sh \
+  test_quality_pre_commit.sh \
+  test_quality_pre_push.sh; do
   cat >"${fixture}/tests/${test_name}" <<'SHELL_TEST'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -197,8 +200,11 @@ if [[ "${QUALITY_STUB_AFFECTED_TESTS:-false}" == true ]]; then
       fi
       for shell_test in \
         test_repository_audit.sh \
+        test_agent_rules_transfer.sh \
         test_quality_hooks.sh \
-        test_commit_message_validation.sh; do
+        test_commit_message_validation.sh \
+        test_quality_pre_commit.sh \
+        test_quality_pre_push.sh; do
         printf '%s|%s\n' "${shell_test}" "${pushed_oid}" \
           >>"${QUALITY_SHELL_TRACE}"
       done
@@ -441,7 +447,7 @@ while IFS= read -r normal_clone_destination; do
   fi
 done <"${QUALITY_CLONE_DESTINATION_TRACE}"
 
-if [[ "$(grep -Fc "|${shell_oid}" "${QUALITY_SHELL_TRACE}")" != 3 ]]; then
+if [[ "$(grep -Fc "|${shell_oid}" "${QUALITY_SHELL_TRACE}")" != 6 ]]; then
   fail "duplicate refs executed the shell suite more than once for one OID"
 fi
 

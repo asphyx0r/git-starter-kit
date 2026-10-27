@@ -48,7 +48,22 @@ run_markdown() {
 run_spelling() {
   local codespell_cmd
   codespell_cmd="$(resolve_command codespell codespell.cmd codespell.exe)" || return
-  "$codespell_cmd" --config .codespellrc . || return
+  run_tracked_spelling "${codespell_cmd}" || return
+}
+
+run_tracked_spelling() {
+  local codespell_cmd="$1" path paths_fd paths_pid
+  local -a paths=()
+  exec {paths_fd}< <(git ls-files -z) || return
+  paths_pid=$!
+  while IFS= read -r -d '' path; do
+    if [[ -f "${path}" && ! -L "${path}" ]]; then
+      paths+=("./${path}")
+    fi
+  done <&"${paths_fd}"
+  exec {paths_fd}<&- || return
+  wait "${paths_pid}" || return
+  ((${#paths[@]} == 0)) || "${codespell_cmd}" --config .codespellrc -- "${paths[@]}"
 }
 
 run_yamllint() {
@@ -458,7 +473,7 @@ run_readonly() {
   yamllint_cmd="$(resolve_command yamllint yamllint.exe)" || return
 
   "$markdownlint_cmd" --config .markdownlint-cli2.yaml "**/*.md" || return
-  "$codespell_cmd" --config .codespellrc . || return
+  run_tracked_spelling "${codespell_cmd}" || return
   "$yamllint_cmd" -c tools/quality/yamllint.yaml . || return
   "$actionlint_cmd" || return
   check_git_whitespace || return

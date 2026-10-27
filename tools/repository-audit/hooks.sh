@@ -19,8 +19,7 @@ classify_hook_path() {
   if [[ "${hook_selection_scope:-source}" == project ]]; then
     return
   fi
-  if [[ -z "${hook_selection_scope:-}" && -n "${repository_root:-}" &&
-    -f "${repository_root}/.starter-kit-project.json" ]]; then
+  if [[ -z "${hook_selection_scope:-}" && -n "${repository_root:-}" && -f "${repository_root}/.starter-kit-project.json" ]]; then
     local scope
     scope="$(resolve_validation_scope)" || return
     [[ "${scope}" == source ]] || return 0
@@ -54,7 +53,7 @@ classify_hook_path() {
   tools/git-init.sh | tools/git-init.ps1 | tests/test_git_init.py)
     module=test_git_init.py
     ;;
-  tools/quality/npm-security.py | tools/quality/patches/braces-3.0.3/* | tests/fixtures/braces-3.0.3.tgz | tests/fixtures/fill-range-7.1.1.tgz | tests/fixtures/to-regex-range-5.0.1.tgz | tests/fixtures/is-number-7.0.0.tgz)
+  tools/quality/npm-security.py | tests/test_npm_security.py)
     module=test_npm_security.py
     ;;
   .githooks/pre-commit)
@@ -95,13 +94,13 @@ classify_hook_path() {
     module='*'
     shell_module='*'
     ;;
-  *.md)
-    ;;
+  *.md) ;;
+
   *.sh)
     shell_module='*'
     ;;
-  *.yml | *.yaml)
-    ;;
+  *.yml | *.yaml) ;;
+
   *)
     module='*'
     shell_module='*'
@@ -894,9 +893,7 @@ validate_hook_clone() {
   actual_common_dir="$(canonical_hook_directory "${actual_common_dir}")" || return
 
   # Git Bash can name one directory through both drive and /tmp mounts.
-  if [[ ! "${actual_top_level}" -ef "${expected_root}" ||
-    ! "${actual_git_dir}" -ef "${expected_git_dir}" ||
-    ! "${actual_common_dir}" -ef "${expected_git_dir}" ]]; then
+  if [[ ! "${actual_top_level}" -ef "${expected_root}" || ! "${actual_git_dir}" -ef "${expected_git_dir}" || ! "${actual_common_dir}" -ef "${expected_git_dir}" ]]; then
     printf '%s\n' \
       'pre-push: refusing clone with redirected repository paths.' >&2
     return 1
@@ -948,7 +945,7 @@ run_hook_affected_tests() {
       cd -- "$1" || exit
       modules="$2"
       if [[ "$modules" == "*" ]]; then
-        modules="test_quality_hooks.sh test_commit_message_validation.sh test_quality_pre_commit.sh test_quality_pre_push.sh"
+        modules="test_quality_hooks.sh test_commit_message_validation.sh test_quality_pre_commit.sh test_quality_pre_push.sh test_repository_audit.sh test_agent_rules_transfer.sh"
       fi
       read -r -a selected_modules <<<"${modules}"
       seen_modules=" "
