@@ -26,9 +26,12 @@ process_runner = importlib.util.module_from_spec(_PROCESS_SPEC)
 _PROCESS_SPEC.loader.exec_module(process_runner)
 
 
+REQUIREMENT_IDENTIFIER = r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?"
+
 # Validate PEP 440 pins before third-party dependencies are installed.
 REQUIREMENT_PATTERN = re.compile(
-    r"^(?P<name>[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?)"
+    rf"^(?P<name>{REQUIREMENT_IDENTIFIER}"
+    rf"(?:\[{REQUIREMENT_IDENTIFIER}(?:,{REQUIREMENT_IDENTIFIER})*\])?)"
     r"==(?P<version>v?(?:[0-9]+!)?[0-9]+(?:\.[0-9]+)*"
     r"(?:[._-]?(?:alpha|a|beta|b|preview|pre|rc|c)[._-]?[0-9]*)?"
     r"(?:-[0-9]+|[._-]?(?:post|rev|r)[._-]?[0-9]*)?"

@@ -183,14 +183,25 @@ class QualityToolchainTests(unittest.TestCase):
             QUALITY_ROOT / "check-versions.py", "strict_requirement_checker"
         )
         original_read = Path.read_text
+        hashed = " \\\n    --hash=sha256:" + "0" * 64 + "\n"
         cases = (
             ("requirements.in", "unexpected>=1.0\n"),
             ("requirements.in", "-r other.txt\n"),
             ("requirements.in", "unexpected==1.0 trailing\n"),
             ("requirements.in", "extra-tool==1.0\nextra_tool==2.0\n"),
+            ("requirements.in", "--editable==1.0\n"),
+            ("requirements.in", "invalid-==1.0\n"),
+            ("requirements.in", "example[,x]==1.0\n"),
+            ("requirements.in", "example[x,,y]==1.0\n"),
             ("requirements.lock", "unexpected>=1.0\n"),
             ("requirements.lock", "-r other.txt\n"),
             ("requirements.lock", "extra-tool==1.0\nextra_tool==2.0\n"),
+            ("requirements.lock", "--editable==1.0" + hashed),
+            ("requirements.lock", "invalid-==1.0" + hashed),
+            ("requirements.lock", "example[,x]==1.0" + hashed),
+            ("requirements.lock", "example[x,,y]==1.0" + hashed),
+            ("requirements.lock", "example[-x]==1.0" + hashed),
+            ("requirements.lock", "example[x-]==1.0" + hashed),
         )
         for filename, addition in cases:
             with self.subTest(filename=filename, addition=addition):
@@ -218,6 +229,8 @@ class QualityToolchainTests(unittest.TestCase):
             "jsonschema[format]==4.26.0 # keep format validators\n"
             "example-package==2.9.0.post0\n"
             "epoch-package==1!2.0rc1.dev2+local.1\n"
+            "q==1.0\n"
+            "a.b-c_d[e,x.y-z_w]==1.0\n"
         )
         with mock.patch.object(Path, "read_text", return_value=content):
             self.assertEqual(
@@ -226,6 +239,8 @@ class QualityToolchainTests(unittest.TestCase):
                     "jsonschema[format]": "4.26.0",
                     "example-package": "2.9.0.post0",
                     "epoch-package": "1!2.0rc1.dev2+local.1",
+                    "q": "1.0",
+                    "a.b-c_d[e,x.y-z_w]": "1.0",
                 },
             )
             self.assertEqual(
@@ -234,6 +249,8 @@ class QualityToolchainTests(unittest.TestCase):
                     "jsonschema": "4.26.0",
                     "example-package": "2.9.0.post0",
                     "epoch-package": "1!2.0rc1.dev2+local.1",
+                    "q": "1.0",
+                    "a-b-c-d": "1.0",
                 },
             )
 
