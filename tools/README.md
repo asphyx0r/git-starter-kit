@@ -1443,6 +1443,11 @@ declarative: it validates the registry, requirements and package locks,
 integrity metadata, and the configured coverage threshold without installing,
 downloading, or modifying anything.
 
+Requirement files accept exact PEP 440 version pins, valid extras and comments.
+Unsupported directives, ranges, markers, trailing text and duplicate normalized
+package names fail with the file and line. Hashed lock blocks retain their
+multiline format; a malformed transitive declaration cannot be skipped silently.
+
 ### Synopsis
 
 ```text
@@ -1484,6 +1489,12 @@ python -B tools/quality/check-versions.py --runtime --tool ruff --tool mypy
 - `2`: command-line argument parsing failed.
 
 ### Updating dependency pins
+
+Treat a Dependabot proposal as incomplete until the registry, direct
+declarations and related locks agree. Complete those files together and retain
+the drift check; do not relax it to accept an isolated version bump. A passing
+declaration check is followed by clean installations, runtime checks, dependency
+audits and the existing full CI qualification.
 
 Prepare Dependabot proposals as complete changes before merging: update each
 direct requirement and its entry in `quality/versions.json` together, then

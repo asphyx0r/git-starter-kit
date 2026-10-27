@@ -47,8 +47,9 @@ from pathlib import Path
 root = Path(sys.argv[1])
 quality = root / "tools/quality"
 lock = json.loads((quality / "package-lock.json").read_bytes())
+versions = json.loads((quality / "versions.json").read_bytes())
 # Test metadata supports the real host CLI proxy; no dependency is installed.
-for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+for name in ("@commitlint/cli", "markdownlint-cli2", *versions["nodeOverrides"]):
     package = quality / "node_modules" / name / "package.json"
     package.parent.mkdir(parents=True, exist_ok=True)
     version = lock["packages"][f"node_modules/{name}"]["version"]

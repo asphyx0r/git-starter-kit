@@ -297,12 +297,17 @@ import sys
 root = Path(sys.argv[1])
 quality = root / "tools/quality"
 lock = json.loads((quality / "package-lock.json").read_bytes())
-for name in ("@commitlint/cli", "markdownlint-cli2", "smol-toml", "katex"):
+versions = json.loads((quality / "versions.json").read_bytes())
+for name in ("@commitlint/cli", "markdownlint-cli2", *versions["nodeOverrides"]):
     metadata = json.loads((quality / "node_modules" / name / "package.json").read_bytes())
     assert metadata["version"] == lock["packages"][f"node_modules/{name}"]["version"]
 inventory = json.loads((root / "_starter-kit-files.json").read_bytes())
 assert not any("node_modules" in Path(entry["path"]).parts for entry in inventory["files"])
 PY
+  if [[ "${1:-}" == metadata ]]; then
+    printf '%s\n' 'PASS: initializer fixture carries metadata for every declared npm override'
+    return
+  fi
   if ! printf 'y\ny\n' | PATH="${test_temp}/initializer-bin:$PATH" \
     bash tools/git-init.sh --path "${fixture}" --tag v1.0.0 \
     >"${test_temp}/initializer-fixture.out" 2>"${test_temp}/initializer-fixture.err"; then
@@ -316,6 +321,11 @@ PY
 
 if [[ "${1:-}" == --initializer-fixture ]]; then
   run_initializer_fixture_checks
+  exit
+fi
+
+if [[ "${1:-}" == --initializer-metadata ]]; then
+  run_initializer_fixture_checks metadata
   exit
 fi
 
