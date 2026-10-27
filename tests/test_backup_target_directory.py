@@ -1189,6 +1189,67 @@ class LocalBackupPublicationTest(unittest.TestCase):
                 path.unlink(missing_ok=True)
         self.assert_no_archive_temporaries()
 
+    def test_primary_transfer_failure_survives_cleanup_failure(self) -> None:
+        original_copy = self.script.shutil.copyfileobj
+        original_unlink = Path.unlink
+        for primary_error in (
+            OSError(errno.ENOSPC, "transfer exhausted space"),
+            self.script.BackupError("transfer rejected"),
+            KeyboardInterrupt("transfer interrupted"),
+            SystemExit(3),
+        ):
+            with self.subTest(error=type(primary_error).__name__):
+                retained = []
+
+                def fail_copy(source, target, *args):
+                    target_name = getattr(target, "name", None)
+                    if target_name is None or Path(target_name).parent != self.target:
+                        return original_copy(source, target, *args)
+                    target.write(b"partial transfer")
+                    raise primary_error
+
+                def fail_unlink(path, *args, **kwargs):
+                    if path.parent == self.target and path.name.endswith(".zip.tmp"):
+                        retained.append(path)
+                        raise PermissionError("cleanup denied")
+                    return original_unlink(path, *args, **kwargs)
+
+                try:
+                    with (
+                        mock.patch.object(
+                            self.script.shutil, "copyfileobj", side_effect=fail_copy
+                        ),
+                        mock.patch.object(Path, "unlink", fail_unlink),
+                        self.assertRaises(type(primary_error)) as caught,
+                    ):
+                        self.script.create_archive(self.source, self.archive)
+                    self.assertIs(caught.exception, primary_error)
+                    self.assertEqual(len(retained), 1)
+                    self.assertTrue(retained[0].is_file())
+                    self.assertFalse(self.archive.exists())
+                    diagnostics = "\n".join(primary_error.__notes__)
+                    self.assertIn(str(retained[0]), diagnostics)
+                    self.assertIn("cleanup denied", diagnostics)
+
+                    if isinstance(primary_error, Exception):
+                        output = io.StringIO()
+                        with (
+                            mock.patch.object(
+                                self.script, "run_backup", side_effect=primary_error
+                            ),
+                            redirect_stdout(output),
+                        ):
+                            code = self.script.main(["-d", "source", "-t", "target"])
+                        self.assertEqual(code, 1)
+                        self.assertIn(str(primary_error), output.getvalue())
+                        self.assertIn(str(retained[0]), output.getvalue())
+                        self.assertIn("cleanup denied", output.getvalue())
+                        self.assertNotIn("Traceback", output.getvalue())
+                finally:
+                    for path in retained:
+                        path.unlink(missing_ok=True)
+                self.assert_no_archive_temporaries()
+
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux publication test")
     def test_linux_unsupported_hard_links_fail_without_final_archive(self) -> None:
         with (

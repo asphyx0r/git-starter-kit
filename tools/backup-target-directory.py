@@ -221,9 +221,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
     except BackupError as exc:
         logger.fatal(str(exc))
+        for note in getattr(exc, "__notes__", ()):
+            logger.error(note)
         return 1
     except OSError as exc:
         logger.fatal(f"Filesystem error: {exc}")
+        for note in getattr(exc, "__notes__", ()):
+            logger.error(note)
         return 1
 
     return 0
@@ -655,6 +659,7 @@ def create_archive(staged_source: Path, archive_path: Path) -> None:
 
 def _transfer_archive(local_archive: Path, archive_path: Path) -> None:
     temp_archive = None
+    primary_error = None
     try:
         with tempfile.NamedTemporaryFile(
             prefix=f".{archive_path.stem}.",
@@ -666,14 +671,18 @@ def _transfer_archive(local_archive: Path, archive_path: Path) -> None:
             with local_archive.open("rb") as source:
                 shutil.copyfileobj(source, destination)
         _publish_archive(temp_archive, archive_path)
+    except BaseException as exc:
+        primary_error = exc
+        raise
     finally:
         if temp_archive is not None:
             try:
                 temp_archive.unlink(missing_ok=True)
             except OSError as exc:
-                raise BackupError(
-                    f"Could not remove temporary archive {temp_archive}: {exc}"
-                ) from exc
+                message = f"Could not remove temporary archive {temp_archive}: {exc}"
+                if primary_error is None:
+                    raise BackupError(message) from exc
+                primary_error.add_note(message)
 
 
 def _publish_archive(temp_archive: Path, archive_path: Path) -> None:

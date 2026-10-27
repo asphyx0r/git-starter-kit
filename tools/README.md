@@ -52,6 +52,8 @@ storage must accommodate both the staged tree and its compressed ZIP; the
 target must accommodate the transferred ZIP. Ordinary failures clean up the
 execution's temporary files. A cleanup failure reports the affected path and
 returns an error. An abrupt process termination can leave temporary files.
+If transfer and cleanup both fail, the original failure or interruption remains
+primary and the cleanup diagnostic includes the residual temporary path.
 
 The source root is inspected before path resolution, and tree entries are
 inspected before descent. A symbolic link or Windows junction aborts the whole
