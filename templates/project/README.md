@@ -48,7 +48,6 @@ existing locked Python dependencies, including the initializer's required
 ```bash
 python -m pip install --require-hashes --requirement tools/quality/requirements.lock
 npm ci --ignore-scripts --prefix tools/quality
-python tools/quality/npm-security.py patch
 ```
 
 Provision the external tools selected for your checks on Windows x64 or Linux

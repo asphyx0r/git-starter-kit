@@ -276,9 +276,9 @@ deferred, or explicitly excluded from the template.
   can reuse one original OS pair; local exhaustive profiles remain complete.
   Read-only permissions and disabled checkout credential persistence keep
   checked-out audit code unprivileged. Linux also
-  runs the attested `npm-security.py audit` gate and pip-audit on both Python
-  locks: unhandled high/critical npm advisories and verification errors block
-  the job; the attested upstream braces report remains visible. Ordinary
+  runs the `npm-security.py audit` gate and pip-audit on both Python locks:
+  all high/critical npm advisories and audit errors block the job, and the
+  complete raw npm report remains visible. Ordinary
   branch pushes and PRs have separate runs. Existing branch pushes validate
   the pushed commit range. CI retrieves the exact previous commit if a rewritten
   push left it outside the checkout; retrieval failures block the audit. Local
@@ -882,22 +882,13 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `required`
-- Goal: Applies and attests the local braces stack-exhaustion fix, then evaluates
-  the complete npm advisory graph without blanket exclusions.
-- Usage: Run `patch` explicitly after npm ci, `verify` for local integrity, and
-  `audit` for a bounded registry check. See [the tool guide](../tools/README.md#qualitynpm-securitypy).
-- Notes: Rejects unexpected bytes, links and unlocked occurrences; rollback
-  preserves interrupts and foreign edits. Raw upstream findings remain visible.
-
-### `tools/quality/patches/braces-3.0.3/`
-
-- Type: `directory`
-- Status: `required`
-- Goal: Distributes the fixed package payload, provenance and upstream license.
-- Usage: `npm-security.py` consumes `manifest.json`, `lib/compile.js`,
-  `lib/expand.js`, `lib/stringify.js` and `lib/utils.js`; `LICENSE` retains MIT terms.
-- Notes: Records canonical archive integrity and every upstream file's original
-  and fixed hashes. The original package version and advisory remain unchanged.
+- Goal: Evaluates the complete npm advisory graph and blocks high/critical
+  findings without advisory exclusions.
+- Usage: Run `audit` for a bounded registry check. See
+  [the tool guide](../tools/README.md#qualitynpm-securitypy).
+- Notes: Preserves raw reports, isolates temporary caches and fails closed on
+  invalid reports or registry errors. The retired `patch` and `verify` commands
+  are rejected; clean npm installations restore upstream package bytes.
 
 ### `tools/initialize-repository.py`
 
@@ -1552,49 +1543,13 @@ deferred, or explicitly excluded from the template.
 
 - Type: `file`
 - Status: `required`
-- Goal: Proves patch compatibility, bounded traversal, provenance and fail-closed
-  advisory attribution.
-- Usage: Run `python -B -m unittest discover -s tests -p test_npm_security.py` with
-  Python and Node.js. Exact archive fixtures keep the suite offline and independent
-  of checkout dependency installation.
-- Notes: Exercises interruption rollback, preserved foreign edits, nested and
-  unlocked packages, idempotence, stale counts and unknown/cyclic advisories.
-  Registered cleanup uses the bounded shared fixture helper; transient cleanup
-  is tested without hiding persistent or other errors.
-
-### `tests/fixtures/braces-3.0.3.tgz`
-
-- Type: `file`
-- Status: `required`
-- Goal: Keeps the exact original npm archive and walkers as compatibility
-  oracles for the corrected package.
-- Usage: Only the npm security tests consume these files; production never does.
-- Notes: The deliberate small binary fixture has the canonical integrity
-  recorded in the patch manifest and contains the upstream MIT license.
-
-### `tests/fixtures/fill-range-7.1.1.tgz`
-
-- Type: `file`
-- Status: `required`
-- Goal: Supplies the exact upstream braces range dependency to isolated tests.
-- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
-- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
-
-### `tests/fixtures/to-regex-range-5.0.1.tgz`
-
-- Type: `file`
-- Status: `required`
-- Goal: Supplies the exact upstream range conversion dependency to isolated tests.
-- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
-- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
-
-### `tests/fixtures/is-number-7.0.0.tgz`
-
-- Type: `file`
-- Status: `required`
-- Goal: Supplies the exact upstream numeric predicate dependency to isolated tests.
-- Usage: Only `test_npm_security.py` extracts it into its temporary dependency tree.
-- Notes: SHA512 must match `package-lock.json`; the archive includes the MIT license.
+- Goal: Proves fail-closed advisory validation and bounded npm execution.
+- Usage: Run `python -B -m unittest discover -s tests -p test_npm_security.py`.
+  Controlled npm responses keep the suite offline and independent of installed
+  checkout dependencies.
+- Notes: Covers all severities, stale counts, missing/cyclic advisory references,
+  CLI removal, isolated cache cleanup and descendant timeouts. The shared fixture
+  helper is tested without hiding persistent cleanup errors.
 
 ### `docs/superpowers/plans/2026-10-12-audit-remediation.md`
 

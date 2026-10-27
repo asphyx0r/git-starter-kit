@@ -39,11 +39,10 @@ Précontrôles locaux avant les suites longues
   dont l'intégrité a été vérifiée. Les installations Python utilisent
   `--require-hashes` et npm utilise `ci --ignore-scripts`. Les audits
   n'installent aucune dépendance eux-mêmes.
-- Après chaque `npm ci --ignore-scripts`, applique explicitement
-  `python tools/quality/npm-security.py patch` avant les précontrôles.
-  Le helper d'audit vérifie le correctif installé avant et après la requête
-  npm et conserve le rapport brut. Il bloque les alertes HIGH non attestées,
-  toutes les alertes CRITICAL et les erreurs de vérification.
+- Le helper `python tools/quality/npm-security.py audit` conserve le rapport
+  npm brut et bloque toutes les alertes HIGH/CRITICAL ainsi que les erreurs
+  d'audit. Les commandes `patch` et `verify` sont retirées ; une installation
+  `npm ci --ignore-scripts` restaure les fichiers publiés par les dépendances.
 - Les cibles CI restent Python 3.11 sur Linux, Python 3.14 sur Windows et la
   version Node.js déclarée par `policy.nodeCiVersion`. Documente toute différence
   locale ; une analyse Mypy pour deux plateformes ne prouve pas l'exécution des

@@ -29,10 +29,9 @@ these setup steps. The commands below use Windows PowerShell.
    npm ci --ignore-scripts --prefix tools/quality
    ```
 
-   When maintaining the source checkout, explicitly run
-   `python tools/quality/npm-security.py patch` after npm installation.
-   Published v2.11.7 assets do not provide this command; follow their matching
-   installation instructions. See the [security tool guide](../tools/README.md#qualitynpm-securitypy).
+   Run `python tools/quality/npm-security.py audit` for the blocking npm
+   dependency check. See the [security tool guide](../tools/README.md#qualitynpm-securitypy)
+   for audit diagnostics and migration from the retired patch commands.
 
    Keep this PowerShell session open for the remaining steps. Stop and resolve
    any installation error before continuing.

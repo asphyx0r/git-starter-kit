@@ -2216,12 +2216,6 @@ for name in ('initialize-repository.py', 'release-artifacts.py', 'repository-aud
         quality_paths = {
             "tools/quality/check-versions.py",
             "tools/quality/npm-security.py",
-            "tools/quality/patches/braces-3.0.3/LICENSE",
-            "tools/quality/patches/braces-3.0.3/manifest.json",
-            "tools/quality/patches/braces-3.0.3/lib/compile.js",
-            "tools/quality/patches/braces-3.0.3/lib/expand.js",
-            "tools/quality/patches/braces-3.0.3/lib/stringify.js",
-            "tools/quality/patches/braces-3.0.3/lib/utils.js",
             "tools/quality/install-external-tools.py",
             "tools/quality/package-lock.json",
             "tools/quality/package.json",

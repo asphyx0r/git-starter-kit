@@ -197,7 +197,6 @@ jobs:
             --require-hashes \
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-          python tools/quality/npm-security.py patch
       - name: Audit locked tool dependencies
         shell: bash
         run: |
@@ -315,7 +314,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm ci --ignore-scripts --prefix tools/quality
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools/quality/npm-security.py patch
       - name: Install verified PowerShell and shell tools
         shell: pwsh
         run: |
@@ -501,7 +499,6 @@ jobs:
             --require-hashes \
             --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-          python tools/quality/npm-security.py patch
       - name: Install verified external tools
         shell: bash
         run: |
@@ -608,7 +605,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm ci --ignore-scripts --prefix tools/quality
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools/quality/npm-security.py patch
       - name: Install verified PowerShell and shell tools
         shell: pwsh
         run: |
@@ -913,7 +909,6 @@ jobs:
           python -m pip install --disable-pip-version-check \
             --require-hashes --requirement tools/quality/requirements.lock
           npm ci --ignore-scripts --prefix tools/quality
-          python tools/quality/npm-security.py patch
       - name: Install verified Linux tools
         if: matrix.platform == 'linux'
         shell: bash

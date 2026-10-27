@@ -75,7 +75,6 @@ Install the locked Node dependencies and authenticate GitHub CLI:
 
 ```bash
 npm ci --ignore-scripts --prefix tools/quality
-python tools/quality/npm-security.py patch
 gh auth status
 ```
 
