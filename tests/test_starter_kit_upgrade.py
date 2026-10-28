@@ -2021,7 +2021,7 @@ print(upgrade.VERSION)
                     with self.assertRaises(UPGRADE.UpgradeError):
                         UPGRADE.load_upgrade(invalid)
 
-    def test_interruption_after_adoption_write_restores_all_originals(self):
+    def test_interruption_before_or_after_adoption_write_restores_all_originals(self):
         application = importlib.import_module("starter_kit_upgrade.application")
         target = self.create_target()
         if os.name != "nt":
@@ -2030,42 +2030,257 @@ print(upgrade.VERSION)
             self.run_git(target, "commit", "-m", "test: executable rollback baseline")
         manifest, files, plan = self.load_plan(target)
         adoption_path = target / UPGRADE.ADOPTION_PATH
-        adoption_path.write_bytes(b'{"original": true}\n')
-        if os.name != "nt":
-            adoption_path.chmod(0o600)
-        before = {
-            p: UPGRADE.snapshot_file(target / p)
-            for p in (*self.base_files, UPGRADE.ADOPTION_PATH)
-        }
-        for exception_type in (RuntimeError, KeyboardInterrupt):
-            with self.subTest(exception_type=exception_type):
-                error = exception_type("interrupted after adoption replacement")
+        for existing in (False, True):
+            if existing:
+                adoption_path.write_bytes(b'{"original": true}\n')
+                if os.name != "nt":
+                    adoption_path.chmod(0o600)
+            before = {
+                p: UPGRADE.snapshot_file(target / p)
+                for p in (*self.base_files, UPGRADE.ADOPTION_PATH)
+            }
+            for after_replace in (False, True):
+                for exception_type in (OSError, KeyboardInterrupt, SystemExit):
+                    with self.subTest(
+                        existing=existing,
+                        after_replace=after_replace,
+                        exception_type=exception_type,
+                    ):
+                        error = exception_type("interrupted adoption replacement")
+                        interrupted = False
+                        adoption_writes = 0
+
+                        def interrupt_write(path, content, mode, error=error):
+                            nonlocal interrupted, adoption_writes
+                            if path == adoption_path:
+                                adoption_writes += 1
+                            if path == adoption_path and not interrupted:
+                                interrupted = True
+                                if after_replace:
+                                    UPGRADE.write_payload(path, content, mode)
+                                raise error
+                            UPGRADE.write_payload(path, content, mode)
+
+                        with self.assertRaises(exception_type) as raised:
+                            application.apply_upgrade(
+                                manifest,
+                                files,
+                                target,
+                                plan,
+                                self.backup_directory,
+                                payload_writer=interrupt_write,
+                            )
+                        self.assertIs(raised.exception, error)
+                        self.assertEqual(
+                            adoption_writes, 2 if existing and after_replace else 1
+                        )
+                        for relative, snapshot in before.items():
+                            self.assertEqual(
+                                UPGRADE.snapshot_file(target / relative), snapshot
+                            )
+                        self.assertFalse((target / "new.txt").exists())
+                        self.assertFalse(
+                            (target / UPGRADE.FILES_MANIFEST_PATH).exists()
+                        )
+                        backups = list(self.backup_directory.glob("*.zip"))
+                        self.assertEqual(len(backups), 1)
+                        backups[0].unlink()
+
+    def test_rollback_preserves_concurrent_content_or_deletion(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        cases = (
+            ("updated", "a.txt", b"concurrent update\n"),
+            ("added", "new.txt", b"concurrent addition\n"),
+            ("deleted", "a.txt", None),
+            ("crlf", "a.txt", b"new a\r\n"),
+        )
+        for name, relative, concurrent in cases:
+            with self.subTest(name=name):
+                target = self.create_target(name)
+                manifest, files, plan = self.load_plan(target)
+                backup_directory = self.backup_directory / name
+                backup_directory.mkdir()
+                changed_path = target / relative
+                error = OSError("later write failed")
                 interrupted = False
 
-                def interrupt_write(path, content, mode, error=error):
+                def concurrent_write(path, content, mode):
                     nonlocal interrupted
-                    UPGRADE.write_payload(path, content, mode)
-                    if path == adoption_path and not interrupted:
+                    if path.name == "starter-kit-manifest.json" and not interrupted:
                         interrupted = True
+                        if concurrent is None:
+                            changed_path.unlink()
+                        else:
+                            changed_path.write_bytes(concurrent)
                         raise error
+                    UPGRADE.write_payload(path, content, mode)
 
-                with self.assertRaises(exception_type) as raised:
+                stderr = io.StringIO()
+                with redirect_stderr(stderr), self.assertRaises(OSError) as raised:
                     application.apply_upgrade(
                         manifest,
                         files,
                         target,
                         plan,
-                        self.backup_directory,
-                        payload_writer=interrupt_write,
+                        backup_directory,
+                        payload_writer=concurrent_write,
                     )
                 self.assertIs(raised.exception, error)
-                for relative, snapshot in before.items():
-                    self.assertEqual(UPGRADE.snapshot_file(target / relative), snapshot)
-                self.assertFalse((target / "new.txt").exists())
-                self.assertFalse((target / UPGRADE.FILES_MANIFEST_PATH).exists())
-                backups = list(self.backup_directory.glob("*.zip"))
+                if concurrent is None:
+                    self.assertFalse(changed_path.exists())
+                else:
+                    self.assertTrue(changed_path.is_file())
+                    self.assertEqual(changed_path.read_bytes(), concurrent)
+                self.assertEqual(
+                    (target / "merge.txt").read_bytes(), self.base_files["merge.txt"]
+                )
+                self.assertFalse((target / UPGRADE.ADOPTION_PATH).exists())
+                backups = list(backup_directory.glob("*.zip"))
                 self.assertEqual(len(backups), 1)
-                backups[0].unlink()
+                with zipfile.ZipFile(backups[0]) as archive:
+                    self.assertEqual(archive.read("files/a.txt"), b"base a\n")
+                self.assertIn("Rollback incomplete", stderr.getvalue())
+                self.assertIn(relative, stderr.getvalue())
+                self.assertIn(str(backups[0]), "\n".join(error.__notes__))
+
+    @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
+    def test_rollback_preserves_concurrent_mode_only_change(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        self.build_mode_upgrade()
+        target = self.create_target()
+        changed_path = target / "a.txt"
+        changed_path.chmod(0o640)
+        manifest, files, plan = self.load_plan(target)
+        error = OSError("later write failed")
+        interrupted = False
+
+        def concurrent_chmod(path, content, mode):
+            nonlocal interrupted
+            if path.name == "starter-kit-manifest.json" and not interrupted:
+                interrupted = True
+                self.assertEqual(stat.S_IMODE(changed_path.stat().st_mode), 0o751)
+                changed_path.chmod(0o700)
+                raise error
+            UPGRADE.write_payload(path, content, mode)
+
+        with redirect_stderr(io.StringIO()), self.assertRaises(OSError) as raised:
+            application.apply_upgrade(
+                manifest,
+                files,
+                target,
+                plan,
+                self.backup_directory,
+                payload_writer=concurrent_chmod,
+            )
+        self.assertIs(raised.exception, error)
+        self.assertEqual(changed_path.read_bytes(), b"base a\n")
+        self.assertEqual(stat.S_IMODE(changed_path.stat().st_mode), 0o700)
+        self.assertEqual(
+            (target / "merge.txt").read_bytes(), self.base_files["merge.txt"]
+        )
+        self.assertIn("a.txt", "\n".join(error.__notes__))
+
+    def test_rollback_preserves_concurrent_adoption_content(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                target = self.create_target(f"adoption-{existing}")
+                manifest, files, plan = self.load_plan(target)
+                adoption_path = target / UPGRADE.ADOPTION_PATH
+                if existing:
+                    adoption_path.write_bytes(b'{"original": true}\n')
+                backup_directory = self.backup_directory / str(existing)
+                backup_directory.mkdir()
+                error = OSError("interrupted after adoption replacement")
+                interrupted = False
+
+                def concurrent_adoption(path, content, mode):
+                    nonlocal interrupted
+                    UPGRADE.write_payload(path, content, mode)
+                    if path == adoption_path and not interrupted:
+                        interrupted = True
+                        path.write_bytes(b'{"concurrent": true}\n')
+                        raise error
+
+                with (
+                    redirect_stderr(io.StringIO()),
+                    self.assertRaises(OSError) as raised,
+                ):
+                    application.apply_upgrade(
+                        manifest,
+                        files,
+                        target,
+                        plan,
+                        backup_directory,
+                        payload_writer=concurrent_adoption,
+                    )
+                self.assertIs(raised.exception, error)
+                self.assertTrue(adoption_path.is_file())
+                self.assertEqual(adoption_path.read_bytes(), b'{"concurrent": true}\n')
+                self.assertEqual((target / "a.txt").read_bytes(), b"base a\n")
+                self.assertFalse((target / "new.txt").exists())
+                self.assertEqual(len(list(backup_directory.glob("*.zip"))), 1)
+                self.assertIn(UPGRADE.ADOPTION_PATH, "\n".join(error.__notes__))
+
+    def test_rollback_diagnostic_failures_preserve_primary_error_and_other_files(self):
+        application = importlib.import_module("starter_kit_upgrade.application")
+        target = self.create_target()
+        manifest, files, plan = self.load_plan(target)
+        error = KeyboardInterrupt("interrupted replacement")
+        interrupted = False
+
+        class FailingJournal(UPGRADE.RunJournal):
+            def write(self, level, phase, message):
+                if interrupted and phase == "file":
+                    raise OSError("journal unavailable")
+                super().write(level, phase, message)
+
+        class FailingStderr(io.StringIO):
+            def write(self, message):
+                raise OSError("stderr unavailable")
+
+        def failing_writer(path, content, mode):
+            nonlocal interrupted
+            if interrupted and path.name == "merge.txt":
+                raise OSError("restoration denied")
+            if path.name == "starter-kit-manifest.json" and not interrupted:
+                interrupted = True
+                (target / "a.txt").write_bytes(b"concurrent content\n")
+                raise error
+            UPGRADE.write_payload(path, content, mode)
+
+        with (
+            redirect_stderr(FailingStderr()),
+            self.assertRaises(BaseException) as raised,
+        ):
+            application.apply_upgrade(
+                manifest,
+                files,
+                target,
+                plan,
+                self.backup_directory,
+                FailingJournal("apply", []),
+                payload_writer=failing_writer,
+            )
+        self.assertIs(raised.exception, error)
+        self.assertEqual((target / "a.txt").read_bytes(), b"concurrent content\n")
+        self.assertEqual(
+            (target / "merge.txt").read_bytes(), self.new_files["merge.txt"]
+        )
+        self.assertFalse((target / "new.txt").exists())
+        self.assertFalse((target / UPGRADE.FILES_MANIFEST_PATH).exists())
+        self.assertEqual(
+            (target / UPGRADE.PROVENANCE_PATH).read_bytes(), self.base_provenance
+        )
+        self.assertEqual(len(list(self.backup_directory.glob("*.zip"))), 1)
+        notes = "\n".join(error.__notes__)
+        for diagnostic in (
+            "a.txt",
+            "restoration denied",
+            "journal unavailable",
+            "stderr unavailable",
+        ):
+            self.assertIn(diagnostic, notes)
 
     def test_failed_restoration_attempts_remaining_files_and_reports_paths(self):
         application = importlib.import_module("starter_kit_upgrade.application")
