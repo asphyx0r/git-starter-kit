@@ -12,7 +12,7 @@ name: Release package
         required: true
         type: string
       agent_rules_ref:
-        description: agent-coding-rules latest release or SemVer tag
+        description: latest or the same latest published agent-coding-rules SemVer tag
         required: true
         type: string
 

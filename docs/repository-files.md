@@ -642,7 +642,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Read before contributing to the starter kit.
 - Notes: Documents local Git hook activation and the required exact-file
   Commitlint sequence for guarded commits, the 900-second pre-push family limit,
-  and the distinction between full audits and targeted retries. Future-project placeholders belong
+  the distinction between full audits and targeted retries, and controlled
+  full or reused CI qualification. Future-project placeholders belong
   in `templates/CONTRIBUTING.md`.
 
 ### `LICENSE`
@@ -660,7 +661,7 @@ deferred, or explicitly excluded from the template.
 - Goal: Introduces the repository purpose, features, setup, and license.
 - Usage: Read first when evaluating or reusing the starter kit.
 - Notes: Summarizes audit prerequisites, dependency caches, Windows Git Bash
-  checks, local Git hook activation,
+  checks, conditional source qualification, local Git hook activation,
   release package behavior, the canonical skill invocation contract, generic
   ignore coverage, the maintainer migration record and the canonical validation
   pilot link. Do not leave

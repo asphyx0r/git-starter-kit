@@ -121,11 +121,15 @@ blocked while the App remains subject to required checks.
 
 ## Verification
 
-The supported CI gate runs the exhaustive profile on Ubuntu 24.04 with Python
-3.11 and runs the fast profile, complete Python suite, and PSScriptAnalyzer on
-Windows 2025 with Python 3.14. Both jobs use Node.js 24.20.0, install the locked
-dependencies and integrity-verified external tools without a generic cache,
-and must pass before the aggregate `Repository audit` check succeeds.
+The supported CI gate runs fresh source preflights on Ubuntu 24.04 with Python
+3.11 and Windows 2025 with Python 3.14. Both OS environments use Node.js
+24.20.0, locked dependencies and integrity-verified external tools.
+Complete Python coverage and shell tests run in conditional heavy OS jobs.
+Eligible canonical tag and release runs can reuse a verified qualification
+from a successful default-branch push at the exact same commit. Both fresh OS
+jobs and the selected full or reused qualification must pass before the
+aggregate `Repository audit` check succeeds. See
+[Controlled CI qualification](docs/release-package.md#controlled-ci-qualification).
 
 Before submitting changes, run the applicable focused hook profiles and the
 complete local audit when its required tools are available, then check that:
