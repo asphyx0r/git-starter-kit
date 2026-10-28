@@ -80,6 +80,32 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
         result = self.wait_for([matching], refs=("v1.1.1",), event="release")
         self.assertEqual(result["v1.1.1"]["id"], 1)
 
+    def test_build_metadata_runs_require_exact_identity(self):
+        for ref_name, without_build, other_build in (
+            ("v1.2.3+build.1", "v1.2.3", "v1.2.3+build.2"),
+            ("v1.2.3-rc.1+build.1", "v1.2.3-rc.1", "v1.2.3-rc.1+build.2"),
+        ):
+            for event in ("push", "release"):
+                matching = make_run(1, ref_name, event=event)
+                for replacements in (
+                    {"head_branch": without_build},
+                    {"head_branch": other_build},
+                    {"event": "release" if event == "push" else "push"},
+                    {"event": "workflow_dispatch"},
+                    {"head_sha": "1" * 40},
+                    {"workflow_id": 456},
+                    {"created_at": "2026-07-31T13:40:59Z"},
+                ):
+                    with (
+                        self.subTest(ref=ref_name, event=event, invalid=replacements),
+                        self.assertRaisesRegex(MODULE.VerificationError, "Timed out"),
+                    ):
+                        self.wait_for(
+                            [{**matching, **replacements}],
+                            refs=(ref_name,),
+                            event=event,
+                        )
+
     def test_release_query_filters_the_requested_event(self):
         response = MODULE.subprocess.CompletedProcess(
             args=[], returncode=0, stdout='[{"workflow_runs": []}]', stderr=""
@@ -511,6 +537,68 @@ class VerifyRepositoryAuditRunsTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("Would verify Repository audit push runs", output.getvalue())
+
+    def test_cli_accepts_build_metadata_refs_and_ordinary_branch(self):
+        for ref_name, event in (
+            ("fix/audit-run-checks", "push"),
+            ("v1.2.3+build.1", "push"),
+            ("v1.2.3+build.1", "release"),
+            ("v1.2.3-rc.1+build.1", "push"),
+            ("v1.2.3-rc.1+build.1", "release"),
+        ):
+            for dry_run in (False, True):
+                args = [
+                    "--repository",
+                    "owner/repository",
+                    "--workflow-id",
+                    "123",
+                    "--sha",
+                    SHA,
+                    "--ref",
+                    ref_name,
+                    "--event",
+                    event,
+                    "--created-after",
+                    "2026-07-31T13:41:00Z",
+                    "--timeout-seconds",
+                    "0",
+                ]
+                if dry_run:
+                    args.append("--dry-run")
+                with (
+                    self.subTest(ref=ref_name, event=event, dry_run=dry_run),
+                    patch.object(
+                        MODULE,
+                        "_query_runs",
+                        return_value=[make_run(1, ref_name, event=event)],
+                        side_effect=(
+                            AssertionError("dry-run queried GitHub")
+                            if dry_run
+                            else None
+                        ),
+                    ),
+                    redirect_stdout(io.StringIO()) as output,
+                    redirect_stderr(io.StringIO()) as error_output,
+                ):
+                    exit_code = MODULE.main(args)
+                    self.assertEqual(exit_code, 0, error_output.getvalue())
+                    self.assertIn(ref_name, output.getvalue())
+
+    def test_build_metadata_refs_keep_structural_restrictions(self):
+        for ref_name in (
+            "v1.2.3+build..5",
+            "v1.2.3+build//5",
+            "v1.2.3+build/",
+            "v1.2.3+build.",
+            "v1.2.3+build/.hidden",
+            "v1.2.3+build 5",
+            "v1.2.3+build$5",
+        ):
+            with (
+                self.subTest(ref=ref_name),
+                self.assertRaises(MODULE.VerificationError),
+            ):
+                MODULE._validate_ref(ref_name)
 
     def test_invalid_ref_returns_exit_one(self):
         args = [

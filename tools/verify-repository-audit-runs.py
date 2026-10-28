@@ -18,7 +18,7 @@ from urllib.parse import urlencode
 VERSION = "v1.0.0"
 REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
-REF_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+REF_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/+-]*$")
 MAX_QUERY_TIMEOUT_SECONDS = 30
 
 
