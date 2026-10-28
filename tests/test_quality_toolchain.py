@@ -992,7 +992,7 @@ class QualityToolchainTests(unittest.TestCase):
             [
                 ("runtime: node expected >=22.12.0, found None (command not found)"),
                 "runtime: codespell expected 2.4.3, found None",
-                "runtime: @commitlint/cli expected 21.2.3, found None",
+                "runtime: @commitlint/cli expected 21.2.4, found None",
                 "runtime: markdownlint-cli2 expected 0.23.3, found 0.0.0",
                 "runtime: node_modules/fast-uri expected 3.1.9, found None",
                 "runtime: node_modules/katex expected 0.18.2, found None",

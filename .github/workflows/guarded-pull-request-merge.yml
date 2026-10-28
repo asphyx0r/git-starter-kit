@@ -83,8 +83,8 @@ jobs:
           python-version: "3.11"
 
       - name: Set up Node
-        # actions/setup-node@v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        # actions/setup-node@v7.1.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -106,9 +106,9 @@ jobs:
 
       - name: Generate guarded merge token
         id: guarded-merge-token
-        # actions/create-github-app-token@v3
+        # actions/create-github-app-token@v3.3.0
         uses: >-
-          actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+          actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
         with:
           client-id: ${{ vars.AGENT_RULES_APP_CLIENT_ID }}
           private-key: ${{ secrets.AGENT_RULES_APP_PRIVATE_KEY }}

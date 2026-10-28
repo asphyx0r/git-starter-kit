@@ -7,11 +7,11 @@
     "mypy": "2.4.0",
     "pip-audit": "2.10.1",
     "PyYAML": "6.0.3",
-    "ruff": "0.17.0",
+    "ruff": "0.17.1",
     "yamllint": "1.38.0"
   },
   "node": {
-    "@commitlint/cli": "21.2.3",
+    "@commitlint/cli": "21.2.4",
     "markdownlint-cli2": "0.23.3"
   },
   "nodeOverrides": {
