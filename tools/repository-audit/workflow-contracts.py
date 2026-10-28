@@ -268,12 +268,12 @@ def compare_contract(actual: Any, expected: Any, context: str, field: str = "") 
 ACTION_REFS = {
     "checkout": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "setup-python": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
-    "setup-node": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-    "upload-artifact": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-    "download-artifact": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "setup-node": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+    "upload-artifact": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+    "download-artifact": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
     "create-github-app-token": (
         "actions/create-github-app-token@"  # Public action revision.
-        "bcd2ba49218906704ab6c1aa796996da409d3eb1"
+        "64ab729a6294000f5aa4a4bc0b73d1f32bc45510"
     ),
 }
 
@@ -839,7 +839,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "qualification-candidate-${{ github.run_id "
                             "}}-${{ github.run_attempt }}",
@@ -903,7 +903,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "uses": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
                         "with": {
                             "node-version": "${{ env.NODE_VERSION }}",
                             "cache": "npm",
@@ -965,7 +965,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "qualification-fresh-linux-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1020,7 +1020,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:0cbf4de9b6d95efb15fcef6bac5d89cadcc6bb988415b6422f8ec0b23ac7fd40",
                     },
                     {
-                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "uses": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
                         "with": {
                             "node-version": "${{ env.NODE_VERSION }}",
                             "cache": "npm",
@@ -1063,7 +1063,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "qualification-fresh-windows-${{ "
                             "github.run_id }}-${{ "
@@ -1127,7 +1127,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-candidate-${{ github.run_id "
                             "}}-${{ github.run_attempt }}",
@@ -1137,7 +1137,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "continue-on-error": True,
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-fresh-linux-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1148,7 +1148,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "continue-on-error": True,
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-fresh-windows-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1170,7 +1170,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "id": "decision",
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "qualification-verified-${{ github.run_id "
                             "}}-${{ github.run_attempt }}",
@@ -1225,7 +1225,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "uses": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
                         "with": {
                             "node-version": "${{ env.NODE_VERSION }}",
                             "cache": "npm",
@@ -1283,7 +1283,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "coverage-linux-${{ "
                             "github.event.pull_request.head.sha "
@@ -1340,7 +1340,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "uses": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
                         "with": {
                             "node-version": "${{ env.NODE_VERSION }}",
                             "cache": "npm",
@@ -1395,7 +1395,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "coverage-windows-${{ "
                             "github.event.pull_request.head.sha "
@@ -1479,7 +1479,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     {
                         "if": "needs.quality-linux.outputs.scope == 'source' && "
                         "needs.qualification.outputs.decision == 'full'",
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "coverage-linux-${{ "
                             "github.event.pull_request.head.sha || "
@@ -1491,7 +1491,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     {
                         "if": "needs.quality-linux.outputs.scope == 'source' && "
                         "needs.qualification.outputs.decision == 'full'",
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "coverage-windows-${{ "
                             "github.event.pull_request.head.sha || "
@@ -1512,7 +1512,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:665aa1c1eafe042ce4b66db4ef0c1affad80bc3816fbc0644f325f1cd54b6e81",
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-fresh-linux-${{ "
                             "github.run_id }}-${{ "
@@ -1525,7 +1525,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "== 'full' }}",
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-fresh-windows-${{ "
                             "github.run_id }}-${{ "
@@ -1538,7 +1538,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "== 'full' }}",
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-verified-${{ "
                             "github.run_id }}-${{ "
@@ -1572,7 +1572,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "id": "seal",
                     },
                     {
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "qualification-${{ "
                             "github.event.pull_request.head.sha || "
@@ -1657,7 +1657,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "id": "node-runtime",
-                        "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "uses": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
                         "with": {
                             "node-version": "${{ env.NODE_VERSION }}",
                             "cache": "npm",
@@ -1684,7 +1684,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:fa1715d8e6ba490f5e860ac8c3be55c981514777ef63346c251ad75ed2d826d7",
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "coverage-linux-${{ github.sha }}-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1693,7 +1693,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "coverage-windows-${{ github.sha }}-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1702,7 +1702,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-fresh-linux-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1711,7 +1711,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         },
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "name": "qualification-fresh-windows-${{ "
                             "github.run_id }}-${{ github.run_attempt "
@@ -1741,7 +1741,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "if": "always()",
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "experiment-${{ matrix.platform }}-${{ "
                             "matrix.sample }}-${{ github.run_id "
@@ -1797,7 +1797,7 @@ def repository_audit_contract(node_version: str) -> dict:
                         "run": "sha256:c497417714f0346ffb8c6159765bc5a6c3869f94940f5a88eb3760ef662261e2",
                     },
                     {
-                        "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
                         "with": {
                             "pattern": "experiment-*-${{ github.run_id }}-${{ "
                             "github.run_attempt }}",
@@ -1820,7 +1820,7 @@ def repository_audit_contract(node_version: str) -> dict:
                     },
                     {
                         "if": "always()",
-                        "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
                         "with": {
                             "name": "experiment-results-${{ github.run_id }}-${{ "
                             "github.run_attempt }}",
