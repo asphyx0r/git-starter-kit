@@ -1627,6 +1627,17 @@ deferred, or explicitly excluded from the template.
 - Notes: Source-only evidence; preserves failed and interrupted attempts,
   compatibility changes, commit-grouping deviation and historical baselines.
 
+### `docs/superpowers/reports/2026-10-28-windows-local-qualification.md`
+
+- Type: `file`
+- Status: `required`
+- Goal: Records the two Windows corrections and completed local qualification.
+- Usage: Read the frozen source identity, native regression evidence, complete
+  platform results and coverage before assessing the corrected tooling.
+- Notes: Source-only evidence; retains diagnostic failures and the discarded
+  TEMP harness attempt, distinguishes local checks from hosted CI, and records
+  cleanup scope without changing historical measurements.
+
 ### `tests/test_release_artifacts.py`
 
 - Type: `file`

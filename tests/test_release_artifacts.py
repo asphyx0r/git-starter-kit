@@ -153,7 +153,7 @@ class ReleaseArtifactTests(unittest.TestCase):
                 self.assertRaisesRegex(ARTIFACTS.ReleaseArtifactError, "timed out"),
             ):
                 operation()
-            self.assertIsNotNone(children[-1].poll())
+            self.assertIsNotNone(children[-1].wait(timeout=1))
             self.assertTrue(children[-1].stdout.closed)
             self.assertTrue(children[-1].stderr.closed)
 

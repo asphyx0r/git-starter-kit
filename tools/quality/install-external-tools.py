@@ -38,6 +38,8 @@ MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 10_000
 PROBE_TIMEOUT_SECONDS = 15
+WINDOWS_RENAME_RETRY_SECONDS = 0.1
+WINDOWS_RENAME_RETRY_INTERVAL_SECONDS = 0.01
 DIAGNOSTIC_LIMIT = 2_000
 USER_AGENT = "quality-tools/1"
 SEMVER_PATTERN = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
@@ -953,9 +955,28 @@ def native_platform() -> str:
     raise InstallerError("unsupported native platform")
 
 
+def _rename_windows(staging: Path, destination: Path) -> None:
+    # Windows readers can briefly lock a directory or any descendant.
+    deadline = time.monotonic() + WINDOWS_RENAME_RETRY_SECONDS
+    while True:
+        try:
+            staging.rename(destination)
+            return
+        except PermissionError as error:
+            remaining = deadline - time.monotonic()
+            if (
+                getattr(error, "winerror", None) not in {5, 32}
+                or destination.exists()
+                or _is_link(destination)
+                or remaining <= 0
+            ):
+                raise
+            time.sleep(min(WINDOWS_RENAME_RETRY_INTERVAL_SECONDS, remaining))
+
+
 def _publish(staging: Path, destination: Path) -> None:
     if sys.platform == "win32":
-        staging.rename(destination)
+        _rename_windows(staging, destination)
         return
     if sys.platform != "linux":
         raise InstallerError("unsupported publication platform")
@@ -1046,7 +1067,10 @@ def install_tools(
                 publication_target
             )
             private_install.parent.mkdir(parents=True, exist_ok=True)
-            staging.rename(private_install)
+            if sys.platform == "win32":
+                _rename_windows(staging, private_install)
+            else:
+                staging.rename(private_install)
         validate_install_root(final_root, temporary_root, local=local)
         # Prepare absent parents privately; never expose public mkdir names or
         # remove public paths during rollback. A raced target fails closed.
