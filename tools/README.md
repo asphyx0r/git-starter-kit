@@ -554,7 +554,7 @@ options:
   -StarterKitRef REF          upstream starter-kit ref
   -StarterKitCommit SHA       upstream starter-kit commit
   -AgentRulesRepository NAME  owner/name repository for agent rules
-  -AgentRulesRef REF          latest or SemVer agent-rules tag
+  -AgentRulesRef REF          latest or the same latest published SemVer tag
 ```
 
 ### Description

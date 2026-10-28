@@ -155,15 +155,22 @@ The repository quality checks and test suites still run in both CI environments.
 
 The Repository audit workflow installs each declared dependency family once
 per isolated job and caches pip and npm downloads using the tracked dependency
-locks and tool versions. `quality-linux` runs the exhaustive profile on
-Ubuntu 24.04 with Python 3.11.
-`compatibility-windows` uses Windows 2025 with Python 3.14 for the fast
-cross-platform profile, measured Python coverage, focused Git Bash hook
-checks, and PSScriptAnalyzer.
-Both use Node.js 24.20.0. The aggregate `Repository audit` check requires both
-jobs to succeed; manual runs retain the distinct
-`Repository audit (manual)` name.
-Declared project checks run inside both OS jobs. Source coverage retains the
+locks and tool versions. For the source repository, `quality-linux` runs fresh
+static, runtime and smoke checks on Ubuntu 24.04 with Python 3.11.
+`compatibility-windows` runs the fast cross-platform profile and
+PSScriptAnalyzer on Windows 2025 with Python 3.14. Both OS environments use
+Node.js 24.20.0.
+
+Source Python coverage and shell tests run in the conditional
+`quality-linux-heavy` and `compatibility-windows-heavy` jobs. Eligible
+canonical tag and published-release runs can reuse a verified Linux/Windows
+qualification from a successful default-branch push at the exact same commit.
+The aggregate `Repository audit` check requires both fresh OS jobs and the
+selected full or reused qualification; manual runs retain the distinct
+`Repository audit (manual)` name. See
+[Controlled CI qualification](docs/release-package.md#controlled-ci-qualification).
+
+Declared project checks run inside both fresh OS jobs. Source coverage retains the
 Linux global and branch floors and enforces them again on verified, matching
 Linux/Windows artifacts. Consumers skip source measurements. Ordinary branch
 pushes cancel superseded runs; release evidence remains separate. See the
@@ -209,8 +216,9 @@ packages. See [Release Package](docs/release-package.md) for automatic and
 manual usage.
 
 Automatic release packages use the latest published full `agent-coding-rules`
-release. Manual runs accept `latest` or a SemVer agent-rules tag. When `latest`
-is used, the generated manifest records both the requested `latest` reference
+release. Manual runs accept `latest` or the SemVer tag of that same latest
+published agent-rules release. Older tags are rejected. When `latest` is used,
+the generated manifest records both the requested `latest` reference
 and the resolved SemVer tag.
 
 Each initialized repository owns its agent-rule synchronization. The

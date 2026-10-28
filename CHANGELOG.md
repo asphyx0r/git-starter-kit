@@ -119,6 +119,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| 83b4e0b | chore(release): prepare v2.8.1 artifacts | asphyx |
 | 963b1e4 | fix(release): invoke Codespell CLI | asphyx |
 
 ## v2.8.0
@@ -142,6 +143,7 @@ All notable changes to this repository are documented in this file.
 
 | References | Description | Author(s) |
 | --- | --- | --- |
+| bd1f0d2 | feat(agents): integrate canonical branch rules | asphyx |
 | a8f6035 | feat(agents): support canonical branch rules | asphyx |
 | 894ccae | fix(agents): clarify release completion order | asphyx |
 
