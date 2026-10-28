@@ -2141,7 +2141,7 @@ print(upgrade.VERSION)
                     self.assertEqual(archive.read("files/a.txt"), b"base a\n")
                 self.assertIn("Rollback incomplete", stderr.getvalue())
                 self.assertIn(relative, stderr.getvalue())
-                self.assertIn(str(backups[0]), "\n".join(error.__notes__))
+                self.assertIn(str(backups[0].resolve()), "\n".join(error.__notes__))
 
     @unittest.skipIf(os.name == "nt", "Requires POSIX executable permissions")
     def test_rollback_preserves_concurrent_mode_only_change(self):
