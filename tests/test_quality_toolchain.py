@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import ctypes
 import hashlib
 import http.client
 import importlib.util
@@ -120,6 +121,41 @@ def mark_first_zip_member_encrypted(content: bytes) -> bytes:
         flags = int.from_bytes(mutated[offset : offset + 2], "little") | 1
         mutated[offset : offset + 2] = flags.to_bytes(2, "little")
     return bytes(mutated)
+
+
+@contextlib.contextmanager
+def windows_directory_reader(path: Path):
+    from ctypes import wintypes
+
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    api.CreateFileW.restype = wintypes.HANDLE
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    api.CloseHandle.restype = wintypes.BOOL
+    # Read/list access, share read/write but not delete, open an existing directory.
+    handle = api.CreateFileW(str(path), 1, 3, None, 3, 0x02000000, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+
+    def release():
+        nonlocal handle
+        if handle is not None:
+            if not api.CloseHandle(handle):
+                raise ctypes.WinError(ctypes.get_last_error())
+            handle = None
+
+    try:
+        yield release
+    finally:
+        release()
 
 
 def requirement_blocks(content: str) -> list[str]:
@@ -2462,6 +2498,145 @@ class ExternalInstallerTests(unittest.TestCase):
             }
         self.assertEqual(actual_files, expected_files)
         self.assertEqual(actual_directories, {"en-US"})
+
+    @unittest.skipUnless(
+        sys.platform == "win32", "Windows directory sharing is required"
+    )
+    def test_windows_publication_recovers_after_directory_reader_releases(self) -> None:
+        for descendant, expected_error in ((False, 32), (True, 5)):
+            with (
+                self.subTest(descendant=descendant),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                staging, destination = root / "staging", root / "published"
+                child = staging / "module"
+                child.mkdir(parents=True)
+                (child / "proof").write_bytes(b"verified payload")
+                original_rename = Path.rename
+                with windows_directory_reader(
+                    child if descendant else staging
+                ) as release:
+
+                    def rename(source, target):
+                        try:
+                            return original_rename(source, target)
+                        except PermissionError as error:
+                            self.assertEqual(error.winerror, expected_error)
+                            release()
+                            raise
+
+                    with mock.patch.object(Path, "rename", rename):
+                        self.installer._publish(staging, destination)
+                self.assertFalse(staging.exists())
+                self.assertEqual(
+                    (destination / "module/proof").read_bytes(), b"verified payload"
+                )
+
+    @unittest.skipUnless(
+        sys.platform == "win32", "Windows directory sharing is required"
+    )
+    def test_windows_publication_stops_for_a_persistent_directory_reader(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            staging, destination = root / "staging", root / "published"
+            child = staging / "module"
+            child.mkdir(parents=True)
+            (child / "proof").write_bytes(b"verified payload")
+            with windows_directory_reader(child):
+                started = time.monotonic()
+                with self.assertRaises(PermissionError) as raised:
+                    self.installer._publish(staging, destination)
+                self.assertLess(time.monotonic() - started, 2)
+                self.assertEqual(raised.exception.winerror, 5)
+                self.assertFalse(destination.exists())
+                self.assertEqual((child / "proof").read_bytes(), b"verified payload")
+
+    @unittest.skipUnless(
+        sys.platform == "win32", "Windows directory sharing is required"
+    )
+    def test_windows_publication_preserves_a_destination_created_during_a_lock(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            staging, destination = root / "staging", root / "published"
+            child = staging / "module"
+            child.mkdir(parents=True)
+            (child / "proof").write_bytes(b"verified payload")
+            original_rename = Path.rename
+            with windows_directory_reader(child) as release:
+
+                def rename(source, target):
+                    try:
+                        return original_rename(source, target)
+                    except PermissionError:
+                        destination.mkdir()
+                        (destination / "foreign").write_bytes(
+                            b"preserve concurrent data"
+                        )
+                        release()
+                        raise
+
+                with mock.patch.object(Path, "rename", rename):
+                    with self.assertRaises(OSError):
+                        self.installer._publish(staging, destination)
+            self.assertEqual(
+                (destination / "foreign").read_bytes(), b"preserve concurrent data"
+            )
+            self.assertEqual((child / "proof").read_bytes(), b"verified payload")
+
+    @unittest.skipUnless(
+        sys.platform == "win32", "Windows directory sharing is required"
+    )
+    def test_windows_private_preparation_recovers_after_reader_releases(self) -> None:
+        artifact, expected, relative = self.artifact_for("PSScriptAnalyzer")
+        record = self.registry["external"]["PSScriptAnalyzer"]
+        record["sha256"] = hashlib.sha256(artifact).hexdigest()
+        original_rename = Path.rename
+        prepared = False
+
+        def rename(source, target):
+            nonlocal prepared
+            if source.name == "install" and not prepared:
+                prepared = True
+                with windows_directory_reader(
+                    source / "Modules/PSScriptAnalyzer/1.25.0"
+                ):
+                    return original_rename(source, target)
+            return original_rename(source, target)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runner_temp = Path(temporary)
+            install_root = runner_temp / "new-parent/quality-tools"
+            with mock.patch.object(Path, "rename", rename):
+                self.installer.install_tools(
+                    self.registry,
+                    platform_name="windows-x64",
+                    install_root=install_root,
+                    runner_temp=runner_temp,
+                    tool_names=["PSScriptAnalyzer"],
+                    open_url=self.opener_for({record["url"]: artifact}),
+                    run_command=self.successful_runner(),
+                )
+            self.assertEqual((install_root / relative).read_bytes(), expected)
+            self.assertEqual(
+                [path.name for path in runner_temp.iterdir()], ["new-parent"]
+            )
+
+    @unittest.skipUnless(
+        sys.platform == "win32", "Windows directory sharing is required"
+    )
+    def test_windows_publication_preserves_unrelated_os_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            staging = root / "staging"
+            staging.mkdir()
+            with self.assertRaises(FileNotFoundError) as raised:
+                self.installer._publish(staging, root / "missing/published")
+            self.assertEqual(raised.exception.winerror, 3)
+            self.assertTrue(staging.is_dir())
+            self.assertFalse((root / "missing").exists())
 
     def test_install_root_must_be_new_safe_and_under_runner_temp(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
