@@ -934,7 +934,8 @@ deferred, or explicitly excluded from the template.
 - Usage: Install with pip using both `--require-hashes` and
   `--requirement tools/quality/requirements.lock`.
 - Notes: Generated with Python 3.11 from `requirements.in`; every requirement
-  block carries accepted SHA-256 hashes.
+  block carries accepted SHA-256 hashes. Retain the existing lock when
+  regenerating it to preserve unrelated dependency pins.
 
 ### `tools/quality/versions.json`
 
