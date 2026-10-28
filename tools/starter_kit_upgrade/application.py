@@ -7,7 +7,7 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 import zipfile
 
 from .archive import updated_agent_rules_provenance
@@ -32,6 +32,11 @@ from .planning import (
     target_path,
     updated_starter_manifest,
 )
+
+
+class _RollbackState(NamedTuple):
+    original: FileSnapshot | None
+    expected: FileSnapshot
 
 
 def create_rollback_archive(
@@ -109,6 +114,10 @@ def create_rollback_archive(
     return backup_path
 
 
+def _payload_permissions(mode: str) -> int:
+    return 0o755 if mode == "100755" else 0o644
+
+
 def write_payload(path: Path, content: bytes, mode: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -121,17 +130,7 @@ def write_payload(path: Path, content: bytes, mode: str) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         if os.name != "nt":
-            temporary.chmod(
-                stat.S_IRUSR
-                | stat.S_IWUSR
-                | stat.S_IRGRP
-                | stat.S_IROTH
-                | (
-                    stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-                    if mode == "100755"
-                    else 0
-                )
-            )
+            temporary.chmod(_payload_permissions(mode))
         os.replace(temporary, path)
     finally:
         if temporary.exists():
@@ -227,7 +226,7 @@ def apply_upgrade(
     )
     if snapshot_file(adoption_path) != adoption_snapshot:
         raise UpgradeError(f"Target changed after planning: {ADOPTION_PATH}")
-    originals: dict[str, FileSnapshot | None] = {}
+    states: dict[str, _RollbackState] = {}
     try:
         if journal is not None:
             journal.phase("target-write", "START")
@@ -267,15 +266,19 @@ def apply_upgrade(
                 )
             elif entry["strategy"] == "agent-rules" and relative == PROVENANCE_PATH:
                 content = updated_agent_rules_provenance(local_content, content)
-            originals[relative] = original
+            expected_mode = _payload_permissions(entry["mode"])
             if action.get("modeOnly", False):
                 assert original is not None
-                mode = (
+                expected_mode = (
                     original.mode | 0o111
                     if entry["mode"] == "100755"
                     else original.mode & ~0o111
                 )
-                destination.chmod(mode)
+            states[relative] = _RollbackState(
+                original, FileSnapshot(content, expected_mode)
+            )
+            if action.get("modeOnly", False):
+                destination.chmod(expected_mode)
                 if bool(destination.stat().st_mode & stat.S_IXUSR) != (
                     entry["mode"] == "100755"
                 ):
@@ -339,8 +342,12 @@ def apply_upgrade(
             next_adoption["starterKitSource"] = starter_manifest["source"]
         if snapshot_file(adoption_path) != adoption_snapshot:
             raise UpgradeError(f"Target changed after planning: {ADOPTION_PATH}")
-        originals[ADOPTION_PATH] = adoption_snapshot
-        writer(target_path(root, ADOPTION_PATH), write_json(next_adoption), "100644")
+        adoption_content = write_json(next_adoption)
+        states[ADOPTION_PATH] = _RollbackState(
+            adoption_snapshot,
+            FileSnapshot(adoption_content, _payload_permissions("100644")),
+        )
+        writer(target_path(root, ADOPTION_PATH), adoption_content, "100644")
         if journal is not None:
             adoption_content = adoption_path.read_bytes()
             journal.write(
@@ -364,14 +371,17 @@ def apply_upgrade(
             except BaseException as journal_error:
                 error.add_note(f"Rollback journal unavailable: {journal_error}")
                 journal = None
-        failures = _restore_originals(root, originals, writer, journal)
+        failures = _restore_originals(root, states, writer, journal)
         if failures:
             diagnostic = (
                 f"Rollback incomplete; retained archive: {backup_path}\n"
                 + "\n".join(failures)
             )
             error.add_note(diagnostic)
-            print(diagnostic, file=sys.stderr)
+            try:
+                print(diagnostic, file=sys.stderr)
+            except BaseException as diagnostic_error:
+                error.add_note(f"Rollback diagnostics unavailable: {diagnostic_error}")
             if journal is not None:
                 try:
                     journal.write("ERROR", "rollback", diagnostic)
@@ -381,19 +391,36 @@ def apply_upgrade(
     return backup_path
 
 
+def _same_file_state(
+    actual: FileSnapshot | None, expected: FileSnapshot | None
+) -> bool:
+    if actual is None or expected is None:
+        return actual is expected
+    return actual.content == expected.content and (
+        os.name == "nt" or actual.mode == expected.mode
+    )
+
+
 def _restore_originals(
     root: Path,
-    originals: dict[str, FileSnapshot | None],
+    states: dict[str, _RollbackState],
     writer: Callable[[Path, bytes, str], None],
     journal: RunJournal | None,
 ) -> list[str]:
     failures = []
-    for relative, snapshot in reversed(list(originals.items())):
+    for relative, state in reversed(list(states.items())):
         try:
             destination = target_path(root, relative)
+            current = snapshot_file(destination)
+            if _same_file_state(current, state.original):
+                continue
+            if not _same_file_state(current, state.expected):
+                raise UpgradeError(
+                    f"Concurrent change preserved during rollback: {relative}"
+                )
+            snapshot = state.original
             if snapshot is None:
-                if destination.exists():
-                    destination.unlink()
+                destination.unlink()
                 if journal is not None:
                     journal.write(
                         "WARNING",

@@ -156,12 +156,16 @@ Les manifestes v1, v2 et v3 sont validés avant le plan et les sauvegardes : typ
 stratégies, modes, provenance et empreintes des contenus disponibles. Les anciens
 formats restent acceptés sans leur imposer les champs apparus ensuite.
 
-En cas d'erreur ou d'interruption pendant l'écriture, l'outil tente de restaurer
-tous les fichiers modifiés et l'adoption, avec leur contenu et leur mode initial.
-Il conserve le ZIP de rollback. Si une remise en état échoue, les autres sont
-encore tentées ; chaque chemin en échec est signalé et l'interruption d'origine
-est propagée. Une remise en état complète n'est donc pas assurée si le système
-refuse lui-même les écritures nécessaires.
+En cas d'erreur ou d'interruption pendant l'écriture, l'outil restaure le contenu,
+le mode et l'adoption uniquement si leur état correspond encore à l'écriture
+attendue de l'upgrade. Un fichier déjà dans son état initial est laissé inchangé.
+Les modifications concurrentes observées sont préservées et signalées comme un
+rollback incomplet. Le ZIP de rollback est conservé. Si une remise en état
+échoue, les autres sont encore tentées ; chaque chemin en échec est signalé et
+l'interruption d'origine est propagée, même si le journal ou la sortie
+diagnostique échoue. Le contrôle et la remise en état sont deux opérations
+distinctes : ils ne constituent pas une transaction atomique face aux écritures
+provenant d'autres programmes.
 
 Les requêtes Git courtes sont limitées à 30 secondes et les fusions à 300 secondes.
 Le délai couvre aussi les flux capturés et l'arrêt des programmes descendants

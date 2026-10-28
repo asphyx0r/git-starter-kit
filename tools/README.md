@@ -876,11 +876,14 @@ Application rejects permission changes made after planning and verifies each
 mode repair. Windows reports `localMode: null` and does not enforce POSIX modes.
 
 The tool performs no deletion, commit, tag, push, or network operation. Any
-conflict blocks application. An error or interruption during writes triggers
-restoration of the original content, modes and adoption state, including a
-partially written file. Restoration continues after individual failures and
-reports the paths it could not restore. The external rollback ZIP remains
-available for operator-controlled recovery.
+conflict blocks application. An error or interruption during writes restores
+original content, modes and adoption state only where the current file still
+matches the upgrade's expected write. Files already in their original state
+need no restoration. Observed concurrent changes are preserved and reported as
+an incomplete rollback. Restoration continues after individual failures, and
+the external rollback ZIP remains available for operator-controlled recovery.
+The state check and restoration are separate filesystem operations; they do
+not provide an atomic transaction against other writers.
 
 Archive limits, Windows path restrictions, legacy manifest validation and
 bounded Git operations are documented in the
