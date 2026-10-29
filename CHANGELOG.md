@@ -2,6 +2,19 @@
 
 All notable changes to this repository are documented in this file.
 
+## v3.0.0
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| babea3b | fix(audit): resolve repository review findings | asphyx |
+| 78be295 | docs(audit): correct repository documentation | asphyx |
+| 05a511d | build(tools): update ruff to 0.17.2 | asphyx |
+| c57a3b9 | build(tools): update tools and CI actions | asphyx |
+| e645a79 | fix(audit): accept build metadata references | asphyx |
+| 7f432f5 | fix(tools): preserve concurrent upgrade edits | asphyx |
+| 5ba679d | fix(tools): stabilize Windows qualification (#101) | asphyx |
+| 5fe4998 | fix(audit)!: harden repository tooling | asphyx |
+
 ## v2.13.0
 
 | References | Description | Author(s) |
