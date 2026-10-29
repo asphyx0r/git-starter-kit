@@ -952,6 +952,48 @@ class WorkflowContractTests(unittest.TestCase):
                         with self.assertRaises(self.validator.ContractError):
                             self.validate(name, mutated)
 
+    def test_actions_expressions_in_shell_comments_are_rejected(self):
+        workflow = self.read_workflow("guarded-pull-request-merge")
+        step = next(
+            step for step in workflow["jobs"]["guarded-merge"]["steps"] if "run" in step
+        )
+        step["run"] = (
+            "# request: ${{ github.event.client_payload.request_id }}\n" + step["run"]
+        )
+        with self.assertRaises(self.validator.ContractError):
+            self.validate("guarded-pull-request-merge", workflow)
+
+    def test_actions_expressions_in_python_comments_are_rejected(self):
+        workflow = self.read_workflow("release-package")
+        step = next(
+            step
+            for step in workflow["jobs"]["build"]["steps"]
+            if step.get("id") == "seal"
+        )
+        self.assertIn("<<'PY'\n", step["run"])
+        step["run"] = step["run"].replace(
+            "<<'PY'\n", "<<'PY'\n# release: ${{ github.event.release.body }}\n", 1
+        )
+        with self.assertRaises(self.validator.ContractError):
+            self.validate("release-package", workflow)
+
+    def test_powershell_requires_directives_are_rejected(self):
+        for directive in (
+            "#requires -Version 99.0",
+            "#REQUIRES -Version 99.0",
+            "  #ReQuIrEs -Version 99.0",
+        ):
+            with self.subTest(directive=directive):
+                workflow = self.read_workflow("repository-audit")
+                step = next(
+                    step
+                    for step in workflow["jobs"]["compatibility-windows"]["steps"]
+                    if step.get("shell") == "pwsh" and "run" in step
+                )
+                step["run"] = directive + "\n" + step["run"]
+                with self.assertRaises(self.validator.ContractError):
+                    self.validate("repository-audit", workflow)
+
     def test_removing_or_commenting_each_executable_line_fails(self):
         for name in self.workflows:
             workflow = self.read_workflow(name)

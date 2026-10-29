@@ -564,6 +564,36 @@ class StarterKitManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(MANIFEST.ManifestError, "SemVer tag"):
             MANIFEST.release_descriptor("1.2.3", "2026-01-01T00:00:00Z")
 
+    def test_oversized_json_integer_is_a_domain_error(self):
+        path = self.root / "starter-kit-manifest.json"
+        path.write_bytes(b'{"schemaVersion":' + b"9" * 5000 + b"}")
+        with self.assertRaisesRegex(MANIFEST.ManifestError, "Invalid JSON") as raised:
+            MANIFEST.read_manifest(path)
+        self.assertIsInstance(raised.exception.__cause__, ValueError)
+
+    def test_oversized_json_integer_cli_fails_without_target_writes(self):
+        path = self.root / "starter-kit-manifest.json"
+        path.write_bytes(b'{"schemaVersion":' + b"9" * 5000 + b"}")
+        before = {
+            item.relative_to(self.root): item.read_bytes()
+            for item in self.root.rglob("*")
+            if item.is_file()
+        }
+        arguments = ("check", "--repository-root", str(self.root))
+        code, stdout, stderr = self.run_main(*arguments)
+        self.assertEqual(code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn("Error: Invalid JSON manifest", stderr)
+        self.assertNotIn("Traceback", stderr)
+        with self.assertRaisesRegex(MANIFEST.ManifestError, "Invalid JSON"):
+            self.run_main("--verbose", *arguments)
+        after = {
+            item.relative_to(self.root): item.read_bytes()
+            for item in self.root.rglob("*")
+            if item.is_file()
+        }
+        self.assertEqual(after, before)
+
     def test_manifest_validation_rejects_each_contract_mutation(self):
         code, _, stderr = self.prepare()
         self.assertEqual(code, 0, stderr)

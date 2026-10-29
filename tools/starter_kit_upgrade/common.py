@@ -269,7 +269,7 @@ def reject_link_or_reparse_point(path: Path) -> None:
 def load_json_bytes(content: bytes, label: str) -> dict[str, Any]:
     try:
         value = json.loads(content.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+    except ValueError as error:
         raise UpgradeError(f"Invalid JSON in {label}.") from error
     if not isinstance(value, dict):
         raise UpgradeError(f"{label} must contain a JSON object.")

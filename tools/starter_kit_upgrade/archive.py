@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
 import tempfile
 from typing import Any
 import zipfile
@@ -215,6 +216,17 @@ def updated_agent_rules_provenance(
     return write_json(local_value)
 
 
+def _publish_archive(temporary_path: Path, output_path: Path) -> None:
+    try:
+        if sys.platform == "win32":
+            os.rename(temporary_path, output_path)
+        else:
+            # POSIX rename can overwrite an archive published by another process.
+            os.link(temporary_path, output_path)
+    except FileExistsError as error:
+        raise UpgradeError(f"Output already exists: {output_path}") from error
+
+
 def build_upgrade(args: argparse.Namespace, journal: RunJournal | None = None) -> int:
     if journal is not None:
         journal.phase("preflight", "START")
@@ -393,7 +405,7 @@ def build_upgrade(args: argparse.Namespace, journal: RunJournal | None = None) -
             archive.writestr(UPGRADE_MANIFEST_PATH, write_json(manifest))
             for path, content in sorted(payload.items()):
                 archive.writestr(path, content)
-        os.replace(temporary_path, output_path)
+        _publish_archive(temporary_path, output_path)
     finally:
         if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()
@@ -541,7 +553,7 @@ system temporary directory.
                 archive.write(source, member)
             archive.write(package_path, f"packages/{package_path.name}")
             archive.writestr("README.md", readme.encode("utf-8"))
-        os.replace(temporary_path, output_path)
+        _publish_archive(temporary_path, output_path)
     finally:
         if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()

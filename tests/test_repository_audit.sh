@@ -415,6 +415,132 @@ PY
   printf '%s\n' 'PASS: initializer fixture carries locked runtime inputs without distributing dependencies'
 )
 
+run_consumer_readonly_checks() (
+  # shellcheck disable=SC1090
+  source "${dispatcher}"
+  local fixture="${test_temp}/readonly consumer" trace="${test_temp}/readonly.trace"
+  local before="${test_temp}/readonly.before" after="${test_temp}/readonly.after"
+  local test_python_cmd status failed_stage='' enumeration_status=0
+  test_python_cmd="$(resolve_hook_python)"
+  mkdir -p "${fixture}/tools"
+  "${test_python_cmd}" -B - "${fixture}" <<'PYTHON'
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+paths = ["tools/with space.py", "core.sh", "core.cjs", "core.md", "core.yaml", "core.ps1"]
+for path in paths:
+    (root / path).write_text("", encoding="utf-8")
+(root / "tools/release-artifacts.py").write_text("", encoding="utf-8")
+(root / "_starter-kit-files.json").write_text(json.dumps({
+    "schemaVersion": 3,
+    "files": [{"path": path, "mode": "100644"} for path in paths],
+}), encoding="utf-8")
+(root / ".starter-kit-project.json").write_text(json.dumps({
+    "schemaVersion": 1, "repositoryRole": "project", "releaseKind": "repository",
+    "automations": {"agentRulesSync": False, "guardedMerge": False, "releasePreflight": False},
+    "checks": [{"name": "application", "argv": ["must-not-run-application"],
+                "workingDirectory": ".", "platforms": ["linux", "windows"]}],
+}), encoding="utf-8")
+PYTHON
+  repository_root="${fixture}"
+  initialize_repository_root() { cd "${repository_root}"; }
+  resolve_hook_python() { printf '%s\n' "${test_python_cmd}"; }
+  ensure_audit_temp() { fail 'consumer readonly attempted to create audit temporary files'; }
+  readonly_stage() {
+    printf '%s\n' "$1" >>"${trace}"
+    [[ "${failed_stage}" != "$1" ]] || return 29
+  }
+  readonly_ruff() {
+    [[ "${RUFF_NO_CACHE:-}" == true || "${RUFF_NO_CACHE:-}" == 1 ]] ||
+      mkdir -p .ruff_cache
+    readonly_stage "ruff-$1"
+  }
+  readonly_mypy() {
+    local null_path
+    null_path="$("${test_python_cmd}" -B -c 'import os; print(os.devnull)')"
+    [[ "${MYPY_CACHE_DIR:-}" == "${null_path%$'\r'}" ]] || mkdir -p .mypy_cache
+    readonly_stage mypy
+  }
+  readonly_yamllint() {
+    [[ "${PYTHONDONTWRITEBYTECODE:-}" == 1 ]] || mkdir -p __pycache__
+    readonly_stage yaml
+  }
+  readonly_shellcheck() { readonly_stage shellcheck; }
+  readonly_shfmt() { readonly_stage shfmt; }
+  readonly_node() { readonly_stage javascript; }
+  readonly_markdown() { readonly_stage markdown; }
+  readonly_powershell() { readonly_stage powershell; }
+  readonly_commitlint() { readonly_stage commitlint; }
+  resolve_hook_command() {
+    case "$2" in
+    ruff) printf '%s\n' readonly_ruff ;;
+    mypy) printf '%s\n' readonly_mypy ;;
+    yamllint) printf '%s\n' readonly_yamllint ;;
+    shellcheck) printf '%s\n' readonly_shellcheck ;;
+    shfmt) printf '%s\n' readonly_shfmt ;;
+    node) printf '%s\n' readonly_node ;;
+    *) fail "unexpected consumer tool: $2" ;;
+    esac
+  }
+  resolve_hook_node_tool() {
+    case "$1" in
+    markdownlint-cli2) printf '%s\n' readonly_markdown ;;
+    commitlint) printf '%s\n' readonly_commitlint ;;
+    *) fail "unexpected consumer node tool: $1" ;;
+    esac
+  }
+  resolve_command() { printf '%s\n' readonly_node; }
+  resolve_powershell_command() { printf '%s\n' readonly_powershell; }
+  check_semver_pattern_drift() { :; }
+  check_initializer_commit_contract() { :; }
+  check_commit_documentation_contract() { :; }
+  run_commitlint() { readonly_commitlint; }
+  run_full_secret_scan() { readonly_stage secrets; }
+  readonly_snapshot() {
+    find . -printf '%P|%y|%T@\n' | LC_ALL=C sort
+    find . -type f -exec cksum {} + | LC_ALL=C sort
+  }
+  cd "${fixture}"
+  readonly_snapshot >"${before}"
+  : >"${trace}"
+  # The test must establish the readonly environment itself, even if its parent is safe.
+  unset PYTHONDONTWRITEBYTECODE RUFF_NO_CACHE MYPY_CACHE_DIR
+  main readonly >"${test_temp}/readonly.out"
+  readonly_snapshot >"${after}"
+  cmp -s "${before}" "${after}" || fail 'consumer readonly changed its filesystem'
+  printf '%s\n' ruff-check ruff-format mypy shellcheck shfmt javascript markdown yaml \
+    powershell commitlint secrets >"${test_temp}/readonly.expected"
+  cmp -s "${test_temp}/readonly.expected" "${trace}" || fail 'consumer readonly skipped a selected language'
+  [[ "$(cat "${test_temp}/readonly.out")" == *'not run (read-only plan)'* ]] ||
+    fail 'consumer readonly did not plan the application check'
+  for failed_stage in ruff-check ruff-format mypy shellcheck shfmt javascript markdown yaml powershell commitlint secrets; do
+    : >"${trace}"
+    status=0
+    main readonly >"${test_temp}/readonly.out" || status=$?
+    ((status == 29)) || fail "consumer readonly swallowed ${failed_stage} failure"
+    [[ "$(tail -n 1 "${trace}")" == "${failed_stage}" ]] || fail 'consumer continued after validator failure'
+  done
+  failed_stage=''
+  list_core_paths() {
+    printf 'tools/with space.py\0'
+    return "${enumeration_status}"
+  }
+  enumeration_status=37
+  : >"${trace}"
+  status=0
+  main readonly >"${test_temp}/readonly.out" || status=$?
+  ((status == 37)) || fail 'consumer readonly swallowed path enumeration failure'
+  [[ ! -s "${trace}" ]] || fail 'consumer validated an incomplete path enumeration'
+  printf '%s\n' 'PASS: consumer readonly routing, all managed languages, no writes and fail-closed validation'
+)
+
+if [[ "${1:-}" == --consumer-readonly ]]; then
+  run_consumer_readonly_checks
+  exit
+fi
+
 if [[ "${1:-}" == --spelling-inventory ]]; then
   run_spelling_inventory_checks
   exit 0
@@ -565,6 +691,7 @@ assert_file_contains() {
 run_nested_failure_checks
 run_profile_failure_checks
 run_spelling_inventory_checks
+run_consumer_readonly_checks
 
 quality_python_cmd=""
 for quality_python_candidate in python python3 python.exe; do
