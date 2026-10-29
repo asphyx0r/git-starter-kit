@@ -969,6 +969,142 @@ print(upgrade.VERSION)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(result.stdout.startswith("git version "))
 
+    def test_archive_builders_preserve_raced_output_and_clean_temporary_files(self):
+        close_zip = zipfile.ZipFile.close
+        winner = b"concurrent archive winner\x00\xff"
+        for command in ("build", "toolkit"):
+            for platform in ("win32", "linux"):
+                with self.subTest(command=command, platform=platform):
+                    if platform == "win32" and os.name != "nt":
+                        self.skipTest("Windows no-overwrite rename requires Windows.")
+                    output = self.root / f"{command}-{platform}.zip"
+
+                    def close_with_race(archive, output=output):
+                        was_open = archive.fp is not None
+                        close_zip(archive)
+                        if was_open and archive.mode == "w":
+                            output.write_bytes(winner)
+
+                    arguments = argparse.Namespace(
+                        base_package=self.base_package,
+                        new_package=self.new_package,
+                        output=output,
+                        dry_run=False,
+                    )
+                    builder = (
+                        UPGRADE.build_upgrade
+                        if command == "build"
+                        else UPGRADE.build_toolkit
+                    )
+                    with (
+                        mock.patch.object(sys, "platform", platform),
+                        mock.patch.object(zipfile.ZipFile, "close", close_with_race),
+                        self.assertRaisesRegex(UPGRADE.UpgradeError, "already exists"),
+                    ):
+                        builder(arguments)
+                    self.assertEqual(output.read_bytes(), winner)
+                    self.assertEqual(list(self.root.glob(output.name + ".*.tmp")), [])
+
+    def test_archive_builders_publish_complete_archives_on_each_platform(self):
+        for command in ("build", "toolkit"):
+            for platform in ("win32", "linux"):
+                with self.subTest(command=command, platform=platform):
+                    output = self.root / f"{command}-{platform}.zip"
+                    arguments = argparse.Namespace(
+                        base_package=self.base_package,
+                        new_package=self.new_package,
+                        output=output,
+                        dry_run=False,
+                    )
+                    builder = (
+                        UPGRADE.build_upgrade
+                        if command == "build"
+                        else UPGRADE.build_toolkit
+                    )
+                    with (
+                        mock.patch.object(sys, "platform", platform),
+                        redirect_stdout(io.StringIO()),
+                    ):
+                        self.assertEqual(builder(arguments), 0)
+                    with zipfile.ZipFile(output) as archive:
+                        member = (
+                            "payload/a.txt"
+                            if command == "build"
+                            else "packages/new.zip"
+                        )
+                        expected = (
+                            b"new a\n"
+                            if command == "build"
+                            else self.new_package.read_bytes()
+                        )
+                        self.assertEqual(archive.read(member), expected)
+                    self.assertEqual(list(self.root.glob(output.name + ".*.tmp")), [])
+
+    def test_archive_builders_clean_temporary_files_when_publication_fails(self):
+        archive_module = importlib.import_module("starter_kit_upgrade.archive")
+        for command in ("build", "toolkit"):
+            for platform, operation in (("win32", "rename"), ("linux", "link")):
+                with self.subTest(command=command, platform=platform):
+                    output = self.root / f"{command}-{platform}.zip"
+                    arguments = argparse.Namespace(
+                        base_package=self.base_package,
+                        new_package=self.new_package,
+                        output=output,
+                        dry_run=False,
+                    )
+                    builder = (
+                        UPGRADE.build_upgrade
+                        if command == "build"
+                        else UPGRADE.build_toolkit
+                    )
+                    with (
+                        mock.patch.object(sys, "platform", platform),
+                        mock.patch.object(
+                            archive_module.os,
+                            operation,
+                            side_effect=OSError("atomic publication unavailable"),
+                        ),
+                        self.assertRaisesRegex(OSError, "atomic publication"),
+                    ):
+                        builder(arguments)
+                    self.assertFalse(output.exists())
+                    self.assertEqual(list(self.root.glob(output.name + ".*.tmp")), [])
+
+    def test_oversized_json_integer_is_a_domain_error(self):
+        content = b'{"schemaVersion":' + b"9" * 5000 + b"}"
+        with self.assertRaisesRegex(UPGRADE.UpgradeError, "Invalid JSON") as raised:
+            UPGRADE.load_json_bytes(content, "oversized input")
+        self.assertIsInstance(raised.exception.__cause__, ValueError)
+
+    def test_oversized_json_integer_cli_fails_without_target_writes(self):
+        target = self.root / "target"
+        target.mkdir()
+        marker = target / "keep.txt"
+        marker.write_bytes(b"preserve target\x00\xff")
+        self.write_zip(
+            self.upgrade_package,
+            {"upgrade-manifest.json": b'{"schemaVersion":' + b"9" * 5000 + b"}"},
+        )
+        arguments = [
+            "apply",
+            "--upgrade-package",
+            str(self.upgrade_package),
+            "--target",
+            str(target),
+            "--backup-directory",
+            str(self.backup_directory),
+        ]
+        code, stdout, stderr = self.run_main(arguments)
+        self.assertEqual(code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn("Error: Invalid JSON", stderr)
+        self.assertNotIn("Traceback", stderr)
+        with self.assertRaisesRegex(UPGRADE.UpgradeError, "Invalid JSON"):
+            self.run_main(["--verbose", *arguments])
+        self.assertEqual(list(target.iterdir()), [marker])
+        self.assertEqual(marker.read_bytes(), b"preserve target\x00\xff")
+        self.assertEqual(list(self.backup_directory.iterdir()), [])
+
     def test_toolkit_matches_release_skill_inventory(self):
         reference_path = (
             SCRIPT_PATH.parents[1]

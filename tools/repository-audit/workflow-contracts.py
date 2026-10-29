@@ -93,7 +93,15 @@ def normalize_shell(script: str, shell: str) -> str:
                 quote = outer_quote
             else:
                 substitutions[-1] = (outer_quote, depth)
-        if quote is None and char == "#" and (not output or output[-1] == "\n"):
+        if (
+            quote is None
+            and char == "#"
+            and (not output or output[-1] == "\n")
+            and not (
+                shell == "pwsh"
+                and re.match(r"#requires\b", script[index:], re.IGNORECASE)
+            )
+        ):
             end = script.find("\n", index)
             index = len(script) if end < 0 else end
             continue
@@ -127,6 +135,8 @@ def normalize_shell(script: str, shell: str) -> str:
 
 def normalize_script(script: str, shell: str) -> str:
     """Normalize shell formatting and compare embedded Python by syntax tree."""
+    if "${{" in script:
+        raise ContractError("Actions expressions in run scripts must use env instead")
 
     def python_body(match: re.Match) -> str:
         try:

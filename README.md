@@ -227,7 +227,8 @@ executes that release's synchronization tool without write credentials, and
 seals the allowed transfer. Its publishing job revalidates the source, target,
 and sealed hashes before minting the GitHub App token used only to push the
 branch and open or update the pull request in the repository that executed the
-workflow. Configure
+workflow. For automatic synchronization with `automations.agentRulesSync=true`
+or intentional manual synchronization, configure
 `AGENT_RULES_APP_CLIENT_ID` as a repository variable and
 `AGENT_RULES_APP_PRIVATE_KEY` as a repository secret. Install that GitHub App
 on the target repository with **Contents** and **Pull requests** write access.
@@ -278,18 +279,21 @@ is explicitly requested. Without `BUMP=patch`, `BUMP=minor`, or `BUMP=major`,
 the skill reports the recommended bump and tag without modifying the
 repository. A GitHub Release is created from the release-notes template only
 when `CREATE_GITHUB_RELEASE=true` is explicitly provided. Before mutation, the
-skill validates the required workflows, branch protection, release metadata,
-and the repository variable and secret used by `Agent rules update`.
+skill validates the required workflows, branch protection, and release metadata.
+For a requested GitHub Release, it requires `Agent rules update` and its App
+variable and secret only when `agentRulesSync=true`.
 
 On a protected or shared release target, each preparation intention uses a
-dedicated branch and pull request. The installed guarded merge workflow
-validates the exact squash message, then the skill waits for the resulting
+dedicated branch and pull request. When `guardedMerge=true`, the installed
+guarded merge tool and workflow validate the exact squash message. When false,
+the skill uses the repository-authorized ordinary review and merge path without
+App credentials. In both cases, it waits for the resulting
 target-branch audit and rechecks the merged tree before preparing the next
 intention. The final atomic push leaves that already-published target unchanged.
 
 In a derived repository, the skill creates a stable latest release without
-assets. That release is complete only after the exact automatic
-`Agent rules update` and `Repository audit` release runs succeed. The canonical
+assets. That release requires the exact automatic `Repository audit` release
+run, plus `Agent rules update` only when `agentRulesSync=true`. The canonical
 `git-starter-kit` extension instead creates a prerelease; `Release package`
 must also succeed, upload both verified ZIPs plus `SHA256SUMS`, and promote the
 release. Its read-only build seals those three files for a separate privileged
@@ -311,18 +315,26 @@ tag-only `Release artifacts` workflow independently validates the pushed tag.
 The canonical starter package excludes its own three generated root files so
 each derived repository creates release identification for itself.
 
-Before creating a tag, the guarded workflow pushes the candidate SHA to a
+The skill reads automation flags from the immutable default-branch snapshot;
+new consumers default all three flags to `false`. `Repository audit` and
+`Release artifacts` remain mandatory regardless of those flags.
+
+Before creating a tag, when `releasePreflight=true`, the workflow pushes the
+candidate SHA to a
 unique `codex/release-preflight-*` branch and requires the aggregate
 `Repository audit` check to succeed. The workflow must cover that prefix,
 either through unfiltered pushes or matching branch filters, without path
-filters that could suppress the required run. After the final atomic branch-and-tag
+filters that could suppress the required run. When `releasePreflight=false`,
+it validates the exact synchronized target locally without a preflight ref.
+After the final atomic branch-and-tag
 push, every expected branch and tag audit run must succeed; a manual or
 scheduled green run cannot replace a failed push run. Protect the default
 branch with this GitHub Actions check and apply the rule to administrators when
 the repository supports required checks.
 
-Publishing any release directly triggers `Agent rules update` and `Repository
-audit`. The canonical starter-kit prerelease also triggers `Release package`.
+Publishing any release requires `Repository audit`; `Agent rules update` is
+required only when `agentRulesSync=true`. The canonical starter-kit prerelease
+also requires `Release package`.
 Each required run must match the published tag, its exact commit, the `release`
 event, and the publication time; a manual, scheduled, or tag-push run cannot
 replace any of these release runs.

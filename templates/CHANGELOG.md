@@ -2,32 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/).
+Replace the example heading with the exact Git tag. List tags newest first
+and populate the table from Git history, excluding release-preparation-only
+commits. Do not add release entries until real tags and commits are available.
 
-## vX.Y.Z - YYYY-MM-DD
+## vX.Y.Z
 
-### Added
-
-- {ADDED-ITEM}
-
-### Changed
-
-- {CHANGED-ITEM}
-
-### Deprecated
-
-- {DEPRECATED-ITEM}
-
-### Removed
-
-- {REMOVED-ITEM}
-
-### Fixed
-
-- {FIXED-ITEM}
-
-### Security
-
-- {SECURITY-ITEM}
+| References | Description | Author(s) |
+| --- | --- | --- |
+| {COMMIT-CHECKSUM} | {COMMIT-TITLE} | {COMMIT-AUTHOR} |

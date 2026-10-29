@@ -368,7 +368,7 @@ def release_descriptor(ref: str, generated_at: str) -> dict[str, str]:
 def read_manifest(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise ManifestError(f"Invalid JSON manifest: {path}") from error
     if not isinstance(value, dict):
         raise ManifestError("Manifest must contain a JSON object.")

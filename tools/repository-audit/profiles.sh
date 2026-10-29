@@ -310,13 +310,19 @@ run_powershell_static() {
 
 run_consumer_core() {
   local mode="$1"
-  local path python_cmd node_cmd
+  local path python_cmd node_cmd paths_fd paths_pid
   local -a markdown=() yaml=() python=() shell=() javascript=() powershell=()
-  local owned_names
-  ensure_audit_temp || return
-  owned_names="${audit_temp}/core.names"
-  list_core_paths >"${owned_names}" || return
+  local -a paths=()
+  if [[ "${mode}" == readonly ]]; then
+    local PYTHONDONTWRITEBYTECODE=1 RUFF_NO_CACHE=true MYPY_CACHE_DIR
+    python_cmd="$(resolve_hook_python)" || return
+    MYPY_CACHE_DIR="$("${python_cmd}" -B -c 'import os; print(os.devnull, end="")')" || return
+    export PYTHONDONTWRITEBYTECODE RUFF_NO_CACHE MYPY_CACHE_DIR
+  fi
+  exec {paths_fd}< <(list_core_paths) || return
+  paths_pid=$!
   while IFS= read -r -d '' path; do
+    paths+=("./${path}")
     case "${path}" in
     *.md) markdown+=("./${path}") ;;
     *.yaml | *.yml) yaml+=("./${path}") ;;
@@ -325,7 +331,9 @@ run_consumer_core() {
     *.js | *.cjs | *.mjs) javascript+=("./${path}") ;;
     *.ps1 | *.psm1 | *.psd1) powershell+=("./${path}") ;;
     esac
-  done <"${owned_names}"
+  done <&"${paths_fd}"
+  exec {paths_fd}<&- || return
+  wait "${paths_pid}" || return
   if [[ "${mode}" == markdown ]]; then
     ((${#markdown[@]} == 0)) || run_hook_markdown "${repository_root}" "${markdown[@]}"
     return
@@ -333,8 +341,6 @@ run_consumer_core() {
   if [[ "${mode}" == spelling ]]; then
     local codespell_cmd
     codespell_cmd="$(resolve_command codespell codespell.cmd codespell.exe)" || return
-    local -a paths=()
-    while IFS= read -r -d '' path; do paths+=("./${path}"); done <"${owned_names}"
     ((${#paths[@]} == 0)) || "${codespell_cmd}" --config .codespellrc "${paths[@]}"
     return
   fi
