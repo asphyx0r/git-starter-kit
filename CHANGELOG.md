@@ -2,6 +2,13 @@
 
 All notable changes to this repository are documented in this file.
 
+## v3.0.1
+
+| References | Description | Author(s) |
+| --- | --- | --- |
+| 4e1d648 | fix(release): complete historical qualification | asphyx |
+| 9db6825 | fix(release): repair historical publications | asphyx |
+
 ## v3.0.0
 
 | References | Description | Author(s) |

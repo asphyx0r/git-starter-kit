@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v3.0.0",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v3.0.0",
-    "generatedAt": "2026-10-29T22:23:14Z"
+    "ref": "v3.0.1",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v3.0.1",
+    "generatedAt": "2026-10-30T05:18:27Z"
   },
   "current": {
     "repository": "https://github.com/asphyx0r/git-starter-kit",
-    "ref": "v3.0.0",
-    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v3.0.0",
-    "generatedAt": "2026-10-29T22:23:14Z"
+    "ref": "v3.0.1",
+    "releaseUrl": "https://github.com/asphyx0r/git-starter-kit/releases/tag/v3.0.1",
+    "generatedAt": "2026-10-30T05:18:27Z"
   },
   "files": [
     {
@@ -223,8 +223,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "7b739c1356836d2483896779d530775439c23b444ed6965e30f3d572e830654a",
-      "canonicalSha256": "7b739c1356836d2483896779d530775439c23b444ed6965e30f3d572e830654a",
+      "sha256": "c2776c67d646689192cd0e8c643b2e11c398f31139722ba0a1737bd4694b1e16",
+      "canonicalSha256": "c2776c67d646689192cd0e8c643b2e11c398f31139722ba0a1737bd4694b1e16",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -319,8 +319,8 @@
     },
     {
       "path": "docs/repository-files.md",
-      "sha256": "bb808e8bc14b8e955ee4d168fad13fe02bc209bb4f745c0bd50a708e491123f3",
-      "canonicalSha256": "bb808e8bc14b8e955ee4d168fad13fe02bc209bb4f745c0bd50a708e491123f3",
+      "sha256": "431d2d856f4b007794ce0c1ad58971de8075f76f75cc3d6011f15759edf29fa0",
+      "canonicalSha256": "431d2d856f4b007794ce0c1ad58971de8075f76f75cc3d6011f15759edf29fa0",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "initialize-only"
@@ -543,8 +543,8 @@
     },
     {
       "path": "tools/quality/pyproject.toml",
-      "sha256": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
-      "canonicalSha256": "088f1e1f9a721b11c1575a2474d57b1b03618bdcac1746cf5029be17ee6e988e",
+      "sha256": "399b33a4b6cfea49d118f8f488d246acc96f4ed83a83ada4bdf69644df558c8b",
+      "canonicalSha256": "399b33a4b6cfea49d118f8f488d246acc96f4ed83a83ada4bdf69644df558c8b",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
@@ -631,8 +631,8 @@
     },
     {
       "path": "tools/repository-audit/hooks.sh",
-      "sha256": "8b798b0df605343967bf92e7659d7fac77299d065247b36aa932ed4cacd5f31b",
-      "canonicalSha256": "8b798b0df605343967bf92e7659d7fac77299d065247b36aa932ed4cacd5f31b",
+      "sha256": "25581f85c09c9cf4ed8a12f4ef8e177011b08d6ba73124bfb57a888950ab2834",
+      "canonicalSha256": "25581f85c09c9cf4ed8a12f4ef8e177011b08d6ba73124bfb57a888950ab2834",
       "contentKind": "text",
       "mode": "100644",
       "strategy": "replace"
