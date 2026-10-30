@@ -1,5 +1,5 @@
 codespell==2.4.3
-coverage==7.16.2
+coverage==7.17.0
 jsonschema[format]==4.26.0
 mypy==2.4.0
 pip-audit==2.10.1
