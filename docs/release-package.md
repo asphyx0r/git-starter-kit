@@ -535,7 +535,8 @@ kit with agent rules already included.
 ## Manual Release Mode
 
 Use this mode when you need to create or recreate the enriched package for an
-existing release.
+existing release, except the six tags covered by
+[Historical release repair](#historical-release-repair).
 
 The release must already be published on GitHub before running the workflow
 manually, with successful original `release` runs for both required workflows.
@@ -562,6 +563,78 @@ Branch names are still rejected so the generated asset stays reproducible.
 
 When the workflow finishes, open the GitHub release page for the tag and check
 that both ZIPs and `SHA256SUMS` are listed under the release assets.
+
+## Historical release repair
+
+The dedicated `Historical release repair` workflow covers only `v1.7.3`,
+`v2.0.1`, `v2.1.0`, `v2.2.0`, `v2.8.0`, and `v2.11.0`. These six tags belong
+exclusively to this procedure. It preserves the original failed workflow runs
+and does not claim that the original automatic completion gates succeeded.
+Normal modern releases retain the automatic completion gate above. Their exact
+three-asset publisher intentionally rejects the supplemental historical proof.
+
+| Tag | Repair assets and final state |
+| --- | --- |
+| `v1.7.3` | Create stable release with one enriched ZIP and proof. |
+| `v2.0.1` | Preserve existing ZIP; add proof and promote to stable. |
+| `v2.1.0` | Preserve both ZIPs; add proof and keep stable. |
+| `v2.2.0` | Create stable release with both ZIPs and proof. |
+| `v2.8.0` | Reuse draft; add both ZIPs, `SHA256SUMS`, proof; publish stable. |
+| `v2.11.0` | Add both ZIPs, `SHA256SUMS`, proof; promote to stable. |
+
+Every repair uses `make_latest=false`; the ordinary `v3.0.1` release remains
+latest. Existing tag objects, release identities, asset IDs and asset bytes
+must be preserved. The expected final inventory is 64 tags, 64 published
+releases and 122 assets only if the approved starting inventory is unchanged;
+fresh API checks take precedence over those totals.
+
+Only four tags receive new builds: `v1.7.3`, `v2.2.0`, `v2.8.0`, and
+`v2.11.0`. Each uses its exact historical source tree and recipe, with all seven
+complete upstream rule files pinned to `v1.42.0`, commit
+`7cdf1cb2688813694c4982f909bf79be52880f22`. Existing ZIPs retain their actual
+embedded rules pins. New builds are dated as repairs, with their transformations
+recorded honestly; they do not reproduce or impersonate missing original bytes.
+
+The sidecar `historical-repair-proof.json` binds the exact tag object, commit
+and tree to the pinned recipe and validator, Git paths, modes, attributes,
+overlays, and exhaustive per-file SHA-256 inventories. For `v2.1.0`, its external
+inventory corrects exactly 22 omissions while preserving and validating the
+existing internal manifest; that internal manifest is not repaired. This is
+not a general exception for incomplete manifests.
+
+1. Run `Historical release repair` from the trusted default branch with the
+    selected tag and `publish=false` to obtain a reviewable candidate.
+2. Review all six candidates before enabling publication. Preparation and
+    verification use read-only access; historical recipes run without
+    credentials. Use the local commands below with actual paths and an
+    allowlisted tag. `DIR` must not already exist for preparation. Local
+    candidates without CI qualification remain unqualified for remote
+    publication.
+3. Require successful preparation and verification before the isolated publish
+    job may consume its sealed candidate. Set `publish=true` with
+    `candidate_artifact_id` and `expected_candidate_sha256` identifying the
+    previously reviewed dry-run artifact and candidate hash. Do not regenerate
+    a candidate and treat it as the approved bytes. The candidate records the source,
+    original release state, existing asset identities and hashes, latest release,
+    final notes, and exact new payload. Only the publish job has write access,
+    under the existing `release` environment; it executes no downloaded code.
+4. Before any mutation, compare fresh remote refs, release identity, state,
+    notes and every asset with the candidate. Reject collisions, drift or
+    unexpected files. Upload only missing assets, without clobber or deletion.
+    Retry an interrupted publication with the same qualified candidate and
+    identical bytes, reusing already uploaded identical payloads.
+5. Recheck source and release identity, verify remote asset bytes, then publish
+    or promote to stable. Confirm that latest is unchanged. Qualification
+    identity in the proof is distinct from publication success: the final audit
+    must independently verify the actual workflow result and all remote assets.
+
+```text
+python -B tools/historical-release-repair.py prepare --repository-root PATH --tag TAG --output-dir DIR
+python -B tools/historical-release-repair.py verify --repository-root PATH --bundle-dir DIR
+```
+
+The driver, workflow, tests and operator documentation are source-repository
+maintenance files and are excluded from consumer ZIPs and managed-file lists.
 
 ## Local Test
 

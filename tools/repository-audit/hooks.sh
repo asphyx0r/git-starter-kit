@@ -38,6 +38,9 @@ classify_hook_path() {
   tools/release-artifacts.py | tests/test_release_artifacts.py)
     module=test_release_artifacts.py
     ;;
+  tools/historical-release-repair.py | tests/test_historical_release_repair.py)
+    module=test_historical_release_repair.py
+    ;;
   tools/starter-kit-manifest.py | tests/test_starter_kit_manifest.py)
     module=test_starter_kit_manifest.py
     ;;
@@ -64,6 +67,10 @@ classify_hook_path() {
     ;;
   .githooks/commit-msg)
     shell_module='test_quality_hooks.sh test_commit_message_validation.sh'
+    ;;
+  .github/workflows/historical-release-repair.yml)
+    module='test_historical_release_publication.py test_workflow_contracts.py'
+    run_workflows=true
     ;;
   .github/workflows/* | tools/repository-audit/workflow-contracts.py | tests/test_workflow_contracts.py)
     module=test_workflow_contracts.py

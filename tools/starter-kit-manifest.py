@@ -69,6 +69,7 @@ SOURCE_ONLY_PATHS = frozenset(
             "git-starter-kit-release-package.txt"
         ),
         ".github/CODEOWNERS",
+        ".github/workflows/historical-release-repair.yml",
         ".github/workflows/release-package.yml",
         "SHA256SUMS",
         "VERSION",
@@ -79,6 +80,7 @@ SOURCE_ONLY_PATHS = frozenset(
         "tests/test_starter_kit_manifest.py",
         "tests/test_starter_kit_upgrade.py",
         "tools/build-release-package.ps1",
+        "tools/historical-release-repair.py",
         "tools/starter-kit-manifest.py",
         "tools/starter-kit-upgrade.py",
         "tools/starter_kit_upgrade/__init__.py",
