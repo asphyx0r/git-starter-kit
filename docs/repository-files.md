@@ -365,6 +365,8 @@ deferred, or explicitly excluded from the template.
   then publish the exact selected candidate artifact and hash.
 - Notes: Separates read-only qualification from isolated publication, preserves
   existing tags and assets, and never promotes a historical repair to latest.
+  Read-only `v2.8.0` preparation requires an operator-authenticated draft
+  observation; publication still requires live release-state validation.
   This source-only workflow is excluded from consumer packages.
 
 ### `.github/workflows/release-artifacts.yml`
@@ -776,6 +778,8 @@ deferred, or explicitly excluded from the template.
 - Status: `optional`
 - Goal: Prepares and verifies sealed historical release repair candidates.
 - Usage: Run `prepare` for an allowlisted tag, then `verify` its candidate bundle.
+  For the known empty `v2.8.0` draft, `observe-draft --output-file FILE` captures
+  a real authenticated GET for explicit `--draft-release-snapshot FILE` input.
 - Notes: Binds exact historical source and recipes to exhaustive archive
   inventories and supplemental proof, preserving existing asset bytes. It
   performs no remote writes and is excluded from consumer packages.
