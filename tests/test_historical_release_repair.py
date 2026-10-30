@@ -5,6 +5,7 @@ import io
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -525,6 +526,7 @@ class HistoricalRepairTests(unittest.TestCase):
             self.driver.prepare(self.root, "v2.0.1", output)
         self.assertEqual(marker.read_bytes(), b"keep")
 
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 is required.")
     def test_historical_recipe_temp_stays_short_when_bundle_path_is_deep(self):
         self.make_source()
         tools = self.root / "tools"
