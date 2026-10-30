@@ -190,6 +190,9 @@ if [[ "${1:-}" == --selection ]]; then
   assert_selection tools/git_objects.py '*' true false
   assert_selection tools/process_runner.py '*' true false
   assert_selection .github/workflows/repository-audit.yml test_workflow_contracts.py true true
+  assert_selection tools/historical-release-repair.py test_historical_release_repair.py true false
+  assert_selection .github/workflows/historical-release-repair.yml \
+    'test_historical_release_publication.py test_workflow_contracts.py' true true
   assert_selection docs/guide.md '' false false
   assert_selection 'unknown file.bin' '*' true false
   assert_selection tests/test_quality_toolchain.py test_quality_toolchain.py true false ''

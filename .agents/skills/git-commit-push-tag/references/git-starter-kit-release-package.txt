@@ -181,6 +181,40 @@ PRÉCONDITION DU WORKFLOW DE RELEASE
   est une erreur de configuration à signaler avant toute publication. N'ajoute
   aucun bot et n'appelle aucun endpoint d'approbation de déploiement.
 
+EXCEPTION FERMÉE DE RÉPARATION HISTORIQUE
+
+- L'exception approuvée couvre exclusivement v1.7.3, v2.0.1, v2.1.0,
+  v2.2.0, v2.8.0 et v2.11.0. Pour ces six tags, applique uniquement
+  `docs/release-package.md#historical-release-repair` et le workflow dédié
+  `Historical release repair`, depuis sa source de confiance sur la branche
+  par défaut. Ne substitue pas cette procédure aux gates automatiques des
+  releases modernes et ne présente aucun ancien run échoué comme réussi.
+- Conserve les objets de tag, identités des releases existantes, IDs et octets
+  de tous les assets existants. Ajoute `historical-repair-proof.json` aux six
+  releases. Le publisher normal conserve son jeu exact de trois assets et
+  refusera volontairement cette preuve historique supplémentaire.
+- Reconstruis uniquement v1.7.3, v2.2.0, v2.8.0 et v2.11.0 depuis leur source
+  et recette historiques exactes, avec les sept fichiers de règles complets
+  v1.42.0 / 7cdf1cb2688813694c4982f909bf79be52880f22. Date honnêtement ces
+  réparations ; ne prétends pas reproduire les octets originaux manquants.
+  Les ZIP existants de v2.0.1 et v2.1.0 conservent leurs pins réels. Pour
+  v2.1.0, l'inventaire externe exhaustif corrige exactement 22 omissions sans
+  modifier son manifeste interne ; aucune dérogation générique n'est admise.
+- Valide les six candidats concrets avant publication. Exige une qualification
+  CI et un transfert scellé liant source, recettes, validateur, transformations
+  et empreintes par fichier. Avec `publish=true`, renseigne
+  `candidate_artifact_id` et `expected_candidate_sha256` pour réutiliser les
+  octets du dry-run déjà examinés ; ne régénère pas un candidat en le considérant
+  comme approuvé. Le job de publication isolé ne doit exécuter aucun
+  code téléchargé. Compare l'état distant frais avant toute mutation et
+  reprends un candidat interrompu avec les mêmes octets qualifiés, sans
+  suppression, remplacement ni clobber.
+- Crée v1.7.3 et v2.2.0 ; réutilise le draft v2.8.0 ; promeus v2.0.1 et
+  v2.11.0 ; maintiens v2.1.0 stable. Le résultat des six releases est publié
+  stable avec `make_latest=false` ; v3.0.1 reste latest. Vérifie séparément le
+  succès réel du workflow, les octets distants et l'inventaire final complet.
+  La preuve de qualification ne préjuge pas du succès futur de publication.
+
 CRÉATION DE LA PRERELEASE
 
 - Au point 40 du workflow principal, crée la GitHub Release pour le tag

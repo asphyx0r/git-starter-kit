@@ -11,6 +11,7 @@ files = [
   "tools/automation_config.py",
   "tools/backup-target-directory.py",
   "tools/git_objects.py",
+  "tools/historical-release-repair.py",
   "tools/initialize-repository.py",
   "tools/merge-pull-request.py",
   "tools/process_runner.py",

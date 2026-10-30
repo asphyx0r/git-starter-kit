@@ -356,6 +356,17 @@ deferred, or explicitly excluded from the template.
   canonical repository. This source-only workflow is excluded from derived
   packages.
 
+### `.github/workflows/historical-release-repair.yml`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Qualifies and publishes repairs for six allowlisted historical releases.
+- Usage: Dispatch from the trusted default branch, review dry-run candidates,
+  then publish the exact selected candidate artifact and hash.
+- Notes: Separates read-only qualification from isolated publication, preserves
+  existing tags and assets, and never promotes a historical repair to latest.
+  This source-only workflow is excluded from consumer packages.
+
 ### `.github/workflows/release-artifacts.yml`
 
 - Type: `file`
@@ -758,6 +769,16 @@ deferred, or explicitly excluded from the template.
   attempted independently without masking an earlier error or deleting a
   validated ZIP already published. The tool is excluded from
   packages distributed to derived repositories.
+
+### `tools/historical-release-repair.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Prepares and verifies sealed historical release repair candidates.
+- Usage: Run `prepare` for an allowlisted tag, then `verify` its candidate bundle.
+- Notes: Binds exact historical source and recipes to exhaustive archive
+  inventories and supplemental proof, preserving existing asset bytes. It
+  performs no remote writes and is excluded from consumer packages.
 
 ### `tools/README.md`
 
@@ -1384,6 +1405,33 @@ deferred, or explicitly excluded from the template.
   canonical-repository test is source-only. Measures inherited-pipe deadlines
   after synchronous process startup. The historical-builder fixture
   excludes newer empty markers.
+
+### `tests/test_historical_release_distribution.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Keeps historical repair maintenance files out of consumer distributions.
+- Usage: Run through Python unittest discovery or the repository audit.
+- Notes: Builds a real Git fixture and ZIP, then verifies manifest, archive and
+  managed-file exclusions while retaining a distributed tool as a control.
+
+### `tests/test_historical_release_publication.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies the sealed historical repair publication boundary.
+- Usage: Run through Python unittest discovery or the repository audit.
+- Notes: Executes the workflow publisher against a confined fake GitHub API to
+  check drift rejection, preserved assets, resumable uploads and final state.
+
+### `tests/test_historical_release_repair.py`
+
+- Type: `file`
+- Status: `optional`
+- Goal: Verifies historical candidate preparation and archive provenance checks.
+- Usage: Run through Python unittest discovery or the repository audit.
+- Notes: Uses Git and ZIP fixtures to check exact source coverage, recipe
+  identity, immutable asset reuse and rejection of corrupted candidates.
 
 ### `tests/test_commit_message_validation.sh`
 

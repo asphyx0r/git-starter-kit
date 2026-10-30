@@ -1,0 +1,546 @@
+---
+name: Historical release repair
+
+"on":
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Historical release to repair
+        required: true
+        type: choice
+        options:
+          - v1.7.3
+          - v2.0.1
+          - v2.1.0
+          - v2.2.0
+          - v2.8.0
+          - v2.11.0
+      publish:
+        description: Publish the qualified sealed candidate
+        type: boolean
+        default: false
+      candidate_artifact_id:
+        description: Reviewed dry-run artifact ID (required to publish)
+        type: string
+      expected_candidate_sha256:
+        description: Reviewed candidate.json SHA-256 (required to publish)
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release-package-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  qualification:
+    name: Qualify historical candidate
+    if: >-
+      github.repository == 'asphyx0r/git-starter-kit' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      candidate_sha256: ${{ steps.seal.outputs.candidate_sha256 }}
+      run_attempt: ${{ steps.seal.outputs.run_attempt }}
+      origin_run_id: ${{ steps.seal.outputs.origin_run_id }}
+      origin_run_attempt: ${{ steps.seal.outputs.origin_run_attempt }}
+    steps:
+      - name: Checkout trusted workflow source
+        # actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: tools/quality/requirements.lock
+
+      - name: Set up Node.js
+        # actions/setup-node@v7.1.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24.20.0"
+          cache: npm
+          cache-dependency-path: |
+            tools/quality/package-lock.json
+            tools/quality/versions.json
+
+      - name: Install locked quality dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input \
+            --require-hashes -r tools/quality/requirements.lock
+          npm ci --ignore-scripts --prefix tools/quality
+
+      - name: Prepare and verify historical candidate
+        if: '!inputs.publish'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          SOURCE_SHA: ${{ github.sha }}
+          BUNDLE_DIR: ${{ runner.temp }}/historical-repair
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python -B tools/historical-release-repair.py prepare \
+            --repository-root "$GITHUB_WORKSPACE" --tag "$RELEASE_TAG" \
+            --output-dir "$BUNDLE_DIR"
+          python -B tools/historical-release-repair.py verify \
+            --repository-root "$GITHUB_WORKSPACE" --bundle-dir "$BUNDLE_DIR"
+
+      - name: Resolve reviewed artifact
+        if: inputs.publish
+        id: reviewed
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_ARTIFACT_ID: ${{ inputs.candidate_artifact_id }}
+          EXPECTED_HASH: ${{ inputs.expected_candidate_sha256 }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          import json
+          import os
+          import re
+          import subprocess
+
+          artifact_id = os.environ["REVIEWED_ARTIFACT_ID"]
+          if not re.fullmatch(r"[1-9][0-9]*", artifact_id):
+              raise SystemExit("Publish requires a reviewed artifact ID.")
+          if not re.fullmatch(r"[0-9a-f]{64}", os.environ["EXPECTED_HASH"]):
+              raise SystemExit("Publish requires the reviewed candidate SHA-256.")
+          result = subprocess.run(
+              ["timeout", "30s", "gh", "api",
+               "repos/asphyx0r/git-starter-kit/actions/artifacts/" + artifact_id,
+               "--method", "GET"], check=True, capture_output=True,
+          )
+          artifact = json.loads(result.stdout)
+          if (artifact["id"] != int(artifact_id) or artifact["expired"]
+                  or artifact["workflow_run"]["head_sha"] != os.environ["SOURCE_SHA"]):
+              raise SystemExit("Reviewed artifact is expired or from another source.")
+          if not re.fullmatch(r"historical-repair-v[0-9.]+-[1-9][0-9]*-[1-9][0-9]*", artifact["name"]):
+              raise SystemExit("Reviewed artifact name is not a historical repair candidate.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"run_id={int(artifact['workflow_run']['id'])}\n")
+              output.write(f"artifact_name={artifact['name']}\n")
+
+      - name: Download reviewed candidate
+        if: inputs.publish
+        # actions/download-artifact@v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ inputs.candidate_artifact_id }}
+          run-id: ${{ steps.reviewed.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/historical-repair
+          merge-multiple: true
+
+      - name: Requalify reviewed candidate
+        if: inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HASH: ${{ inputs.expected_candidate_sha256 }}
+          BUNDLE_DIR: ${{ runner.temp }}/historical-repair
+          REVIEWED_RUN_ID: ${{ steps.reviewed.outputs.run_id }}
+          REVIEWED_ARTIFACT_NAME: ${{ steps.reviewed.outputs.artifact_name }}
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          actual_hash="$(sha256sum "$BUNDLE_DIR/candidate.json" | cut -d' ' -f1)"
+          test "$actual_hash" = "$EXPECTED_HASH"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          content = (Path(os.environ["BUNDLE_DIR"]) / "candidate.json").read_bytes()
+          if hashlib.sha256(content).hexdigest() != os.environ["EXPECTED_HASH"]:
+              raise SystemExit("Reviewed candidate hash changed.")
+          candidate = json.loads(content)
+          qualification = candidate["qualification"]
+          if (not isinstance(qualification, dict)
+                  or type(qualification.get("runId")) is not int
+                  or type(qualification.get("runAttempt")) is not int
+                  or qualification["runId"] != int(os.environ["REVIEWED_RUN_ID"])
+                  or qualification["runAttempt"] < 1
+                  or qualification["sourceSha"] != os.environ["SOURCE_SHA"]
+                  or candidate["tag"] != os.environ["RELEASE_TAG"]):
+              raise SystemExit("Reviewed artifact and original qualification identity differ.")
+          expected_name = (f"historical-repair-{candidate['tag']}-"
+                           f"{qualification['runId']}-{qualification['runAttempt']}")
+          if os.environ["REVIEWED_ARTIFACT_NAME"] != expected_name:
+              raise SystemExit("Select the original dry-run artifact for this receipt.")
+          PY
+          python -B tools/historical-release-repair.py verify \
+            --repository-root "$GITHUB_WORKSPACE" --bundle-dir "$BUNDLE_DIR"
+
+      - name: Seal qualified candidate
+        id: seal
+        shell: bash
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/historical-repair
+        run: |
+          set -euo pipefail
+          candidate_sha256="$(sha256sum "$BUNDLE_DIR/candidate.json" | cut -d' ' -f1)"
+          printf 'candidate_sha256=%s\nrun_attempt=%s\n' \
+            "$candidate_sha256" "$GITHUB_RUN_ATTEMPT" >>"$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          candidate = json.loads((Path(os.environ["BUNDLE_DIR"]) / "candidate.json").read_bytes())
+          qualification = candidate["qualification"]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"origin_run_id={int(qualification['runId'])}\n")
+              output.write(f"origin_run_attempt={int(qualification['runAttempt'])}\n")
+          PY
+
+      - name: Upload sealed candidate
+        id: upload
+        # actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: historical-repair-${{ inputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/historical-repair/candidate.json
+            ${{ runner.temp }}/historical-repair/payload/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish historical repair
+    needs: [qualification]
+    if: >-
+      inputs.publish && github.repository == 'asphyx0r/git-starter-kit' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download exact sealed candidate
+        # actions/download-artifact@v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.qualification.outputs.artifact_id }}
+          path: ${{ runner.temp }}/historical-repair-publish
+          merge-multiple: true
+
+      - name: Publish historical repair
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          SOURCE_SHA: ${{ github.sha }}
+          QUALIFICATION_RUN_ID: ${{ needs.qualification.outputs.origin_run_id }}
+          QUALIFICATION_RUN_ATTEMPT: ${{ needs.qualification.outputs.origin_run_attempt }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          CURRENT_RUN_ATTEMPT: ${{ needs.qualification.outputs.run_attempt }}
+          TRANSFER_ROOT: ${{ runner.temp }}/historical-repair-publish
+          EXPECTED_CANDIDATE_SHA256: ${{ needs.qualification.outputs.candidate_sha256 }}
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import stat
+          import subprocess
+          from urllib.parse import quote
+
+          repository = os.environ["GH_REPO"]
+          tag = os.environ["RELEASE_TAG"]
+          source_sha = os.environ["SOURCE_SHA"]
+          root = Path(os.environ["TRANSFER_ROOT"])
+          commits = {
+              "v1.7.3": "7e964d89a9f1553e2575191f60ca333c2a15dc93",
+              "v2.0.1": "4a8e45c0eaef3030e263a34d694b9b4d10d3af3b",
+              "v2.1.0": "3db8add2135ec04fc70c59a635e9de3a4f7bc464",
+              "v2.2.0": "c3f031e5cbe8a7d4fe6d571fb3935b97caf5f2b6",
+              "v2.8.0": "00745498a7e6f00d2f10341e4ba493a69b6cefef",
+              "v2.11.0": "4bd47329e6a989823472eb015c62e75bb7318bc3",
+          }
+
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit(message)
+
+          def regular(path):
+              require(not path.is_symlink() and stat.S_ISREG(path.lstat().st_mode),
+                      "Sealed bundle requires regular files: " + str(path))
+
+          require(repository == "asphyx0r/git-starter-kit" and tag in commits,
+                  "Historical repair repository or tag is not allowlisted.")
+          require(not root.is_symlink() and root.is_dir(), "Unsafe bundle root.")
+          require({entry.name for entry in root.iterdir()} == {"candidate.json", "payload"},
+                  "Unexpected files in sealed candidate bundle.")
+          regular(root / "candidate.json")
+          candidate_bytes = (root / "candidate.json").read_bytes()
+          require(hashlib.sha256(candidate_bytes).hexdigest() == os.environ["EXPECTED_CANDIDATE_SHA256"],
+                  "Sealed candidate hash changed.")
+          candidate = json.loads(candidate_bytes)
+          require(candidate["schemaVersion"] == 1 and candidate["repository"] == repository
+                  and candidate["tag"] == tag and candidate["commit"] == commits[tag],
+                  "Candidate source is not allowlisted.")
+          qualification = {
+              "runId": int(os.environ["QUALIFICATION_RUN_ID"]),
+              "runAttempt": int(os.environ["QUALIFICATION_RUN_ATTEMPT"]),
+              "sourceSha": source_sha,
+          }
+          require(candidate.get("qualification") == qualification,
+                  "Candidate has no matching qualification identity.")
+          payload = root / "payload"
+          require(not payload.is_symlink() and payload.is_dir(), "Unsafe payload directory.")
+          allowed_names = {
+              "historical-repair-proof.json", "SHA256SUMS",
+              f"git-starter-kit-{tag}-with-agent-rules.zip",
+              f"git-starter-kit-{tag}-upgrade-toolkit.zip",
+          }
+          expected = {}
+          for entry in candidate["payload"]:
+              name = entry["name"]
+              require(name in allowed_names and name not in expected,
+                      "Unexpected or duplicate payload name.")
+              require(type(entry["size"]) is int and entry["size"] > 0
+                      and re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]),
+                      "Invalid payload metadata.")
+              regular(payload / name)
+              content = (payload / name).read_bytes()
+              require(len(content) == entry["size"]
+                      and hashlib.sha256(content).hexdigest() == entry["sha256"],
+                      "Sealed payload hash or size changed: " + name)
+              expected[name] = (entry["size"], entry["sha256"])
+          require({entry.name for entry in payload.iterdir()} == set(expected),
+                  "Unexpected payload paths.")
+          require("historical-repair-proof.json" in expected, "Missing historical repair proof.")
+          proof = json.loads((payload / "historical-repair-proof.json").read_bytes())
+          require(proof.get("qualification") == qualification, "Proof qualification changed.")
+          before = {}
+          original_ids = set()
+          for asset in candidate["assetsBefore"]:
+              name = asset["name"]
+              require(name in allowed_names and name not in before
+                      and type(asset["id"]) is int and asset["id"] > 0
+                      and asset["id"] not in original_ids
+                      and asset["state"] == "uploaded"
+                      and re.fullmatch(r"[0-9a-f]{64}", asset["sha256"]),
+                      "Invalid original asset snapshot.")
+              before[name] = asset
+              original_ids.add(asset["id"])
+              metadata = (asset["size"], asset["sha256"])
+              require(name not in expected or expected[name] == metadata,
+                      "Original asset conflicts with payload.")
+              expected[name] = metadata
+
+          prefix = "repos/" + repository
+
+          def api(endpoint, method="GET", *, data=None, arguments=(), absent=False, binary=False):
+              options = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "check": False}
+              if data is not None:
+                  options["input"] = json.dumps(data).encode()
+                  arguments = (*arguments, "--input", "-")
+              result = subprocess.run(
+                  ["timeout", "30s", "gh", "api", endpoint, "--method", method, *arguments],
+                  **options,
+              )
+              if absent and result.returncode and b"HTTP 404" in result.stderr:
+                  return None
+              require(result.returncode == 0, "GitHub API request failed: " + endpoint)
+              return result.stdout if binary else json.loads(result.stdout)
+
+          def check_source():
+              repo = api(prefix)
+              require(repo["full_name"] == repository and repo["default_branch"] == "main",
+                      "Repository identity changed.")
+              require(api(prefix + "/branches/main")["commit"]["sha"] == source_sha,
+                      "Trusted default branch source changed.")
+              ref = api(prefix + "/git/ref/tags/" + quote(tag, safe=""))
+              require(ref["ref"] == "refs/tags/" + tag and ref["object"]["type"] == "tag"
+                      and ref["object"]["sha"] == candidate["tagObject"], "Historical tag changed.")
+              obj = api(prefix + "/git/tags/" + candidate["tagObject"])
+              require(obj["sha"] == candidate["tagObject"] and obj["tag"] == tag
+                      and obj["object"]["type"] == "commit"
+                      and obj["object"]["sha"] == candidate["commit"],
+                      "Historical tag target changed.")
+              commit = api(prefix + "/git/commits/" + candidate["commit"])
+              require(commit["sha"] == candidate["commit"] and commit["tree"]["sha"] == candidate["tree"],
+                      "Historical source tree changed.")
+
+          def check_latest():
+              latest = api(prefix + "/releases/latest")
+              require({"id": latest["id"], "tag": latest["tag_name"]} == candidate["latestBefore"],
+                      "Latest release changed.")
+
+          check_source()
+          check_latest()
+          qualifications = {
+              (qualification["runId"], qualification["runAttempt"]),
+              (int(os.environ["CURRENT_RUN_ID"]), int(os.environ["CURRENT_RUN_ATTEMPT"])),
+          }
+          for run_id, attempt in sorted(qualifications):
+              run_path = prefix + f"/actions/runs/{run_id}/attempts/{attempt}"
+              run = api(run_path)
+              require(run["id"] == run_id and run["run_attempt"] == attempt
+                      and run["head_sha"] == source_sha and run["event"] == "workflow_dispatch"
+                      and run["path"] == ".github/workflows/historical-release-repair.yml"
+                      and run["repository"]["full_name"] == repository,
+                      "Qualification workflow identity changed.")
+              jobs = api(run_path + "/jobs?per_page=100")
+              require(jobs["total_count"] == len(jobs["jobs"]), "Qualification jobs response is truncated.")
+              matches = [job for job in jobs["jobs"] if job["name"] == "Qualify historical candidate"]
+              require(len(matches) == 1 and matches[0]["status"] == "completed"
+                      and matches[0]["conclusion"] == "success", "Qualification job has not succeeded.")
+
+          original = candidate["releaseBefore"]
+          profile_ids = {
+              "v2.0.1": 357402329, "v2.1.0": 362702751,
+              "v2.8.0": 383049548, "v2.11.0": 388017021,
+          }
+          require((original is None and tag not in profile_ids)
+                  or (original is not None and original["id"] == profile_ids.get(tag)),
+                  "Historical release snapshot does not match the closed repair profile.")
+
+          def read_release():
+              if original is not None:
+                  return api(prefix + f"/releases/{original['id']}")
+              # The tag endpoint omits drafts; list all accessible releases before creation.
+              matches = []
+              page = 1
+              while True:
+                  batch = api(prefix + f"/releases?per_page=100&page={page}")
+                  matches.extend(release for release in batch if release["tag_name"] == tag)
+                  if len(batch) < 100:
+                      break
+                  page += 1
+              require(len(matches) <= 1, "Duplicate releases exist for the historical tag.")
+              return matches[0] if matches else None
+
+          release = read_release()
+          identity_keys = ("id", "tag_name", "draft", "prerelease", "published_at", "updated_at", "body")
+
+          def same_snapshot(current, snapshot):
+              return all(current.get(key) == snapshot.get(key) for key in identity_keys)
+
+          def same_release_fields(current, snapshot):
+              return all(current.get(key) == snapshot.get(key)
+                         for key in identity_keys if key != "updated_at")
+
+          def final_release(current):
+              return (current["tag_name"] == tag and current["draft"] is False
+                      and current["prerelease"] is False and current.get("published_at")
+                      and current.get("body") == candidate["notes"])
+
+          if original is not None:
+              require(release is not None and release["id"] == original["id"]
+                      and (same_release_fields(release, original) or final_release(release)),
+                      "Historical release identity or snapshot changed.")
+          elif release is not None:
+              require(final_release(release) and release["name"] == tag,
+                      "Unexpected release appeared before repair.")
+
+          def check_assets(current, *, complete):
+              if current is None:
+                  require(not before, "Original assets have no release.")
+                  return {}
+              assets = []
+              page = 1
+              while True:
+                  batch = api(prefix + f"/releases/{current['id']}/assets?per_page=100&page={page}")
+                  assets.extend(batch)
+                  if len(batch) < 100:
+                      break
+                  page += 1
+              found = {}
+              for asset in assets:
+                  name = asset["name"]
+                  require(name in expected and name not in found and asset["state"] == "uploaded",
+                          "Unexpected, duplicate, or incomplete remote asset.")
+                  size, digest = expected[name]
+                  require(asset["size"] == size, "Remote asset size changed.")
+                  require(not asset.get("digest") or asset["digest"] == "sha256:" + digest,
+                          "Remote asset digest changed.")
+                  if name in before:
+                      require(asset["id"] == before[name]["id"], "Original asset ID changed.")
+                  content = api(prefix + f"/releases/assets/{asset['id']}", binary=True,
+                                arguments=("-H", "Accept: application/octet-stream"))
+                  require(len(content) == size and hashlib.sha256(content).hexdigest() == digest,
+                          "Remote asset bytes changed.")
+                  found[name] = asset
+              require(set(before).issubset(found), "Original release asset disappeared.")
+              require(not complete or set(found) == set(expected), "Remote payload is incomplete.")
+              return found
+
+          found = check_assets(release, complete=False)
+          if original is not None and release is not None and not final_release(release):
+              # GitHub updates the release timestamp when uploading an approved asset.
+              progress = set(found) - set(before)
+              require(release["updated_at"] == original["updated_at"] or bool(progress),
+                      "Release timestamp changed without approved repair progress.")
+          if release is not None and final_release(release):
+              require(set(found) == set(expected) or original is None,
+                      "Release state changed before all assets were verified.")
+          check_source()
+          check_latest()
+          refreshed = read_release()
+          require((release is None and refreshed is None)
+                  or (release is not None and refreshed is not None
+                      and same_snapshot(refreshed, release)),
+                  "Release changed before repair mutations.")
+          if release is None:
+              release = api(prefix + "/releases", "POST", data={
+                  "tag_name": tag, "name": tag, "body": candidate["notes"],
+                  "draft": False, "prerelease": False, "make_latest": "false",
+              })
+              require(final_release(release), "Created release identity is unexpected.")
+          baseline = dict(release)
+          uploaded_names = set()
+          for entry in candidate["payload"]:
+              if entry["name"] in found:
+                  continue
+              uploaded = api(
+                  f"https://uploads.github.com/{prefix}/releases/{release['id']}/assets?name="
+                  + quote(entry["name"], safe=""), "POST",
+                  arguments=("-H", "Content-Type: application/octet-stream",
+                             "--input", str(payload / entry["name"])))
+              require(uploaded["name"] == entry["name"], "Upload response name changed.")
+              found[entry["name"]] = uploaded
+              uploaded_names.add(entry["name"])
+          verified = check_assets(release, complete=True)
+          for name, asset in found.items():
+              require(verified[name]["id"] == asset["id"], "Asset ID changed during repair.")
+          check_source()
+          check_latest()
+          current = api(prefix + f"/releases/{release['id']}")
+          require(same_release_fields(current, baseline)
+                  and (current["updated_at"] == baseline["updated_at"] or bool(uploaded_names)),
+                  "Release changed during repair.")
+          if not final_release(current):
+              current = api(prefix + f"/releases/{release['id']}", "PATCH", data={
+                  "body": candidate["notes"], "draft": False,
+                  "prerelease": False, "make_latest": "false",
+              })
+          require(current["id"] == release["id"] and final_release(current),
+                  "Final historical release state is invalid.")
+          final_assets = check_assets(current, complete=True)
+          require(all(final_assets[name]["id"] == asset["id"] for name, asset in verified.items()),
+                  "Asset ID changed after promotion.")
+          check_latest()
+          print("Historical repair payload verified; original assets and latest preserved.")
