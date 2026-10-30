@@ -167,7 +167,7 @@ jobs:
           git cat-file -e "$BEFORE_SHA^{commit}"
       - name: Set up Python
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
           cache: pip
@@ -282,7 +282,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.14'
           cache: pip
@@ -390,7 +390,7 @@ jobs:
       - name: Set up Python
         if: env.VERIFY_REUSE == 'true'
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
           cache: pip
@@ -476,7 +476,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
           cache: pip
@@ -580,7 +580,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.14'
           cache: pip
@@ -731,7 +731,7 @@ jobs:
       - name: Set up Python
         if: needs.quality-linux.outputs.scope == 'source'
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
           cache: pip
@@ -885,7 +885,7 @@ jobs:
       - name: Set up Python
         id: python-runtime
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -1013,7 +1013,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$AUDIT_COMMIT_SHA"
       - name: Set up Python
         # actions/setup-python@v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
           cache: pip
