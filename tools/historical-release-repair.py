@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,17 @@ RELEASE_IDS = {
     "v2.8.0": 383049548,
     "v2.11.0": 388017021,
 }
+DRAFT_TAG = "v2.8.0"
+DRAFT_ENDPOINT = f"repos/{REPOSITORY}/releases/{RELEASE_IDS[DRAFT_TAG]}"
+RELEASE_STATE_FIELDS = (
+    "id",
+    "tag_name",
+    "draft",
+    "prerelease",
+    "published_at",
+    "updated_at",
+    "body",
+)
 FAILED_RUNS = {"v2.0.1": 29838636736, "v2.8.0": 33926454048, "v2.11.0": 34779306282}
 RULE_FILES = (
     "AGENTS.md",
@@ -605,21 +617,117 @@ def release_snapshot(
     if not baseline_names.issubset(content):
         raise RepairError("Historical existing assets are missing")
     return (
-        {
-            key: release[key]
-            for key in (
-                "id",
-                "tag_name",
-                "draft",
-                "prerelease",
-                "published_at",
-                "updated_at",
-                "body",
-            )
-        },
+        {key: release[key] for key in RELEASE_STATE_FIELDS},
         sorted(assets, key=lambda asset: asset["name"]),
         content,
     )
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise RepairError(f"Duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def read_json_file(path: Path) -> Any:
+    return json.loads(path.read_bytes(), object_pairs_hook=_unique_json_object)
+
+
+def validate_utc_timestamp(value: Any, description: str) -> None:
+    if not isinstance(value, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", value
+    ):
+        raise RepairError(f"{description} requires a UTC timestamp")
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise RepairError(f"{description} timestamp is invalid") from error
+
+
+def validate_release_observation(value: Any, tag: str) -> None:
+    if (
+        tag != DRAFT_TAG
+        or not isinstance(value, dict)
+        or set(value)
+        != {
+            "schemaVersion",
+            "repository",
+            "method",
+            "endpoint",
+            "observedAt",
+            "provenance",
+            "releaseBefore",
+            "assetsBefore",
+        }
+    ):
+        raise RepairError("Invalid or unsupported draft release observation fields")
+    if (
+        type(value["schemaVersion"]) is not int
+        or value["schemaVersion"] != 1
+        or value["repository"] != REPOSITORY
+        or value["method"] != "GET"
+        or value["endpoint"] != DRAFT_ENDPOINT
+        or value["provenance"] != "operator-authenticated-get"
+    ):
+        raise RepairError("Draft release observation identity/provenance mismatch")
+    validate_utc_timestamp(value["observedAt"], "Draft release observation capture")
+    release = value["releaseBefore"]
+    if not isinstance(release, dict) or set(release) != set(RELEASE_STATE_FIELDS):
+        raise RepairError(
+            "Draft release observation must contain exactly seven API fields"
+        )
+    if (
+        type(release["id"]) is not int
+        or not isinstance(release["updated_at"], str)
+        or any(
+            release[key] is not None and not isinstance(release[key], str)
+            for key in ("published_at", "body")
+        )
+    ):
+        raise RepairError("Invalid draft release observation API field types")
+    validate_release_before(tag, release)
+    if (
+        release["draft"] is not True
+        or type(value["assetsBefore"]) is not list
+        or value["assetsBefore"]
+    ):
+        raise RepairError("Observation is limited to the known empty draft")
+
+
+def read_release_observation(path: Path, tag: str) -> dict[str, Any]:
+    observation = read_json_file(path)
+    validate_release_observation(observation, tag)
+    return observation
+
+
+def observe_draft(output: Path, *, api: Any = None) -> dict[str, Any]:
+    if output.exists() or output.is_symlink():
+        raise RepairError("Refusing preexisting draft observation output file")
+    release = (api or PublicAPI()).get(DRAFT_ENDPOINT)
+    if (
+        not isinstance(release, dict)
+        or not set(RELEASE_STATE_FIELDS).issubset(release)
+        or type(release.get("assets")) is not list
+        or release["assets"]
+    ):
+        raise RepairError("Capture is limited to the known empty draft metadata")
+    observation: dict[str, Any] = {
+        "schemaVersion": 1,
+        "repository": REPOSITORY,
+        "method": "GET",
+        "endpoint": DRAFT_ENDPOINT,
+        "observedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "provenance": "operator-authenticated-get",
+        "releaseBefore": {key: release[key] for key in RELEASE_STATE_FIELDS},
+        "assetsBefore": [],
+    }
+    validate_release_observation(observation, DRAFT_TAG)
+    with output.open("xb") as stream:
+        stream.write(json_bytes(observation))
+    return observation
 
 
 def powershell_paths(recipe: str, variable: str) -> list[str]:
@@ -1202,7 +1310,13 @@ def build_proof(
     transformations: list[dict[str, Any]],
     identity: dict[str, Any],
     run_identity: dict[str, Any] | None,
+    release_observation: dict[str, Any] | None = None,
+    prepared_at: str | None = None,
 ) -> dict[str, Any]:
+    if release_observation is not None:
+        validate_release_observation(release_observation, tag)
+    if prepared_at is not None:
+        validate_utc_timestamp(prepared_at, "Release preparation")
     package_name = asset_names(tag)[0]
     package = archives[package_name]
     validate_transformations(tag, transformations, read_archive(package))
@@ -1228,7 +1342,7 @@ def build_proof(
             archives["SHA256SUMS"],
             {name: data for name, data in archives.items() if name.endswith(".zip")},
         )
-    return {
+    proof = {
         "schemaVersion": 1,
         "repository": REPOSITORY,
         **identity,
@@ -1243,12 +1357,23 @@ def build_proof(
         else "Historical source recipe executed again; these new bytes are not a reconstruction of the original missing assets",
         "publication": {"draft": False, "prerelease": False, "make_latest": False},
     }
+    if release_observation is not None:
+        proof["releaseObservation"] = release_observation
+    if prepared_at is not None:
+        proof["preparedAt"] = prepared_at
+    return proof
 
 
-def notes_body(tag: str, previous: str | None, names: list[str]) -> str:
+def notes_body(
+    tag: str, previous: str | None, names: list[str], *, prepared_at: str | None = None
+) -> str:
+    if prepared_at is not None:
+        validate_utc_timestamp(prepared_at, "Release preparation")
     failed = FAILED_RUNS.get(tag)
     text = (
-        f"## Historical release repair\n\nSource: `{tag}` at `{TAGS[tag]}`.\n\n"
+        "## Historical release repair\n\n"
+        + (f"Prepared: {prepared_at}\n\n" if prepared_at is not None else "")
+        + f"Source: `{tag}` at `{TAGS[tag]}`.\n\n"
         + (
             "Existing release ZIP bytes and asset identities were preserved.\n\n"
             if tag in REUSED_TAGS
@@ -1266,14 +1391,31 @@ def notes_body(tag: str, previous: str | None, names: list[str]) -> str:
     return ((previous.rstrip() + "\n\n") if previous else "") + text
 
 
-def prepare(root: Path, tag: str, output: Path, *, api: Any = None) -> dict[str, Any]:
+def prepare(
+    root: Path,
+    tag: str,
+    output: Path,
+    *,
+    api: Any = None,
+    draft_release_snapshot: Path | None = None,
+) -> dict[str, Any]:
     root = root.resolve()
     output = output.resolve()
     if output.exists():
         raise RepairError("Refusing preexisting output directory")
+    release_observation = (
+        read_release_observation(draft_release_snapshot, tag)
+        if draft_release_snapshot is not None
+        else None
+    )
     identity = tag_identity(root, tag)
     api = api or PublicAPI()
-    release, existing, retained = release_snapshot(api, tag)
+    if release_observation is None:
+        release, existing, retained = release_snapshot(api, tag)
+    else:
+        release = release_observation["releaseBefore"]
+        existing = []
+        retained = {}
     if PROOF in retained:
         raise RepairError(
             "Release already has a historical repair proof; use its sealed original candidate"
@@ -1286,6 +1428,7 @@ def prepare(root: Path, tag: str, output: Path, *, api: Any = None) -> dict[str,
     if tag not in REUSED_TAGS and any(name.endswith(".zip") for name in retained):
         raise RepairError("Refusing to rebuild a release with preexisting ZIP assets")
     run_identity = qualification()
+    prepared_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     if tag in REUSED_TAGS:
         provenance = json.loads(read_archive(retained[names[0]])[PROVENANCE])[
             "agentRules"
@@ -1317,7 +1460,16 @@ def prepare(root: Path, tag: str, output: Path, *, api: Any = None) -> dict[str,
         (payload / "SHA256SUMS").write_bytes(sums)
         archives["SHA256SUMS"] = sums
     proof = build_proof(
-        root, tag, archives, upstream, rules, transformations, identity, run_identity
+        root,
+        tag,
+        archives,
+        upstream,
+        rules,
+        transformations,
+        identity,
+        run_identity,
+        release_observation=release_observation,
+        prepared_at=prepared_at,
     )
     (payload / PROOF).write_bytes(json_bytes(proof))
     candidate = {
@@ -1325,10 +1477,13 @@ def prepare(root: Path, tag: str, output: Path, *, api: Any = None) -> dict[str,
         "repository": REPOSITORY,
         **identity,
         "qualification": run_identity,
+        "preparedAt": prepared_at,
         "releaseBefore": release,
         "assetsBefore": existing,
         "latestBefore": latest_before,
-        "notes": notes_body(tag, release["body"] if release else None, names),
+        "notes": notes_body(
+            tag, release["body"] if release else None, names, prepared_at=prepared_at
+        ),
         "payload": [
             {
                 "name": path.name,
@@ -1338,6 +1493,8 @@ def prepare(root: Path, tag: str, output: Path, *, api: Any = None) -> dict[str,
             for path in sorted(payload.iterdir())
         ],
     }
+    if release_observation is not None:
+        candidate["releaseObservation"] = release_observation
     (output / "candidate.json").write_bytes(json_bytes(candidate))
     verify(root, output, api=api)
     return candidate
@@ -1360,10 +1517,26 @@ def regular_files(directory: Path, names: set[str]) -> dict[str, bytes]:
 def verify(root: Path, bundle: Path, *, api: Any = None) -> dict[str, Any]:
     if bundle.is_symlink() or (bundle / "candidate.json").is_symlink():
         raise RepairError("Bundle/candidate must not be a symlink")
-    candidate = json.loads((bundle / "candidate.json").read_bytes())
+    candidate = read_json_file(bundle / "candidate.json")
     if candidate["schemaVersion"] != 1 or candidate["repository"] != REPOSITORY:
         raise RepairError("Candidate schema/repository mismatch")
     tag = candidate["tag"]
+    prepared_at = candidate.get("preparedAt")
+    if "preparedAt" in candidate:
+        validate_utc_timestamp(prepared_at, "Release preparation")
+    elif candidate.get("qualification") is not None:
+        raise RepairError("Qualified candidate requires a preparation timestamp")
+    release_observation = candidate.get("releaseObservation")
+    if "releaseObservation" in candidate:
+        validate_release_observation(release_observation, tag)
+        if json_bytes(release_observation["releaseBefore"]) != json_bytes(
+            candidate["releaseBefore"]
+        ) or json_bytes(release_observation["assetsBefore"]) != json_bytes(
+            candidate["assetsBefore"]
+        ):
+            raise RepairError(
+                "Candidate state differs from the operator draft observation"
+            )
     validate_release_before(tag, candidate["releaseBefore"])
     identity = tag_identity(root, tag)
     if any(candidate[key] != value for key, value in identity.items()):
@@ -1413,7 +1586,11 @@ def verify(root: Path, bundle: Path, *, api: Any = None) -> dict[str, Any]:
             raise RepairError("Retained asset digest/identity mismatch")
     archives = {**retained, **payload}
     archives.pop(PROOF)
-    proof = json.loads(payload[PROOF])
+    proof = json.loads(payload[PROOF], object_pairs_hook=_unique_json_object)
+    if "releaseObservation" in proof:
+        validate_release_observation(proof["releaseObservation"], tag)
+    if "preparedAt" in proof:
+        validate_utc_timestamp(proof["preparedAt"], "Release preparation")
     if tag in REUSED_TAGS:
         agent = json.loads(read_archive(archives[asset_names(tag)[0]])[PROVENANCE])[
             "agentRules"
@@ -1432,6 +1609,8 @@ def verify(root: Path, bundle: Path, *, api: Any = None) -> dict[str, Any]:
         proof["transformations"],
         identity,
         candidate["qualification"],
+        release_observation=release_observation,
+        prepared_at=prepared_at,
     )
     if proof != rebuilt:
         raise RepairError("Historical repair proof source/inventory mismatch")
@@ -1439,6 +1618,7 @@ def verify(root: Path, bundle: Path, *, api: Any = None) -> dict[str, Any]:
         tag,
         candidate["releaseBefore"]["body"] if candidate["releaseBefore"] else None,
         asset_names(tag),
+        prepared_at=prepared_at,
     ):
         raise RepairError("Candidate final notes mismatch")
     return candidate
@@ -1451,13 +1631,27 @@ def main(argv: list[str] | None = None) -> int:
     prepare_parser.add_argument("--repository-root", type=Path, required=True)
     prepare_parser.add_argument("--tag", choices=sorted(TAGS), required=True)
     prepare_parser.add_argument("--output-dir", type=Path, required=True)
+    prepare_parser.add_argument("--draft-release-snapshot", type=Path)
     verify_parser = commands.add_parser("verify")
     verify_parser.add_argument("--repository-root", type=Path, required=True)
     verify_parser.add_argument("--bundle-dir", type=Path, required=True)
+    observe_parser = commands.add_parser("observe-draft")
+    observe_parser.add_argument("--output-file", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == "observe-draft":
+            observation = observe_draft(args.output_file)
+            print(
+                json.dumps({"tag": DRAFT_TAG, "observedAt": observation["observedAt"]})
+            )
+            return 0
         if args.command == "prepare":
-            candidate = prepare(args.repository_root, args.tag, args.output_dir)
+            candidate = prepare(
+                args.repository_root,
+                args.tag,
+                args.output_dir,
+                draft_release_snapshot=args.draft_release_snapshot,
+            )
         else:
             candidate = verify(args.repository_root, args.bundle_dir)
         print(

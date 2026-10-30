@@ -129,6 +129,10 @@ elif endpoint.startswith(prefix + "/releases/"):
     else:
         assert release is not None and endpoint == prefix + f"/releases/{release['id']}"
     state["release_reads"] = state.get("release_reads", 0) + 1
+    if state.get("deny_release_get"):
+        path.write_text(json.dumps(state))
+        sys.stderr.write("Resource not accessible by integration (HTTP 403)")
+        sys.exit(1)
     if state.get("change_release_after") == state["release_reads"]:
         release["body"] = "concurrently changed"
     if release is None or not_found:
@@ -297,6 +301,207 @@ class HistoricalPublicationTests(unittest.TestCase):
 
     def mutations(self):
         return [entry for entry in self.state["trace"] if entry[0] != "GET"]
+
+    def observe_draft(self):
+        self.candidate["releaseBefore"] = {
+            key: self.candidate["releaseBefore"][key]
+            for key in (
+                "id",
+                "tag_name",
+                "draft",
+                "prerelease",
+                "published_at",
+                "updated_at",
+                "body",
+            )
+        }
+        observation = {
+            "schemaVersion": 1,
+            "repository": REPOSITORY,
+            "method": "GET",
+            "endpoint": f"repos/{REPOSITORY}/releases/383049548",
+            "observedAt": "2026-10-30T02:40:00Z",
+            "provenance": "operator-authenticated-get",
+            "releaseBefore": copy.deepcopy(self.candidate["releaseBefore"]),
+            "assetsBefore": [],
+        }
+        self.candidate["releaseObservation"] = observation
+        self.proof["releaseObservation"] = copy.deepcopy(observation)
+        self.write_proof()
+
+    def write_proof(self):
+        content = json.dumps(self.proof).encode()
+        (self.payload / "historical-repair-proof.json").write_bytes(content)
+        record = next(
+            entry
+            for entry in self.candidate["payload"]
+            if entry["name"] == "historical-repair-proof.json"
+        )
+        record.update(size=len(content), sha256=hashlib.sha256(content).hexdigest())
+
+    def test_observation_and_proof_must_agree_before_publication(self):
+        for change in (
+            "changed",
+            "missing",
+            "missing_candidate",
+            "snapshot",
+            "schema_bool",
+            "schema_float",
+            "draft_number",
+            "proof_float_id",
+            "candidate_float_id",
+            "prepared_date_changed",
+            "prepared_date_missing_candidate",
+            "prepared_date_missing_proof",
+            "prepared_date_type",
+        ):
+            with self.subTest(change=change):
+                self.configure("v2.8.0")
+                self.observe_draft()
+                self.candidate["preparedAt"] = "2026-10-30T03:26:44Z"
+                self.proof["preparedAt"] = self.candidate["preparedAt"]
+                if change == "changed":
+                    self.proof["releaseObservation"]["observedAt"] = (
+                        "2026-10-30T02:41:00Z"
+                    )
+                elif change == "missing":
+                    del self.proof["releaseObservation"]
+                elif change == "missing_candidate":
+                    del self.candidate["releaseObservation"]
+                elif change == "schema_bool":
+                    self.proof["releaseObservation"]["schemaVersion"] = True
+                elif change == "schema_float":
+                    self.proof["releaseObservation"]["schemaVersion"] = 1.0
+                elif change == "draft_number":
+                    self.proof["releaseObservation"]["releaseBefore"]["draft"] = 1
+                elif change == "proof_float_id":
+                    self.proof["releaseObservation"]["releaseBefore"]["id"] = (
+                        383049548.0
+                    )
+                elif change == "candidate_float_id":
+                    self.candidate["releaseBefore"]["id"] = 383049548.0
+                elif change == "prepared_date_changed":
+                    self.proof["preparedAt"] = "2026-10-30T03:26:45Z"
+                elif change == "prepared_date_missing_candidate":
+                    del self.candidate["preparedAt"]
+                elif change == "prepared_date_missing_proof":
+                    del self.proof["preparedAt"]
+                elif change == "prepared_date_type":
+                    self.candidate["preparedAt"] = True
+                    self.proof["preparedAt"] = True
+                else:
+                    self.proof["releaseObservation"]["releaseBefore"]["body"] = (
+                        "different"
+                    )
+                    self.candidate["releaseObservation"] = copy.deepcopy(
+                        self.proof["releaseObservation"]
+                    )
+                self.write_proof()
+                self.assertNotEqual(self.invoke().returncode, 0)
+                self.assertEqual(self.mutations(), [])
+
+    def test_observation_never_replaces_live_release_get_or_second_check(self):
+        for change in ("403", "body", "updated_at", "assets", "second_check", "valid"):
+            with self.subTest(change=change):
+                self.configure("v2.8.0")
+                self.observe_draft()
+                self.candidate["preparedAt"] = "2026-10-30T03:26:44Z"
+                self.proof["preparedAt"] = self.candidate["preparedAt"]
+                self.write_proof()
+                if change == "403":
+                    self.state["deny_release_get"] = True
+                elif change in ("body", "updated_at"):
+                    self.state["release"][change] = "changed"
+                elif change == "assets":
+                    self.state["assets"] = [self.asset(list(self.content)[1], 500)]
+                    self.state["assets"][0]["name"] = "unexpected.zip"
+                elif change == "second_check":
+                    self.state["change_release_after"] = 2
+                result = self.invoke()
+                self.assertEqual(
+                    result.returncode == 0, change == "valid", result.stderr
+                )
+                self.assertIn(
+                    ["GET", f"repos/{REPOSITORY}/releases/383049548"],
+                    self.state["trace"],
+                )
+                if change != "valid":
+                    self.assertEqual(self.mutations(), [])
+
+    def test_observation_input_is_data_and_restricted_to_readonly_v280(self):
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/historical-release-repair.yml").read_text()
+        )
+        step = next(
+            (
+                step
+                for step in workflow["jobs"]["qualification"]["steps"]
+                if step.get("name") == "Validate repair inputs"
+            ),
+            None,
+        )
+        self.assertIsNotNone(
+            step, "Workflow must validate the observation input before preparation"
+        )
+        self.observe_draft()
+        observation = copy.deepcopy(self.candidate["releaseObservation"])
+        observation["releaseBefore"]["body"] = (
+            'literal $(touch owned) `touch owned`; "quoted"\nsecond line'
+        )
+        raw = json.dumps(observation, indent=2, ensure_ascii=False)
+        cases = (
+            ("v2.8.0", "false", "", False),
+            ("v2.1.0", "false", raw, False),
+            ("v2.8.0", "true", raw, False),
+            ("v2.8.0", "false", '{"id":1,"id":2}', False),
+            ("v2.8.0", "false", '{"releaseBefore":{"body":"a","body":"b"}}', False),
+            ("v2.8.0", "false", "[]", False),
+            ("v2.8.0", "false", "broken JSON", False),
+            ("v2.1.0", "false", "", True),
+            ("v2.8.0", "true", "", True),
+            ("v2.8.0", "false", raw, True),
+        )
+        for tag, publish, content, expected in cases:
+            with (
+                self.subTest(tag=tag, publish=publish, content=content),
+                tempfile.TemporaryDirectory(dir=self.root) as folder,
+            ):
+                directory = Path(folder)
+                (directory / "input.py").write_text(step["run"], encoding="utf-8")
+                (directory / "runner.py").write_text(API_RUNNER, encoding="utf-8")
+                (directory / "gh.py").write_text(
+                    "raise AssertionError('Input validation must not call API')",
+                    encoding="utf-8",
+                )
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(directory / "runner.py"),
+                        str(directory / "gh.py"),
+                        str(directory / "input.py"),
+                    ],
+                    env=dict(
+                        isolated_environment(directory),
+                        INPUT_TAG=tag,
+                        INPUT_PUBLISH=publish,
+                        DRAFT_RELEASE_SNAPSHOT=content,
+                        RUNNER_TEMP=str(directory),
+                        GITHUB_OUTPUT=str(directory / "outputs"),
+                    ),
+                    cwd=directory,
+                    text=True,
+                    capture_output=True,
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(result.returncode == 0, expected, result.stderr)
+                snapshot = directory / "historical-draft-release-observation.json"
+                self.assertEqual(snapshot.exists(), expected and bool(content))
+                if snapshot.exists():
+                    self.assertEqual(snapshot.read_bytes(), content.encode("utf-8"))
+                    self.assertIn(str(snapshot), (directory / "outputs").read_text())
+                self.assertFalse((directory / "owned").exists())
 
     def test_draft_release_is_selected_by_original_id_when_tag_route_hides_it(self):
         result = self.invoke()

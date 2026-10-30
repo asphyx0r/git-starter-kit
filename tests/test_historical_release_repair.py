@@ -12,6 +12,8 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -74,6 +76,346 @@ class HistoricalRepairTests(unittest.TestCase):
         self.git("commit", "-qm", "fixture")
         self.git("tag", "-a", "v2.0.1", "-m", "fixture tag")
         return self.git("rev-parse", "HEAD")
+
+    def draft_observation(self):
+        return {
+            "schemaVersion": 1,
+            "repository": "asphyx0r/git-starter-kit",
+            "method": "GET",
+            "endpoint": "repos/asphyx0r/git-starter-kit/releases/383049548",
+            "observedAt": "2026-10-30T10:00:00Z",
+            "provenance": "operator-authenticated-get",
+            "releaseBefore": {
+                "id": 383049548,
+                "tag_name": "v2.8.0",
+                "draft": True,
+                "prerelease": True,
+                "published_at": None,
+                "updated_at": "2026-09-24T22:21:37Z",
+                "body": "Original operator-observed notes",
+            },
+            "assetsBefore": [],
+        }
+
+    def test_draft_observation_schema_is_closed_and_preserves_nullable_api_values(self):
+        self.assertTrue(
+            hasattr(self.driver, "validate_release_observation"),
+            "closed observation validator is missing",
+        )
+        observation = self.draft_observation()
+        self.driver.validate_release_observation(observation, "v2.8.0")
+        nullable = copy.deepcopy(observation)
+        nullable["releaseBefore"].update(
+            {"body": None, "published_at": "2026-09-04T22:39:48Z"}
+        )
+        self.driver.validate_release_observation(nullable, "v2.8.0")
+        self.assertIsNone(nullable["releaseBefore"]["body"])
+        self.assertEqual(
+            observation["releaseBefore"]["body"], "Original operator-observed notes"
+        )
+        invalid = []
+        for changed in [
+            {"schemaVersion": True},
+            {"schemaVersion": 2},
+            {"repository": "other/repo"},
+            {"method": "POST"},
+            {"endpoint": "repos/asphyx0r/git-starter-kit/releases/388017021"},
+            {"provenance": "ci-live-get"},
+            {"observedAt": "2026-02-30T10:00:00Z"},
+            {"observedAt": "2026-10-30T10:00:00+01:00"},
+            {"observedAt": None},
+            {"assetsBefore": [{}]},
+            {"assetsBefore": {}},
+            {"unexpected": 1},
+        ]:
+            invalid.append({**copy.deepcopy(observation), **changed})
+        missing = copy.deepcopy(observation)
+        del missing["observedAt"]
+        invalid.append(missing)
+        for changed in [
+            {"id": 388017021},
+            {"id": True},
+            {"tag_name": "v2.11.0"},
+            {"draft": False},
+            {"draft": 1},
+            {"prerelease": 1},
+            {"published_at": 1},
+            {"updated_at": None},
+            {"body": {}},
+            {"unexpected": 1},
+        ]:
+            changed_observation = copy.deepcopy(observation)
+            changed_observation["releaseBefore"].update(changed)
+            invalid.append(changed_observation)
+        for value in invalid + [None, [], {**observation, "releaseBefore": None}]:
+            with (
+                self.subTest(observation=value),
+                self.assertRaises(self.driver.RepairError),
+            ):
+                self.driver.validate_release_observation(value, "v2.8.0")
+        with self.assertRaises(self.driver.RepairError):
+            self.driver.validate_release_observation(observation, "v2.11.0")
+
+    def test_observe_draft_cli_captures_real_get_without_printing_body_or_overwriting(
+        self,
+    ):
+        output = self.root / "draft.json"
+        observation = self.draft_observation()
+        release = {**observation["releaseBefore"], "assets": []}
+
+        def network(command, **options):
+            self.assertEqual(command[:4], ["gh", "api", "--method", "GET"])
+            self.assertEqual(command[-1], observation["endpoint"])
+            return subprocess.CompletedProcess(
+                command, 0, json.dumps(release).encode(), b""
+            )
+
+        start = datetime.now(UTC).replace(microsecond=0)
+        stdout = io.StringIO()
+        with (
+            patch.object(self.driver.subprocess, "run", side_effect=network),
+            redirect_stdout(stdout),
+        ):
+            try:
+                status = self.driver.main(
+                    ["observe-draft", "--output-file", str(output)]
+                )
+            except SystemExit as error:
+                self.fail(f"Draft capture CLI is missing: {error}")
+        self.assertEqual(status, 0)
+        captured = json.loads(output.read_bytes())
+        self.assertEqual(set(captured), set(observation))
+        self.assertEqual(captured["releaseBefore"], observation["releaseBefore"])
+        self.assertEqual(captured["assetsBefore"], [])
+        self.assertEqual(captured["provenance"], "operator-authenticated-get")
+        self.assertTrue(
+            start
+            <= datetime.fromisoformat(captured["observedAt"].replace("Z", "+00:00"))
+            <= datetime.now(UTC)
+        )
+        self.assertNotIn(release["body"], stdout.getvalue())
+        before = output.read_bytes()
+        with (
+            patch.object(
+                self.driver.subprocess,
+                "run",
+                side_effect=AssertionError("Existing output must not trigger network"),
+            ),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(
+                self.driver.main(["observe-draft", "--output-file", str(output)]), 1
+            )
+        self.assertEqual(output.read_bytes(), before)
+
+    def test_draft_capture_preserves_http403_and_refuses_nonempty_or_published_state(
+        self,
+    ):
+        self.assertTrue(
+            hasattr(self.driver, "observe_draft"), "draft capture helper is missing"
+        )
+        output = self.root / "draft.json"
+        denied = subprocess.CompletedProcess(
+            ["gh"], 1, b"", b"HTTP 403: resource not accessible"
+        )
+        with patch.object(self.driver.subprocess, "run", return_value=denied):
+            with self.assertRaisesRegex(self.driver.RepairError, "403"):
+                self.driver.observe_draft(output)
+        self.assertFalse(output.exists())
+        observation = self.draft_observation()
+        for release in [
+            {**observation["releaseBefore"], "draft": False, "assets": []},
+            {
+                **observation["releaseBefore"],
+                "assets": [
+                    {
+                        "id": 10,
+                        "name": "existing.zip",
+                        "size": 1,
+                        "state": "uploaded",
+                        "digest": None,
+                    }
+                ],
+            },
+        ]:
+            with (
+                self.subTest(release=release),
+                self.assertRaises(self.driver.RepairError),
+            ):
+                self.driver.observe_draft(
+                    output,
+                    api=ReadOnlyAPI({observation["endpoint"]: release}, {10: b"x"}),
+                )
+            self.assertFalse(output.exists())
+
+    def test_draft_observation_reader_rejects_duplicate_keys_at_both_levels(self):
+        self.assertTrue(
+            hasattr(self.driver, "read_release_observation"),
+            "observation reader is missing",
+        )
+        output = self.root / "draft.json"
+        content = json.dumps(self.draft_observation())
+        for invalid in [
+            content.replace(
+                '"schemaVersion": 1', '"schemaVersion": 1, "schemaVersion": 1'
+            ),
+            content.replace('"draft": true', '"draft": true, "draft": true'),
+        ]:
+            output.write_text(invalid, encoding="utf-8")
+            with self.assertRaisesRegex(self.driver.RepairError, "[Dd]uplicate"):
+                self.driver.read_release_observation(output, "v2.8.0")
+
+    def test_draft_capture_rejects_assets_before_any_download(self):
+        self.assertTrue(
+            hasattr(self.driver, "observe_draft"), "draft capture helper is missing"
+        )
+        observation = self.draft_observation()
+        content = archive_bytes({"file": b"existing"})
+        asset = {
+            "id": 10,
+            "name": "existing.zip",
+            "size": len(content),
+            "state": "uploaded",
+            "digest": "sha256:" + hashlib.sha256(content).hexdigest(),
+        }
+        release = {**observation["releaseBefore"], "assets": [asset]}
+
+        class MetadataOnlyAPI(ReadOnlyAPI):
+            def download(self, asset_id):
+                raise AssertionError("Draft capture must never download assets")
+
+        output = self.root / "draft.json"
+        with self.assertRaisesRegex(self.driver.RepairError, "empty draft"):
+            self.driver.observe_draft(
+                output,
+                api=MetadataOnlyAPI({observation["endpoint"]: release}),
+            )
+        self.assertFalse(output.exists())
+
+    def test_draft_capture_preserves_a_file_created_during_the_get(self):
+        output = self.root / "draft.json"
+        observation = self.draft_observation()
+        release = {**observation["releaseBefore"], "assets": []}
+
+        class RacingAPI(ReadOnlyAPI):
+            def get(self, path):
+                output.write_bytes(b"another writer owns this file")
+                return super().get(path)
+
+        with self.assertRaises(FileExistsError):
+            self.driver.observe_draft(
+                output, api=RacingAPI({observation["endpoint"]: release})
+            )
+        self.assertEqual(output.read_bytes(), b"another writer owns this file")
+
+    def test_operator_observation_rejects_other_prepare_profiles(self):
+        snapshot = self.root / "observation.json"
+        snapshot.write_text(json.dumps(self.draft_observation()), encoding="utf-8")
+        output = self.root / "forbidden"
+        try:
+            with self.assertRaises(self.driver.RepairError):
+                self.driver.prepare(
+                    SCRIPT.parents[1],
+                    "v2.11.0",
+                    output,
+                    api=ReadOnlyAPI({}),
+                    draft_release_snapshot=snapshot,
+                )
+        except TypeError as error:
+            self.fail(f"Observation prepare interface is missing: {error}")
+        self.assertFalse(output.exists())
+
+    def test_verify_rejects_coerced_candidate_state_before_source_lookup(self):
+        observation = self.draft_observation()
+        candidate = {
+            "schemaVersion": 1,
+            "repository": self.driver.REPOSITORY,
+            "tag": "v2.8.0",
+            "releaseObservation": observation,
+            "releaseBefore": copy.deepcopy(observation["releaseBefore"]),
+            "assetsBefore": [],
+        }
+        path = self.root / "candidate.json"
+        for field, value in [
+            ("id", 383049548.0),
+            ("draft", 1),
+            ("prerelease", 1),
+        ]:
+            changed = copy.deepcopy(candidate)
+            changed["releaseBefore"][field] = value
+            path.write_text(json.dumps(changed), encoding="utf-8")
+            with (
+                self.subTest(field=field),
+                patch.object(
+                    self.driver,
+                    "tag_identity",
+                    side_effect=AssertionError(
+                        "Observation mismatch must reject before source lookup"
+                    ),
+                ),
+                self.assertRaisesRegex(self.driver.RepairError, "observation"),
+            ):
+                self.driver.verify(self.root, self.root, api=ReadOnlyAPI({}))
+
+    def test_notes_use_the_sealed_preparation_timestamp_without_reading_the_clock(self):
+        prepared_at = "2026-10-30T03:26:44Z"
+        with patch.object(self.driver, "datetime", wraps=datetime) as clock:
+            clock.now.side_effect = AssertionError(
+                "Notes must use the sealed timestamp"
+            )
+            try:
+                notes = self.driver.notes_body(
+                    "v2.8.0",
+                    "Original notes",
+                    self.driver.asset_names("v2.8.0"),
+                    prepared_at=prepared_at,
+                )
+            except TypeError as error:
+                self.fail(f"Sealed preparation date interface is missing: {error}")
+        self.assertIn("## Historical release repair\n\nPrepared: " + prepared_at, notes)
+        self.assertTrue(notes.startswith("Original notes\n\n"))
+        for invalid in (True, "2026-02-30T03:26:44Z", "2026-10-30"):
+            with (
+                self.subTest(timestamp=invalid),
+                self.assertRaises(self.driver.RepairError),
+            ):
+                self.driver.notes_body(
+                    "v2.8.0",
+                    None,
+                    self.driver.asset_names("v2.8.0"),
+                    prepared_at=invalid,
+                )
+
+    def test_qualified_candidate_requires_preparation_timestamp_before_source_lookup(
+        self,
+    ):
+        observation = self.draft_observation()
+        candidate = {
+            "schemaVersion": 1,
+            "repository": self.driver.REPOSITORY,
+            "tag": "v2.8.0",
+            "releaseBefore": observation["releaseBefore"],
+            "assetsBefore": [],
+            "qualification": {
+                "runId": 1,
+                "runAttempt": 1,
+                "sourceSha": "a" * 40,
+            },
+        }
+        (self.root / "candidate.json").write_text(
+            json.dumps(candidate), encoding="utf-8"
+        )
+        with (
+            patch.object(
+                self.driver,
+                "tag_identity",
+                side_effect=AssertionError(
+                    "Missing timestamp must reject before source lookup"
+                ),
+            ),
+            self.assertRaisesRegex(self.driver.RepairError, "preparation timestamp"),
+        ):
+            self.driver.verify(self.root, self.root, api=ReadOnlyAPI({}))
 
     def public_rules_fixture(self):
         self.make_source()
@@ -890,6 +1232,10 @@ class HistoricalRepairTests(unittest.TestCase):
             candidate = self.driver.prepare(
                 self.root, "v2.0.1", bundle, api=PublicAPI()
             )
+            prepared_at = candidate["preparedAt"]
+            proof = json.loads((bundle / "payload" / self.driver.PROOF).read_bytes())
+            self.assertEqual(proof["preparedAt"], prepared_at)
+            self.assertIn(f"Prepared: {prepared_at}\n", candidate["notes"])
             self.assertEqual(
                 [row["name"] for row in candidate["payload"]],
                 ["historical-repair-proof.json"],
@@ -904,7 +1250,11 @@ class HistoricalRepairTests(unittest.TestCase):
                 for path in bundle.rglob("*")
                 if path.is_file()
             }
-            self.driver.verify(self.root, bundle, api=PublicAPI())
+            with patch.object(self.driver, "datetime", wraps=datetime) as clock:
+                clock.now.side_effect = AssertionError(
+                    "Verification must not read the clock"
+                )
+                self.driver.verify(self.root, bundle, api=PublicAPI())
             self.assertEqual(
                 before,
                 {

@@ -602,6 +602,40 @@ inventory corrects exactly 22 omissions while preserving and validating the
 existing internal manifest; that internal manifest is not repaired. This is
 not a general exception for incomplete manifests.
 
+Preparation captures one UTC `preparedAt` timestamp in the candidate and
+sidecar, and renders it as `Prepared:` in the repair notes. Verification uses
+that sealed value without consulting the clock. Every new CI candidate must
+include it; older local candidates with `qualification=null` retain their
+original undated rendering and cannot be published.
+
+The known empty `v2.8.0` draft may return HTTP 403 to read-only CI. Capture its
+actual state with `observe-draft --output-file FILE` using the operator's
+existing authenticated access. This command performs a real GET of release
+`383049548`, requires `draft=true` and no assets, and refuses to overwrite an
+existing output file. It changes no Git or release state. Without an explicit
+observation, preparation retains its normal GET and fails on HTTP 403.
+
+For the `v2.8.0` read-only workflow run, supply the captured JSON as
+`draft_release_snapshot`; this input is required for that preparation and is
+accepted only with `tag=v2.8.0` and `publish=false`. Local preparation accepts
+the file through `--draft-release-snapshot FILE` for the same tag only:
+
+```text
+python -B tools/historical-release-repair.py observe-draft --output-file FILE
+python -B tools/historical-release-repair.py prepare --repository-root PATH --tag v2.8.0 --output-dir DIR --draft-release-snapshot FILE
+```
+
+The optional `releaseObservation` in the candidate and sidecar identifies the
+operator-authenticated GET and its capture time. CI validates its closed format
+and exact agreement with the candidate's seven release fields and empty asset
+list, then seals it with the source/archive qualification. It does not claim
+that CI independently read the draft. Publication consumes only that reviewed
+sealed artifact; no fresh observation input is accepted during publication.
+The publisher must still GET the live release and compare all seven fields
+(`id`, `tag_name`, `draft`, `prerelease`, `published_at`, `updated_at`, `body`)
+and assets before any write, then repeat the identity/state check immediately
+before mutation. HTTP 403 or any drift blocks publication.
+
 1. Run `Historical release repair` from the trusted default branch with the
     selected tag and `publish=false` to obtain a reviewable candidate.
 2. Review all six candidates before enabling publication. Preparation and
@@ -609,7 +643,8 @@ not a general exception for incomplete manifests.
     credentials. Use the local commands below with actual paths and an
     allowlisted tag. `DIR` must not already exist for preparation. Local
     candidates without CI qualification remain unqualified for remote
-    publication.
+    publication. All six final CI candidates must use the final `v3.0.1` source;
+    earlier previews do not satisfy the final lot validation.
 3. Require successful preparation and verification before the isolated publish
     job may consume its sealed candidate. Set `publish=true` with
     `candidate_artifact_id` and `expected_candidate_sha256` identifying the

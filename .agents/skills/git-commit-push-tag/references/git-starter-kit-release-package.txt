@@ -197,6 +197,11 @@ EXCEPTION FERMÉE DE RÉPARATION HISTORIQUE
   et recette historiques exactes, avec les sept fichiers de règles complets
   v1.42.0 / 7cdf1cb2688813694c4982f909bf79be52880f22. Date honnêtement ces
   réparations ; ne prétends pas reproduire les octets originaux manquants.
+  La préparation capture une seule date UTC `preparedAt`, scellée dans le
+  candidat et la preuve puis affichée dans les notes. La vérification réutilise
+  cette valeur sans relire l'horloge. Elle est obligatoire pour les nouveaux
+  candidats CI ; les anciens candidats locaux non qualifiés restent exclus
+  de la publication.
   Les ZIP existants de v2.0.1 et v2.1.0 conservent leurs pins réels. Pour
   v2.1.0, l'inventaire externe exhaustif corrige exactement 22 omissions sans
   modifier son manifeste interne ; aucune dérogation générique n'est admise.
@@ -209,6 +214,19 @@ EXCEPTION FERMÉE DE RÉPARATION HISTORIQUE
   code téléchargé. Compare l'état distant frais avant toute mutation et
   reprends un candidat interrompu avec les mêmes octets qualifiés, sans
   suppression, remplacement ni clobber.
+- Pour le draft vide connu v2.8.0, capture un GET réellement authentifié avec
+  `observe-draft --output-file FILE`, puis fournis ce fichier à `prepare` via
+  `--draft-release-snapshot FILE`. La capture exige le draft 383049548 sans
+  asset et ne remplace aucun fichier existant. Sans observation explicite,
+  un HTTP 403 du GET normal reste bloquant. En CI, `draft_release_snapshot`
+  est requis pour cette préparation et accepté uniquement pour v2.8.0 avec
+  `publish=false`. Le champ optionnel `releaseObservation` du candidat et de
+  la preuve identifie l'observation opérateur ; ne prétends pas que la CI a lu
+  le draft. La publication consomme exclusivement l'artefact scellé examiné,
+  sans nouvelle observation en entrée. Elle conserve les GET réels et compare
+  les sept champs de release et les assets, puis répète le contrôle avant
+  toute écriture ; HTTP 403 ou dérive interdit toute mutation. Exige les six
+  candidats CI finaux issus de la source v3.0.1 finale et leur validation par lot.
 - Crée v1.7.3 et v2.2.0 ; réutilise le draft v2.8.0 ; promeus v2.0.1 et
   v2.11.0 ; maintiens v2.1.0 stable. Le résultat des six releases est publié
   stable avec `make_latest=false` ; v3.0.1 reste latest. Vérifie séparément le

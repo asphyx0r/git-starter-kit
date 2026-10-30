@@ -25,6 +25,9 @@ name: Historical release repair
       expected_candidate_sha256:
         description: Reviewed candidate.json SHA-256 (required to publish)
         type: string
+      draft_release_snapshot:
+        description: Operator-observed empty v2.8.0 draft JSON (dry run only)
+        type: string
 
 permissions:
   contents: read
@@ -49,6 +52,45 @@ jobs:
       origin_run_id: ${{ steps.seal.outputs.origin_run_id }}
       origin_run_attempt: ${{ steps.seal.outputs.origin_run_attempt }}
     steps:
+      - name: Validate repair inputs
+        id: observation
+        shell: python
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          DRAFT_RELEASE_SNAPSHOT: ${{ inputs.draft_release_snapshot }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          tag = os.environ["INPUT_TAG"]
+          publish = os.environ["INPUT_PUBLISH"]
+          raw = os.environ["DRAFT_RELEASE_SNAPSHOT"]
+          if publish not in {"true", "false"}:
+              raise SystemExit("Invalid publication input.")
+          if raw and (tag != "v2.8.0" or publish != "false"):
+              raise SystemExit("A draft observation is allowed only for a v2.8.0 dry run.")
+          if not raw and tag == "v2.8.0" and publish == "false":
+              raise SystemExit("The v2.8.0 dry run requires operator-observed draft JSON.")
+
+          def unique_object(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise SystemExit("Duplicate draft observation JSON key: " + key)
+                  result[key] = value
+              return result
+
+          if raw:
+              if not isinstance(json.loads(raw, object_pairs_hook=unique_object), dict):
+                  raise SystemExit("Draft observation JSON must be an object.")
+              path = Path(os.environ["RUNNER_TEMP"]) / "historical-draft-release-observation.json"
+              with path.open("x", encoding="utf-8", newline="") as output:
+                  output.write(raw)
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                  output.write(f"snapshot_path={path}\n")
+
       - name: Checkout trusted workflow source
         # actions/checkout@v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -91,12 +133,16 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           SOURCE_SHA: ${{ github.sha }}
           BUNDLE_DIR: ${{ runner.temp }}/historical-repair
+          DRAFT_RELEASE_SNAPSHOT_PATH: ${{ steps.observation.outputs.snapshot_path }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          python -B tools/historical-release-repair.py prepare \
-            --repository-root "$GITHUB_WORKSPACE" --tag "$RELEASE_TAG" \
-            --output-dir "$BUNDLE_DIR"
+          prepare_args=(--repository-root "$GITHUB_WORKSPACE" --tag "$RELEASE_TAG"
+            --output-dir "$BUNDLE_DIR")
+          if [[ -n "$DRAFT_RELEASE_SNAPSHOT_PATH" ]]; then
+            prepare_args+=(--draft-release-snapshot "$DRAFT_RELEASE_SNAPSHOT_PATH")
+          fi
+          python -B tools/historical-release-repair.py prepare "${prepare_args[@]}"
           python -B tools/historical-release-repair.py verify \
             --repository-root "$GITHUB_WORKSPACE" --bundle-dir "$BUNDLE_DIR"
 
@@ -283,6 +329,10 @@ jobs:
               if not condition:
                   raise SystemExit(message)
 
+          def same_json(left, right):
+              return (json.dumps(left, sort_keys=True, separators=(",", ":"), allow_nan=False)
+                      == json.dumps(right, sort_keys=True, separators=(",", ":"), allow_nan=False))
+
           def regular(path):
               require(not path.is_symlink() and stat.S_ISREG(path.lstat().st_mode),
                       "Sealed bundle requires regular files: " + str(path))
@@ -333,6 +383,19 @@ jobs:
           require("historical-repair-proof.json" in expected, "Missing historical repair proof.")
           proof = json.loads((payload / "historical-repair-proof.json").read_bytes())
           require(proof.get("qualification") == qualification, "Proof qualification changed.")
+          if "releaseObservation" in candidate or "releaseObservation" in proof:
+              observation = candidate.get("releaseObservation")
+              require(isinstance(observation, dict)
+                      and same_json(proof.get("releaseObservation"), observation)
+                      and tag == "v2.8.0"
+                      and same_json(observation.get("releaseBefore"), candidate["releaseBefore"])
+                      and same_json(observation.get("assetsBefore"), candidate["assetsBefore"])
+                      and candidate["assetsBefore"] == [],
+                      "Operator draft observation differs from the candidate or proof.")
+          if "preparedAt" in candidate or "preparedAt" in proof:
+              require(isinstance(candidate.get("preparedAt"), str)
+                      and same_json(candidate.get("preparedAt"), proof.get("preparedAt")),
+                      "Preparation timestamp differs from the candidate or proof.")
           before = {}
           original_ids = set()
           for asset in candidate["assetsBefore"]:
