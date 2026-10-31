@@ -148,6 +148,53 @@ class WorkflowContractTests(unittest.TestCase):
             "7ad442647b6214a8af3119e7a0b3a493d00e6fda43e43ad974fb5f768e9e7069",
         )
 
+    def test_eager_imports_keep_legacy_ast_fingerprint(self):
+        script = (
+            "python - <<'PY'\n"
+            "import os\n"
+            "import pathlib as paths\n"
+            "from pathlib import Path as File\n"
+            "from . import sibling\n"
+            "from ..helpers import check as guard\n"
+            "value = source\n"
+            "del value\n"
+            "[x for x in source]\n"
+            "flag = False\n"
+            "zero = 0\n"
+            "PY\n"
+        )
+        normalized = self.validator.normalize_script(script, "bash")
+        self.assertEqual(
+            hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
+            "41c38b5d8a764853f3a2b2eb8dd30b70a8af5328f104be74b9821463cb84b7bf",
+        )
+
+    def test_lazy_imports_cannot_replace_eager_imports(self):
+        if "is_lazy" not in self.validator.ast.Import._fields:
+            self.skipTest("lazy imports require Python 3.15")
+        cases = (
+            (
+                "lazy import os",
+                "14ed58f31361ceb434fdc2112069d5f8639a1b5dda863097e28e5a2d4acfd4d0",
+            ),
+            (
+                "lazy from pathlib import Path",
+                "64d817b8c8ae62129be158d2cbec9499da7bc973fb9c44bd168abf97dc8b1497",
+            ),
+            (
+                "lazy from . import sibling",
+                "59e8dc31cf80b12e6837a6ee99c674dee8acb7a9d35fbcb0e6859b3b4638d8cf",
+            ),
+        )
+        for source, legacy_digest in cases:
+            with self.subTest(source=source):
+                with self.assertRaises(self.validator.ContractError):
+                    self.validator.compare_contract(
+                        {"run": f"python - <<'PY'\n{source}\nPY\n", "shell": "bash"},
+                        {"run": f"sha256:{legacy_digest}", "shell": "bash"},
+                        "lazy import",
+                    )
+
     def test_audit_checks_exact_head_and_folded_project_results(self):
         workflow = self.read_workflow("repository-audit")
         self.assertIsNone(workflow["on"]["push"])

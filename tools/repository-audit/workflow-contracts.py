@@ -143,7 +143,7 @@ def normalize_script(script: str, shell: str) -> str:
             tree = ast.parse(match.group(1))
         except SyntaxError as error:
             raise ContractError(f"invalid embedded Python: {error.msg}") from error
-        # Empty AST fields have different dump defaults across supported Python versions.
+        # Keep the legacy AST form across supported Python versions.
         for node in ast.walk(tree):
             setattr(
                 node,
@@ -155,10 +155,17 @@ def normalize_script(script: str, shell: str) -> str:
                         isinstance(getattr(node, field, None), list)
                         and not getattr(node, field)
                     )
+                    and not (
+                        isinstance(node, (ast.Import, ast.ImportFrom))
+                        and field == "is_lazy"
+                        and getattr(node, field, None) == 0
+                    )
                 ),
             )
         # An opaque unquoted token keeps Python string contents out of shell lexing.
-        encoded_tree = ast.dump(tree, include_attributes=False).encode("utf-8").hex()
+        dump_options = {"show_empty": True} if sys.version_info >= (3, 15) else {}
+        dumped_tree = ast.dump(tree, include_attributes=False, **dump_options)
+        encoded_tree = dumped_tree.encode("utf-8").hex()
         return "<<'PY'\nPYTHON_AST_" + encoded_tree + "\nPY"
 
     script = re.sub(r"<<'PY'\n(.*?)\nPY(?=\n|$)", python_body, script, flags=re.DOTALL)
