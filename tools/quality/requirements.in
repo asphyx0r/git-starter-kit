@@ -1,7 +1,7 @@
 codespell==2.4.3
 coverage==7.16.2
 jsonschema[format]==4.26.0
-mypy==2.4.0
+mypy==2.4.1
 pip-audit==2.10.1
 PyYAML==6.0.3
 ruff==0.17.2
